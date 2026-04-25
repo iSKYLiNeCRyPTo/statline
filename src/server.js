@@ -73,9 +73,9 @@ async function loadMedalMeta() {
     const headers = getAuthHeaders();
     // Medal metadata with sprite sheet indices
     const urls = [
-      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/metadata.json',
-      'https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/Multiplayer/medals/metadata.json',
-      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/Metadata.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/Medals.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/metadata/multiplayer/medals.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/mapping.json',
     ];
     for (const url of urls) {
       try {
@@ -221,7 +221,7 @@ app.get('/api/matches', async (req, res) => {
 app.get('/api/medal-sheet', async (req, res) => {
   try {
     const headers = getAuthHeaders();
-    const sheetRes = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/images/medal_sheet_xl.png', { headers });
+    const sheetRes = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/medal-spritesheet.png', { headers });
     if (!sheetRes.ok) return res.status(sheetRes.status).send('Medal sheet unavailable');
     const buf = Buffer.from(await sheetRes.arrayBuffer());
     res.setHeader('Content-Type', 'image/png');
@@ -366,6 +366,87 @@ app.get('/api/emblem', async (req, res) => {
 });
 
 // Serve the SPA for all other routes
+
+// --- Xbox Live people search (gamertag autocomplete) ---
+let xblSuggestToken = null;
+let xblSuggestTokenExpiry = 0;
+
+async function getXblPeopleToken() {
+  if (xblSuggestToken && Date.now() < xblSuggestTokenExpiry) return xblSuggestToken;
+  const refreshToken = process.env.MS_REFRESH_TOKEN;
+  if (!refreshToken) return null;
+  try {
+    const https = require('https');
+    const post = (hostname, path, headers, body) => new Promise((resolve, reject) => {
+      const data = typeof body === 'string' ? body : JSON.stringify(body);
+      const req = https.request({ hostname, path, method: 'POST',
+        headers: { ...headers, 'Content-Length': Buffer.byteLength(data) }
+      }, res => { let raw = ''; res.on('data', c => raw += c); res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { resolve(raw); } }); });
+      req.on('error', reject);
+      req.write(data); req.end();
+    });
+    // Step 1: refresh MS access token
+    const CLIENT_ID = '000000004C12AE6F';
+    const REDIRECT  = 'https://login.live.com/oauth20_desktop.srf';
+    const SCOPE     = 'Xboxlive.signin Xboxlive.offline_access';
+    const msBody = `client_id=${CLIENT_ID}&refresh_token=${encodeURIComponent(refreshToken)}&grant_type=refresh_token&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(SCOPE)}`;
+    const msData = await post('login.live.com', '/oauth20_token.srf', { 'Content-Type': 'application/x-www-form-urlencoded' }, msBody);
+    if (!msData.access_token) return null;
+    // Step 2: XBL token
+    const xblData = await post('user.auth.xboxlive.com', '/user/authenticate',
+      { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      { Properties: { AuthMethod: 'RPS', SiteName: 'user.auth.xboxlive.com', RpsTicket: `d=${msData.access_token}` }, RelyingParty: 'http://auth.xboxlive.com', TokenType: 'JWT' }
+    );
+    if (!xblData.Token) return null;
+    // Step 3: XSTS with xboxlive.com relying party (for people search)
+    const xstsData = await post('xsts.auth.xboxlive.com', '/xsts/authorize',
+      { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      { Properties: { SandboxId: 'RETAIL', UserTokens: [xblData.Token] }, RelyingParty: 'http://xboxlive.com', TokenType: 'JWT' }
+    );
+    if (!xstsData.Token || !xstsData.DisplayClaims?.xui?.[0]?.uhs) return null;
+    const uhs = xstsData.DisplayClaims.xui[0].uhs;
+    xblSuggestToken = `XBL3.0 x=${uhs};${xstsData.Token}`;
+    xblSuggestTokenExpiry = Date.now() + 3.5 * 60 * 60 * 1000;
+    return xblSuggestToken;
+  } catch(e) {
+    console.error('[Suggest] Token error:', e.message);
+    return null;
+  }
+}
+
+app.get('/api/suggest', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q || q.length < 2) return res.json({ people: [] });
+  try {
+    const token = await getXblPeopleToken();
+    if (!token) return res.json({ people: [], error: 'no_token' });
+    const url = `https://peoplehub.xboxlive.com/users/me/people/search/decoration/detail,preferredColor?q=${encodeURIComponent(q)}&maxItems=8`;
+    const r = await fetch(url, {
+      headers: {
+        'Authorization': token,
+        'x-xbl-contract-version': '3',
+        'Accept': 'application/json',
+        'Accept-Language': 'en-us',
+      }
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error('[Suggest] peoplehub error', r.status, txt.slice(0, 200));
+      return res.json({ people: [] });
+    }
+    const data = await r.json();
+    const people = (data.people || []).map(p => ({
+      gamertag: p.modernGamertag || p.gamertag || '',
+      gamerpicUrl: p.displayPicRaw || p.displayPicUri || null,
+      gamerScore: p.gamerScore || null,
+    })).filter(p => p.gamertag);
+    res.json({ people });
+  } catch(e) {
+    console.error('[Suggest] Error:', e.message);
+    res.json({ people: [] });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
