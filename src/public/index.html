@@ -953,12 +953,12 @@ async function landingSearchPlayer(){
 var fragrFavs = [];
 try { fragrFavs = JSON.parse(localStorage.getItem('fragrFavs') || '[]'); } catch(e) {}
 
-function isFragrFav(gt) { return fragrFavs.includes(gt); }
+function isFragrFav(gt) { return fragrFavs.some(function(g){return g.toLowerCase()===gt.toLowerCase();}); }
 function toggleCurrentFav() {
   if(!playerData) return;
   var gt = playerData.gamertag;
   if(isFragrFav(gt)) {
-    fragrFavs = fragrFavs.filter(function(g){return g!==gt;});
+    fragrFavs = fragrFavs.filter(function(g){return g.toLowerCase()!==gt.toLowerCase();});
   } else {
     fragrFavs.unshift(gt);
     if(fragrFavs.length > 20) fragrFavs = fragrFavs.slice(0,20);
@@ -981,9 +981,16 @@ function renderFavChips() {
   if(!el) return;
   if(!fragrFavs.length) { el.style.display='none'; return; }
   el.style.display='flex';
-  el.innerHTML = fragrFavs.map(function(gt){
-    return '<button onclick="doSearch('+JSON.stringify(gt)+')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:20px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.borderColor=\'#85B7EB\';this.style.color=\'#85B7EB\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">'+gt+'</button>';
-  }).join('');
+  el.innerHTML = '';
+  fragrFavs.forEach(function(gt) {
+    var btn = document.createElement('button');
+    btn.textContent = gt;
+    btn.style.cssText = 'background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:20px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;white-space:nowrap;transition:all 0.15s;letter-spacing:0.5px';
+    btn.addEventListener('click', function(){ doSearch(gt); });
+    btn.addEventListener('mouseover', function(){ this.style.borderColor='#85B7EB';this.style.color='#85B7EB'; });
+    btn.addEventListener('mouseout', function(){ this.style.borderColor='var(--border)';this.style.color='var(--muted)'; });
+    el.appendChild(btn);
+  });
 }
 async function loadStats(){
   await loadMedalMeta();
