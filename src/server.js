@@ -70,15 +70,32 @@ let medalMeta = {};
 async function loadMedalMeta() {
   if (Object.keys(medalMeta).length) return;
   try {
+    // Need clearance for gamecms — get a xuid from any cached player
+    const { getXuidToGamerpic } = require('./halo');
+    const xuids = Object.keys(getXuidToGamerpic());
+    if (xuids.length) await fetchClearanceToken(xuids[0]);
     const headers = getAuthHeaders();
     const res = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/mapping.json', { headers });
     if (res.ok) {
       const data = await res.json();
-      for (const [id, info] of Object.entries(data)) {
-        medalMeta[id] = { name: info.name || String(id), sprite: info.spritePath || null };
+      // mapping.json format: { "nameId": { name, description, spriteIndex, difficultyIndex, ... } }
+      // OR it may be an array — handle both
+      if (Array.isArray(data)) {
+        const columns = 16;
+        data.forEach(m => {
+          const id = String(m.nameId || m.NameId || '');
+          if (!id) return;
+          medalMeta[id] = { name: (m.name?.value) || m.name || id, difficulty: ['normal','heroic','legendary','mythic'][m.difficultyIndex]||'normal', spriteIndex: m.spriteIndex ?? null, columns };
+        });
+      } else {
+        for (const [id, info] of Object.entries(data)) {
+          medalMeta[id] = { name: info.name || String(id), difficulty: 'normal', spriteIndex: info.spriteIndex ?? null, columns: info.columns || 16 };
+        }
       }
       global._medalMeta = medalMeta;
       console.log('[Medals] Loaded', Object.keys(medalMeta).length, 'medals');
+    } else {
+      console.log('[Medals] Failed:', res.status);
     }
   } catch(e) { console.log('[Medals] Failed to load:', e.message); }
 }
