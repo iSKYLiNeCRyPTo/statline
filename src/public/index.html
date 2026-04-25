@@ -95,7 +95,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mobile-logo-bar.hidden{transform:translateY(-100%)}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
-.mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:32px;height:32px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .mobile-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom))}
 .mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 1px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:0}
 .mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -391,23 +391,20 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </div>
 
 <div class="mobile-logo-bar" id="mobileLogoBar">
-  <svg viewBox="0 0 200 40" height="32" xmlns="http://www.w3.org/2000/svg">
-    <rect x="2" y="30" width="40" height="4" rx="2" fill="rgba(124,181,24,0.12)"/>
-    <rect x="2" y="30" width="34" height="4" rx="2" fill="var(--accent)"/>
-    <rect x="2" y="22" width="40" height="4" rx="2" fill="rgba(124,181,24,0.12)"/>
-    <rect x="2" y="22" width="22" height="4" rx="2" fill="rgba(124,181,24,0.5)"/>
-    <rect x="2" y="14" width="40" height="4" rx="2" fill="rgba(124,181,24,0.12)"/>
-    <rect x="2" y="14" width="36" height="4" rx="2" fill="var(--accent)"/>
-    <rect x="2" y="6" width="40" height="4" rx="2" fill="rgba(124,181,24,0.12)"/>
-    <rect x="2" y="6" width="16" height="4" rx="2" fill="rgba(124,181,24,0.32)"/>
-    <circle cx="38" cy="15" r="2.5" fill="var(--accent)" opacity="0.9"/>
-    <line x1="50" y1="2" x2="60" y2="38" stroke="var(--border2)" stroke-width="1.5" stroke-linecap="round"/>
-    <text x="66" y="31" font-family="'Bebas Neue',sans-serif" font-size="26" letter-spacing="1.5" fill="var(--text)">STAT<tspan fill="var(--accent)">LINE</tspan></text>
+  <svg width="80" height="26" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
+    <circle cx="15" cy="15" r="13" fill="none" stroke="#85B7EB" stroke-width="2"/>
+    <circle cx="15" cy="15" r="4.5" fill="none" stroke="#85B7EB" stroke-width="1.5"/>
+    <circle cx="15" cy="15" r="1.8" fill="#85B7EB"/>
+    <line x1="15" y1="2" x2="15" y2="9" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="15" y1="21" x2="15" y2="28" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="2" y1="15" x2="9" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="21" y1="15" x2="28" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="34" y="21" font-family="system-ui,sans-serif" font-size="19" font-weight="500" letter-spacing="-0.5" fill="#E6F1FB">fragr</text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
-    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
-    <button class="mobile-action-btn" onclick="shareStats()" title="Share"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
+    <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
+    <button class="mobile-action-btn" onclick="shareStats()" title="Share"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
   </div>
 </div>
 <!-- Mobile search overlay -->
@@ -496,10 +493,14 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       </div>
       <p style="color:var(--muted);font-size:clamp(10px,1.4vw,13px);margin-bottom:clamp(24px,4vh,48px);font-family:Share Tech Mono,monospace;letter-spacing:2px;text-transform:uppercase">Halo Infinite Stat Tracker</p>
       <div style="display:flex;gap:10px;margin-bottom:12px;max-width:520px;margin-left:auto;margin-right:auto">
-        <input id="landingSearch" type="text" placeholder="Enter gamertag..." autocomplete="off" autocorrect="off" spellcheck="false"
-          style="flex:1;padding:clamp(10px,2vh,16px) 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:clamp(13px,1.8vw,16px);font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s"
-          onkeydown="if(event.key==='Enter')landingSearchPlayer()"
-          onfocus="this.style.borderColor='#185FA5'" onblur="this.style.borderColor='var(--border)'">
+        <div class="search-wrap" style="flex:1;position:relative">
+          <input id="landingSearch" type="text" placeholder="Enter gamertag..." autocomplete="off" autocorrect="off" spellcheck="false"
+            style="width:100%;padding:clamp(10px,2vh,16px) 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:clamp(13px,1.8vw,16px);font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s;box-sizing:border-box"
+            onkeydown="handleSuggestKey(event,'landingSuggestDropdown')"
+            oninput="debounceSuggest(this.value,'landingSuggestDropdown','landingSearch')"
+            onfocus="this.style.borderColor='#185FA5'" onblur="this.style.borderColor='var(--border)'">
+          <div class="suggest-dropdown" id="landingSuggestDropdown" style="min-width:100%;top:calc(100% + 2px)"></div>
+        </div>
         <button onclick="landingSearchPlayer()"
           style="padding:14px 24px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:Share Tech Mono,monospace;white-space:nowrap;transition:opacity 0.15s"
           onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
@@ -1019,6 +1020,7 @@ function selectSuggest(el){
   if(drop)drop.classList.remove('open');
   var inp=document.getElementById(inputId);
   if(inp)inp.value=gt;
+  if(inputId==='landingSearch'){landingSearchPlayer();return;}
   var si=document.getElementById('searchInput');
   if(si)si.value=gt;
   searchPlayer();
@@ -1034,7 +1036,7 @@ function handleSuggestKey(e,dropId){
   else if(e.key==='Escape'){drop.classList.remove('open');}
 }
 document.addEventListener('click',function(e){
-  ['suggestDropdown','mobileSuggestDropdown'].forEach(function(id){
+  ['suggestDropdown','mobileSuggestDropdown','landingSuggestDropdown'].forEach(function(id){
     var drop=document.getElementById(id);
     if(drop&&drop.parentElement&&!drop.parentElement.contains(e.target))drop.classList.remove('open');
   });
