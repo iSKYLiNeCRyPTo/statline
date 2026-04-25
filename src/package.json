@@ -1,7 +1,7 @@
 {
-  "name": "statline",
+  "name": "fragr",
   "version": "1.0.0",
-  "description": "Halo Infinite Stats Tracker",
+  "description": "fragr \u2014 Halo Infinite Stat Tracker",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
