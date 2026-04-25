@@ -537,7 +537,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </nav>
 
 <script>
-var playerData=null,data=null,medalMeta={},expandedMatches={},rankedFilter=false,seasonFilter='current',fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
+var playerData=null,data=null,medalMeta={},expandedMatches={},rankedFilter=false,fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
 
 try{activeTab=localStorage.getItem('haloTab')||'overview';}catch(e){}
 
@@ -2336,33 +2336,28 @@ function render(){
   var allMatches=_rawMatches;
   var displayMatches=_rawMatches; // same 25 matches
   var filtered=rankedFilter?displayMatches.filter(function(m){return m.isRanked;}):displayMatches;
-  // If season filter active, recompute nemeses/victims from filtered matches
+  // Compute nemeses/victims from current match data
   var nemeses, victims;
-  if(seasonFilter==='current'){
-    var _rivalMap={};
-    _rawMatches.forEach(function(m){
-      if(!m.teams) return;
-      var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===p.gamertag;});});
-      if(!myTeam) return;
-      m.teams.forEach(function(t){
-        if(t===myTeam) return;
-        (t.players||[]).forEach(function(pl){
-          if(!pl.gamertag||pl.gamertag===p.gamertag||pl.gamertag.startsWith('Spartan ')) return;
-          if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0};
-          _rivalMap[pl.gamertag].total++;
-          if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
-          else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
-        });
+  var _rivalMap={};
+  _rawMatches.forEach(function(m){
+    if(!m.teams) return;
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===p.gamertag;});});
+    if(!myTeam) return;
+    m.teams.forEach(function(t){
+      if(t===myTeam) return;
+      (t.players||[]).forEach(function(pl){
+        if(!pl.gamertag||pl.gamertag===p.gamertag||pl.gamertag.startsWith('Spartan ')) return;
+        if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0};
+        _rivalMap[pl.gamertag].total++;
+        if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
+        else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
       });
     });
-    var _rivals=Object.values(_rivalMap).filter(function(r){return r.total>=1;});
-    var _sorted=_rivals.sort(function(a,b){return b.total-a.total;});
-    nemeses=_sorted.filter(function(r){return r.losses>=r.wins;}).slice(0,10);
-    victims=_sorted.filter(function(r){return r.wins>r.losses;}).slice(0,10);
-  } else {
-    nemeses=(p.nemesisList||[]).slice(0,10);
-    victims=(p.victimsList||[]).slice(0,10);
-  }
+  });
+  var _rivals=Object.values(_rivalMap).filter(function(r){return r.total>=1;});
+  var _sorted=_rivals.sort(function(a,b){return b.total-a.total;});
+  nemeses=_sorted.filter(function(r){return r.losses>=r.wins;}).slice(0,10);
+  victims=_sorted.filter(function(r){return r.wins>r.losses;}).slice(0,10);
 
   // Compute mode baselines once — stored on window so toggleMatch can use them
   (function(){
@@ -2804,7 +2799,6 @@ function render(){
   var _cc=window._themeChartColors||['#7cb518','#d4860a'];
   // Season filter toggle
   html+=sectionHead('CSR History');
-  html+=_seasonToggleHtml;
   html+=renderCsrFromMatches(allMatches,'Ranked Arena',_cc[0]);
   html+=renderCsrFromMatches(allMatches,'Ranked Slayer',_cc[1]);
   html+=renderCsrEfficiency(allMatches);
