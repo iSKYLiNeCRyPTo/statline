@@ -857,7 +857,13 @@ function setTab(t){
   // Close sidebar on mobile
   if(window.innerWidth<768){var sb=document.getElementById('sidebar');if(sb)sb.classList.remove('open');}
   // Load match history when switching to that tab
-  if(t==='matches'){matchHistoryPage=1;loadMatchHistory(1);}
+  if(t==='matches'){
+    if(matchHistoryData&&matchHistoryData.matches&&matchHistoryData.matches.length>0){
+      renderMatchHistory(matchHistoryData);
+    } else {
+      matchHistoryPage=1;loadMatchHistory(1);
+    }
+  }
   if(['bymap','charts','objectives','opponents'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
@@ -1675,9 +1681,10 @@ async function doSearch(gt){
   if(!gt||!gt.trim())return;
   gt=gt.trim();
   var el=document.getElementById('landing');if(el)el.style.display='none';
-  var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='flex';
+  var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display=window.innerWidth>=768?'flex':'none';
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
+  matchHistoryData=null;
   document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+gt+'</strong>...</p></div>';
   try{
     var res=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
