@@ -368,42 +368,49 @@ async function fetchPlayerStats(gamertag) {
   };
 }
 
-// --- Match history (always 25, rivals from these 25 only, no persistent DB) ---
+// --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
 async function fetchMatchHistory(xuid, gamertag, count = 25) {
-  // Fetch extra matches to account for customs/PvE that get filtered out
-  const FETCH_COUNT = 50; // always fetch 50, filter customs/PvE, keep first 25 valid
+  const TARGET   = 25;  // desired valid (non-custom/PvE) matches
+  const BATCH    = 10;  // matches to request per API call
+  const MAX_SCAN = 150; // give up after scanning this many raw matches
+
   const headers = getAuthHeaders();
-  const rivalStats = {}; // built from these 25 matches only — no persistent DB
-
-  const res = await fetch(
-    `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${FETCH_COUNT}`,
-    { headers }
-  );
-  if (!res.ok) return { matches: [], rivals: [], nemesisList: [], victimsList: [] };
-  const data = await res.json();
+  const rivalStats = {};
   const results = [];
-  const rawMatchList = data.Results || [];
-
-  const fetchedDetails = await fetchConcurrent(rawMatchList, async (m) => {
-    try {
-      const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
-      const md = r.ok ? await r.json() : null;
-      const isLikelyRanked = md && [1,2,3].includes(md.MatchInfo?.PlaylistExperience);
-      let skillData = null;
-      if (isLikelyRanked) {
-        try {
-          const sr = await fetch(`https://skill.svc.halowaypoint.com/hi/matches/${m.MatchId}/skill?players=xuid(${xuid})`, { headers });
-          if (sr.ok) skillData = await sr.json();
-        } catch(e) {}
-      }
-      return { m, md, skillData };
-    } catch(e) { return { m, md: null, skillData: null }; }
-  }, 5);
-
   const allUnknownXuids = new Set();
   const pendingTracking = [];
 
-  for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {
+  let start = 0;
+  while (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN) {
+    const res = await fetch(
+      `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${BATCH}&start=${start}`,
+      { headers }
+    );
+    if (!res.ok) break;
+    const data = await res.json();
+    const rawBatch = data.Results || [];
+    if (!rawBatch.length) break; // no more history
+
+    const fetchedDetails = await fetchConcurrent(rawBatch, async (m) => {
+      try {
+        const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
+        const md = r.ok ? await r.json() : null;
+        const isLikelyRanked = md && [1,2,3].includes(md.MatchInfo?.PlaylistExperience);
+        let skillData = null;
+        if (isLikelyRanked) {
+          try {
+            const sr = await fetch(`https://skill.svc.halowaypoint.com/hi/matches/${m.MatchId}/skill?players=xuid(${xuid})`, { headers });
+            if (sr.ok) skillData = await sr.json();
+          } catch(e) {}
+        }
+        return { m, md, skillData };
+      } catch(e) { return { m, md: null, skillData: null }; }
+    }, 5);
+
+    start += BATCH;
+
+    for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {
+      if (results.filter(r => !r.isCustom).length >= TARGET) break;
     try {
       let kills = 0, deaths = 0, assists = 0, gameMode = null, teams = [];
       let placement = null, score = 0, damageDealt = 0, damageTaken = 0, accuracy = null;
@@ -539,7 +546,11 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
     } catch(e) {
       results.push({ matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, gameMode: null, kills:0,deaths:0,assists:0,damageDealt:0,damageTaken:0 });
     }
-  }
+    } // end for fetchedDetails
+
+    const validNow = results.filter(r => !r.isCustom).length;
+    console.log(`[MatchFetch] scanned=${start} valid=${validNow}/${TARGET}`);
+  } // end while
 
   // Batch resolve gamertags
   if (allUnknownXuids.size > 0) await resolveGamertags([...allUnknownXuids]);
@@ -554,7 +565,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
     }
   }
 
-  // Build rivals from these 25 matches only — no persistent DB
+  // Build rivals from all fetched matches
   const myGt = xuidToGt[String(xuid)] || gamertag;
   for (const { matchId, matchOutcome, teamMap, xuid: mxuid } of pendingTracking) {
     const myXuidStr = String(mxuid);
