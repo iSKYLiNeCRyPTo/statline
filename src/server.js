@@ -142,9 +142,10 @@ app.get('/api/search', rateLimit, async (req, res) => {
   if (!gamertag) return res.status(400).json({ success: false, error: 'Gamertag required' });
   if (gamertag.length < 1 || gamertag.length > 32) return res.status(400).json({ success: false, error: 'Invalid gamertag' });
 
-  // Check cache
+  // Check cache (skip if force refresh requested)
+  const forceRefresh = req.query.force === '1';
   const cached = await getFromCache(gamertag);
-  if (cached) return res.json({ success: true, player: cached, cached: true });
+  if (cached && !forceRefresh) return res.json({ success: true, player: cached, cached: true });
 
   // Deduplicate concurrent searches
   const key = gamertag.toLowerCase().trim();
