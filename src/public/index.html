@@ -430,7 +430,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <text x="37" y="26" font-family="system-ui,sans-serif" font-weight="400" letter-spacing="2px" font-size="7" fill="var(--muted)">STAT TRACKER</text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" id="mobileFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+    <button class="mobile-action-btn" id="mobileThemeToggleBtn" onclick="toggleLightDark()" title="Toggle light/dark"><svg id="mobileThemeIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
@@ -738,6 +738,8 @@ function toggleLightDark(){
   applyTheme(next);
   // Update icon — sun for dark, moon for light
   var icon=document.getElementById('themeToggleIcon');
+  var micon=document.getElementById('mobileThemeIcon');
+  if(micon)setTimeout(function(){if(icon)micon.innerHTML=icon.innerHTML;},0);
   if(icon){
     icon.innerHTML=next==='light'
       ?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>' // moon
@@ -770,6 +772,8 @@ function applyTheme(t){
   applyTheme(saved);
   // Set correct toggle icon
   var icon=document.getElementById('themeToggleIcon');
+  var micon=document.getElementById('mobileThemeIcon');
+  if(micon)setTimeout(function(){if(icon)micon.innerHTML=icon.innerHTML;},0);
   if(icon&&saved==='light'){
     icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
   }
@@ -1039,7 +1043,6 @@ function goHome(){
   playerData=null; data=null; searchData=null; searchMode=false;
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='none';
   var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='none';
-  var mfb=document.getElementById('mobileFavBtn');if(mfb)mfb.style.display='none';
   showLanding();
 }
 async function landingSearchPlayer(){
@@ -1115,6 +1118,8 @@ function handleSuggestKey(e,dropId){
   applyTheme(saved);
   // Set correct toggle icon
   var icon=document.getElementById('themeToggleIcon');
+  var micon=document.getElementById('mobileThemeIcon');
+  if(micon)setTimeout(function(){if(icon)micon.innerHTML=icon.innerHTML;},0);
   if(icon&&saved==='light'){
     icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
   }
@@ -1182,15 +1187,14 @@ function updateFavBtn() {
     btn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
     btn.title = fav ? 'Remove from favorites' : 'Add to favorites';
   }
-  // Mobile favorite button
-  var mbtn = document.getElementById('mobileFavBtn');
-  if(mbtn) {
-    var _s13F=_starF.replace('width="14" height="14"','width="13" height="13"');
-    var _s13E=_starE.replace('width="14" height="14"','width="13" height="13"');
-    mbtn.innerHTML = fav ? _s13F : _s13E;
-    mbtn.style.color = fav ? '#ffc107' : 'var(--muted)';
-    mbtn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
-    mbtn.title = fav ? 'Remove from favorites' : 'Add to favorites';
+  // Hero fav button (inline next to player name)
+  var hbtn = document.getElementById('heroFavBtn');
+  if(hbtn) {
+    var _s22F='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    var _s22E='<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    hbtn.innerHTML = fav ? _s22F : _s22E;
+    hbtn.style.color = fav ? '#ffc107' : 'var(--muted)';
+    hbtn.title = fav ? 'Remove from favorites' : 'Add to favorites';
   }
 }
 function renderFavChips() {
@@ -2030,7 +2034,6 @@ async function doSearch(gt){
       document.title=gt+' — fragr';
       loadFullMatches(gt);
       var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
-      var mfb=document.getElementById('mobileFavBtn');if(mfb)mfb.style.display='flex';
       updateFavBtn();
     } else {
       var errMsg=d.error||'Player not found. Check the spelling and try again.';
@@ -2743,7 +2746,7 @@ function render(){
   })();
   var html=fetchErrBanner||'';
   html+='<div class="tab-panel'+(activeTab==='overview'?' active':'')+'" data-tab="overview">';
-  html+='<div class="hero"><div style="display:flex;align-items:flex-start;gap:14px">'+playerEmblem(p,52)+'<div><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><div class="hero-sub">Halo Infinite · '+s.matchesPlayed.toLocaleString()+' matches · '+s.wins+'W / '+s.losses+'L'+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+s.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+s.winRate+'%"></div></div></div></div></div><div><div class="hero-kd-val">'+s.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div></div>';
+  html+='<div class="hero"><div style="display:flex;align-items:flex-start;gap:14px">'+playerEmblem(p,52)+'<div><div style="display:flex;align-items:center;gap:8px"><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><button id="heroFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="background:transparent;border:none;padding:2px;cursor:pointer;color:var(--muted);flex-shrink:0;line-height:1" onmouseover="this.style.color=\'#ffc107\'" onmouseout="updateFavBtn()"><svg id="heroFavIcon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div><div class="hero-sub">Halo Infinite · '+s.matchesPlayed.toLocaleString()+' matches · '+s.wins+'W / '+s.losses+'L'+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+s.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+s.winRate+'%"></div></div></div></div></div><div><div class="hero-kd-val">'+s.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div></div>';
   // Career rank card + CSR cards in same row
   var careerCardHtml='';
   if(p.careerRank){
