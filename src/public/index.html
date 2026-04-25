@@ -2954,39 +2954,8 @@ function render(){
     html+=sectionHead('Recent Matches','last 10');
     var _last10=displayMatches.slice(0,10);
     html+='<div class="match-list">';
-    _last10.forEach(function(m){
-      var oc=m.outcome===2?'win-card':m.outcome===3?'loss-card':'draw-card';
-      var pillClass=m.outcome===2?'outcome-win':m.outcome===3?'outcome-loss':'outcome-draw';
-      var word=m.outcome===2?'WIN':m.outcome===3?'LOSS':'DRAW';
-      var kd=m.deaths>0?(m.kills/m.deaths).toFixed(2):String(m.kills);
-      var maxDmg=Math.max(m.damageDealt||0,m.damageTaken||1,1);
-      var dp=Math.round(((m.damageDealt||0)/maxDmg)*100);
-      var tp=Math.round(((m.damageTaken||0)/maxDmg)*100);
-      var sub=[m.mapName,formatDur(m.duration)].filter(Boolean).join(' · ');
-      var mmrStr=null;
-      if(m.mmr&&m.oppMmr){var mmrDiff=m.mmr-m.oppMmr;mmrStr=Math.round(100/(1+Math.pow(10,-mmrDiff/400)))+'% win prob';}
-      html+='<div class="match-card '+oc+'" style="cursor:default">'+
-        '<div class="match-main">'+
-          '<span class="outcome-pill '+pillClass+'">'+(m.placement||word)+'</span>'+
-          '<div class="match-info">'+
-            '<div class="match-mode">'+(m.gameMode||'Unknown Mode').replace(/Capture the Flag/gi,'CTF')+'</div>'+
-            '<div class="match-sub">'+sub+(mmrStr?' · '+mmrStr:'')+'</div>'+
-          '</div>'+
-          '<div class="match-kda">'+
-            '<div class="match-kda-big">'+m.kills+'&thinsp;/&thinsp;'+m.deaths+'&thinsp;/&thinsp;'+m.assists+'</div>'+
-            '<div class="match-kda-sub">K/D '+kd+'</div>'+
-          '</div>'+
-          '<div class="match-dmg">'+
-            '<div class="dmg-label">Damage</div>'+
-            '<div class="dmg-bar-row"><span style="color:var(--win);width:40px;text-align:right">'+(m.damageDealt?Math.round(m.damageDealt).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+dp+'%;background:var(--win)"></div></div></div>'+
-            '<div class="dmg-bar-row"><span style="color:var(--loss);width:40px;text-align:right">'+(m.damageTaken?Math.round(m.damageTaken).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+tp+'%;background:var(--loss)"></div></div></div>'+
-          '</div>'+
-          '<div class="match-right">'+
-            '<span class="match-time">'+timeAgo(m.startTime)+'</span>'+
-            (m.csrDelta!=null?'<span class="match-csr" style="color:'+(m.csrDelta>=0?'var(--win)':'var(--loss)')+'">'+(m.csrDelta>0?'+':'')+m.csrDelta+' CSR</span>':(m.csrAfter?'<span class="match-csr">'+m.csrAfter+'</span>':''))+
-          '</div>'+
-        '</div>'+
-      '</div>';
+    _last10.forEach(function(m,i){
+      html+=renderMatchCard(m,i,window._fragrBaselines||{},0,false);
     });
     html+='</div>';
     html+='<div style="text-align:center;margin-top:8px"><button onclick="setTab(\'matches\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 18px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;letter-spacing:1px">VIEW ALL MATCHES →</button></div>';
