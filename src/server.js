@@ -73,9 +73,9 @@ async function loadMedalMeta() {
     const headers = getAuthHeaders();
     // Medal metadata with sprite sheet indices
     const urls = [
-      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/Medals.json',
-      'https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/metadata/multiplayer/medals.json',
-      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/mapping.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/metadata.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/Multiplayer/medals/metadata.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/Metadata.json',
     ];
     for (const url of urls) {
       try {
@@ -222,7 +222,7 @@ app.get('/api/matches', async (req, res) => {
 app.get('/api/medal-sheet', async (req, res) => {
   try {
     const headers = getAuthHeaders();
-    const sheetRes = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/medal-spritesheet.png', { headers });
+    const sheetRes = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/images/medal_sheet_xl.png', { headers });
     if (!sheetRes.ok) return res.status(sheetRes.status).send('Medal sheet unavailable');
     const buf = Buffer.from(await sheetRes.arrayBuffer());
     res.setHeader('Content-Type', 'image/png');
