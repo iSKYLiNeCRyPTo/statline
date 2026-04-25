@@ -317,6 +317,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .sidebar-toggle{display:block}
   .mobile-tabbar{display:flex}
   .mobile-logo-bar{display:flex}
+  .search-input{font-size:16px !important}
+  input[type="text"],input[type="search"]{font-size:16px !important}
   .cmd-topbar{display:none}
   .cmd-content{padding-bottom:80px}
   .rivals-grid{grid-template-columns:1fr}
@@ -496,7 +498,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div style="display:flex;gap:10px;margin-bottom:12px;max-width:520px;margin-left:auto;margin-right:auto">
         <div class="search-wrap" style="flex:1;position:relative">
           <input id="landingSearch" type="text" placeholder="Enter gamertag..." autocomplete="off" autocorrect="off" spellcheck="false"
-            style="width:100%;padding:clamp(10px,2vh,16px) 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:clamp(13px,1.8vw,16px);font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s;box-sizing:border-box"
+            style="width:100%;padding:clamp(10px,2vh,16px) 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:clamp(16px,1.8vw,16px);font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s;box-sizing:border-box"
             onkeydown="handleSuggestKey(event,'landingSuggestDropdown')"
             oninput="debounceSuggest(this.value,'landingSuggestDropdown','landingSearch')"
             onfocus="this.style.borderColor='#185FA5'" onblur="this.style.borderColor='var(--border)'">
