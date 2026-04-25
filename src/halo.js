@@ -370,11 +370,13 @@ async function fetchPlayerStats(gamertag) {
 
 // --- Match history (always 25, rivals from these 25 only, no persistent DB) ---
 async function fetchMatchHistory(xuid, gamertag, count = 25) {
+  // Fetch extra matches to account for customs/PvE that get filtered out
+  const FETCH_COUNT = 50; // always fetch 50, filter customs/PvE, keep first 25 valid
   const headers = getAuthHeaders();
   const rivalStats = {}; // built from these 25 matches only — no persistent DB
 
   const res = await fetch(
-    `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${count}`,
+    `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${FETCH_COUNT}`,
     { headers }
   );
   if (!res.ok) return { matches: [], rivals: [], nemesisList: [], victimsList: [] };
@@ -575,7 +577,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
   }
 
   const rivals = Object.entries(rivalStats)
-    .filter(([,s]) => s.wins+s.losses >= 2)
+    .filter(([,s]) => s.wins+s.losses >= 1)
     .sort((a,b) => (b[1].wins+b[1].losses)-(a[1].wins+a[1].losses))
     .slice(0, 50)
     .map(([gt,s]) => ({ gamertag:gt, wins:s.wins, losses:s.losses, total:s.wins+s.losses, gamerpicUrl:s.gamerpicUrl||null }));
