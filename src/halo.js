@@ -179,7 +179,9 @@ async function fetchPlayerStats(gamertag) {
     if (!xuidRes.ok) throw new Error(`Could not resolve gamertag: ${gamertag} (${xuidRes.status})`);
     const xuidData = await xuidRes.json();
     xuid = xuidData.xuid;
-    xuidToGt[xuid] = gamertag;
+    const canonicalGt = xuidData.gamertag || xuidData.Gamertag || gamertag;
+    xuidToGt[xuid] = canonicalGt;
+    gamertag = canonicalGt; // use canonical casing going forward
     getRedis().then(c => c && c.set('xuidToGt', JSON.stringify(xuidToGt))).catch(() => {});
   }
 
