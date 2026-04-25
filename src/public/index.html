@@ -314,13 +314,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 /* Share button */
 
-.theme-option{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;margin-bottom:4px;transition:all 0.15s}
-.theme-option:hover{background:var(--surface2);border-color:var(--border)}
-.theme-option.active{border-color:var(--accent);background:rgba(var(--accent-rgb,0,200,0),0.08)}
-.theme-swatches{display:flex;gap:3px}
-.theme-swatch{width:12px;height:12px;border-radius:50%}
-.theme-name{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text)}
-.theme-sub{font-size:11px;color:var(--muted)}
+
 .share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
 
@@ -403,32 +397,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </style>
 </head>
 <body>
-<div id="toast-container"></div>
-    <div><div class="theme-name">Fragr Blue</div><div class="theme-sub">Default · Brand colors</div></div>
-  </div>
-  <div class="theme-option" onclick="setTheme('covenant')" data-theme="covenant">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#9b59f5"></div><div class="theme-swatch" style="background:#ff3d57"></div><div class="theme-swatch" style="background:#080610"></div></div>
-    <div><div class="theme-name">Covenant Purple</div><div class="theme-sub">Alien tech · Plasma energy</div></div>
-  </div>
-  <div class="theme-option" onclick="setTheme('forerunner')" data-theme="forerunner">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#f0b030"></div><div class="theme-swatch" style="background:#e05020"></div><div class="theme-swatch" style="background:#080700"></div></div>
-    <div><div class="theme-name">Forerunner Gold</div><div class="theme-sub">Ancient crystalline · Requiem</div></div>
-  </div>
-  <div class="theme-option" onclick="setTheme('oni')" data-theme="oni">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#e8002a"></div><div class="theme-swatch" style="background:#00c853"></div><div class="theme-swatch" style="background:#050505"></div></div>
-    <div><div class="theme-name">ONI Black Ops</div><div class="theme-sub">Classified · Brutal</div></div>
-  </div>
-  <div class="theme-option" onclick="setTheme('flood')" data-theme="flood">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#2aff7a"></div><div class="theme-swatch" style="background:#ff2a6a"></div><div class="theme-swatch" style="background:#040808"></div></div>
-    <div><div class="theme-name">Flood Blight</div><div class="theme-sub">Biomechanical · Corrupted</div></div>
-  </div>
-  <div class="theme-option" onclick="setTheme('onyx')" data-theme="onyx">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#00c8ff"></div><div class="theme-swatch" style="background:#ff4040"></div><div class="theme-swatch" style="background:#06080c"></div></div>
-    <div><div class="theme-name">Ice Cold Onyx</div><div class="theme-sub">Premium · Diamond ranked</div></div>
-  </div>
-</div>
-
-<div class="mobile-logo-bar" id="mobileLogoBar">
+<div id="toast-container"><div class="mobile-logo-bar" id="mobileLogoBar">
   <svg width="80" height="26" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
     <circle cx="15" cy="15" r="13" fill="none" stroke="#85B7EB" stroke-width="2"/>
     <circle cx="15" cy="15" r="4.5" fill="none" stroke="#85B7EB" stroke-width="1.5"/>
@@ -731,9 +700,7 @@ function applyTheme(t){
   var root=document.documentElement;
   root.removeAttribute('data-theme');
   if(t!=='mc117')root.setAttribute('data-theme',t);
-  document.querySelectorAll('.theme-option').forEach(function(el){
-    el.classList.toggle('active',el.dataset.theme===t);
-  });
+  
   // Update CSR chart colors per theme
   var chartColors={
     mc117:['#378ADD','#85B7EB'],
@@ -751,6 +718,10 @@ function setTheme(t){
   toast('Theme applied','success',1500);
 }
 
+window.addEventListener('resize',function(){
+  var dtb=document.getElementById('desktopTabBar');
+  if(dtb&&dtb.style.display!=='none')dtb.style.display=window.innerWidth>=768?'flex':'none';
+});
 document.addEventListener('click',function(e){
 });
 // Load saved theme
@@ -1088,6 +1059,10 @@ function handleSuggestKey(e,dropId){
   else if(e.key==='Enter'){if(_suggestIdx>=0&&items[_suggestIdx]){e.preventDefault();items[_suggestIdx].click();}else{drop.classList.remove('open');searchPlayer();}}
   else if(e.key==='Escape'){drop.classList.remove('open');}
 }
+window.addEventListener('resize',function(){
+  var dtb=document.getElementById('desktopTabBar');
+  if(dtb&&dtb.style.display!=='none')dtb.style.display=window.innerWidth>=768?'flex':'none';
+});
 document.addEventListener('click',function(e){
   ['suggestDropdown','mobileSuggestDropdown','landingSuggestDropdown'].forEach(function(id){
     var drop=document.getElementById(id);
@@ -1918,7 +1893,6 @@ async function doSearch(gt){
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display=window.innerWidth>=768?'flex':'none';
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
-  matchHistoryData=null;
   matchHistoryData=null;
   document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+gt+'</strong>...</p></div>';
   try{
