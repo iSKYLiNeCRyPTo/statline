@@ -313,9 +313,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .empty-state-sub{font-size:11px;color:var(--muted2);font-family:'Share Tech Mono',monospace}
 
 /* Share button */
-#theme-picker{position:fixed;top:56px;right:16px;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:14px;z-index:1000;display:none;box-shadow:0 8px 32px rgba(0,0,0,0.5);min-width:220px;max-height:80vh;overflow-y:auto}
-#theme-picker.open{display:block}
-#theme-picker h3{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;letter-spacing:1px;text-transform:uppercase}
+
 .theme-option{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;margin-bottom:4px;transition:all 0.15s}
 .theme-option:hover{background:var(--surface2);border-color:var(--border)}
 .theme-option.active{border-color:var(--accent);background:rgba(var(--accent-rgb,0,200,0),0.08)}
@@ -406,10 +404,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </head>
 <body>
 <div id="toast-container"></div>
-<div id="theme-picker">
-  <h3><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Theme</h3>
-  <div class="theme-option" onclick="setTheme('mc117')" data-theme="mc117">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#378ADD"></div><div class="theme-swatch" style="background:#4CAF82"></div><div class="theme-swatch" style="background:#060d17"></div></div>
     <div><div class="theme-name">Fragr Blue</div><div class="theme-sub">Default · Brand colors</div></div>
   </div>
   <div class="theme-option" onclick="setTheme('covenant')" data-theme="covenant">
@@ -446,9 +440,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <text x="34" y="21" font-family="system-ui,sans-serif" font-size="19" font-weight="500" letter-spacing="-0.5" fill="#E6F1FB">fragr</text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
     <button class="mobile-action-btn" id="mobileFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
-    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="event.stopPropagation();toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
@@ -500,7 +492,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div class="cmd-topbar-right">
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
         <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
-        <button id="themeBtn" onclick="event.stopPropagation();toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
+
         <div class="search-bar search-wrap">
           <input class="search-input" id="searchInput" placeholder="Search gamertag..." autocomplete="off"
             onkeydown="handleSuggestKey(event,'suggestDropdown')"
@@ -756,28 +748,10 @@ function applyTheme(t){
 function setTheme(t){
   try{localStorage.setItem('fragrTheme',t);}catch(e){}
   applyTheme(t);
-  document.getElementById('theme-picker').classList.remove('open');
   toast('Theme applied','success',1500);
 }
-function toggleThemePicker(){
-  document.getElementById('theme-picker').classList.toggle('open');
-}
-function toggleMobileTheme(){
-  var picker=document.getElementById('theme-picker');
-  var btn=document.getElementById('mobileThemeBtn');
-  if(!picker)return;
-  // Position below the mobile logo bar (56px) with right align
-  picker.style.top='56px';
-  picker.style.right='8px';
-  picker.style.left='auto';
-  picker.classList.toggle('open');
-}
-// Close picker when clicking outside
+
 document.addEventListener('click',function(e){
-  var picker=document.getElementById('theme-picker');
-  if(picker&&picker.classList.contains('open')&&!picker.contains(e.target)&&e.target.id!=='themeBtn'&&e.target.id!=='mobileThemeBtn'){
-    picker.classList.remove('open');
-  }
 });
 // Load saved theme
 (function(){
@@ -1536,7 +1510,8 @@ function analyzeConnectionQuality(m, modeBaselines) {
 
 function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
   var _mkey=m.matchId?m.matchId.replace(/[^a-zA-Z0-9]/g,'_'):('idx_'+idx);
-  var isOpen=!!expandedMatches[_mkey];
+  var _tabPrefix=(typeof activeTab!=="undefined"?activeTab:"")+"__";
+  var isOpen=!!expandedMatches[_tabPrefix+_mkey];
   var oc=m.outcome===2?'win-card':m.outcome===3?'loss-card':'draw-card';
   var word=m.outcome===2?'WIN':m.outcome===3?'LOSS':'DRAW';
   var pillClass=m.outcome===2?'outcome-win':m.outcome===3?'outcome-loss':'outcome-draw';
@@ -1574,6 +1549,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
      '</div>'
     :'';
   el.setAttribute('onclick','toggleMatch("'+_mkey+'",'+idx+')');
+  el.setAttribute('data-tab-ctx', typeof activeTab!=='undefined'?activeTab:'overview');
   el.style.cursor='pointer';
   if(bannerHtml)el.classList.add('has-banner');
   el.innerHTML=
@@ -1871,25 +1847,19 @@ function playerEmblem(p,size){
 
 function setFilter(ranked){rankedFilter=ranked;render();}
 function toggleMatch(matchKey,idx){
-  var key=matchKey!=null?String(matchKey):('idx_'+(idx||0));
-  expandedMatches[key]=!expandedMatches[key];
-  // Find the card — prefer one inside the active/visible tab panel
-  var allCards=document.querySelectorAll('.match-card[data-mkey="'+key+'"]');
+  var rawKey=matchKey!=null?String(matchKey):('idx_'+(idx||0));
+  // Find the card first so we can read its tab context
+  var allCards=document.querySelectorAll('.match-card[data-mkey="'+rawKey+'"]');
   var card=null;
-  // First try: card inside matchHistoryContainer (paginated results)
   var histContainer=document.getElementById('matchHistoryContainer');
-  if(histContainer)card=histContainer.querySelector('.match-card[data-mkey="'+key+'"]');
-  // Second try: card inside the currently active tab panel
-  if(!card){
-    var activePanel=document.querySelector('.tab-panel.active');
-    if(activePanel)card=activePanel.querySelector('.match-card[data-mkey="'+key+'"]');
-  }
-  // Last resort: any card with this key
+  if(histContainer)card=histContainer.querySelector('.match-card[data-mkey="'+rawKey+'"]');
+  if(!card){var activePanel=document.querySelector('.tab-panel.active');if(activePanel)card=activePanel.querySelector('.match-card[data-mkey="'+rawKey+'"]');}
   if(!card&&allCards.length)card=allCards[0];
-  if(!card){
-    expandedMatches[key]=false;
-    return;
-  }
+  // Scope the key to the tab this card belongs to
+  var tabCtx=(card&&card.getAttribute('data-tab-ctx'))||activeTab||'overview';
+  var key=tabCtx+'__'+rawKey;
+  expandedMatches[key]=!expandedMatches[key];
+  if(!card){expandedMatches[key]=false;return;}
 
   // Toggle arrow
   var arrow=card.querySelector('.match-arrow');
