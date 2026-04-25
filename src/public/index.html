@@ -225,11 +225,18 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-kda{text-align:center;min-width:80px}
 .match-kda-big{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700}
 
-/* match-map-thumb defined globally */
+.match-card.has-banner{display:flex;align-items:stretch}
+.match-map-thumb{width:96px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)}
+.match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%)}
+.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px}
+.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
+.match-map-outcome.win{background:var(--win);color:#000}
 .match-map-outcome.loss{background:var(--loss);color:#fff}
 .match-map-outcome.draw{background:var(--muted2);color:#fff}
-.match-card.has-banner .match-main{flex:1;min-width:0;border-left:none}
-@media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:52px;flex-shrink:0}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 30%,rgba(0,0,0,0.6) 100%)}.match-card.has-banner .match-main{border-left:none}}
+.match-card.has-banner .match-main{flex:1;min-width:0}
+@media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:48px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
 .dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
@@ -345,11 +352,18 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .match-kda{min-width:70px}
   .match-kda-big{font-size:14px}
   
-/* match-map-thumb defined globally */
+.match-card.has-banner{display:flex;align-items:stretch}
+.match-map-thumb{width:96px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)}
+.match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%)}
+.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px}
+.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
+.match-map-outcome.win{background:var(--win);color:#000}
 .match-map-outcome.loss{background:var(--loss);color:#fff}
 .match-map-outcome.draw{background:var(--muted2);color:#fff}
-.match-card.has-banner .match-main{flex:1;min-width:0;border-left:none}
-@media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:52px;flex-shrink:0}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 30%,rgba(0,0,0,0.6) 100%)}.match-card.has-banner .match-main{border-left:none}}
+.match-card.has-banner .match-main{flex:1;min-width:0}
+@media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:48px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:9px}
   .match-dmg{min-width:80px}
   .dmg-bar-row span{width:32px;font-size:9px}
