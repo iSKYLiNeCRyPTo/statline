@@ -498,7 +498,23 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
           const rawXuid = String(player.PlayerId||'').replace('xuid(','').replace(')','');
           const gt = xuidToGt[rawXuid] || ('Spartan ' + rawXuid.slice(-4));
           const pk = pcore.Kills||0, pd = pcore.Deaths||0, pa = pcore.Assists||0;
-          teamMap[teamId].players.push({ gamertag: gt, rawXuid, kills: pk, deaths: pd, assists: pa, kd: pd>0?(pk/pd).toFixed(2):pk.toString(), damage: pcore.DamageDealt||0, gamerpicUrl: xuidToGamerpic[rawXuid]||null });
+          const ppstats = player.PlayerTeamStats?.[0]?.Stats || {};
+          const ppodd = ppstats.OddballStats, ppzones = ppstats.ZonesStats, ppctf = ppstats.CaptureTheFlagStats, ppstock = ppstats.StockpileStats;
+          const parseDurP = s => { if(!s||s==='PT0S')return 0; const mm=String(s).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/); return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0; };
+          teamMap[teamId].players.push({
+            gamertag: gt, rawXuid,
+            kills: pk, deaths: pd, assists: pa,
+            score: pcore.Score||0,
+            kd: pd>0?(pk/pd).toFixed(2):pk.toString(),
+            damage: pcore.DamageDealt||0,
+            gamerpicUrl: xuidToGamerpic[rawXuid]||null,
+            // Objective stats for ranking
+            ballTime: ppodd ? parseDurP(ppodd.TimeAsSkullCarrier) : 0,
+            zoneCaptures: ppzones ? (ppzones.StrongholdCaptures||0) : 0,
+            zoneSecures: ppzones ? (ppzones.StrongholdSecures||0) : 0,
+            flagCaptures: ppctf ? (ppctf.FlagCaptures||0) : 0,
+            seeds: ppstock ? (ppstock.PowerSeedsDeposited||0) : 0,
+          });
 
           if (String(player.PlayerId||'') === `xuid(${xuid})` || String(player.Xuid||'') === String(xuid)) {
             matchOutcome = player.Outcome || 0;
@@ -551,6 +567,42 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
           } catch(e) {}
         }
         teams = Object.values(teamMap).map(t=>({...t,players:t.players.sort((a,b)=>b.kills-a.kills)}));
+
+        // Calculate placement using a composite score per player:
+        // Base: kills + assists*0.5 + damage/500
+        // Objective bonus (replaces damage weight when present):
+        //   Oddball: ball hold time (seconds) * 0.08 counts heavily
+        //   Strongholds/KotH: zone caps * 3 + secures * 2
+        //   CTF: flag caps * 10 + flag grabs * 2
+        //   Stockpile: seeds deposited * 5
+        // Winning team → ranks 1-4, losing team → ranks 5-8
+        if (teams.length >= 2) {
+          const isOddball = catNum && [12,18].includes(catNum) && gameMode && /oddball/i.test(gameMode);
+          const isZones   = catNum && [11,14,20].includes(catNum);
+          const isCTF     = catNum && [13,15].includes(catNum);
+          const isStock   = catNum === 24;
+
+          function playerScore(p) {
+            const base = (p.kills||0) + (p.assists||0)*0.5;
+            if (isOddball) return base + (p.ballTime||0)*0.08;
+            if (isZones)   return base + (p.zoneCaptures||0)*3 + (p.zoneSecures||0)*2;
+            if (isCTF)     return base + (p.flagCaptures||0)*10 + (p.seeds||0)*2;
+            if (isStock)   return base + (p.seeds||0)*5;
+            // Slayer: kills + assists*0.5 + damage contribution
+            return base + (p.damage||0)/600;
+          }
+
+          const myTeam = teams.find(t => t.outcome === matchOutcome);
+          if (myTeam && myTeam.players.length > 0) {
+            // Sort team by composite score descending
+            const sorted = [...myTeam.players].sort((a,b) => playerScore(b) - playerScore(a));
+            const myRankOnTeam = sorted.findIndex(p =>
+              p.kills === kills && p.deaths === deaths && p.assists === assists && p.damage === damageDealt
+            );
+            const offset = matchOutcome === 2 ? 0 : myTeam.players.length;
+            if (myRankOnTeam >= 0) placement = myRankOnTeam + 1 + offset;
+          }
+        }
       }
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
