@@ -1,25 +1,8 @@
 const fetch = require('node-fetch');
-const Redis = require('ioredis');
-
-// --- Redis ---
-let redisClient = null;
+// --- Redis (disabled — using in-memory cache only) ---
+// Uncomment and configure when Redis is working
 async function getRedis() {
-  if (redisClient) return redisClient;
-  if (!process.env.REDIS_URL) return null;
-  try {
-    redisClient = new Redis(process.env.REDIS_URL, {
-      tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
-      maxRetriesPerRequest: 3,
-      enableReadyCheck: false,
-      lazyConnect: false,
-    });
-    redisClient.on('error', e => console.error('[Redis]', e.message));
-    redisClient.on('connect', () => console.log('[Redis] Connected.'));
-    // ioredis connects automatically — just test it
-    await redisClient.ping();
-    console.log('[Redis] Ready.');
-    return redisClient;
-  } catch(e) { console.error('[Redis] Failed:', e.message); redisClient = null; return null; }
+  return null; // in-memory only for now
 }
 
 // --- In-memory caches ---
