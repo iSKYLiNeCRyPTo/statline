@@ -10,6 +10,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
 <style>
 
+:root{
+  --fragr-blue:#185FA5;--fragr-light:#85B7EB;--fragr-dark:#0C447C;
+  --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
+  --border:#1a3050;--border2:#254268;--accent:#378ADD;--accent-r:56;--accent-g:138;--accent-b:221;--win:#4CAF82;
+  --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
+}
 [data-theme="light"]{
   --bg:#F1EFE8;--surface:#ffffff;--surface2:#E8E6DF;--surface3:#D3D1C7;
   --border:#D3D1C7;--border2:#B8B6B0;--accent:#185FA5;--accent-r:24;--accent-g:95;--accent-b:165;
@@ -20,12 +26,6 @@
 [data-theme="light"] body::after{display:none}
 [data-theme="light"] .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%)}
 [data-theme="light"] .match-map-thumb-overlay{background:linear-gradient(to right,rgba(255,255,255,0) 50%,var(--surface) 100%)}
-:root{
-  --fragr-blue:#185FA5;--fragr-light:#85B7EB;--fragr-dark:#0C447C;
-  --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
-  --border:#1a3050;--border2:#254268;--accent:#378ADD;--accent-r:56;--accent-g:138;--accent-b:221;--win:#4CAF82;
-  --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
-}
 [data-theme="covenant"]{
   --bg:#080610;--surface:#0e0b1a;--surface2:#130f22;--surface3:#180c2e;
   --border:#2a1e50;--border2:#3a2870;--accent:#9b59f5;--accent-r:155;--accent-g:89;--accent-b:245;--win:#7c4dff;
@@ -468,9 +468,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="cmd-topbar">
       <div class="cmd-topbar-left" style="gap:16px">
         <div onclick="goHome()" style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0" title="fragr home">
-          <svg width="100" height="32" viewBox="0 0 100 32" xmlns="http://www.w3.org/2000/svg">
+          <svg width="106" height="32" viewBox="0 0 106 32" xmlns="http://www.w3.org/2000/svg">
             <rect width="32" height="32" rx="7" fill="#185FA5"/>
-            <g transform="translate(16,16) rotate(-35) scale(0.5)">
+            <g transform="translate(19,17) rotate(-35) scale(0.5)">
               <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
               <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
               <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
@@ -484,7 +484,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
               <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
               <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
             </g>
-            <text x="40" y="21" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="20" fill="#E6F1FB">fragr</text>
+            <text x="42" y="21" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="20" fill="var(--text)">fragr</text>
           </svg>
         </div>
         <span class="cmd-topbar-title" id="topbarTitle" style="font-size:10px;color:var(--muted2)">// OVERVIEW</span>
