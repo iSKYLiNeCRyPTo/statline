@@ -435,7 +435,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     </div>
     <div class="cmd-content">
 <!-- Landing page -->
-<div id="landing" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto">
+<div id="landing" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto">
   <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px">
     <div style="max-width:480px;width:100%;text-align:center">
       <div style="font-family:Rajdhani,sans-serif;font-size:48px;font-weight:700;color:var(--text);margin-bottom:8px">STAT<span style="color:var(--accent)">LINE</span></div>
@@ -473,7 +473,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     </div>
   </div>
 </div>
-      <div id="app"><div id="skeleton-loader">
+      <div id="app"><div id="skeleton-loader" style="display:none">
   <div class="skeleton skeleton-hero"></div>
   <div class="skeleton-cards">
     <div class="skeleton skeleton-card"></div>
@@ -909,7 +909,6 @@ async function loadStats(){
   }
 }
 async function refreshStats(){ /* no-op in production */ }
-render();}else{document.getElementById('lastUpdated').textContent='Refresh failed: '+(d.error||'unknown');}}catch(e){document.getElementById('lastUpdated').textContent='Refresh failed: '+e.message;}if(btn){btn.disabled=false;btn.textContent='↻ REFRESH';}if(mbtn){mbtn.disabled=false;mbtn.textContent='↻';}}
 function rivalAvatar(r){
   var init=(r.gamertag||'?')[0].toUpperCase();
   if(r.gamerpicUrl){
