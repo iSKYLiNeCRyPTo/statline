@@ -1,23 +1,25 @@
 const fetch = require('node-fetch');
-const redis = require('redis');
+const Redis = require('ioredis');
 
 // --- Redis ---
 let redisClient = null;
 async function getRedis() {
-  if (redisClient && redisClient.isOpen) return redisClient;
+  if (redisClient) return redisClient;
   if (!process.env.REDIS_URL) return null;
   try {
-    const url = process.env.REDIS_URL;
-    const isTls = url.startsWith('rediss://');
-    redisClient = redis.createClient({
-      url,
-      socket: isTls ? { tls: true, rejectUnauthorized: false } : undefined,
+    redisClient = new Redis(process.env.REDIS_URL, {
+      tls: process.env.REDIS_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: false,
+      lazyConnect: false,
     });
     redisClient.on('error', e => console.error('[Redis]', e.message));
-    await redisClient.connect();
-    console.log('[Redis] Connected.');
+    redisClient.on('connect', () => console.log('[Redis] Connected.'));
+    // ioredis connects automatically — just test it
+    await redisClient.ping();
+    console.log('[Redis] Ready.');
     return redisClient;
-  } catch(e) { console.error('[Redis] Failed:', e.message); return null; }
+  } catch(e) { console.error('[Redis] Failed:', e.message); redisClient = null; return null; }
 }
 
 // --- In-memory caches ---
