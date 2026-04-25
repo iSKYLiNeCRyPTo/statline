@@ -506,9 +506,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
             damageDealt=pcore.DamageDealt||0; damageTaken=pcore.DamageTaken||0;
             shotsFired = pcore.ShotsFired||0; shotsHit = pcore.ShotsHit||0;
             accuracy = pcore.Accuracy!=null ? pcore.Accuracy : pcore.ShotAccuracy!=null ? pcore.ShotAccuracy*100 : shotsFired>0 ? (shotsHit/shotsFired)*100 : null;
-            // Only use rank placement for Slayer/FFA — not meaningful in team objective modes
-            const _isTeamObj = catNum && [11,12,13,14,15,18,19,20,24].includes(catNum);
-            placement = (!_isTeamObj && player.Rank) ? player.Rank + 1 : null;
+            placement = player.Rank ? player.Rank + 1 : null;
             weaponStats = { headshots: pcore.HeadshotKills||0, melee: pcore.MeleeKills||0, grenades: pcore.GrenadeKills||0, powerWeapon: pcore.PowerWeaponKills||0 };
             const pstats = player.PlayerTeamStats?.[0]?.Stats || {};
             const oddball=pstats.OddballStats, zones=pstats.ZonesStats, ctf=pstats.CaptureTheFlagStats, stockpile=pstats.StockpileStats;
