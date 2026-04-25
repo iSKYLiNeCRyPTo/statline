@@ -535,7 +535,17 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
             const oddball=pstats.OddballStats, zones=pstats.ZonesStats, ctf=pstats.CaptureTheFlagStats, stockpile=pstats.StockpileStats;
             const parseDur = s => { if(!s||s==='PT0S'||s==='PT')return 0; const mm=String(s).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/); return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0; };
             if (oddball && (catNum===12||catNum===18) && !zones) objStats={mode:'Oddball',timeAsCarrier:parseDur(oddball.TimeAsSkullCarrier),longestCarry:parseDur(oddball.LongestTimeAsSkullCarrier),ballGrabs:oddball.SkullGrabs??null,killsAsCarrier:oddball.KillsAsSkullCarrier??null,carrierKills:oddball.SkullCarriersKilled??null,scoringTicks:oddball.SkullScoringTicks??null};
-            else if (zones) { let zm=gameMode?.toLowerCase().includes('king')?'King of the Hill':gameMode?.toLowerCase().includes('land')?'Land Grab':'Strongholds'; objStats={mode:zm,captures:zones.StrongholdCaptures??null,secures:zones.StrongholdSecures??null,defensiveKills:zones.StrongholdDefensiveKills??null,offensiveKills:zones.StrongholdOffensiveKills??null,scoringTicks:zones.StrongholdScoringTicks??null,occupationTime:parseDur(zones.StrongholdOccupationTime??zones.TotalTimeInZone)}; }
+            else if (zones) {
+              let zm=gameMode?.toLowerCase().includes('king')?'King of the Hill':gameMode?.toLowerCase().includes('land')?'Land Grab':'Strongholds';
+              // KotH / Land Grab / Strongholds all use ZonesStats but with varying field names
+              const _caps = zones.StrongholdCaptures ?? zones.ZoneCaptures ?? zones.HillCaptures ?? zones.Captures ?? null;
+              const _secs = zones.StrongholdSecures  ?? zones.ZoneSecures  ?? zones.HillSecures  ?? zones.Secures  ?? null;
+              const _defK = zones.StrongholdDefensiveKills ?? zones.DefensiveKills ?? null;
+              const _offK = zones.StrongholdOffensiveKills ?? zones.OffensiveKills ?? null;
+              const _ticks= zones.StrongholdScoringTicks ?? zones.ScoringTicks ?? null;
+              const _occT = zones.StrongholdOccupationTime ?? zones.OccupationTime ?? zones.TotalTimeInZone ?? zones.TimeInZone ?? null;
+              objStats={mode:zm,captures:_caps,secures:_secs,defensiveKills:_defK,offensiveKills:_offK,scoringTicks:_ticks,occupationTime:parseDur(_occT)};
+            }
             else if (ctf) objStats={mode:'CTF',flagCaptures:ctf.FlagCaptures??null,flagGrabs:ctf.FlagGrabs??null,flagReturns:ctf.FlagReturns??null,flagCarrierKills:ctf.FlagCarrierKills??null,flagsStolen:ctf.FlagsStolen??null,timeAsCarrier:parseDur(ctf.TimeAsCarrier)};
             else if (stockpile) objStats={mode:'Stockpile',seedsDeposited:stockpile.PowerSeedsDeposited??null,seedsStolen:stockpile.PowerSeedsStolenFromBase??null,seedsPickedUp:stockpile.PowerSeedsPickedUp??null};
             teamMap[teamId].outcome = player.Outcome || m.Outcome;
