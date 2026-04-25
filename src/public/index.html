@@ -404,7 +404,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="mobile-logo-actions">
     <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
     <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
-    <button class="mobile-action-btn" onclick="shareStats()" title="Share"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
+    <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
 <!-- Mobile search overlay -->
@@ -1100,7 +1100,29 @@ async function loadStats(){
     showLanding();
   }
 }
-async function refreshStats(){ /* no-op in production */ }
+async function refreshStats(){
+  var p=getAllPlayers()[selectedPlayer]||searchData;
+  if(!p||!p.gamertag){toast('No player loaded','error');return;}
+  var btn=document.getElementById('mobileRefreshBtn');
+  if(btn)btn.disabled=true;
+  toast('Refreshing...','info',2000);
+  matchHistoryData=null;
+  try{
+    var res=await fetch('/api/search?gamertag='+encodeURIComponent(p.gamertag)+'&force=1');
+    var d=await res.json();
+    if(d.success&&d.player){
+      playerData=d.player;
+      data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
+      searchData=playerData;searchMode=false;selectedPlayer=0;
+      render();
+      loadFullMatches(p.gamertag);
+      toast('Stats refreshed','success');
+    } else {
+      toast(d.error||'Refresh failed','error');
+    }
+  }catch(e){toast('Refresh failed: '+e.message,'error');}
+  finally{if(btn)btn.disabled=false;}
+}
 function rivalAvatar(r){
   var init=(r.gamertag||'?')[0].toUpperCase();
   if(r.gamerpicUrl){
