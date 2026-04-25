@@ -89,6 +89,19 @@ loadMedalMeta();
 // Health check
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
+// Debug — check token status without exposing the token itself
+app.get('/api/token-status', (req, res) => {
+  const token = process.env.SPARTAN_TOKEN || '';
+  const refresh = process.env.MS_REFRESH_TOKEN || '';
+  res.json({
+    hasToken: token.length > 0,
+    tokenLength: token.length,
+    tokenPreview: token ? token.slice(0, 8) + '...' : 'NOT SET',
+    hasRefreshToken: refresh.length > 0,
+    refreshPreview: refresh ? refresh.slice(0, 8) + '...' : 'NOT SET',
+  });
+});
+
 // Main search endpoint
 app.get('/api/search', rateLimit, async (req, res) => {
   const gamertag = (req.query.gamertag || '').trim();
