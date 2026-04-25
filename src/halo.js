@@ -7,7 +7,12 @@ async function getRedis() {
   if (redisClient && redisClient.isOpen) return redisClient;
   if (!process.env.REDIS_URL) return null;
   try {
-    redisClient = redis.createClient({ url: process.env.REDIS_URL });
+    const url = process.env.REDIS_URL;
+    const isTls = url.startsWith('rediss://');
+    redisClient = redis.createClient({
+      url,
+      socket: isTls ? { tls: true, rejectUnauthorized: false } : undefined,
+    });
     redisClient.on('error', e => console.error('[Redis]', e.message));
     await redisClient.connect();
     console.log('[Redis] Connected.');
