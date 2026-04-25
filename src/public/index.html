@@ -9,6 +9,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
 <style>
+
+[data-theme="light"]{
+  --bg:#F1EFE8;--surface:#ffffff;--surface2:#E8E6DF;--surface3:#D3D1C7;
+  --border:#D3D1C7;--border2:#B8B6B0;--accent:#185FA5;--accent-r:24;--accent-g:95;--accent-b:165;
+  --win:#2a7a4f;--loss:#c0392b;--gold:#a07020;
+  --text:#0C447C;--muted:#888780;--muted2:#B8B6B0;
+}
+[data-theme="light"] body::before{background-image:linear-gradient(rgba(24,95,165,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(24,95,165,0.04) 1px,transparent 1px)}
+[data-theme="light"] body::after{display:none}
+[data-theme="light"] .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%)}
+[data-theme="light"] .match-map-thumb-overlay{background:linear-gradient(to right,rgba(255,255,255,0) 50%,var(--surface) 100%)}
 :root{
   --fragr-blue:#185FA5;--fragr-light:#85B7EB;--fragr-dark:#0C447C;
   --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
@@ -399,15 +410,24 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <body>
 <div id="toast-container"></div>
 <div class="mobile-logo-bar" id="mobileLogoBar">
-  <svg width="80" height="26" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
-    <circle cx="15" cy="15" r="13" fill="none" stroke="#85B7EB" stroke-width="2"/>
-    <circle cx="15" cy="15" r="4.5" fill="none" stroke="#85B7EB" stroke-width="1.5"/>
-    <circle cx="15" cy="15" r="1.8" fill="#85B7EB"/>
-    <line x1="15" y1="2" x2="15" y2="9" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="15" y1="21" x2="15" y2="28" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="2" y1="15" x2="9" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="21" y1="15" x2="28" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-    <text x="34" y="21" font-family="system-ui,sans-serif" font-size="19" font-weight="500" letter-spacing="-0.5" fill="#E6F1FB">fragr</text>
+  <svg width="110" height="28" viewBox="0 0 110 28" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
+    <rect width="28" height="28" rx="6" fill="#185FA5"/>
+    <g transform="translate(14,14) rotate(-35) scale(0.435)">
+    <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+    <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+    <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+    <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+    <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+    <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+  </g>
+    <text x="35" y="19" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="19" fill="var(--text)">fragr</text>
+    <text x="37" y="26" font-family="system-ui,sans-serif" font-weight="400" letter-spacing="2px" font-size="7" fill="var(--muted)">STAT TRACKER</text>
   </svg>
   <div class="mobile-logo-actions">
     <button class="mobile-action-btn" id="mobileFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
@@ -446,21 +466,33 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="cmd-topbar">
       <div class="cmd-topbar-left" style="gap:16px">
         <div onclick="goHome()" style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0" title="fragr home">
-          <svg width="90" height="30" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="15" cy="15" r="13" fill="none" stroke="#85B7EB" stroke-width="2"/>
-            <circle cx="15" cy="15" r="4.5" fill="none" stroke="#85B7EB" stroke-width="1.5"/>
-            <circle cx="15" cy="15" r="1.8" fill="#85B7EB"/>
-            <line x1="15" y1="2" x2="15" y2="9" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="15" y1="21" x2="15" y2="28" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="2" y1="15" x2="9" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="21" y1="15" x2="28" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
-            <text x="34" y="21" font-family="system-ui,sans-serif" font-size="19" font-weight="500" letter-spacing="-0.5" fill="#E6F1FB">fragr</text>
+          <svg width="130" height="32" viewBox="0 0 130 32" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="7" fill="#185FA5"/>
+            <g transform="translate(16,16) rotate(-35) scale(0.5)">
+    <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+    <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+    <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+    <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+    <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+    <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+  </g>
+            <text x="40" y="22" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="22" fill="#E6F1FB">fragr</text>
+            <text x="42" y="30" font-family="system-ui,sans-serif" font-weight="400" letter-spacing="2px" font-size="7.5" fill="#85B7EB">STAT TRACKER</text>
           </svg>
         </div>
         <span class="cmd-topbar-title" id="topbarTitle" style="font-size:10px;color:var(--muted2)">// OVERVIEW</span>
       </div>
       <div class="cmd-topbar-right">
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
+        <button id="themeToggleBtn" onclick="toggleLightDark()" title="Toggle light/dark" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
+          <svg id="themeToggleIcon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
         <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
 
         <div class="search-bar search-wrap">
@@ -697,10 +729,26 @@ async function loadAllFavorites() {
   }
 }
 
+
+function toggleLightDark(){
+  var isLight=document.documentElement.getAttribute('data-theme')==='light';
+  var next=isLight?'mc117':'light';
+  document.documentElement.setAttribute('data-theme', next==='light'?'light':'');
+  try{localStorage.setItem('fragrTheme',next);}catch(e){}
+  applyTheme(next);
+  // Update icon — sun for dark, moon for light
+  var icon=document.getElementById('themeToggleIcon');
+  if(icon){
+    icon.innerHTML=next==='light'
+      ?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>' // moon
+      :'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'; // sun
+  }
+}
 function applyTheme(t){
   var root=document.documentElement;
   root.removeAttribute('data-theme');
-  if(t!=='mc117')root.setAttribute('data-theme',t);
+  if(t==='light')root.setAttribute('data-theme','light');
+  else if(t!=='mc117')root.setAttribute('data-theme',t);
   
   // Update CSR chart colors per theme
   var chartColors={
@@ -715,8 +763,17 @@ function applyTheme(t){
 }
 
 
-// Apply default theme on load
-applyTheme('mc117');
+// Apply saved or default theme on load
+(function(){
+  var saved='mc117';
+  try{saved=localStorage.getItem('fragrTheme')||'mc117';}catch(e){}
+  applyTheme(saved);
+  // Set correct toggle icon
+  var icon=document.getElementById('themeToggleIcon');
+  if(icon&&saved==='light'){
+    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+})();
 
 window.addEventListener('resize',function(){
   var dtb=document.getElementById('desktopTabBar');
@@ -1051,8 +1108,17 @@ function handleSuggestKey(e,dropId){
   else if(e.key==='Enter'){if(_suggestIdx>=0&&items[_suggestIdx]){e.preventDefault();items[_suggestIdx].click();}else{drop.classList.remove('open');searchPlayer();}}
   else if(e.key==='Escape'){drop.classList.remove('open');}
 }
-// Apply default theme on load
-applyTheme('mc117');
+// Apply saved or default theme on load
+(function(){
+  var saved='mc117';
+  try{saved=localStorage.getItem('fragrTheme')||'mc117';}catch(e){}
+  applyTheme(saved);
+  // Set correct toggle icon
+  var icon=document.getElementById('themeToggleIcon');
+  if(icon&&saved==='light'){
+    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+})();
 
 window.addEventListener('resize',function(){
   var dtb=document.getElementById('desktopTabBar');
