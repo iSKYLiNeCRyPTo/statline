@@ -145,6 +145,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .rivals-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
 .tab-panel{display:none}.tab-panel.active{display:block;margin-top:20px}
+.dtab.active{color:var(--accent) !important;border-bottom-color:var(--accent) !important;font-weight:700}
+.dtab:hover{color:var(--text) !important}
 .search-bar{display:flex;gap:8px;align-items:center}
 .search-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;width:130px;outline:none;min-width:80px}
 .search-input:focus{border-color:var(--accent);box-shadow:0 0 0 1px rgba(124,181,24,0.2)}
@@ -433,16 +435,25 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         </div>
       </div>
     </div>
+    <!-- Desktop tab navigation -->
+    <nav id="desktopTabBar" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none">
+      <button onclick="setTab('overview')" data-tab="overview" class="dtab active" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◈ Overview</button>
+      <button onclick="setTab('matches')" data-tab="matches" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◉ Matches</button>
+      <button onclick="setTab('bymap')" data-tab="bymap" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◫ By Map</button>
+      <button onclick="setTab('charts')" data-tab="charts" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◧ CSR Charts</button>
+      <button onclick="setTab('objectives')" data-tab="objectives" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◎ Objectives</button>
+      <button onclick="setTab('opponents')" data-tab="opponents" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◐ Opponents</button>
+    </nav>
     <div class="cmd-content">
 <!-- Landing page -->
-<div id="landing" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto">
-  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px">
-    <div style="max-width:480px;width:100%;text-align:center">
-      <div style="font-family:Rajdhani,sans-serif;font-size:48px;font-weight:700;color:var(--text);margin-bottom:8px">STAT<span style="color:var(--accent)">LINE</span></div>
-      <p style="color:var(--muted);font-size:13px;margin-bottom:40px;font-family:Share Tech Mono,monospace;letter-spacing:1px">HALO INFINITE STATS TRACKER</p>
-      <div style="display:flex;gap:10px;margin-bottom:12px">
+<div id="landing" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto;align-items:center;justify-content:center">
+  <div style="width:100%;max-width:560px;padding:clamp(24px,5vw,60px) 24px;text-align:center">
+    <div style="width:100%">
+      <div style="font-family:Rajdhani,sans-serif;font-size:clamp(48px,8vw,80px);font-weight:700;color:var(--text);margin-bottom:8px;line-height:1">STAT<span style="color:var(--accent)">LINE</span></div>
+      <p style="color:var(--muted);font-size:clamp(11px,1.5vw,14px);margin-bottom:clamp(24px,4vh,48px);font-family:Share Tech Mono,monospace;letter-spacing:2px">HALO INFINITE STATS TRACKER</p>
+      <div style="display:flex;gap:10px;margin-bottom:12px;max-width:520px;margin-left:auto;margin-right:auto">
         <input id="landingSearch" type="text" placeholder="Enter gamertag..." autocomplete="off" autocorrect="off" spellcheck="false"
-          style="flex:1;padding:14px 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s"
+          style="flex:1;padding:clamp(10px,2vh,16px) 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:clamp(13px,1.8vw,16px);font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s"
           onkeydown="if(event.key==='Enter')landingSearchPlayer()"
           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         <button onclick="landingSearchPlayer()"
@@ -452,7 +463,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         </button>
       </div>
       <div id="landingError" style="color:var(--loss);font-size:12px;min-height:18px;font-family:Share Tech Mono,monospace;text-align:left;padding-left:2px"></div>
-      <div style="margin-top:48px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:left">
+      <div style="margin-top:clamp(24px,4vh,48px);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
           <div style="font-size:24px;margin-bottom:8px">📊</div>
           <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">Service Record</div>
@@ -822,11 +833,14 @@ function setTab(t){
   if(window.innerWidth<768){var sb=document.getElementById('sidebar');if(sb)sb.classList.remove('open');}
   // Load match history when switching to that tab
   if(t==='matches'){matchHistoryPage=1;loadMatchHistory(1);}
-  // Load full matches for analysis tabs
   if(['bymap','charts','objectives','opponents'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
+  // Update desktop tab active state
+  document.querySelectorAll('.dtab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tab===t);
+  });
 }
 
 function toast(msg,type,duration){
@@ -870,7 +884,16 @@ function updateLiveIndicator(){
 }
 
 var sessionStart=null; // snapshot of stats when page first loaded
-async function loadMedalMeta(){try{var res=await fetch('/api/medal-meta');if(!res.ok)return;var d=await res.json(),medals=d.medals||d.Medals||[],columns=d.columns||d.Columns||16;medals.forEach(function(m){var id=m.nameId||m.NameId;if(!id)return;medalMeta[id]={name:(m.name&&m.name.value)||String(id),description:(m.description&&m.description.value)||'',difficulty:['normal','heroic','legendary','mythic'][m.difficultyIndex]||'normal',spriteIndex:m.spriteIndex!==undefined?m.spriteIndex:null,columns:columns};});}catch(e){}}
+async function loadMedalMeta(){try{var res=await fetch('/api/medal-meta');if(!res.ok)return;var d=await res.json();
+  // Handle both array format and object/map format
+  if(Array.isArray(d.medals||d.Medals)){
+    var medals=d.medals||d.Medals,columns=d.columns||d.Columns||16;
+    medals.forEach(function(m){var id=m.nameId||m.NameId;if(!id)return;medalMeta[id]={name:(m.name&&m.name.value)||m.name||String(id),difficulty:['normal','heroic','legendary','mythic'][m.difficultyIndex]||'normal',spriteIndex:m.spriteIndex!==undefined?m.spriteIndex:null,columns:columns};});
+  } else {
+    // Object map format: { "nameId": { name, sprite, ... } }
+    Object.entries(d).forEach(function(e){var id=e[0],info=e[1];if(!id||!info)return;medalMeta[id]={name:info.name||String(id),difficulty:'normal',spriteIndex:null,columns:16};});
+  }
+}catch(e){console.warn('[Medals]',e.message);}}
 
 function showLanding(){
   var el=document.getElementById('landing');
@@ -888,6 +911,7 @@ function hideLanding(){
 }
 function goHome(){
   playerData=null; data=null; searchData=null; searchMode=false;
+  var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='none';
   showLanding();
 }
 async function landingSearchPlayer(){
@@ -1572,6 +1596,7 @@ async function doSearch(gt){
   if(!gt||!gt.trim())return;
   gt=gt.trim();
   var el=document.getElementById('landing');if(el)el.style.display='none';
+  var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='flex';
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
   document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+gt+'</strong>...</p></div>';
