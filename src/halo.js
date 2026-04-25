@@ -429,6 +429,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
       let placement = null, score = 0, damageDealt = 0, damageTaken = 0, accuracy = null;
       let weaponStats = [], mmr = null, oppMmr = null, expectedKills = null, expectedDeaths = null, objStats = null;
       let mapName = null, mapImageUrl = null, isRanked = false, csrAfter = null, csrBefore = null, csrDelta = null, matchOutcome = 0;
+        let matchTopMedals = [];
 
       if (md) {
         const lifecycleMode = md.MatchInfo?.LifecycleMode;
@@ -526,7 +527,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
             weaponStats = { headshots: pcore.HeadshotKills||0, melee: pcore.MeleeKills||0, grenades: pcore.GrenadeKills||0, powerWeapon: pcore.PowerWeaponKills||0 };
             const pstats = player.PlayerTeamStats?.[0]?.Stats || {};
             const rawMatchMedals = pstats.CoreStats?.Medals || pcore.Medals || [];
-            const matchTopMedals = rawMatchMedals
+            matchTopMedals = rawMatchMedals
               .filter(mm => mm.Count > 0)
               .sort((a,b) => (b.Count||0)-(a.Count||0))
               .slice(0,12)
