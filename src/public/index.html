@@ -397,7 +397,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </style>
 </head>
 <body>
-<div id="toast-container"><div class="mobile-logo-bar" id="mobileLogoBar">
+<div id="toast-container"></div>
+<div class="mobile-logo-bar" id="mobileLogoBar">
   <svg width="80" height="26" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
     <circle cx="15" cy="15" r="13" fill="none" stroke="#85B7EB" stroke-width="2"/>
     <circle cx="15" cy="15" r="4.5" fill="none" stroke="#85B7EB" stroke-width="1.5"/>
@@ -712,24 +713,15 @@ function applyTheme(t){
   };
   window._themeChartColors=chartColors[t]||chartColors.mc117;
 }
-function setTheme(t){
-  try{localStorage.setItem('fragrTheme',t);}catch(e){}
-  applyTheme(t);
-  toast('Theme applied','success',1500);
-}
+
+
+// Apply default theme on load
+applyTheme('mc117');
 
 window.addEventListener('resize',function(){
   var dtb=document.getElementById('desktopTabBar');
   if(dtb&&dtb.style.display!=='none')dtb.style.display=window.innerWidth>=768?'flex':'none';
 });
-document.addEventListener('click',function(e){
-});
-// Load saved theme
-(function(){
-  var saved='mc117';
-  try{saved=localStorage.getItem('fragrTheme')||localStorage.getItem('fragrTheme')||localStorage.getItem('statlineTheme')||'mc117';}catch(e){}
-  applyTheme(saved);
-})();
 // ── Match History Pagination ──
 function loadMatchHistory(page){
   if(matchHistoryLoading)return;
@@ -1059,6 +1051,9 @@ function handleSuggestKey(e,dropId){
   else if(e.key==='Enter'){if(_suggestIdx>=0&&items[_suggestIdx]){e.preventDefault();items[_suggestIdx].click();}else{drop.classList.remove('open');searchPlayer();}}
   else if(e.key==='Escape'){drop.classList.remove('open');}
 }
+// Apply default theme on load
+applyTheme('mc117');
+
 window.addEventListener('resize',function(){
   var dtb=document.getElementById('desktopTabBar');
   if(dtb&&dtb.style.display!=='none')dtb.style.display=window.innerWidth>=768?'flex':'none';
