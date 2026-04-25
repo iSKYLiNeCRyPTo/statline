@@ -11,6 +11,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
+// Warn on missing required env vars
+if (!process.env.SPARTAN_TOKEN) {
+  console.error('[WARN] SPARTAN_TOKEN is not set — all API calls will fail with 401');
+}
+
 // --- Rate limiting (in-memory, per IP) ---
 const rateLimitMap = {};
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
@@ -101,15 +106,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
     }
   }
 
-  searchInFlight[key] = (async () => {
+  const searchPromise = (async () => {
     try {
-      const [playerStats, historyData] = await Promise.all([
-        fetchPlayerStats(gamertag),
-        // We need xuid first — but fetchPlayerStats resolves it internally
-        // So we fetch stats, then use xuid from result for history
-        Promise.resolve(null),
-      ]);
-
+      const playerStats = await fetchPlayerStats(gamertag);
       const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 25);
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
       const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
@@ -119,32 +118,33 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
         return true;
       });
-
       const result = {
         ...playerStats,
         recentMatches: matches,
-        allMatches: matches, // same — always 25
+        allMatches: matches,
         rivals: histData.rivals || [],
         nemesisList: histData.nemesisList || [],
         victimsList: histData.victimsList || [],
       };
-
       await saveToCache(gamertag, result);
       return result;
     } finally {
       delete searchInFlight[key];
     }
   })();
+  searchInFlight[key] = searchPromise;
 
   try {
-    const result = await searchInFlight[key];
+    const result = await searchPromise;
     res.json({ success: true, player: result });
   } catch(e) {
     console.error('[Search] Error for', gamertag, ':', e.message);
-    if (e.message.includes('Could not resolve gamertag')) {
+    if (e.message.includes('Could not resolve gamertag') || e.message.includes('404')) {
       res.status(404).json({ success: false, error: `Player "${gamertag}" not found. Check the spelling and try again.` });
+    } else if (e.message.includes('SPARTAN_TOKEN') || e.message.includes('401') || e.message.includes('403')) {
+      res.status(503).json({ success: false, error: 'Authentication error — check SPARTAN_TOKEN in environment variables.' });
     } else {
-      res.status(500).json({ success: false, error: 'Could not load stats. Please try again.' });
+      res.status(500).json({ success: false, error: 'Could not load stats: ' + e.message });
     }
   }
 });
