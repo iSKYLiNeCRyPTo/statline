@@ -443,11 +443,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div style="display:flex;gap:10px;margin-bottom:12px">
         <input id="landingSearch" type="text" placeholder="Enter gamertag..." autocomplete="off" autocorrect="off" spellcheck="false"
           style="flex:1;padding:14px 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s"
-          onkeydown="if(event.key===\'Enter\')landingSearchPlayer()"
-          onfocus="this.style.borderColor=\'var(--accent)\'" onblur="this.style.borderColor=\'var(--border)\'">
+          onkeydown="if(event.key==='Enter')landingSearchPlayer()"
+          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
         <button onclick="landingSearchPlayer()"
           style="padding:14px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:Share Tech Mono,monospace;white-space:nowrap;transition:opacity 0.15s"
-          onmouseover="this.style.opacity=\'0.85\'" onmouseout="this.style.opacity=\'1\'">
+          onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
           SEARCH
         </button>
       </div>
@@ -862,9 +862,11 @@ function updateLiveIndicator(){
   var dot=document.getElementById('liveDot');
   var ts=document.getElementById('lastUpdated');
   if(!dot||!ts)return;
-  if(age<35*60*1000){dot.className='live-dot';ts.style.color='var(--muted)';}
-  else if(age<70*60*1000){dot.className='live-dot stale';ts.style.color='var(--gold)';}
-  else{dot.className='live-dot old';ts.style.color='var(--loss)';}
+  if(dot&&ts){
+    if(age<35*60*1000){dot.className='live-dot';ts.style.color='var(--muted)';}
+    else if(age<70*60*1000){dot.className='live-dot stale';ts.style.color='var(--gold)';}
+    else{dot.className='live-dot old';ts.style.color='var(--loss)';}
+  }
 }
 
 var sessionStart=null; // snapshot of stats when page first loaded
@@ -873,12 +875,12 @@ async function loadMedalMeta(){try{var res=await fetch('/api/medal-meta');if(!re
 function showLanding(){
   var el=document.getElementById('landing');
   if(el)el.style.display='flex';
-  document.getElementById('app').innerHTML='';
-  document.getElementById('clearSearchBtn').style.display='none';
-  document.getElementById('searchInput').value='';
+  var _app=document.getElementById('app');if(_app)_app.innerHTML='';
+  var _csb=document.getElementById('clearSearchBtn');if(_csb)_csb.style.display='none';
+  var _si=document.getElementById('searchInput');if(_si)_si.value='';
   document.title='StatLine — Halo Infinite Stats';
-  var url=new URL(window.location);url.searchParams.delete('player');url.searchParams.delete('search');
-  window.history.pushState({},'',url);
+  try{var url=new URL(window.location);url.searchParams.delete('player');url.searchParams.delete('search');
+  window.history.pushState({},'',url);}catch(e){}
 }
 function hideLanding(){
   var el=document.getElementById('landing');
