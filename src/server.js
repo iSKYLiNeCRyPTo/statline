@@ -161,7 +161,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
   const searchPromise = (async () => {
     try {
       const playerStats = await fetchPlayerStats(gamertag);
-      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 25);
+      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 50);
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
       const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
       const matches = (histData.matches || []).filter(m => {
@@ -169,7 +169,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
         return true;
-      }).slice(0, 25);
+      }).slice(0, 50);
       const result = {
         ...playerStats,
         recentMatches: matches,
@@ -201,17 +201,17 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 });
 
-// Match history (returns the 25 cached matches, paginated)
+// Match history (returns the 50 cached matches, paginated)
 app.get('/api/matches', async (req, res) => {
   try {
-    const { gamertag, page = 1, perPage = 25 } = req.query;
+    const { gamertag, page = 1, perPage = 50 } = req.query;
     if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
     const cached = await getFromCache(gamertag);
     const source = cached?.allMatches || cached?.recentMatches || [];
     const ranked = req.query.ranked === '1';
     const all = source.filter(m => !ranked || m.isRanked);
     const pg = parseInt(page) || 1;
-    const pp = Math.min(parseInt(perPage) || 25, 25);
+    const pp = Math.min(parseInt(perPage) || 50, 50);
     const totalPages = Math.max(1, Math.ceil(all.length / pp));
     const matches = all.slice((pg-1)*pp, (pg-1)*pp+pp);
     res.json({ matches, page: pg, perPage: pp, totalPages, total: all.length });
