@@ -358,7 +358,7 @@ async function fetchPlayerStats(gamertag) {
       kills, deaths, assists,
       kd: deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2),
       kda: deaths > 0 ? ((kills + assists * 0.33) / deaths).toFixed(2) : '0.00',
-      accuracy: core.ShotAccuracy != null ? (core.ShotAccuracy * 100).toFixed(1) : null,
+      accuracy: core.ShotAccuracy != null ? (core.ShotAccuracy * 100).toFixed(1) : (core.ShotsFired > 0 ? ((core.ShotsHit / core.ShotsFired) * 100).toFixed(1) : null),
       avgKillsPerGame: matches > 0 ? (kills / matches).toFixed(1) : '0.0',
       totalMedals: allMedalsSlim.reduce((s, m) => s + (m.count || 0), 0),
       topMedals, allMedals: allMedalsSlim,
@@ -489,7 +489,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
             matchOutcome = player.Outcome || 0;
             kills=pk; deaths=pd; assists=pa; score=pcore.Score||0;
             damageDealt=pcore.DamageDealt||0; damageTaken=pcore.DamageTaken||0;
-            accuracy = pcore.Accuracy!=null ? pcore.Accuracy : pcore.ShotAccuracy!=null ? pcore.ShotAccuracy*100 : pcore.ShotsFired>0 ? Math.round(pcore.ShotsHit/pcore.ShotsFired*100) : null;
+            const _fired=pcore.ShotsFired||0, _hit=pcore.ShotsHit||0;
+            accuracy = pcore.Accuracy!=null ? pcore.Accuracy : pcore.ShotAccuracy!=null ? pcore.ShotAccuracy*100 : _fired>0 ? (_hit/_fired)*100 : null;
             placement = player.Rank ? player.Rank + 1 : null;
             weaponStats = { headshots: pcore.HeadshotKills||0, melee: pcore.MeleeKills||0, grenades: pcore.GrenadeKills||0, powerWeapon: pcore.PowerWeaponKills||0 };
             const pstats = player.PlayerTeamStats?.[0]?.Stats || {};
@@ -540,6 +541,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
         mapName, gameMode, isRanked, kills, deaths, assists, score,
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
+        shotsFired: pcore.ShotsFired||0, shotsHit: pcore.ShotsHit||0,
         placement: placementStr(placement), weaponStats, csrAfter, csrBefore, csrDelta, teams,
         mmr, oppMmr, expectedKills, expectedDeaths, objStats,
       });
