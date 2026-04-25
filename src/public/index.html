@@ -929,6 +929,7 @@ function showLanding(){
   document.title='fragr — Halo Infinite Stat Tracker';
   try{var url=new URL(window.location);url.searchParams.delete('player');url.searchParams.delete('search');
   window.history.pushState({},'',url);}catch(e){}
+  renderFavChips();
 }
 function hideLanding(){
   var el=document.getElementById('landing');
@@ -2347,12 +2348,13 @@ function render(){
         });
       });
     });
-    var _rivals=Object.values(_rivalMap).filter(function(r){return r.total>=2;});
-    nemeses=_rivals.filter(function(r){return r.losses>r.wins;}).sort(function(a,b){return b.losses-a.losses||a.wins-b.wins;}).slice(0,15);
-    victims=_rivals.filter(function(r){return r.wins>r.losses;}).sort(function(a,b){return b.wins-a.wins||a.losses-b.losses;}).slice(0,15);
+    var _rivals=Object.values(_rivalMap).filter(function(r){return r.total>=1;});
+    var _sorted=_rivals.sort(function(a,b){return b.total-a.total;});
+    nemeses=_sorted.filter(function(r){return r.losses>=r.wins;}).slice(0,10);
+    victims=_sorted.filter(function(r){return r.wins>r.losses;}).slice(0,10);
   } else {
-    nemeses=(p.nemesisList||[]).slice(0,15);
-    victims=(p.victimsList||[]).slice(0,15);
+    nemeses=(p.nemesisList||[]).slice(0,10);
+    victims=(p.victimsList||[]).slice(0,10);
   }
 
   // Compute mode baselines once — stored on window so toggleMatch can use them
@@ -2669,7 +2671,6 @@ function render(){
 
   // BY MAP TAB
   html+='<div class="tab-panel'+(activeTab==='bymap'?' active':'')+'" data-tab="bymap">';
-  html+=_seasonToggleHtml;
   // Build rich per-map data including mode breakdown and streaks
   var mapData={};
   allMatches.forEach(function(m){
@@ -2684,7 +2685,7 @@ function render(){
     d.modes[mode].count++;if(m.outcome===2)d.modes[mode].wins++;else if(m.outcome===3)d.modes[mode].losses++;
     if(d.recentResults.length<10)d.recentResults.push(m.outcome===2?'W':m.outcome===3?'L':'D');
   });
-  var mapRows=Object.values(mapData).filter(function(m){return m.count>=3;}).sort(function(a,b){return b.count-a.count;});
+  var mapRows=Object.values(mapData).filter(function(m){return m.count>=1;}).sort(function(a,b){return b.count-a.count;});
 
   if(!mapRows.length){html+='<div class="empty-state"><div class="empty-state-icon">🗺</div><div class="empty-state-msg">Not enough map data yet</div><div class="empty-state-sub">Load more match history to see map breakdowns</div></div>';}
   else{
@@ -2790,7 +2791,6 @@ function render(){
   html+='</div>'; // end bymap tab
 
 
-  var _seasonToggleHtml=''; // season filter removed
 
   // CHARTS TAB
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
@@ -2811,7 +2811,6 @@ function render(){
 
   // OPPONENTS TAB
   html+='<div class="tab-panel'+(activeTab==='opponents'?' active':'')+'" data-tab="opponents">';
-  html+=_seasonToggleHtml;
   html+=sectionHead('Opponent History');
   if(nemeses.length||victims.length){html+='<div class="rivals-grid"><div><div class="rivals-col-label nemesis">😤 Nemeses</div>';nemeses.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch('+JSON.stringify(r.gamertag)+')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'★':'☆')+'</span></div></div>';});html+='</div><div><div class="rivals-col-label victim">💀 Victims</div>';victims.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch('+JSON.stringify(r.gamertag)+')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'★':'☆')+'</span></div></div>';});html+='</div></div>';}
   else{html+='<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-msg">No opponent history yet</div><div class="empty-state-sub">Builds with each Refresh</div></div>';}
