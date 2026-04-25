@@ -415,32 +415,60 @@ async function getXblPeopleToken() {
   }
 }
 
+// Suggest: server-side cache + rate limiter (peoplehub allows 10 req/15s)
+const _suggestCache = new Map(); // query -> { people, ts }
+const SUGGEST_CACHE_TTL = 30000; // 30s
+const SUGGEST_RATE_WINDOW = 15000; // 15s
+const SUGGEST_MAX_PER_WINDOW = 8;  // stay under Xbox's limit of 10
+let _suggestReqTimes = []; // timestamps of recent upstream calls
+
+async function callPeoplehub(q, token) {
+  // Serve from cache if fresh
+  const cached = _suggestCache.get(q.toLowerCase());
+  if (cached && Date.now() - cached.ts < SUGGEST_CACHE_TTL) return cached.people;
+
+  // Rate limit: only allow SUGGEST_MAX_PER_WINDOW upstream calls per window
+  const now = Date.now();
+  _suggestReqTimes = _suggestReqTimes.filter(t => now - t < SUGGEST_RATE_WINDOW);
+  if (_suggestReqTimes.length >= SUGGEST_MAX_PER_WINDOW) {
+    // Return stale cache if available, otherwise empty
+    if (cached) return cached.people;
+    return null; // signal: rate limited, no data
+  }
+  _suggestReqTimes.push(now);
+
+  const url = `https://peoplehub.xboxlive.com/users/me/people/search/decoration/detail,preferredColor?q=${encodeURIComponent(q)}&maxItems=8`;
+  const r = await fetch(url, {
+    headers: {
+      'Authorization': token,
+      'x-xbl-contract-version': '3',
+      'Accept': 'application/json',
+      'Accept-Language': 'en-us',
+    }
+  });
+  if (!r.ok) {
+    const txt = await r.text();
+    console.error('[Suggest] peoplehub error', r.status, txt.slice(0, 200));
+    return cached ? cached.people : [];
+  }
+  const data = await r.json();
+  const people = (data.people || []).map(p => ({
+    gamertag: p.modernGamertag || p.gamertag || '',
+    gamerpicUrl: p.displayPicRaw || p.displayPicUri || null,
+    gamerScore: p.gamerScore || null,
+  })).filter(p => p.gamertag);
+  _suggestCache.set(q.toLowerCase(), { people, ts: Date.now() });
+  return people;
+}
+
 app.get('/api/suggest', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q || q.length < 2) return res.json({ people: [] });
   try {
     const token = await getXblPeopleToken();
     if (!token) return res.json({ people: [], error: 'no_token' });
-    const url = `https://peoplehub.xboxlive.com/users/me/people/search/decoration/detail,preferredColor?q=${encodeURIComponent(q)}&maxItems=8`;
-    const r = await fetch(url, {
-      headers: {
-        'Authorization': token,
-        'x-xbl-contract-version': '3',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-us',
-      }
-    });
-    if (!r.ok) {
-      const txt = await r.text();
-      console.error('[Suggest] peoplehub error', r.status, txt.slice(0, 200));
-      return res.json({ people: [] });
-    }
-    const data = await r.json();
-    const people = (data.people || []).map(p => ({
-      gamertag: p.modernGamertag || p.gamertag || '',
-      gamerpicUrl: p.displayPicRaw || p.displayPicUri || null,
-      gamerScore: p.gamerScore || null,
-    })).filter(p => p.gamertag);
+    const people = await callPeoplehub(q, token);
+    if (people === null) return res.json({ people: [], error: 'rate_limited' });
     res.json({ people });
   } catch(e) {
     console.error('[Suggest] Error:', e.message);
