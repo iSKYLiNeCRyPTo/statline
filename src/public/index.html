@@ -1545,13 +1545,27 @@ function renderMatchCard(m,idx,modeBaselines,durSecs){
 }
 function renderCsrFromMatches(matches,playlist,color){
   // Build CSR progression from match csrDelta — only ranked matches for this playlist
-  var pm=matches.slice().reverse().filter(function(m){
-    if(!m.isRanked||m.csrDelta==null||!m.gameMode)return false;
+  // Helper: compute csrDelta if missing but csrAfter+csrBefore both present
+  function _getDelta(m){
+    if(m.csrDelta!=null)return m.csrDelta;
+    // Try to compute from csrAfter and csrBefore strings
+    if(m.csrAfter&&m.csrBefore){
+      var a=parseInt(String(m.csrAfter).match(/\d+/));
+      var b=parseInt(String(m.csrBefore).match(/\d+/));
+      if(!isNaN(a)&&!isNaN(b))return a-b;
+    }
+    return null;
+  }
+  function _matchesPlaylist(m){
+    if(!m.isRanked||!m.gameMode)return false;
     var gm=m.gameMode.trim();
-    // Ranked Slayer = only exact match (not "Ranked Arena: Slayer")
     if(playlist==='Ranked Slayer')return /^Ranked Slayer$/i.test(gm);
-    // Ranked Arena = all ranked matches that are NOT Ranked Slayer
     return !/^Ranked Slayer$/i.test(gm);
+  }
+  var pm=matches.slice().reverse().filter(function(m){
+    if(!_matchesPlaylist(m))return false;
+    // Include if we have csrDelta OR can compute it OR have csrAfter to anchor from
+    return _getDelta(m)!=null||m.csrAfter!=null;
   });
   if(pm.length<2)return'';
 
@@ -1578,9 +1592,20 @@ function renderCsrFromMatches(matches,playlist,color){
   if(!lastCsr)return'';
 
   // Build array of CSR values from most recent backwards
+  // For matches without csrDelta, use csrAfter directly if available
   var vals=[lastCsr];
   for(var i=0;i<pm.length-1;i++){
-    vals.unshift(vals[0]-pm[pm.length-1-i].csrDelta);
+    var _m=pm[pm.length-1-i];
+    var _d=_getDelta(_m);
+    if(_d!=null){
+      vals.unshift(vals[0]-_d);
+    } else if(_m.csrAfter){
+      // Anchor directly from csrAfter value — break the running chain here
+      var _av=parseInt(String(_m.csrAfter).match(/\d+/));
+      vals.unshift(!isNaN(_av)?_av:vals[0]);
+    } else {
+      vals.unshift(vals[0]); // flat — unknown delta
+    }
   }
 
   var w=800,h=130,pad={t:18,r:70,b:24,l:44};
