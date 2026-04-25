@@ -353,7 +353,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <body>
 <div id="toast-container"></div>
 <div id="theme-picker">
-  <h3>🎨 Theme</h3>
+  <h3><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Theme</h3>
   <div class="theme-option" onclick="setTheme('mc117')" data-theme="mc117">
     <div class="theme-swatches"><div class="theme-swatch" style="background:#7cb518"></div><div class="theme-swatch" style="background:#cc4400"></div><div class="theme-swatch" style="background:#0a0c08"></div></div>
     <div><div class="theme-name">MC-117 Green</div><div class="theme-sub">Battle-worn UNSC</div></div>
@@ -395,9 +395,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <text x="66" y="31" font-family="'Bebas Neue',sans-serif" font-size="26" letter-spacing="1.5" fill="var(--text)">STAT<tspan fill="var(--accent)">LINE</tspan></text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" onclick="goHome()" title="Home">⌂</button>
-    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme">🎨</button>
-    <button class="mobile-action-btn" onclick="shareStats()" title="Share">⬆</button>
+    <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
+    <button class="mobile-action-btn" onclick="shareStats()" title="Share"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>
   </div>
 </div>
 <!-- Mobile search overlay -->
@@ -418,11 +418,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <!-- Persistent search banner — shown when in search mode -->
   <div id="searchBanner" style="display:none;background:var(--surface2);border-bottom:1px solid var(--accent);padding:8px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:49">
     <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)">🔍</span>
+      <span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
       <span id="searchBannerName" style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:var(--text)">—</span>
       <span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted)">VIEWING SEARCHED PLAYER</span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center"><button id="bannerFavBtn" onclick="toggleBannerFavorite()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px">☆ FAVORITE</button><button onclick="clearSearch()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px">✕ EXIT SEARCH</button></div>
+    <div style="display:flex;gap:8px;align-items:center"><button id="bannerFavBtn" onclick="toggleBannerFavorite()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px;display:flex;align-items:center;gap:5px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> FAVORITE</button><button onclick="clearSearch()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px;display:flex;align-items:center;gap:5px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> EXIT SEARCH</button></div>
   </div>
     <div class="cmd-topbar">
       <div class="cmd-topbar-left" style="gap:16px">
@@ -442,11 +442,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       </div>
       <div class="cmd-topbar-right">
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
-        <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()">☆</button>
-        <button id="themeBtn" onclick="toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">◑</button>
+        <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+        <button id="themeBtn" onclick="toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
         <div class="search-bar">
           <input class="search-input" id="searchInput" placeholder="Search gamertag..." onkeydown="if(event.key==='Enter')searchPlayer()">
-          <button class="search-btn" onclick="searchPlayer()">🔍</button>
+          <button class="search-btn" onclick="searchPlayer()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
         </div>
       </div>
     </div>
@@ -492,17 +492,17 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div id="favChips" style="display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;max-width:520px;margin-left:auto;margin-right:auto"></div>
       <div style="margin-top:clamp(24px,4vh,48px);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
-          <div style="font-size:24px;margin-bottom:8px">📊</div>
+          <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg></div>
           <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">Service Record</div>
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">K/D, CSR, win rate, medals</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
-          <div style="font-size:24px;margin-bottom:8px">🗺️</div>
+          <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div>
           <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">By Map</div>
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Win rates per map & mode</div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
-          <div style="font-size:24px;margin-bottom:8px">📈</div>
+          <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
           <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">CSR Charts</div>
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression & efficiency</div>
         </div>
@@ -735,7 +735,7 @@ function loadMatchHistory(page){
   if(!container)return;
   var p=getAllPlayers()[selectedPlayer]||{};
   var gt=p.gamertag;
-  if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon">🎮</div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
+  if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
   var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=25'+(rankedFilter?'&ranked=1':'');
   fetch(url).then(function(r){return r.json();}).then(function(d){
@@ -809,7 +809,7 @@ function renderMatchHistory(d){
   html+='</div></div>';
 
   if(!matches.length){
-    html+='<div class="empty-state"><div class="empty-state-icon">🎮</div><div class="empty-state-msg">No matches on this page</div></div>';
+    html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No matches on this page</div></div>';
   } else {
     html+='<div class="match-list">';
     matches.forEach(function(m,i){
@@ -874,7 +874,10 @@ function toast(msg,type,duration){
   if(!tc)return;
   var t=document.createElement('div');
   t.className='toast '+type;
-  var icon=type==='success'?'✓':type==='error'?'✕':'ℹ';
+  var _svgCheck='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="20 6 9 17 4 12"/></svg>';
+  var _svgX='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  var _svgInfo='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+  var icon=type==='success'?_svgCheck:type==='error'?_svgX:_svgInfo;
   t.innerHTML='<span>'+icon+'</span><span>'+msg+'</span>';
   tc.appendChild(t);
   setTimeout(function(){
@@ -972,7 +975,9 @@ function updateFavBtn() {
   var btn = document.getElementById('favHeaderBtn');
   if(!btn || !playerData) return;
   var fav = isFragrFav(playerData.gamertag);
-  btn.textContent = fav ? '★' : '☆';
+  var _fhStarSvgF='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  var _fhStarSvgE='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  btn.innerHTML = fav ? _fhStarSvgF : _fhStarSvgE;
   btn.style.color = fav ? '#ffc107' : 'var(--muted)';
   btn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
   btn.title = fav ? 'Remove from favorites' : 'Add to favorites';
@@ -1018,7 +1023,7 @@ function timeAgo(iso){if(!iso)return'';var diff=Date.now()-new Date(iso).getTime
 function formatDur(iso){if(!iso)return'';var p=iso.match(/PT(?:(\d+)M)?(?:([\d.]+)S)?/);if(!p)return'';return(parseInt(p[1]||0))+'m '+Math.floor(parseFloat(p[2]||0))+'s';}
 function medalImg(medal){
   // If no sprite data, just show medal name as a badge
-  if(!medal || !medal.nameId) return '';var meta=medalMeta[medal.nameId]||{},name=meta.name||medal.name||String(medal.nameId),idx=meta.spriteIndex!==undefined?meta.spriteIndex:null,cols=meta.columns||16,glow={normal:'#00e676',heroic:'#3b82f6',legendary:'#7c3aed',mythic:'#ff3d57'}[meta.difficulty||'normal'],inner=idx!==null?'<img src="'+MEDAL_SHEET+'" style="position:absolute;width:'+(cols*60)+'px;height:auto;top:-'+(Math.floor(idx/cols)*60)+'px;left:-'+((idx%cols)*60)+'px" onerror="this.parentNode.innerHTML=\'<span style=&quot;font-size:22px;line-height:60px&quot;>🏅</span>\'">':'<span style="font-size:22px;line-height:60px">🏅</span>';var nameShort=name.length>14?name.slice(0,13)+'…':name;
+  if(!medal || !medal.nameId) return '';var meta=medalMeta[medal.nameId]||{},name=meta.name||medal.name||String(medal.nameId),idx=meta.spriteIndex!==undefined?meta.spriteIndex:null,cols=meta.columns||16,glow={normal:'#00e676',heroic:'#3b82f6',legendary:'#7c3aed',mythic:'#ff3d57'}[meta.difficulty||'normal'],inner=idx!==null?'<img src="'+MEDAL_SHEET+'" style="position:absolute;width:'+(cols*60)+'px;height:auto;top:-'+(Math.floor(idx/cols)*60)+'px;left:-'+((idx%cols)*60)+'px" onerror="this.parentNode.innerHTML=\'<span style=&quot;font-size:22px;line-height:60px&quot;><svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;22&quot; height=&quot;22&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><circle cx=&quot;12&quot; cy=&quot;8&quot; r=&quot;6&quot;/><path d=&quot;M15.477 12.89L17 22l-5-3-5 3 1.523-9.11&quot;/></svg></span>\'">':'<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"22\\" height=\\"22\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\"><circle cx=\\"12\\" cy=\\"8\\" r=\\"6\\"/><path d=\\"M15.477 12.89L17 22l-5-3-5 3 1.523-9.11\\"/></svg>';var nameShort=name.length>14?name.slice(0,13)+'…':name;
 return'<div class="medal-item" title="'+name+'"><div class="medal-wrap" style="box-shadow:0 0 8px '+glow+'44">'+inner+'</div><div class="medal-name">'+nameShort+'</div><div class="medal-count">×'+medal.count.toLocaleString()+'</div></div>';}
 var CSR_STYLES={Bronze:{bg:'rgba(205,124,47,0.12)',border:'#cd7c2f',text:'#cd7c2f'},Silver:{bg:'rgba(148,163,184,0.12)',border:'#94a3b8',text:'#94a3b8'},Gold:{bg:'rgba(255,193,7,0.12)',border:'#ffc107',text:'#ffc107'},Platinum:{bg:'rgba(93,202,165,0.12)',border:'#5DCAA5',text:'#5DCAA5'},Diamond:{bg:'rgba(133,183,235,0.12)',border:'#85B7EB',text:'#85B7EB'},Onyx:{bg:'rgba(175,169,236,0.12)',border:'#AFA9EC',text:'#AFA9EC'}};
 var CAREER_EMBLEMS_ONYX={
@@ -1055,7 +1060,7 @@ function careerIcon(tier,rank,style,crRankNum){
   }
   return csrIcon(tier||'Bronze',style.border,style.bg);
 }
-function csrIcon(tier,border,bg){var t=tier.toLowerCase();var src=CSR_EMBLEMS[t];if(!src)return'<span style="font-size:22px">🏅</span>';return'<img src="'+src+'" alt="'+tier+'" style="width:100%;height:100%;object-fit:contain">';}
+function csrIcon(tier,border,bg){var t=tier.toLowerCase();var src=CSR_EMBLEMS[t];if(!src)return'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>';return'<img src="'+src+'" alt="'+tier+'" style="width:100%;height:100%;object-fit:contain">';}
 function avgMmrForPlaylist(matches,isSlayer){
   var pm=matches.filter(function(m){
     if(!m.isRanked||!m.mmr||!m.gameMode)return false;
@@ -1065,7 +1070,7 @@ function avgMmrForPlaylist(matches,isSlayer){
   if(!pm.length)return null;
   return Math.round(pm.reduce(function(s,m){return s+m.mmr;},0)/pm.length);
 }
-function renderCsrCards(csr,matches){if(!csr)return'';return Object.entries(csr).map(function(e){var label=e[0],c=e[1];if(!c||!c.tier)return'';var s=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)',icon:'🎖'};
+function renderCsrCards(csr,matches){if(!csr)return'';return Object.entries(csr).map(function(e){var label=e[0],c=e[1];if(!c||!c.tier)return'';var s=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)',icon:''};
   var isSlayer=label.indexOf('Slayer')>-1;
   var avgMmr=avgMmrForPlaylist(matches||[],isSlayer);
   var mmrGap=avgMmr&&c.value?c.value-avgMmr:null;
@@ -1087,7 +1092,7 @@ function renderConnectionDetail(cq){
     +'<div style="font-size:10px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;font-weight:700;margin-bottom:6px">'+cq.verdict.label+'</div>'
     +'<div style="display:flex;flex-direction:column;gap:4px">'
     +cq.signals.map(function(s){
-      return'<div style="font-size:10px;color:'+(s.bad?'var(--loss)':'var(--win)')+'">'+(s.bad?'⚠ ':'✓ ')+s.msg+'</div>';
+      return'<div style="font-size:10px;color:'+(s.bad?'var(--loss)':'var(--win)')+'">'+(s.bad?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> ':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><polyline points=\"20 6 9 17 4 12\"/></svg> ')+s.msg+'</div>';
     }).join('')
     +'</div></div>';
 }
@@ -1131,7 +1136,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       html+='<div style="background:var(--surface);border:1px solid '+(underdog?'rgba(0,230,118,0.3)':favored?'rgba(255,61,87,0.3)':'var(--border)')+';border-radius:6px;padding:8px 12px">'
         +'<div style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Win Probability</div>'
         +'<div style="font-size:20px;font-weight:700;color:'+probColor+';margin-top:2px">'+winProb2+'%<span style="font-size:12px;color:var(--muted)"> ('+m.mmr+' vs '+m.oppMmr+')</span></div>'
-        +'<div style="font-size:10px;color:'+(underdog?'var(--win)':favored?'var(--loss)':'var(--muted)')+'">'+(underdog?'⬆ Underdog — harder match':(favored?'⬇ Favored — easier match':'⟺ Even match'))+'</div>'
+        +'<div style="font-size:10px;color:'+(underdog?'var(--win)':favored?'var(--loss)':'var(--muted)')+'">'+(underdog?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><polyline points=\"18 15 12 9 6 15\"/></svg> Underdog — harder match':(favored?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><polyline points=\"6 9 12 15 18 9\"/></svg> Favored — easier match':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><line x1=\"5\" y1=\"9\" x2=\"19\" y2=\"9\"/><line x1=\"5\" y1=\"15\" x2=\"19\" y2=\"15\"/></svg> Even match'))+'</div>'
         +'</div>';
     }
 
@@ -1185,13 +1190,13 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       var checkBadge='';
       if(check){
         var cbColor=check.level==='high'?'var(--loss)':'var(--gold)';
-        var cbIcon=check.level==='high'?'🚨':'⚠';
+        var cbIcon=check.level==='high'?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>';
         checkBadge='<span title="'+check.reason.replace(/"/g,"'")+' — click to search" style="margin-left:4px;font-size:9px;cursor:pointer;color:'+cbColor+'" onclick="event.stopPropagation();quickSearch(\'' +pl.gamertag.replace(/'/g,"\\'")+'\')">'+cbIcon+'</span>';
       }
       var isSpartan=pl.gamertag&&pl.gamertag.startsWith('Spartan ');
       var displayGt=isSpartan?'<span style="color:var(--muted);font-style:italic">Unknown Player</span>':pl.gamertag;
-            var _gtFavBtn=(!isMe&&!isSpartan)?'<span data-gt="'+pl.gamertag.replace(/"/g,'&quot;')+'" onclick="event.stopPropagation();toggleFav(this.dataset.gt)" title="Toggle favorite" style="margin-left:3px;font-size:9px;cursor:pointer;opacity:0.4;color:#ffc107" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">'+( isFavorite(pl.gamertag)?'★':'☆')+'</span>':'';
-      var gtLink=isMe?'★ '+pl.gamertag:(isSpartan?displayGt:'<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\''+pl.gamertag.replace(/'/g,"\\\'")+'\')">'+pl.gamertag+'</span>'+checkBadge+_gtFavBtn);
+            var _gtFavBtn=(!isMe&&!isSpartan)?'<span data-gt="'+pl.gamertag.replace(/"/g,'&quot;')+'" onclick="event.stopPropagation();toggleFav(this.dataset.gt)" title="Toggle favorite" style="margin-left:3px;font-size:9px;cursor:pointer;opacity:0.4;color:#ffc107" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">'+( isFavorite(pl.gamertag)?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span>':'';
+      var gtLink=isMe?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg> '+pl.gamertag:(isSpartan?displayGt:'<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\''+pl.gamertag.replace(/'/g,"\\\'")+'\')">'+pl.gamertag+'</span>'+checkBadge+_gtFavBtn);
       // Emblem/gamerpic — tracked players get Halo emblem, all others get Xbox gamerpic if available
       var _trackedP=(data&&data.players||[]).find(function(x){return x.gamertag===pl.gamertag;});
       var _rowEmb='';
@@ -1298,9 +1303,9 @@ function analyzeConnectionQuality(m, modeBaselines) {
   }
 
   if (signals.length === 0) return null;
-  var verdict = score <= -3 ? { level: 'bad',  label: '📡 Poor Connection', color: 'var(--loss)' }
-    : score === -2           ? { level: 'warn', label: '📡 Suspect Hitreg',  color: 'var(--gold)' }
-    : score >= 3             ? { level: 'great',label: '📡 Server-Side',     color: '#39ff14'     }
+  var verdict = score <= -3 ? { level: 'bad',  label: '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Poor Connection', color: 'var(--loss)' }
+    : score === -2           ? { level: 'warn', label: '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Suspect Hitreg',  color: 'var(--gold)' }
+    : score >= 3             ? { level: 'great',label: '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Server-Side',     color: '#39ff14'     }
     : null;
   if (!verdict) return null;
   return { verdict: verdict, signals: signals, score: score };
@@ -1716,7 +1721,7 @@ async function _searchPlayer_unused(){
       alert('Player not found: '+( d.error||'unknown error'));
     }
   } catch(e){ alert('Search failed: '+e.message); }
-  btn.textContent='🔍';
+  btn.innerHTML='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
 }
 var _origData=null;
 function clearSearch(){
@@ -1741,7 +1746,9 @@ function updateBannerFavBtn(){
   var btn=document.getElementById('bannerFavBtn');
   if(!btn||!searchData)return;
   var fav=isFavorite(searchData.gamertag);
-  btn.textContent=fav?'★ FAVORITED':'☆ FAVORITE';
+  var _starSvg='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  var _starEmptySvg='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  btn.innerHTML=fav?_starSvg+' FAVORITED':_starEmptySvg+' FAVORITE';
   btn.style.borderColor=fav?'#ffc107':'var(--border)';
   btn.style.color=fav?'#ffc107':'var(--muted)';
   btn.style.background=fav?'rgba(255,193,7,0.1)':'transparent';
@@ -1754,10 +1761,10 @@ function renderSearch(){
   selectedPlayer=0;
   var _isFavNow=isFavorite(searchData.gamertag);
   var _favBtn=_isFavNow
-    ? '<button data-gt="'+searchData.gamertag.replace(/"/g,'&quot;')+'" onclick="toggleFav(this.dataset.gt)" style="background:rgba(255,193,7,0.15);border:1px solid #ffc107;color:#ffc107;padding:3px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer">★ Favorited</button>'
-    : '<button data-gt="'+searchData.gamertag.replace(/"/g,'&quot;')+'" onclick="toggleFav(this.dataset.gt)" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer" onmouseover="this.style.borderColor=\'#ffc107\';this.style.color=\'#ffc107\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">☆ Favorite</button>';
+    ? '<button data-gt="'+searchData.gamertag.replace(/"/g,'&quot;')+'" onclick="toggleFav(this.dataset.gt)" style="background:rgba(255,193,7,0.15);border:1px solid #ffc107;color:#ffc107;padding:3px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;gap:4px"><svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"10\\" height=\\"10\\" viewBox=\\"0 0 24 24\\" fill=\\"currentColor\\" stroke=\\"currentColor\\" stroke-width=\\"1.5\\"><polygon points=\\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\\"/></svg> Favorited</button>'
+    : '<button data-gt="'+searchData.gamertag.replace(/"/g,'&quot;')+'" onclick="toggleFav(this.dataset.gt)" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;display:inline-flex;align-items:center;gap:4px" onmouseover="this.style.borderColor=\'#ffc107\';this.style.color=\'#ffc107\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'"><svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"10\\" height=\\"10\\" viewBox=\\"0 0 24 24\\" fill=\\"none\\" stroke=\\"currentColor\\" stroke-width=\\"2\\"><polygon points=\\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\\"/></svg> Favorite</button>';
   var banner='<div style="background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:8px">'
-    +'<span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)">🔍 Viewing: '+searchData.gamertag+'</span>'
+    +'<span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg> Viewing: '+searchData.gamertag+'</span>'
     +'<div style="display:flex;gap:6px">'+_favBtn+'<button onclick="clearSearch()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer">✕ Back</button></div>'
     +'</div>';
   // Show persistent banner
@@ -1937,7 +1944,7 @@ function renderTeamSynergy(duo,gamertag){
 
   // Solo baseline card
   if(soloM.length>=3){
-    html+=synCard('🎮 Solo Queue',soloM.length,soloWR,null,'var(--muted2)',null,null,null);
+    html+=synCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg> Solo Queue',soloM.length,soloWR,null,'var(--muted2)',null,null,null);
   }
 
   // Per-teammate expandable cards
@@ -2104,7 +2111,7 @@ function renderObjectiveStats(matches){
   };
   var TIME_FIELDS={timeAsCarrier:1,longestCarry:1,occupationTime:1};
   var MODE_ORDER=['Oddball','CTF','Strongholds','King of the Hill','Land Grab','Stockpile'];
-  var MODE_ICON={'Oddball':'💀','CTF':'🚩','Strongholds':'🏰','King of the Hill':'👑','Land Grab':'📍','Stockpile':'📦'};
+  var MODE_ICON={'Oddball':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="11" r="5"/><path d="M9 17v2M15 17v2M7 11a5 5 0 0 1 10 0v2H7v-2z"/></svg>','CTF':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>','Strongholds':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>','King of the Hill':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M3 20h18M5 20V8.5L12 4l7 4.5V20"/><polyline points="9 20 9 14 12 12 15 14 15 20"/></svg>','Land Grab':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>','Stockpile':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>'};
   var byMode={};
   objMatches.forEach(function(m){
     var mode=m.objStats.mode; if(!mode)return;
@@ -2126,7 +2133,7 @@ function renderObjectiveStats(matches){
   html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:24px">';
   modes.forEach(function(mode){
     var entry=byMode[mode]; var total=entry.wins+entry.losses; if(total<1)return;
-    var wr=Math.round(entry.wins/total*100); var icon=MODE_ICON[mode]||'🎯';
+    var wr=Math.round(entry.wins/total*100); var icon=MODE_ICON[mode]||'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px">';
     html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
     html+='<span style="font-size:13px;font-weight:700;color:var(--text)">'+icon+' '+mode+'</span>';
@@ -2291,13 +2298,13 @@ function render(){
   }
   var age=data.lastUpdated?(Date.now()-new Date(data.lastUpdated).getTime())/60000:0;
   var sb2=document.getElementById('staleBanner');
-  if(sb2)sb2.innerHTML=age>40?'<div class="stale-banner">⚠ Data is '+Math.round(age)+' minutes old — hit Refresh for latest stats <span class="kbd">R</span></div>':'';
+  if(sb2)sb2.innerHTML=age>40?'<div class="stale-banner"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Data is '+Math.round(age)+' minutes old — hit Refresh for latest stats <span class="kbd">R</span></div>':'';
   var p=getAllPlayers()[selectedPlayer]||(data.players||[])[0];
   var updated=data.lastUpdated?new Date(data.lastUpdated).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+new Date(data.lastUpdated).toLocaleDateString():'—';
   document.getElementById('lastUpdated').textContent=updated;
   if(!p||!p.stats){document.getElementById('app').innerHTML=p&&p._loading?'<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+p.gamertag+'</strong>...</p></div>':p&&p.error?'<div class="error-card">'+p.error+'<br><small style="color:var(--muted)">Token may have expired — auto-refresh should fix this shortly.</small></div>':'<div class="loading"><p>No stats yet — click <strong>REFRESH</strong> to load.</p></div>';return;}
   // Show a non-blocking warning banner if last fetch failed but we have cached data
-  var fetchErrBanner = data.fetchError ? '<div style="background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);border-radius:8px;padding:10px 16px;color:var(--loss);font-size:12px;margin-bottom:16px">⚠ Last refresh failed: '+data.fetchError+' — showing cached data from '+updated+'</div>' : '';
+  var fetchErrBanner = data.fetchError ? '<div style="background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);border-radius:8px;padding:10px 16px;color:var(--loss);font-size:12px;margin-bottom:16px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Last refresh failed: '+data.fetchError+' — showing cached data from '+updated+'</div>' : '';
   var s=p.stats;
   var PVE_MODES=['Mode 41','Mode 42','Firefight','Gruntpocalypse','Attrition'];
   var BAD_MAPS=['Launch Site','Yuletide','Octagon','AIMBOTZ'];
@@ -2453,10 +2460,10 @@ function render(){
       var lateWR=Math.round(late.filter(function(m){return m.outcome===2;}).length/late.length*100);
       if(drop>0.2){
         fatigueColor='var(--loss)';
-        fatigueMsg='⚠ Fatigue detected — K/D dropped from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' and win rate from '+earlyWR+'% to '+lateWR+'% as session progressed. Consider a break.';
+        fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> Fatigue detected — K/D dropped from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' and win rate from '+earlyWR+'% to '+lateWR+'% as session progressed. Consider a break.';
       } else if(lateKD>earlyKD+0.2){
         fatigueColor='var(--win)';
-        fatigueMsg='📈 Warming up — K/D improved from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' through the session.';
+        fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Warming up — K/D improved from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' through the session.';
       } else {
         fatigueColor='var(--muted)';
         fatigueMsg='Consistent performance throughout today\'s session ('+earlyKD.toFixed(2)+' → '+lateKD.toFixed(2)+' K/D).';
@@ -2480,7 +2487,7 @@ function render(){
     html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+sl+'L</div><div class="session-stat-lbl">Losses</div></div>';
     if(arenaToday.length){var ac=arenaDelta>=0?'+'+arenaDelta:String(arenaDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(arenaDelta>=0?'var(--win)':'var(--loss)')+'">'+ac+'</div><div class="session-stat-lbl">Arena CSR</div></div>';}
     if(slayerToday.length){var sc2=slayerDelta>=0?'+'+slayerDelta:String(slayerDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(slayerDelta>=0?'var(--win)':'var(--loss)')+'">'+sc2+'</div><div class="session-stat-lbl">Slayer CSR</div></div>';}
-    if(streak>=3)html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+streak+'L</div><div class="session-stat-lbl">Streak ⚠</div></div>';
+    if(streak>=3)html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+streak+'L</div><div class="session-stat-lbl">Streak <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-3px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg></div></div>';
     html+='</div>';
     if(fatigueMsg)html+='<div style="margin-top:8px;padding:6px 10px;border-left:3px solid '+fatigueColor+';font-size:11px;font-family:Share Tech Mono,monospace;color:'+fatigueColor+';background:var(--surface2);border-radius:0 4px 4px 0">'+fatigueMsg+'</div>';
     html+='</div>';
@@ -2687,7 +2694,7 @@ function render(){
   });
   var mapRows=Object.values(mapData).filter(function(m){return m.count>=1;}).sort(function(a,b){return b.count-a.count;});
 
-  if(!mapRows.length){html+='<div class="empty-state"><div class="empty-state-icon">🗺</div><div class="empty-state-msg">Not enough map data yet</div><div class="empty-state-sub">Load more match history to see map breakdowns</div></div>';}
+  if(!mapRows.length){html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div><div class="empty-state-msg">Not enough map data yet</div><div class="empty-state-sub">Load more match history to see map breakdowns</div></div>';}
   else{
     var bestMapWR=Math.max.apply(null,mapRows.map(function(e){return e.wins/e.count;}));
     var worstMapWR=Math.min.apply(null,mapRows.map(function(e){return e.wins/e.count;}));
@@ -2720,8 +2727,8 @@ function render(){
       html+='<div style="flex:1;min-width:0">';
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
       html+='<span style="font-size:13px;font-weight:700;color:var(--text)">'+e.map+'</span>';
-      if(isBest)html+='<span style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;background:rgba(0,230,118,0.1);padding:1px 6px;border-radius:3px">★ BEST</span>';
-      if(isWorst)html+='<span style="font-size:8px;color:var(--loss);font-family:Share Tech Mono,monospace;background:rgba(255,61,87,0.1);padding:1px 6px;border-radius:3px">✗ WORST</span>';
+      if(isBest)html+='<span style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;background:rgba(0,230,118,0.1);padding:1px 6px;border-radius:3px"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><polyline points=\"20 6 9 17 4 12\"/></svg> BEST</span>';
+      if(isWorst)html+='<span style="font-size:8px;color:var(--loss);font-family:Share Tech Mono,monospace;background:rgba(255,61,87,0.1);padding:1px 6px;border-radius:3px"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg> WORST</span>';
       html+='</div>';
       html+='<div style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+modeStr+'</div>';
       html+='</div>';
@@ -2782,7 +2789,7 @@ function render(){
         var kd=md.deaths>0?(md.kills/md.deaths).toFixed(2):'—';
         var isBest=wrRaw===bestMWR2&&md.count>=3;
         var isWorst=wrRaw===worstMWR2&&md.count>=3;
-        var badge=isBest?' <span style="font-size:9px;color:var(--win)">★ BEST</span>':isWorst?' <span style="font-size:9px;color:var(--loss)">✗ WORST</span>':'';
+        var badge=isBest?' <span style="font-size:9px;color:var(--win)"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><polyline points=\"20 6 9 17 4 12\"/></svg> BEST</span>':isWorst?' <span style="font-size:9px;color:var(--loss)"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg> WORST</span>':'';
         html+='<tr style="'+(isBest?'background:rgba(0,230,118,0.05)':isWorst?'background:rgba(255,61,87,0.05)':'')+'"><td>'+md.mode+badge+'</td><td style="text-align:right;color:var(--muted)">'+md.count+'</td><td style="text-align:right;color:var(--win)">'+md.wins+'</td><td style="text-align:right;color:var(--loss)">'+md.losses+'</td><td style="text-align:right;color:'+(wr>=50?'var(--win)':'var(--loss)')+'">'+wr+'%</td><td style="text-align:right;color:'+(parseFloat(kd)>=1?'var(--win)':'var(--loss)')+'">'+kd+'</td></tr>';
       });
       html+='</tbody></table></div>';
@@ -2812,8 +2819,8 @@ function render(){
   // OPPONENTS TAB
   html+='<div class="tab-panel'+(activeTab==='opponents'?' active':'')+'" data-tab="opponents">';
   html+=sectionHead('Opponent History');
-  if(nemeses.length||victims.length){html+='<div class="rivals-grid"><div><div class="rivals-col-label nemesis">😤 Nemeses</div>';nemeses.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch('+JSON.stringify(r.gamertag)+')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'★':'☆')+'</span></div></div>';});html+='</div><div><div class="rivals-col-label victim">💀 Victims</div>';victims.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch('+JSON.stringify(r.gamertag)+')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'★':'☆')+'</span></div></div>';});html+='</div></div>';}
-  else{html+='<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-msg">No opponent history yet</div><div class="empty-state-sub">Builds with each Refresh</div></div>';}
+  if(nemeses.length||victims.length){html+='<div class="rivals-grid"><div><div class="rivals-col-label nemesis"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> Nemeses</div>';nemeses.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch('+JSON.stringify(r.gamertag)+')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span></div></div>';});html+='</div><div><div class="rivals-col-label victim"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="11" r="5"/><path d="M9 17v2M15 17v2M7 11a5 5 0 0 1 10 0v2H7v-2z"/></svg> Victims</div>';victims.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch('+JSON.stringify(r.gamertag)+')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span></div></div>';});html+='</div></div>';}
+  else{html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="empty-state-msg">No opponent history yet</div><div class="empty-state-sub">Builds with each Refresh</div></div>';}
   html+='</div>'; // end opponents tab
 
 
