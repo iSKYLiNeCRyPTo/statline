@@ -11,9 +11,9 @@
 <style>
 :root{
   --fragr-blue:#185FA5;--fragr-light:#85B7EB;--fragr-dark:#0C447C;
-  --bg:#0a0c08;--surface:#111410;--surface2:#181c14;--surface3:#1e2318;
-  --border:#2a3020;--border2:#3a4428;--accent:#7cb518;--win:#7cb518;
-  --loss:#cc4400;--gold:#d4860a;--text:#c8d4b0;--muted:#6a7a58;--muted2:#4a5838;
+  --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
+  --border:#1a3050;--border2:#254268;--accent:#378ADD;--win:#4CAF82;
+  --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
 }
 [data-theme="covenant"]{
   --bg:#080610;--surface:#0e0b1a;--surface2:#130f22;--surface3:#180c2e;
@@ -43,7 +43,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden;}
 body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:0}
-body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(124,181,24,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(124,181,24,0.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(56,138,221,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(56,138,221,0.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
 /* ── COMMAND CENTER LAYOUT ── */
 .cmd-layout{display:block;min-height:100vh}
 
@@ -60,7 +60,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .sidebar-nav{padding:10px 8px;flex:1}
 .sidebar-nav-item{padding:9px 10px;border-radius:4px;font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:10px;letter-spacing:.5px;text-transform:uppercase;transition:all 0.15s;border-left:2px solid transparent;margin-bottom:2px}
 .sidebar-nav-item:hover{color:var(--text);background:var(--surface2)}
-.sidebar-nav-item.active{background:rgba(124,181,24,0.12);color:var(--accent);border-left-color:var(--accent);font-weight:700}
+.sidebar-nav-item.active{background:rgba(56,138,221,0.12);color:var(--accent);border-left-color:var(--accent);font-weight:700}
 .sidebar-nav-item.active .nav-icon{text-shadow:0 0 8px var(--accent)}
 [data-theme="covenant"] .sidebar-nav-item.active{background:rgba(155,89,245,0.12)}
 [data-theme="forerunner"] .sidebar-nav-item.active{background:rgba(240,176,48,0.12)}
@@ -659,7 +659,7 @@ function applyTheme(t){
   });
   // Update CSR chart colors per theme
   var chartColors={
-    mc117:['#7cb518','#d4860a'],
+    mc117:['#378ADD','#85B7EB'],
     covenant:['#9b59f5','#e040fb'],
     forerunner:['#f0b030','#e05020'],
     oni:['#e8002a','#00c853'],
