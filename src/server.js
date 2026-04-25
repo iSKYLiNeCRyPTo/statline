@@ -156,7 +156,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
         return true;
-      });
+      }).slice(0, 25);
       const result = {
         ...playerStats,
         recentMatches: matches,
