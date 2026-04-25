@@ -16,16 +16,6 @@
   --border:#1a3050;--border2:#254268;--accent:#378ADD;--accent-r:56;--accent-g:138;--accent-b:221;--win:#4CAF82;
   --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
 }
-[data-theme="light"]{
-  --bg:#F1EFE8;--surface:#ffffff;--surface2:#E8E6DF;--surface3:#D3D1C7;
-  --border:#D3D1C7;--border2:#B8B6B0;--accent:#185FA5;--accent-r:24;--accent-g:95;--accent-b:165;
-  --win:#2a7a4f;--loss:#c0392b;--gold:#a07020;
-  --text:#0C447C;--muted:#888780;--muted2:#B8B6B0;
-}
-[data-theme="light"] body::before{background-image:linear-gradient(rgba(24,95,165,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(24,95,165,0.04) 1px,transparent 1px)}
-[data-theme="light"] body::after{display:none}
-[data-theme="light"] .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%)}
-[data-theme="light"] .match-map-thumb-overlay{background:linear-gradient(to right,rgba(255,255,255,0) 50%,var(--surface) 100%)}
 [data-theme="covenant"]{
   --bg:#080610;--surface:#0e0b1a;--surface2:#130f22;--surface3:#180c2e;
   --border:#2a1e50;--border2:#3a2870;--accent:#9b59f5;--accent-r:155;--accent-g:89;--accent-b:245;--win:#7c4dff;
@@ -341,7 +331,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .sidebar-toggle{display:block}
   .mobile-tabbar{display:flex}
   body.on-landing .mobile-tabbar{display:none !important}
-  body.on-landing .mobile-logo-bar{display:none !important}
   .mobile-logo-bar{display:flex}
   .search-input{font-size:16px !important}
   input[type="text"],input[type="search"]{font-size:16px !important}
@@ -432,7 +421,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <text x="37" y="26" font-family="system-ui,sans-serif" font-weight="400" letter-spacing="2px" font-size="7" fill="var(--muted)">STAT TRACKER</text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" id="mobileThemeToggleBtn" onclick="toggleLightDark()" title="Toggle light/dark"><svg id="mobileThemeIcon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
@@ -491,9 +479,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       </div>
       <div class="cmd-topbar-right">
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
-        <button id="themeToggleBtn" onclick="toggleLightDark()" title="Toggle light/dark" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">
-          <svg id="themeToggleIcon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        </button>
         <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
 
         <div class="search-bar search-wrap">
@@ -738,28 +723,10 @@ async function loadAllFavorites() {
   }
 }
 
-
-function toggleLightDark(){
-  var isLight=document.documentElement.getAttribute('data-theme')==='light';
-  var next=isLight?'mc117':'light';
-  if(next==='light'){document.documentElement.setAttribute('data-theme','light');}else{document.documentElement.removeAttribute('data-theme');}
-  try{localStorage.setItem('fragrTheme',next);}catch(e){}
-  applyTheme(next);
-  // Update icon — sun for dark, moon for light
-  var icon=document.getElementById('themeToggleIcon');
-  var micon=document.getElementById('mobileThemeIcon');
-  if(micon)setTimeout(function(){if(icon)micon.innerHTML=icon.innerHTML;},0);
-  if(icon){
-    icon.innerHTML=next==='light'
-      ?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>' // moon
-      :'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'; // sun
-  }
-}
 function applyTheme(t){
   var root=document.documentElement;
   root.removeAttribute('data-theme');
-  if(t==='light')root.setAttribute('data-theme','light');
-  else if(t!=='mc117')root.setAttribute('data-theme',t);
+  if(t!=='mc117')root.setAttribute('data-theme',t);
   
   // Update CSR chart colors per theme
   var chartColors={
@@ -781,14 +748,7 @@ document.body.classList.add('on-landing');
   var saved='mc117';
   try{saved=localStorage.getItem('fragrTheme')||'mc117';}catch(e){}
   applyTheme(saved);
-  // Set correct toggle icon
-  var icon=document.getElementById('themeToggleIcon');
-  var micon=document.getElementById('mobileThemeIcon');
-  if(micon)setTimeout(function(){if(icon)micon.innerHTML=icon.innerHTML;},0);
-  if(icon&&saved==='light'){
-    icon.innerHTML='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
-  }
-})();
+  })();
 
 window.addEventListener('resize',function(){
   var dtb=document.getElementById('desktopTabBar');
