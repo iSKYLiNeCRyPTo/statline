@@ -999,7 +999,7 @@ function debounceSuggest(val,dropId,inputId){
   clearTimeout(_suggestTimer);
   var drop=document.getElementById(dropId);
   if(!val||val.length<2){if(drop)drop.classList.remove('open');return;}
-  _suggestTimer=setTimeout(function(){fetchSuggest(val,dropId,inputId);},280);
+  _suggestTimer=setTimeout(function(){fetchSuggest(val,dropId,inputId);},500);
 }
 function fetchSuggest(q,dropId,inputId){
   if(_suggestCache[q]){renderSuggest(_suggestCache[q],dropId,inputId);return;}
