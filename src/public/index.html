@@ -938,13 +938,25 @@ function updateLiveIndicator(){
 
 var sessionStart=null; // snapshot of stats when page first loaded
 async function loadMedalMeta(){try{var res=await fetch('/api/medal-meta');if(!res.ok)return;var d=await res.json();
-  // Handle both array format and object/map format
-  if(Array.isArray(d.medals||d.Medals)){
-    var medals=d.medals||d.Medals,columns=d.columns||d.Columns||16;
-    medals.forEach(function(m){var id=m.nameId||m.NameId;if(!id)return;medalMeta[id]={name:(m.name&&m.name.value)||m.name||String(id),difficulty:['normal','heroic','legendary','mythic'][m.difficultyIndex]||'normal',spriteIndex:m.spriteIndex!==undefined?m.spriteIndex:null,columns:columns};});
-  } else {
-    // Object map format: { "nameId": { name, sprite, ... } }
-    Object.entries(d).forEach(function(e){var id=e[0],info=e[1];if(!id||!info)return;medalMeta[id]={name:info.name||String(id),difficulty:'normal',spriteIndex:null,columns:16};});
+  var arr=Array.isArray(d)?d:Array.isArray(d.Medals)?d.Medals:Array.isArray(d.medals)?d.medals:null;
+  var columns=d.Columns||d.columns||16;
+  if(arr&&arr.length){
+    arr.forEach(function(m){
+      var id=String(m.nameId||m.NameId||m.id||'');if(!id)return;
+      var idx=m.spriteIndex!=null?m.spriteIndex:m.SpriteIndex!=null?m.SpriteIndex:null;
+      medalMeta[id]={
+        name:(m.name&&m.name.value)||m.name||String(id),
+        difficulty:(['normal','heroic','legendary','mythic'][m.difficultyIndex])||'normal',
+        spriteIndex:idx,
+        columns:m.columns||columns
+      };
+    });
+    console.log('[Medals] client loaded',Object.keys(medalMeta).length,'medals');
+  } else if(typeof d==='object'){
+    Object.entries(d).forEach(function(e){var id=e[0],info=e[1];if(!id||typeof info!=='object')return;
+      medalMeta[id]={name:info.name||String(id),difficulty:info.difficulty||'normal',spriteIndex:info.spriteIndex!=null?info.spriteIndex:null,columns:info.columns||16};
+    });
+    console.log('[Medals] client loaded (map format)',Object.keys(medalMeta).length,'medals');
   }
 }catch(e){console.warn('[Medals]',e.message);}}
 
@@ -2809,8 +2821,9 @@ function render(){
 
   if(!mapRows.length){html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div><div class="empty-state-msg">Not enough map data yet</div><div class="empty-state-sub">Load more match history to see map breakdowns</div></div>';}
   else{
-    var bestMapWR=Math.max.apply(null,mapRows.map(function(e){return e.wins/e.count;}));
-    var worstMapWR=Math.min.apply(null,mapRows.map(function(e){return e.wins/e.count;}));
+    var _qualMaps=mapRows.filter(function(e){return e.count>=2;});
+    var bestMapWR=_qualMaps.length?Math.max.apply(null,_qualMaps.map(function(e){return e.wins/e.count;})):-1;
+    var worstMapWR=_qualMaps.length?Math.min.apply(null,_qualMaps.map(function(e){return e.wins/e.count;})):2;
     html+=sectionHead('By Map', allMatches.length+' games');
     html+='<div style="display:flex;flex-direction:column;gap:6px">';
     mapRows.forEach(function(e,idx){
@@ -2821,8 +2834,8 @@ function render(){
       var avgDeaths=(e.deaths/e.count).toFixed(1);
       var dmgRatio=e.dmgTaken>0?(e.dmgDealt/e.dmgTaken).toFixed(2):'—';
       var wrColor=wr>=55?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
-      var isBest=wrRaw===bestMapWR&&e.count>=2;
-      var isWorst=wrRaw===worstMapWR&&e.count>=2;
+      var isBest=e.count>=2&&bestMapWR>=0&&Math.abs(wrRaw-bestMapWR)<0.0001&&bestMapWR>worstMapWR;
+      var isWorst=e.count>=2&&worstMapWR<=1&&Math.abs(wrRaw-worstMapWR)<0.0001&&bestMapWR>worstMapWR;
       var panelId='mapexp_'+idx;
       // Mode breakdown string
       var topModes=Object.entries(e.modes).sort(function(a,b){return b[1].count-a[1].count;}).slice(0,3);
