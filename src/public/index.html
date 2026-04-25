@@ -2605,6 +2605,263 @@ function csrStatMini(label,val,color,sub){
 function csrInsight(color,msg){
   return'<div style="padding:8px 12px;border-left:3px solid '+color+';border-radius:0 4px 4px 0;background:var(--surface2);color:var(--text);font-size:12px;margin-bottom:4px">'+msg+'</div>';
 }
+// ── INSIGHT ENGINE ──────────────────────────────────────────────────────────
+function renderMatchInsights(matches, p) {
+  var valid = matches.filter(function(m){ return m.kills != null && m.deaths != null; });
+  if (valid.length < 5) return '';
+
+  var insights = [];
+
+  // Helper: linear regression slope (y over index 0..n-1, newest-first → reverse for chronological)
+  function slope(arr) {
+    var n = arr.length;
+    if (n < 3) return 0;
+    var chron = arr.slice().reverse();
+    var sx=0,sy=0,sxy=0,sx2=0;
+    for(var i=0;i<n;i++){sx+=i;sy+=chron[i];sxy+=i*chron[i];sx2+=i*i;}
+    return (n*sxy-sx*sy)/(n*sx2-sx*sx);
+  }
+  function avg(arr){ return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:0; }
+  function parseDurSec(s){if(!s||s==='PT0S'||s==='PT')return 0;var mm=String(s).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+
+  // 1. K/D TREND
+  var kdArr = valid.map(function(m){ return m.deaths>0 ? m.kills/m.deaths : m.kills; });
+  var kdSlope = slope(kdArr);
+  var kdAvgFirst = avg(kdArr.slice(Math.max(0,kdArr.length-5))); // oldest 5 (arr is newest-first)
+  var kdAvgLast  = avg(kdArr.slice(0,5));                        // newest 5
+  var kdDelta = kdAvgLast - kdAvgFirst;
+  if (Math.abs(kdDelta) >= 0.15 && valid.length >= 8) {
+    if (kdDelta > 0) {
+      insights.push({type:'positive', icon:'📈', title:'K/D Trending Up',
+        body: 'Your last 5 games averaged <strong>'+kdAvgLast.toFixed(2)+'</strong> K/D vs <strong>'+kdAvgFirst.toFixed(2)+'</strong> in your 5 oldest — up <strong>+'+kdDelta.toFixed(2)+'</strong>. You\'re improving.'});
+    } else {
+      insights.push({type:'warning', icon:'📉', title:'K/D Trending Down',
+        body: 'Your last 5 games averaged <strong>'+kdAvgLast.toFixed(2)+'</strong> K/D vs <strong>'+kdAvgFirst.toFixed(2)+'</strong> earlier — down <strong>'+kdDelta.toFixed(2)+'</strong>. Fatigue or tilt?'});
+    }
+  }
+
+  // 2. ACCURACY TREND
+  var accMatches = valid.filter(function(m){ return m.accuracy != null && m.shotsFired > 50; });
+  if (accMatches.length >= 6) {
+    var accArr = accMatches.map(function(m){ return parseFloat(m.accuracy); });
+    var accFirst = avg(accArr.slice(Math.max(0,accArr.length-4)));
+    var accLast  = avg(accArr.slice(0,4));
+    var accDelta = accLast - accFirst;
+    if (Math.abs(accDelta) >= 3) {
+      if (accDelta > 0) {
+        insights.push({type:'positive', icon:'🎯', title:'Accuracy Improving',
+          body: 'Recent accuracy <strong>'+accLast.toFixed(1)+'%</strong> vs <strong>'+accFirst.toFixed(1)+'%</strong> earlier — up <strong>+'+accDelta.toFixed(1)+'%</strong>. Your aim is dialing in.'});
+      } else {
+        insights.push({type:'warning', icon:'🎯', title:'Accuracy Dropping',
+          body: 'Recent accuracy <strong>'+accLast.toFixed(1)+'%</strong> vs <strong>'+accFirst.toFixed(1)+'%</strong> earlier — down <strong>'+accDelta.toFixed(1)+'%</strong>. Slow your shots down.'});
+      }
+    }
+  }
+
+  // 3. DAMAGE EFFICIENCY — dealing damage but not converting to kills
+  var dmgValid = valid.filter(function(m){ return m.damageDealt > 500 && m.kills > 0; });
+  if (dmgValid.length >= 5) {
+    var dpkArr = dmgValid.map(function(m){ return m.damageDealt / m.kills; }); // damage per kill
+    var avgDPK = avg(dpkArr);
+    // Halo baseline is roughly 400-600 damage per kill for good players
+    if (avgDPK > 750) {
+      insights.push({type:'warning', icon:'💥', title:'Leaving Kills on the Table',
+        body: 'Averaging <strong>'+Math.round(avgDPK)+'</strong> damage per kill — well above the ~550 baseline. You\'re damaging enemies but not finishing them. Push for the cleanup, or let teammates mop up less.'});
+    } else if (avgDPK < 420) {
+      insights.push({type:'positive', icon:'💥', title:'High Kill Efficiency',
+        body: 'Only <strong>'+Math.round(avgDPK)+'</strong> damage per kill — very efficient. You\'re converting most fights you engage.'});
+    }
+  }
+
+  // 4. WEAPON RELIANCE — over-indexing on grenade/melee
+  var wepValid = valid.filter(function(m){ return m.weaponStats && m.kills > 0; });
+  if (wepValid.length >= 5) {
+    var totalK=0,totalGren=0,totalMelee=0,totalPwr=0,totalHS=0;
+    wepValid.forEach(function(m){
+      totalK+=m.kills; var ws=m.weaponStats;
+      totalGren+=(ws.grenades||0); totalMelee+=(ws.melee||0);
+      totalPwr+=(ws.powerWeapon||0); totalHS+=(ws.headshots||0);
+    });
+    var grenPct = totalGren/totalK*100;
+    var meleePct = totalMelee/totalK*100;
+    var pwrPct = totalPwr/totalK*100;
+    var hsPct = totalHS/totalK*100;
+    if (grenPct > 20) {
+      insights.push({type:'neutral', icon:'💣', title:'Heavy Grenade Reliance',
+        body: '<strong>'+Math.round(grenPct)+'%</strong> of kills from grenades. Strong if intentional — but if you\'re holding grenades too long before fights, you may be conditioning enemies to play around them.'});
+    }
+    if (meleePct > 18) {
+      insights.push({type:'neutral', icon:'👊', title:'Melee-Heavy Playstyle',
+        body: '<strong>'+Math.round(meleePct)+'%</strong> kills from melee. Consistent melee finishers are valuable, but high melee % can mean you\'re closing distance when you could be shooting.'});
+    }
+    if (hsPct < 15 && totalK > 40) {
+      insights.push({type:'warning', icon:'🎯', title:'Low Headshot Rate',
+        body: 'Only <strong>'+Math.round(hsPct)+'%</strong> of kills are headshots. More precision weapon finishes = fewer bullets wasted and faster TTK.'});
+    }
+    if (pwrPct > 35) {
+      insights.push({type:'positive', icon:'⚡', title:'Power Weapon Dominator',
+        body: '<strong>'+Math.round(pwrPct)+'%</strong> of kills from power weapons — you\'re consistently winning and controlling power weapon pickups.'});
+    }
+  }
+
+  // 5. PLACEMENT PATTERN
+  var placedMatches = valid.filter(function(m){ return m.placement && parseInt(m.placement)>0; });
+  if (placedMatches.length >= 5) {
+    var rankNums = placedMatches.map(function(m){ return parseInt(m.placement); });
+    var avgRank = avg(rankNums);
+    var topHalfCount = rankNums.filter(function(r){ return r <= 4; }).length;
+    var topHalfPct = Math.round(topHalfCount/rankNums.length*100);
+    if (avgRank <= 2.5) {
+      insights.push({type:'positive', icon:'🏅', title:'Consistently Carrying',
+        body: 'Avg placement <strong>'+avgRank.toFixed(1)+'</strong> — you finish in the top 2 on your team most games. You\'re the one pulling weight.'});
+    } else if (avgRank >= 5.5) {
+      insights.push({type:'warning', icon:'🏅', title:'Consistently Bottom Half',
+        body: 'Avg team placement <strong>'+avgRank.toFixed(1)+'</strong> — you\'re frequently in the bottom half. Focus on positioning or earlier rotation before going aggro.'});
+    } else if (topHalfPct >= 70) {
+      insights.push({type:'positive', icon:'🏅', title:'Top-Half Performer',
+        body: 'In the top half of your team <strong>'+topHalfPct+'%</strong> of games. Solid contributor.'});
+    }
+  }
+
+  // 6. OBJECTIVE CONTRIBUTION
+  var objMatchesList = valid.filter(function(m){ return m.objStats; });
+  if (objMatchesList.length >= 3) {
+    var totalObjKills=0, totalKillsInObj=0;
+    var ctfCaptures=0, ctfGames=0;
+    var ballTime=0, ballGames=0;
+    objMatchesList.forEach(function(m){
+      totalKillsInObj += m.kills||0;
+      var os = m.objStats;
+      if(os.mode==='CTF'){ctfGames++;ctfCaptures+=(os.flagCaptures||0);}
+      if(os.mode==='Oddball'){ballGames++;ballTime+=(os.timeAsCarrier||0);}
+      totalObjKills += (m.kills||0);
+    });
+    var avgBallTime = ballGames ? ballTime/ballGames : 0;
+    var avgCTFCaps = ctfGames ? ctfCaptures/ctfGames : 0;
+    if (ctfGames >= 2 && avgCTFCaps < 0.3) {
+      insights.push({type:'warning', icon:'🚩', title:'Not Capturing in CTF',
+        body: 'Averaging only <strong>'+avgCTFCaps.toFixed(1)+'</strong> flag captures per CTF game. Consider running the flag more — it wins games.'});
+    }
+    if (ballGames >= 2 && avgBallTime < 20) {
+      insights.push({type:'warning', icon:'💀', title:'Not Holding Ball Enough',
+        body: 'Averaging <strong>'+Math.round(avgBallTime)+'s</strong> ball carry time per Oddball game. The ball scores points — pick it up and hold it.'});
+    }
+    if (ballGames >= 2 && avgBallTime > 60) {
+      insights.push({type:'positive', icon:'💀', title:'Ball Carrier',
+        body: 'Averaging <strong>'+Math.round(avgBallTime)+'s</strong> carry time in Oddball. You\'re doing the dirty work.'});
+    }
+  }
+
+  // 7. TIME-OF-DAY PERFORMANCE
+  var timedMatches = valid.filter(function(m){ return m.startTime; });
+  if (timedMatches.length >= 8) {
+    var byPeriod = {morning:{k:0,d:0,w:0,total:0},afternoon:{k:0,d:0,w:0,total:0},night:{k:0,d:0,w:0,total:0}};
+    timedMatches.forEach(function(m){
+      var h = new Date(m.startTime).getHours();
+      var p = h>=5&&h<12?'morning':h>=12&&h<19?'afternoon':'night';
+      byPeriod[p].k+=m.kills||0; byPeriod[p].d+=m.deaths||0;
+      if(m.outcome===2) byPeriod[p].w++;
+      byPeriod[p].total++;
+    });
+    var periods = Object.entries(byPeriod).filter(function(e){return e[1].total>=3;});
+    if (periods.length >= 2) {
+      var best = periods.reduce(function(a,b){
+        var akd = a[1].d>0?a[1].k/a[1].d:a[1].k;
+        var bkd = b[1].d>0?b[1].k/b[1].d:b[1].k;
+        return akd>bkd?a:b;
+      });
+      var worst = periods.reduce(function(a,b){
+        var akd = a[1].d>0?a[1].k/a[1].d:a[1].k;
+        var bkd = b[1].d>0?b[1].k/b[1].d:b[1].k;
+        return akd<bkd?a:b;
+      });
+      var bestKD = best[1].d>0?(best[1].k/best[1].d).toFixed(2):best[1].k;
+      var worstKD = worst[1].d>0?(worst[1].k/worst[1].d).toFixed(2):worst[1].k;
+      if (best[0] !== worst[0] && parseFloat(bestKD)-parseFloat(worstKD) >= 0.25) {
+        var labels = {morning:'Morning',afternoon:'Afternoon',night:'Late Night'};
+        insights.push({type:'neutral', icon:'🕐', title:'Your Peak Hours: '+labels[best[0]],
+          body: '<strong>'+labels[best[0]]+'</strong> K/D: <span style="color:var(--win)">'+bestKD+'</span> · <strong>'+labels[worst[0]]+'</strong> K/D: <span style="color:var(--loss)">'+worstKD+'</span> ('+worst[1].total+' games). Your best play happens earlier in the day.'});
+      }
+    }
+  }
+
+  // 8. CARRYING vs BEING CARRIED (MMR-based)
+  var mmrMatches = valid.filter(function(m){ return m.mmr && m.oppMmr && m.isRanked; });
+  if (mmrMatches.length >= 4) {
+    var carrying = mmrMatches.filter(function(m){ return m.mmr > m.oppMmr * 1.05; });
+    var underdog  = mmrMatches.filter(function(m){ return m.mmr < m.oppMmr * 0.95; });
+    var carryWR = carrying.length ? Math.round(carrying.filter(function(m){return m.outcome===2;}).length/carrying.length*100) : null;
+    var underdogWR = underdog.length ? Math.round(underdog.filter(function(m){return m.outcome===2;}).length/underdog.length*100) : null;
+    if (carrying.length >= 2 && underdog.length >= 2) {
+      if (carryWR !== null && underdogWR !== null && carryWR - underdogWR <= -20) {
+        insights.push({type:'warning', icon:'⚖️', title:'Struggles When Favored',
+          body: 'Win rate <strong>'+carryWR+'%</strong> when your MMR is higher vs <strong>'+underdogWR+'%</strong> as underdog. You may be playing too loose when expected to win.'});
+      } else if (carryWR !== null && underdogWR !== null && underdogWR - carryWR >= 20) {
+        insights.push({type:'positive', icon:'⚖️', title:'Punches Above Weight',
+          body: '<strong>'+underdogWR+'%</strong> win rate as underdog vs <strong>'+carryWR+'%</strong> when favored. You tend to perform better under pressure.'});
+      }
+    }
+  }
+
+  // 9. MAP-SPECIFIC ACCURACY
+  var mapAccData = {};
+  valid.forEach(function(m){
+    if (!m.mapName || m.accuracy == null || m.shotsFired < 50) return;
+    if (!mapAccData[m.mapName]) mapAccData[m.mapName] = [];
+    mapAccData[m.mapName].push(parseFloat(m.accuracy));
+  });
+  var mapAccEntries = Object.entries(mapAccData).filter(function(e){return e[1].length>=2;});
+  if (mapAccEntries.length >= 3) {
+    var mapAvgs = mapAccEntries.map(function(e){return[e[0],avg(e[1]),e[1].length];});
+    mapAvgs.sort(function(a,b){return a[1]-b[1]});
+    var worstMapAcc = mapAvgs[0];
+    var bestMapAcc = mapAvgs[mapAvgs.length-1];
+    if (bestMapAcc[1] - worstMapAcc[1] >= 6) {
+      insights.push({type:'neutral', icon:'🗺️', title:'Map Accuracy Variance',
+        body: 'Accuracy on <span style="color:var(--win)"><strong>'+bestMapAcc[0]+'</strong>: '+bestMapAcc[1].toFixed(1)+'%</span> vs <span style="color:var(--loss)"><strong>'+worstMapAcc[0]+'</strong>: '+worstMapAcc[1].toFixed(1)+'%</span>. The sight lines on '+worstMapAcc[0]+' may not suit your playstyle.'});
+    }
+  }
+
+  // 10. DEATH ANALYSIS — dying fast (low dmg taken) vs traded
+  var deathMatches = valid.filter(function(m){ return m.deaths > 0 && m.damageTaken > 500; });
+  if (deathMatches.length >= 5) {
+    var dtpd = deathMatches.map(function(m){ return m.damageTaken / m.deaths; }); // damage taken per death
+    var avgDTPD = avg(dtpd);
+    // In Halo, player health is ~220hp effective. Low DTPD = dying before fights develop (ambushed/peeked). High = surviving longer.
+    if (avgDTPD < 170) {
+      insights.push({type:'warning', icon:'💀', title:'Dying Too Fast',
+        body: 'Avg <strong>'+Math.round(avgDTPD)+'</strong> damage taken per death — you\'re dying quickly, often before fights develop. Watch your angles and don\'t peek into sight-line disadvantages.'});
+    } else if (avgDTPD > 320) {
+      insights.push({type:'positive', icon:'🛡️', title:'Surviving Fights',
+        body: 'Avg <strong>'+Math.round(avgDTPD)+'</strong> damage taken per death — you\'re absorbing a lot before going down, meaning enemies are spending resources to kill you. Good staying power.'});
+    }
+  }
+
+  if (!insights.length) return '';
+
+  var COLORS = {
+    positive: {border:'rgba(76,175,130,0.4)', bg:'rgba(76,175,130,0.06)', icon:'var(--win)'},
+    warning:  {border:'rgba(224,80,80,0.4)',  bg:'rgba(224,80,80,0.06)',  icon:'var(--loss)'},
+    neutral:  {border:'var(--border2)',        bg:'rgba(56,138,221,0.04)', icon:'var(--accent)'}
+  };
+
+  var html = sectionHead('Performance Insights', insights.length + ' findings');
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:24px">';
+  insights.forEach(function(ins) {
+    var c = COLORS[ins.type] || COLORS.neutral;
+    html += '<div style="background:'+c.bg+';border:1px solid '+c.border+';border-radius:8px;padding:14px 16px">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
+    html += '<span style="font-size:16px;line-height:1">'+ins.icon+'</span>';
+    html += '<span style="font-size:12px;font-weight:700;color:var(--text);font-family:Rajdhani,sans-serif;letter-spacing:.5px">'+ins.title+'</span>';
+    html += '</div>';
+    html += '<div style="font-size:11px;color:var(--muted);line-height:1.6">'+ins.body+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+// ── END INSIGHT ENGINE ───────────────────────────────────────────────────────
+
 function render(){
   if(!data)return;
   if(searchMode&&!data._searchOverride){renderSearch();return;}
@@ -2974,6 +3231,9 @@ function render(){
     html+='<div style="padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--accent);font-family:Share Tech Mono,monospace">⚡ '+keyInsight+'</div>';
     html+='</div>';
   }
+
+  // Insight engine — runs across all 25 matches
+  html += renderMatchInsights(matches, p);
 
   // Last 10 matches on overview — skip if in search mode (they have their own matches shown)
   if(displayMatches.length>0){
