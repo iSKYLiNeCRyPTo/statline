@@ -1382,8 +1382,8 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       var _trackedP=(data&&data.players||[]).find(function(x){return x.gamertag===pl.gamertag;});
       var _rowEmb='';
       var _rowSrc=_trackedP
-        ? (_trackedP.emblemUrl||(_trackedP.xuid?'/api/emblem?xuid='+_trackedP.xuid:null)||_trackedP.gamerpicUrl||null)
-        : (pl.gamerpicUrl||null);
+        ? (_trackedP.avatarUrl||_trackedP.emblemUrl||(_trackedP.xuid?'/api/emblem?xuid='+_trackedP.xuid:null)||_trackedP.gamerpicUrl||null)
+        : (pl.avatarUrl||pl.gamerpicUrl||null);
       if(_rowSrc&&!isSpartan){
         var _rowInitials=(pl.gamertag||'?').slice(0,2).toUpperCase();
         _rowEmb='<div style="display:inline-block;width:20px;height:20px;border-radius:3px;overflow:hidden;vertical-align:middle;margin-right:6px;background:var(--surface2);border:1px solid var(--border);position:relative">'
@@ -1806,7 +1806,7 @@ function playerEmblem(p,size){
   var initials=(p.gamertag||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
   var fs=Math.round(size*0.38);
   var fallback='<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent);flex-shrink:0">'+initials+'</div>';
-  var src=p.emblemUrl||(p.xuid?'/api/emblem?xuid='+p.xuid:null)||p.gamerpicUrl||null;
+  var src=p.avatarUrl||p.emblemUrl||(p.xuid?'/api/emblem?xuid='+p.xuid:null)||p.gamerpicUrl||null;
   if(!src)return fallback;
   return'<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center"><img src="'+src+'" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent)">'+initials+'</span></div>';
 }
@@ -2071,7 +2071,7 @@ function renderPlayerBtns(){
   var av=document.getElementById('sidebarAvatar');
   var rk=document.getElementById('sidebarRank');
   if(gt)gt.textContent=p.gamertag||'';
-  if(av){av.src=p.emblemUrl||p.gamerpicUrl||'';av.style.display=p.emblemUrl||p.gamerpicUrl?'block':'none';}
+  if(av){av.src=p.avatarUrl||p.emblemUrl||p.gamerpicUrl||'';av.style.display=p.avatarUrl||p.emblemUrl||p.gamerpicUrl?'block':'none';}
   if(rk){var csr=p.csr;var topCsr=csr?Object.values(csr).filter(function(c){return c&&c.tier;}).sort(function(a,b){return b.value-a.value;})[0]:null;rk.textContent=topCsr?topCsr.display:'';}
 }
 function duoCard(label,labelColor,games,wr,avgCsr){
