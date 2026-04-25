@@ -1381,6 +1381,75 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
     });
     html+='</tbody></table>';
   });
+
+  // ── Objective stats ──────────────────────────────────────────────────
+  if(m.objStats){
+    var os=m.objStats;
+    var objRows=[];
+    function fmtDurS(s){if(!s&&s!==0)return null;var m=Math.floor(s/60),sec=Math.round(s%60);return m>0?m+'m '+sec+'s':sec+'s';}
+    if(os.mode==='Oddball'){
+      if(os.timeAsCarrier!=null)objRows.push(['Ball Hold Time',fmtDurS(os.timeAsCarrier)]);
+      if(os.longestCarry!=null)objRows.push(['Longest Carry',fmtDurS(os.longestCarry)]);
+      if(os.ballGrabs!=null)objRows.push(['Ball Grabs',os.ballGrabs]);
+      if(os.killsAsCarrier!=null)objRows.push(['Kills as Carrier',os.killsAsCarrier]);
+      if(os.carrierKills!=null)objRows.push(['Carrier Kills',os.carrierKills]);
+      if(os.scoringTicks!=null)objRows.push(['Scoring Ticks',os.scoringTicks]);
+    } else if(os.mode==='CTF'){
+      if(os.flagCaptures!=null)objRows.push(['Flag Captures',os.flagCaptures]);
+      if(os.flagGrabs!=null)objRows.push(['Flag Grabs',os.flagGrabs]);
+      if(os.flagReturns!=null)objRows.push(['Flag Returns',os.flagReturns]);
+      if(os.flagsStolen!=null)objRows.push(['Flag Steals',os.flagsStolen]);
+      if(os.flagCarrierKills!=null)objRows.push(['Carriers Killed',os.flagCarrierKills]);
+      if(os.timeAsCarrier!=null)objRows.push(['Carrier Time',fmtDurS(os.timeAsCarrier)]);
+    } else if(os.mode==='Strongholds'||os.mode==='King of the Hill'||os.mode==='Land Grab'){
+      if(os.captures!=null)objRows.push(['Zone Captures',os.captures]);
+      if(os.secures!=null)objRows.push(['Zone Secures',os.secures]);
+      if(os.defensiveKills!=null)objRows.push(['Defensive Kills',os.defensiveKills]);
+      if(os.offensiveKills!=null)objRows.push(['Offensive Kills',os.offensiveKills]);
+      if(os.occupationTime!=null)objRows.push(['Occupation Time',fmtDurS(os.occupationTime)]);
+    } else if(os.mode==='Stockpile'){
+      if(os.seedsDeposited!=null)objRows.push(['Seeds Deposited',os.seedsDeposited]);
+      if(os.seedsStolen!=null)objRows.push(['Seeds Stolen',os.seedsStolen]);
+      if(os.seedsPickedUp!=null)objRows.push(['Seeds Picked Up',os.seedsPickedUp]);
+    }
+    if(objRows.length){
+      html+='<div style="margin-top:14px">'
+        +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">'+os.mode+' Objectives</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px">';
+      objRows.forEach(function(r){
+        html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 10px">'
+          +'<div style="font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;letter-spacing:.5px">'+r[0]+'</div>'
+          +'<div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px">'+r[1]+'</div>'
+          +'</div>';
+      });
+      html+='</div></div>';
+    }
+  }
+
+  // ── Medals ───────────────────────────────────────────────────────────
+  if(m.topMedals&&m.topMedals.length){
+    html+='<div style="margin-top:14px">'
+      +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Medals</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px">';
+    m.topMedals.forEach(function(medal){
+      var meta=medalMeta[String(medal.nameId)]||{};
+      var name=(meta.name||String(medal.nameId));
+      var cols=meta.columns||16;
+      var idx=meta.spriteIndex!=null?meta.spriteIndex:null;
+      var glow={normal:'#00e676',heroic:'#3b82f6',legendary:'#7c3aed',mythic:'#ff3d57'}[meta.difficulty||'normal'];
+      var inner=idx!==null
+        ?'<img src="'+MEDAL_SHEET+'" style="position:absolute;width:'+(cols*60)+'px;height:auto;top:-'+(Math.floor(idx/cols)*60)+'px;left:-'+((idx%cols)*60)+'px" onerror="this.parentNode.innerHTML=\'<span style=&quot;font-size:22px;line-height:60px&quot;>'+( '<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;22&quot; height=&quot;22&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;><circle cx=&quot;12&quot; cy=&quot;8&quot; r=&quot;6&quot;/><path d=&quot;M15.477 12.89L17 22l-5-3-5 3 1.523-9.11&quot;/></svg>' )+'</span>\'">'
+        :'<span style="font-size:22px;line-height:60px"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>';
+      var nameShort=name.length>14?name.slice(0,13)+'…':name;
+      html+='<div style="display:flex;flex-direction:column;align-items:center;width:60px" title="'+name+' ×'+medal.count+'">'
+        +'<div style="width:60px;height:60px;position:relative;overflow:hidden;border-radius:4px;box-shadow:0 0 6px '+glow+'44">'+inner+'</div>'
+        +'<div style="font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;margin-top:3px;text-align:center;line-height:1.2">'+nameShort+'</div>'
+        +'<div style="font-size:9px;color:var(--accent);font-family:Share Tech Mono,monospace">×'+medal.count+'</div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+  }
+
   return html+'</div>';
 }
 function analyzeConnectionQuality(m, modeBaselines) {
@@ -2885,8 +2954,39 @@ function render(){
     html+=sectionHead('Recent Matches','last 10');
     var _last10=displayMatches.slice(0,10);
     html+='<div class="match-list">';
-    _last10.forEach(function(m,i){
-      html+=renderMatchCard(m,i,window._fragrBaselines||{},0,true);
+    _last10.forEach(function(m){
+      var oc=m.outcome===2?'win-card':m.outcome===3?'loss-card':'draw-card';
+      var pillClass=m.outcome===2?'outcome-win':m.outcome===3?'outcome-loss':'outcome-draw';
+      var word=m.outcome===2?'WIN':m.outcome===3?'LOSS':'DRAW';
+      var kd=m.deaths>0?(m.kills/m.deaths).toFixed(2):String(m.kills);
+      var maxDmg=Math.max(m.damageDealt||0,m.damageTaken||1,1);
+      var dp=Math.round(((m.damageDealt||0)/maxDmg)*100);
+      var tp=Math.round(((m.damageTaken||0)/maxDmg)*100);
+      var sub=[m.mapName,formatDur(m.duration)].filter(Boolean).join(' · ');
+      var mmrStr=null;
+      if(m.mmr&&m.oppMmr){var mmrDiff=m.mmr-m.oppMmr;mmrStr=Math.round(100/(1+Math.pow(10,-mmrDiff/400)))+'% win prob';}
+      html+='<div class="match-card '+oc+'" style="cursor:default">'+
+        '<div class="match-main">'+
+          '<span class="outcome-pill '+pillClass+'">'+(m.placement||word)+'</span>'+
+          '<div class="match-info">'+
+            '<div class="match-mode">'+(m.gameMode||'Unknown Mode').replace(/Capture the Flag/gi,'CTF')+'</div>'+
+            '<div class="match-sub">'+sub+(mmrStr?' · '+mmrStr:'')+'</div>'+
+          '</div>'+
+          '<div class="match-kda">'+
+            '<div class="match-kda-big">'+m.kills+'&thinsp;/&thinsp;'+m.deaths+'&thinsp;/&thinsp;'+m.assists+'</div>'+
+            '<div class="match-kda-sub">K/D '+kd+'</div>'+
+          '</div>'+
+          '<div class="match-dmg">'+
+            '<div class="dmg-label">Damage</div>'+
+            '<div class="dmg-bar-row"><span style="color:var(--win);width:40px;text-align:right">'+(m.damageDealt?Math.round(m.damageDealt).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+dp+'%;background:var(--win)"></div></div></div>'+
+            '<div class="dmg-bar-row"><span style="color:var(--loss);width:40px;text-align:right">'+(m.damageTaken?Math.round(m.damageTaken).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+tp+'%;background:var(--loss)"></div></div></div>'+
+          '</div>'+
+          '<div class="match-right">'+
+            '<span class="match-time">'+timeAgo(m.startTime)+'</span>'+
+            (m.csrDelta!=null?'<span class="match-csr" style="color:'+(m.csrDelta>=0?'var(--win)':'var(--loss)')+'">'+(m.csrDelta>0?'+':'')+m.csrDelta+' CSR</span>':(m.csrAfter?'<span class="match-csr">'+m.csrAfter+'</span>':''))+
+          '</div>'+
+        '</div>'+
+      '</div>';
     });
     html+='</div>';
     html+='<div style="text-align:center;margin-top:8px"><button onclick="setTab(\'matches\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 18px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;letter-spacing:1px">VIEW ALL MATCHES →</button></div>';
