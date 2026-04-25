@@ -2326,13 +2326,13 @@ function render(){
   var _rawMatches=_fullMatches.filter(filterMatch);
   var matches=_rawMatches;
   var allMatches=_rawMatches;
-  var displayMatches=_seasonMatches; // same 25 matches
+  var displayMatches=_rawMatches; // same 25 matches
   var filtered=rankedFilter?displayMatches.filter(function(m){return m.isRanked;}):displayMatches;
   // If season filter active, recompute nemeses/victims from filtered matches
   var nemeses, victims;
   if(seasonFilter==='current'){
     var _rivalMap={};
-    _seasonMatches.forEach(function(m){
+    _rawMatches.forEach(function(m){
       if(!m.teams) return;
       var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===p.gamertag;});});
       if(!myTeam) return;
