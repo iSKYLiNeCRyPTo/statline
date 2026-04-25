@@ -356,4 +356,4 @@ app.get('*', (req, res) => {
 // Start token auto-refresh (requires MS_REFRESH_TOKEN env var)
 startAutoRefresh();
 
-app.listen(PORT, () => console.log(`[StatLine] Listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`[fragr] Listening on port ${PORT} — fragr.live`));
