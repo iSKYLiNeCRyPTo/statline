@@ -70,34 +70,39 @@ let medalMeta = {};
 async function loadMedalMeta() {
   if (Object.keys(medalMeta).length) return;
   try {
-    // Need clearance for gamecms — get a xuid from any cached player
-    const { getXuidToGamerpic } = require('./halo');
-    const xuids = Object.keys(getXuidToGamerpic());
-    if (xuids.length) await fetchClearanceToken(xuids[0]);
     const headers = getAuthHeaders();
-    const res = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/mapping.json', { headers });
-    if (res.ok) {
+    // Try the full medal metadata file first (has sprite indices)
+    const urls = [
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/Medals.json',
+      'https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/medals/mapping.json',
+    ];
+    let loaded = false;
+    for (const url of urls) {
+      const res = await fetch(url, { headers });
+      if (!res.ok) { console.log('[Medals] ' + res.status + ' for ' + url); continue; }
       const data = await res.json();
-      // mapping.json format: { "nameId": { name, description, spriteIndex, difficultyIndex, ... } }
-      // OR it may be an array — handle both
-      if (Array.isArray(data)) {
-        const columns = 16;
-        data.forEach(m => {
-          const id = String(m.nameId || m.NameId || '');
-          if (!id) return;
-          medalMeta[id] = { name: (m.name?.value) || m.name || id, difficulty: ['normal','heroic','legendary','mythic'][m.difficultyIndex]||'normal', spriteIndex: m.spriteIndex ?? null, columns };
-        });
-      } else {
-        for (const [id, info] of Object.entries(data)) {
-          medalMeta[id] = { name: info.name || String(id), difficulty: 'normal', spriteIndex: info.spriteIndex ?? null, columns: info.columns || 16 };
-        }
+      const medals = Array.isArray(data) ? data : (data.Medals || data.medals || Object.values(data));
+      if (!Array.isArray(medals)) { console.log('[Medals] Unexpected format from', url); continue; }
+      const columns = data.columns || data.Columns || 16;
+      medals.forEach(m => {
+        const id = String(m.nameId || m.NameId || m.id || '');
+        if (!id) return;
+        const name = (m.name?.value) || m.name || String(id);
+        medalMeta[id] = {
+          name, columns,
+          difficulty: ['normal','heroic','legendary','mythic'][m.difficultyIndex ?? 0] || 'normal',
+          spriteIndex: m.spriteIndex ?? m.SpriteIndex ?? null,
+        };
+      });
+      if (Object.keys(medalMeta).length) {
+        global._medalMeta = medalMeta;
+        console.log('[Medals] Loaded', Object.keys(medalMeta).length, 'medals from', url);
+        loaded = true;
+        break;
       }
-      global._medalMeta = medalMeta;
-      console.log('[Medals] Loaded', Object.keys(medalMeta).length, 'medals');
-    } else {
-      console.log('[Medals] Failed:', res.status);
     }
-  } catch(e) { console.log('[Medals] Failed to load:', e.message); }
+    if (!loaded) console.log('[Medals] Could not load medal data from any source');
+  } catch(e) { console.log('[Medals] Failed:', e.message); }
 }
 loadMedalMeta();
 
