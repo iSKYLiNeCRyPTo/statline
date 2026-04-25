@@ -428,7 +428,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
       let kills = 0, deaths = 0, assists = 0, gameMode = null, teams = [];
       let placement = null, score = 0, damageDealt = 0, damageTaken = 0, accuracy = null;
       let weaponStats = [], mmr = null, oppMmr = null, expectedKills = null, expectedDeaths = null, objStats = null;
-      let mapName = null, isRanked = false, csrAfter = null, csrBefore = null, csrDelta = null, matchOutcome = 0;
+      let mapName = null, mapImageUrl = null, isRanked = false, csrAfter = null, csrBefore = null, csrDelta = null, matchOutcome = 0;
 
       if (md) {
         const lifecycleMode = md.MatchInfo?.LifecycleMode;
@@ -483,7 +483,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
 
         const _mapAssetId = md.MatchInfo?.MapVariant?.AssetId;
         mapName = await resolveMapName(_mapAssetId, md.MatchInfo?.MapVariant?.VersionId, headers);
-        const mapImageUrl = getMapImageUrl(_mapAssetId);
+        mapImageUrl = getMapImageUrl(_mapAssetId);
 
         for (const p of (md.Players||[])) {
           const rx = String(p.PlayerId||'').replace('xuid(','').replace(')','');
