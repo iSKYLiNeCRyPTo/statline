@@ -2628,6 +2628,9 @@ function render(){
     else if(m.outcome===3)kbLosses++;
   });
   // Only show if we have weapon breakdown data (some matches may lack it)
+  var totalShotsFired=0,totalShotsHit=0;
+  _kbSample.forEach(function(m){totalShotsFired+=(m.shotsFired||0);totalShotsHit+=(m.shotsHit||0);});
+  var kbAccuracy=totalShotsFired>0?(totalShotsHit/totalShotsFired*100).toFixed(1):null;
   var hasWeaponData=totalHS+totalMelee+totalGrenades+totalPower>0;
   if(hasWeaponData&&totalKillsSample>0){
     var totalKills=totalKillsSample;
@@ -2654,6 +2657,7 @@ function render(){
       +'<div class="stat-card"><div class="stat-label">K / D</div><div class="stat-value" style="color:'+kbKDColor+'">'+kbKD+'</div><div class="stat-sub">'+totalKillsSample+' kills · '+totalDeathsSample+' deaths</div></div>'
       +'<div class="stat-card"><div class="stat-label">Kills</div><div class="stat-value" style="color:var(--win)">'+totalKillsSample+'</div><div class="stat-sub">'+(totalKillsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
       +'<div class="stat-card"><div class="stat-label">Deaths</div><div class="stat-value" style="color:var(--loss)">'+totalDeathsSample+'</div><div class="stat-sub">'+(totalDeathsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
+      +(kbAccuracy!==null?'<div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" style="color:var(--accent)">'+kbAccuracy+'%</div><div class="stat-sub">shots hit / fired</div></div>':'')
       +killStat('Headshots',totalHS,hsPct,'#ff6b6b')
       +killStat('Power Weapon',totalPower,powerPct,'var(--gold)')
       +killStat('Grenade',totalGrenades,grenPct,'#51cf66')
@@ -2793,8 +2797,8 @@ function render(){
       var avgDeaths=(e.deaths/e.count).toFixed(1);
       var dmgRatio=e.dmgTaken>0?(e.dmgDealt/e.dmgTaken).toFixed(2):'—';
       var wrColor=wr>=55?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
-      var isBest=wrRaw===bestMapWR&&e.count>=5;
-      var isWorst=wrRaw===worstMapWR&&e.count>=5;
+      var isBest=wrRaw===bestMapWR&&e.count>=2;
+      var isWorst=wrRaw===worstMapWR&&e.count>=2;
       var panelId='mapexp_'+idx;
       // Mode breakdown string
       var topModes=Object.entries(e.modes).sort(function(a,b){return b[1].count-a[1].count;}).slice(0,3);
