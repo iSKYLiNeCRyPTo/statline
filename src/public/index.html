@@ -2016,7 +2016,7 @@ function quickSearch(gt){
 async function doSearch(gt){
   if(!gt||!gt.trim())return;
   gt=gt.trim();
-  var el=document.getElementById('landing');if(el)el.style.display='none';
+  hideLanding();
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display=window.innerWidth>=768?'flex':'none';
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
