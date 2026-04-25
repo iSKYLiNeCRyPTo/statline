@@ -236,6 +236,14 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-map-outcome.loss{background:var(--loss);color:#fff}
 .match-map-outcome.draw{background:var(--muted2);color:#fff}
 .match-card.has-banner .match-main{flex:1;min-width:0}
+
+.match-card.has-banner.expanded{flex-wrap:wrap;position:relative}
+.match-card.has-banner.expanded .match-map-thumb{width:220px;position:relative;z-index:1}
+.match-card.has-banner.expanded .match-map-thumb img{object-position:center}
+.match-card.has-banner.expanded .match-map-thumb-overlay{background:linear-gradient(to right,rgba(0,0,0,0) 40%,var(--surface) 100%)}
+.match-card.has-banner.expanded .match-main{z-index:2}
+.match-detail-panel{width:100%;flex-basis:100%}
+@media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:64px}}
 @media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:48px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
@@ -363,6 +371,14 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-map-outcome.loss{background:var(--loss);color:#fff}
 .match-map-outcome.draw{background:var(--muted2);color:#fff}
 .match-card.has-banner .match-main{flex:1;min-width:0}
+
+.match-card.has-banner.expanded{flex-wrap:wrap;position:relative}
+.match-card.has-banner.expanded .match-map-thumb{width:220px;position:relative;z-index:1}
+.match-card.has-banner.expanded .match-map-thumb img{object-position:center}
+.match-card.has-banner.expanded .match-map-thumb-overlay{background:linear-gradient(to right,rgba(0,0,0,0) 40%,var(--surface) 100%)}
+.match-card.has-banner.expanded .match-main{z-index:2}
+.match-detail-panel{width:100%;flex-basis:100%}
+@media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:64px}}
 @media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:48px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:9px}
   .match-dmg{min-width:80px}
@@ -1881,7 +1897,7 @@ function toggleMatch(matchKey,idx){
 
   // Find or create detail panel
   var existing=card.querySelector('.match-detail-panel');
-  if(existing){existing.remove();return;}
+  if(existing){existing.remove();card.classList.remove('expanded');return;}
 
   // Need to render the detail — find match data from current filtered list
   var p=getAllPlayers()[selectedPlayer]||(data.players||[])[0];
@@ -1908,6 +1924,7 @@ function toggleMatch(matchKey,idx){
   panel.className='match-detail-panel';
   panel.innerHTML=renderMatchDetail(m,m,baselines,_gdsF(m));
   card.appendChild(panel);
+  card.classList.add('expanded');
 }
 
 
