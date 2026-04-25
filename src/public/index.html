@@ -425,12 +425,25 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div style="display:flex;gap:8px;align-items:center"><button id="bannerFavBtn" onclick="toggleBannerFavorite()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px">☆ FAVORITE</button><button onclick="clearSearch()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px">✕ EXIT SEARCH</button></div>
   </div>
     <div class="cmd-topbar">
-      <div class="cmd-topbar-left">
-        <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
-        <span class="cmd-topbar-title" id="topbarTitle">// OVERVIEW</span>
+      <div class="cmd-topbar-left" style="gap:16px">
+        <div onclick="goHome()" style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0" title="fragr home">
+          <svg width="90" height="30" viewBox="0 0 90 30" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="15" cy="15" r="13" fill="none" stroke="#85B7EB" stroke-width="2"/>
+            <circle cx="15" cy="15" r="4.5" fill="none" stroke="#85B7EB" stroke-width="1.5"/>
+            <circle cx="15" cy="15" r="1.8" fill="#85B7EB"/>
+            <line x1="15" y1="2" x2="15" y2="9" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="15" y1="21" x2="15" y2="28" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="2" y1="15" x2="9" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="21" y1="15" x2="28" y2="15" stroke="#85B7EB" stroke-width="1.5" stroke-linecap="round"/>
+            <text x="34" y="21" font-family="system-ui,sans-serif" font-size="19" font-weight="500" letter-spacing="-0.5" fill="#E6F1FB">fragr</text>
+          </svg>
+        </div>
+        <span class="cmd-topbar-title" id="topbarTitle" style="font-size:10px;color:var(--muted2)">// OVERVIEW</span>
       </div>
       <div class="cmd-topbar-right">
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
+        <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()">☆</button>
+        <button onclick="toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">◑</button>
         <div class="search-bar">
           <input class="search-input" id="searchInput" placeholder="Search gamertag..." onkeydown="if(event.key==='Enter')searchPlayer()">
           <button class="search-btn" onclick="searchPlayer()">🔍</button>
@@ -476,6 +489,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         </button>
       </div>
       <div id="landingError" style="color:var(--loss);font-size:12px;min-height:18px;font-family:Share Tech Mono,monospace;text-align:left;padding-left:2px"></div>
+      <div id="favChips" style="display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;max-width:520px;margin-left:auto;margin-right:auto"></div>
       <div style="margin-top:clamp(24px,4vh,48px);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
           <div style="font-size:24px;margin-bottom:8px">📊</div>
@@ -925,6 +939,7 @@ function hideLanding(){
 function goHome(){
   playerData=null; data=null; searchData=null; searchMode=false;
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='none';
+  var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='none';
   showLanding();
 }
 async function landingSearchPlayer(){
@@ -934,6 +949,43 @@ async function landingSearchPlayer(){
   if(errEl)errEl.textContent='Searching...';
   document.getElementById('searchInput').value=gt;
   await doSearch(gt);
+}
+
+// ── Fragr local favorites (localStorage) ───────────────────────────────────
+var fragrFavs = [];
+try { fragrFavs = JSON.parse(localStorage.getItem('fragrFavs') || '[]'); } catch(e) {}
+
+function isFragrFav(gt) { return fragrFavs.includes(gt); }
+function toggleCurrentFav() {
+  if(!playerData) return;
+  var gt = playerData.gamertag;
+  if(isFragrFav(gt)) {
+    fragrFavs = fragrFavs.filter(function(g){return g!==gt;});
+  } else {
+    fragrFavs.unshift(gt);
+    if(fragrFavs.length > 20) fragrFavs = fragrFavs.slice(0,20);
+  }
+  try { localStorage.setItem('fragrFavs', JSON.stringify(fragrFavs)); } catch(e) {}
+  updateFavBtn();
+  renderFavChips();
+}
+function updateFavBtn() {
+  var btn = document.getElementById('favHeaderBtn');
+  if(!btn || !playerData) return;
+  var fav = isFragrFav(playerData.gamertag);
+  btn.textContent = fav ? '★' : '☆';
+  btn.style.color = fav ? '#ffc107' : 'var(--muted)';
+  btn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
+  btn.title = fav ? 'Remove from favorites' : 'Add to favorites';
+}
+function renderFavChips() {
+  var el = document.getElementById('favChips');
+  if(!el) return;
+  if(!fragrFavs.length) { el.style.display='none'; return; }
+  el.style.display='flex';
+  el.innerHTML = fragrFavs.map(function(gt){
+    return '<button onclick="doSearch('+JSON.stringify(gt)+')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:20px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.borderColor=\'#85B7EB\';this.style.color=\'#85B7EB\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">'+gt+'</button>';
+  }).join('');
 }
 async function loadStats(){
   await loadMedalMeta();
@@ -958,7 +1010,10 @@ function rivalAvatar(r){
 }
 function timeAgo(iso){if(!iso)return'';var diff=Date.now()-new Date(iso).getTime(),m=Math.floor(diff/60000),h=Math.floor(m/60),d=Math.floor(h/24);if(d>0)return d+'d ago';if(h>0)return h+'h ago';if(m>0)return m+'m ago';return'just now';}
 function formatDur(iso){if(!iso)return'';var p=iso.match(/PT(?:(\d+)M)?(?:([\d.]+)S)?/);if(!p)return'';return(parseInt(p[1]||0))+'m '+Math.floor(parseFloat(p[2]||0))+'s';}
-function medalImg(medal){var meta=medalMeta[medal.nameId]||{},name=meta.name||medal.name||String(medal.nameId),idx=meta.spriteIndex!==undefined?meta.spriteIndex:null,cols=meta.columns||16,glow={normal:'#00e676',heroic:'#3b82f6',legendary:'#7c3aed',mythic:'#ff3d57'}[meta.difficulty||'normal'],inner=idx!==null?'<img src="'+MEDAL_SHEET+'" style="position:absolute;width:'+(cols*60)+'px;height:auto;top:-'+(Math.floor(idx/cols)*60)+'px;left:-'+((idx%cols)*60)+'px" onerror="this.parentNode.innerHTML=\'<span style=&quot;font-size:26px;line-height:60px&quot;>🏅</span>\'">':"<span style='font-size:26px;line-height:60px'>🏅</span>";return'<div class="medal-item" title="'+name+'"><div class="medal-wrap" style="box-shadow:0 0 8px '+glow+'44">'+inner+'</div><div class="medal-name">'+name+'</div><div class="medal-count">×'+medal.count.toLocaleString()+'</div></div>';}
+function medalImg(medal){
+  // If no sprite data, just show medal name as a badge
+  if(!medal || !medal.nameId) return '';var meta=medalMeta[medal.nameId]||{},name=meta.name||medal.name||String(medal.nameId),idx=meta.spriteIndex!==undefined?meta.spriteIndex:null,cols=meta.columns||16,glow={normal:'#00e676',heroic:'#3b82f6',legendary:'#7c3aed',mythic:'#ff3d57'}[meta.difficulty||'normal'],inner=idx!==null?'<img src="'+MEDAL_SHEET+'" style="position:absolute;width:'+(cols*60)+'px;height:auto;top:-'+(Math.floor(idx/cols)*60)+'px;left:-'+((idx%cols)*60)+'px" onerror="this.parentNode.innerHTML=\'<span style=&quot;font-size:22px;line-height:60px&quot;>🏅</span>\'">':'<span style="font-size:22px;line-height:60px">🏅</span>';var nameShort=name.length>14?name.slice(0,13)+'…':name;
+return'<div class="medal-item" title="'+name+'"><div class="medal-wrap" style="box-shadow:0 0 8px '+glow+'44">'+inner+'</div><div class="medal-name">'+nameShort+'</div><div class="medal-count">×'+medal.count.toLocaleString()+'</div></div>';}
 var CSR_STYLES={Bronze:{bg:'rgba(205,124,47,0.12)',border:'#cd7c2f',text:'#cd7c2f'},Silver:{bg:'rgba(148,163,184,0.12)',border:'#94a3b8',text:'#94a3b8'},Gold:{bg:'rgba(255,193,7,0.12)',border:'#ffc107',text:'#ffc107'},Platinum:{bg:'rgba(93,202,165,0.12)',border:'#5DCAA5',text:'#5DCAA5'},Diamond:{bg:'rgba(133,183,235,0.12)',border:'#85B7EB',text:'#85B7EB'},Onyx:{bg:'rgba(175,169,236,0.12)',border:'#AFA9EC',text:'#AFA9EC'}};
 var CAREER_EMBLEMS_ONYX={
   'Cadet': 'https://halo.wiki.gallery/images/thumb/6/64/HINF_-_Emblem_icon_-_Onyx_Cadet.png/200px-HINF_-_Emblem_icon_-_Onyx_Cadet.png',
@@ -1624,6 +1679,8 @@ async function doSearch(gt){
       var url=new URL(window.location);url.searchParams.set('player',gt);window.history.pushState({},'',url);
       document.title=gt+' — fragr';
       loadFullMatches(gt);
+      var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
+      updateFavBtn();
     } else {
       var errMsg=d.error||'Player not found. Check the spelling and try again.';
       document.getElementById('app').innerHTML='<div class="error-card">'+errMsg+'</div>';
