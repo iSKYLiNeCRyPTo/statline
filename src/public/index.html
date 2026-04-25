@@ -403,6 +403,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   </svg>
   <div class="mobile-logo-actions">
     <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="mobile-action-btn" id="mobileFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
     <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
@@ -979,6 +980,7 @@ function goHome(){
   playerData=null; data=null; searchData=null; searchMode=false;
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='none';
   var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='none';
+  var mfb=document.getElementById('mobileFavBtn');if(mfb)mfb.style.display='none';
   showLanding();
 }
 async function landingSearchPlayer(){
@@ -1074,15 +1076,28 @@ function toggleCurrentFav() {
   renderFavChips();
 }
 function updateFavBtn() {
-  var btn = document.getElementById('favHeaderBtn');
-  if(!btn || !playerData) return;
+  if(!playerData) return;
   var fav = isFragrFav(playerData.gamertag);
-  var _fhStarSvgF='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-  var _fhStarSvgE='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-  btn.innerHTML = fav ? _fhStarSvgF : _fhStarSvgE;
-  btn.style.color = fav ? '#ffc107' : 'var(--muted)';
-  btn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
-  btn.title = fav ? 'Remove from favorites' : 'Add to favorites';
+  var _starF='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  var _starE='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+  // Desktop header button
+  var btn = document.getElementById('favHeaderBtn');
+  if(btn) {
+    btn.innerHTML = fav ? _starF : _starE;
+    btn.style.color = fav ? '#ffc107' : 'var(--muted)';
+    btn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
+    btn.title = fav ? 'Remove from favorites' : 'Add to favorites';
+  }
+  // Mobile favorite button
+  var mbtn = document.getElementById('mobileFavBtn');
+  if(mbtn) {
+    var _s13F=_starF.replace('width="14" height="14"','width="13" height="13"');
+    var _s13E=_starE.replace('width="14" height="14"','width="13" height="13"');
+    mbtn.innerHTML = fav ? _s13F : _s13E;
+    mbtn.style.color = fav ? '#ffc107' : 'var(--muted)';
+    mbtn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
+    mbtn.title = fav ? 'Remove from favorites' : 'Add to favorites';
+  }
 }
 function renderFavChips() {
   var el = document.getElementById('favChips');
@@ -1490,16 +1505,21 @@ function renderCsrFromMatches(matches,playlist,color){
   // Build CSR progression from match csrDelta — only ranked matches for this playlist
   var pm=matches.slice().reverse().filter(function(m){
     if(!m.isRanked||m.csrDelta==null||!m.gameMode)return false;
-    // Exact match for Ranked Slayer to avoid matching "Ranked Arena: Slayer"
-    if(playlist==='Ranked Slayer')return /^Ranked Slayer$/.test(m.gameMode.trim());
-    return m.gameMode.indexOf(playlist.replace('Ranked ',''))>-1;
+    var gm=m.gameMode.trim();
+    // Ranked Slayer = only exact match (not "Ranked Arena: Slayer")
+    if(playlist==='Ranked Slayer')return /^Ranked Slayer$/i.test(gm);
+    // Ranked Arena = all ranked matches that are NOT Ranked Slayer
+    return !/^Ranked Slayer$/i.test(gm);
   });
   if(pm.length<2)return'';
 
   // Build running CSR from most recent value backwards
   var lastCsr=null;
   var recent=matches.find(function(m){
-    return m.isRanked&&m.csrAfter&&m.gameMode&&m.gameMode.indexOf(playlist.replace('Ranked ',''))>-1;
+    if(!m.isRanked||!m.csrAfter||!m.gameMode)return false;
+    var gm=m.gameMode.trim();
+    if(playlist==='Ranked Slayer')return /^Ranked Slayer$/i.test(gm);
+    return !/^Ranked Slayer$/i.test(gm);
   });
   if(recent&&recent.csrAfter){
     // Parse csrAfter — could be "Diamond 4" or "Onyx 1350" or number
@@ -1817,6 +1837,7 @@ async function doSearch(gt){
       document.title=gt+' — fragr';
       loadFullMatches(gt);
       var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
+      var mfb=document.getElementById('mobileFavBtn');if(mfb)mfb.style.display='flex';
       updateFavBtn();
     } else {
       var errMsg=d.error||'Player not found. Check the spelling and try again.';
@@ -2020,7 +2041,8 @@ function renderTeamSynergy(duo,gamertag){
       if(!tmMap[gtKey])tmMap[gtKey]={wins:0,losses:0,games:0,csrDeltas:[],
         tmKills:[],tmDeaths:[],tmDamage:[],tmKd:[],
         myKills:[],myDeaths:[],myDamage:[],
-        modes:{},maps:{},displayName:gt};  // store first-seen casing
+        modes:{},maps:{},displayName:gt,gamerpicUrl:pl.gamerpicUrl||null};
+      if(pl.gamerpicUrl&&!tmMap[gtKey].gamerpicUrl)tmMap[gtKey].gamerpicUrl=pl.gamerpicUrl;
       var d=tmMap[gtKey];
       d.games++;
       if(m.outcome===2)d.wins++; else if(m.outcome===3)d.losses++;
@@ -2104,11 +2126,11 @@ function renderTeamSynergy(duo,gamertag){
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">';
     html+='<div onclick="toggleSynCard(\''+panelId+'\')" style="padding:12px 16px;display:flex;align-items:center;gap:14px;cursor:pointer">';
     html+='<div style="flex:1">';
-    // Look up teammate data from any available source for emblem/pic
-    var _tmP=(data&&data.players||[]).find(function(x){return x.gamertag.toLowerCase()===gt.toLowerCase()})
-           || favoritesData[gt] || favoritesData[Object.keys(favoritesData).find(function(k){return k.toLowerCase()===gt.toLowerCase();})||'']
-           || {gamertag:gt,xuid:null};
-    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'+playerEmblem(_tmP,28)+'<span style="font-size:12px;font-weight:700;color:var(--text)">'+gt+'</span></div>';
+    // Use gamerpic stored while building tmMap, fall back to initial avatar
+    var _synPic=tm.gamerpicUrl
+      ?'<img src="'+tm.gamerpicUrl+'" style="width:28px;height:28px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--surface3)" alt="" loading="lazy">'
+      :'<span style="width:28px;height:28px;border-radius:4px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--muted);flex-shrink:0">'+gt[0].toUpperCase()+'</span>';
+    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'+_synPic+'<span style="font-size:12px;font-weight:700;color:var(--text)">'+gt+'</span></div>';
     html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace">'+tm.games+' games together</div>';
     html+='</div>';
     // Stats cluster
@@ -2473,10 +2495,11 @@ function render(){
       if(t===myTeam) return;
       (t.players||[]).forEach(function(pl){
         if(!pl.gamertag||pl.gamertag===p.gamertag||pl.gamertag.startsWith('Spartan ')) return;
-        if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0};
-        _rivalMap[pl.gamertag].total++;
-        if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
-        else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
+        if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
+          if(pl.gamerpicUrl&&!_rivalMap[pl.gamertag].gamerpicUrl)_rivalMap[pl.gamertag].gamerpicUrl=pl.gamerpicUrl;
+          _rivalMap[pl.gamertag].total++;
+          if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
+          else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
       });
     });
   });
