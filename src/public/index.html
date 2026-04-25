@@ -211,7 +211,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .filter-btn.active{border-color:var(--accent);background:rgba(0,212,255,0.08);color:var(--accent)}
 .filter-count{font-size:10px;color:var(--muted2);margin-left:auto;font-family:'Share Tech Mono',monospace}
 .match-list{display:flex;flex-direction:column}
-.match-card{background:var(--surface);border:1px solid var(--border);border-bottom:none;cursor:pointer;overflow:hidden;transition:background 0.15s}
+.match-card{background:var(--surface);border:1px solid var(--border);border-bottom:none;cursor:pointer;overflow:hidden;transition:background 0.15s;border-left-width:3px}
 .match-card:first-child{border-radius:8px 8px 0 0}.match-card:last-child{border-radius:0 0 8px 8px;border-bottom:1px solid var(--border)}.match-card:only-child{border-radius:8px;border-bottom:1px solid var(--border)}
 .match-card:hover{background:var(--surface2)}
 .match-card.win-card{border-left:3px solid var(--win)}.match-card.loss-card{border-left:3px solid var(--loss)}.match-card.draw-card{border-left:3px solid var(--muted2)}
@@ -225,15 +225,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-kda{text-align:center;min-width:80px}
 .match-kda-big{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700}
 
-.match-map-banner{width:100%;height:80px;object-fit:cover;object-position:center;display:block;border-radius:4px 4px 0 0;background:var(--surface3)}
-.match-map-banner-wrap{position:relative;border-radius:4px 4px 0 0;overflow:hidden;height:80px;background:var(--surface3)}
-.match-map-banner-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.65) 100%)}
-.match-map-banner-label{position:absolute;bottom:6px;left:10px;right:10px;display:flex;align-items:flex-end;justify-content:space-between}
-.match-map-name{font-family:'Share Tech Mono',monospace;font-size:11px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,0.8);letter-spacing:0.5px}
-.match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 7px;border-radius:3px}
-.match-map-outcome.win{background:rgba(76,175,130,0.85);color:#fff}
-.match-map-outcome.loss{background:rgba(224,80,80,0.85);color:#fff}
-.match-map-outcome.draw{background:rgba(100,100,100,0.85);color:#fff}
+/* match-map-thumb defined globally */
+.match-map-outcome.loss{background:var(--loss);color:#fff}
+.match-map-outcome.draw{background:var(--muted2);color:#fff}
+.match-card.has-banner .match-main{flex:1;min-width:0;border-left:none}
+@media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:52px;flex-shrink:0}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 30%,rgba(0,0,0,0.6) 100%)}.match-card.has-banner .match-main{border-left:none}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
 .dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
@@ -349,15 +345,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .match-kda{min-width:70px}
   .match-kda-big{font-size:14px}
   
-.match-map-banner{width:100%;height:80px;object-fit:cover;object-position:center;display:block;border-radius:4px 4px 0 0;background:var(--surface3)}
-.match-map-banner-wrap{position:relative;border-radius:4px 4px 0 0;overflow:hidden;height:80px;background:var(--surface3)}
-.match-map-banner-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.1) 0%,rgba(0,0,0,0.65) 100%)}
-.match-map-banner-label{position:absolute;bottom:6px;left:10px;right:10px;display:flex;align-items:flex-end;justify-content:space-between}
-.match-map-name{font-family:'Share Tech Mono',monospace;font-size:11px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,0.8);letter-spacing:0.5px}
-.match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:2px 7px;border-radius:3px}
-.match-map-outcome.win{background:rgba(76,175,130,0.85);color:#fff}
-.match-map-outcome.loss{background:rgba(224,80,80,0.85);color:#fff}
-.match-map-outcome.draw{background:rgba(100,100,100,0.85);color:#fff}
+/* match-map-thumb defined globally */
+.match-map-outcome.loss{background:var(--loss);color:#fff}
+.match-map-outcome.draw{background:var(--muted2);color:#fff}
+.match-card.has-banner .match-main{flex:1;min-width:0;border-left:none}
+@media(max-width:768px){.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:52px;flex-shrink:0}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 30%,rgba(0,0,0,0.6) 100%)}.match-card.has-banner .match-main{border-left:none}}
 .match-kda-sub{font-size:9px}
   .match-dmg{min-width:80px}
   .dmg-bar-row span{width:32px;font-size:9px}
@@ -1512,7 +1504,7 @@ function analyzeConnectionQuality(m, modeBaselines) {
   return { verdict: verdict, signals: signals, score: score };
 }
 
-function renderMatchCard(m,idx,modeBaselines,durSecs){
+function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
   var _mkey=m.matchId?m.matchId.replace(/[^a-zA-Z0-9]/g,'_'):('idx_'+idx);
   var isOpen=!!expandedMatches[_mkey];
   var oc=m.outcome===2?'win-card':m.outcome===3?'loss-card':'draw-card';
@@ -1540,20 +1532,23 @@ function renderMatchCard(m,idx,modeBaselines,durSecs){
   // Build innerHTML with _mkey and idx baked directly into onclick
   var safeKey=_mkey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   // Map image banner
-  var imgUrl=m.mapImageUrl?'/api/map-image?url='+encodeURIComponent(m.mapImageUrl):null;
+  var imgUrl=(!noThumb&&m.mapImageUrl)?'/api/map-image?url='+encodeURIComponent(m.mapImageUrl):null;
   var bannerHtml=imgUrl
-    ?'<div class="match-map-banner-wrap">'+
-       '<img src="'+imgUrl+'" class="match-map-banner" alt="" loading="lazy" onerror="this.parentNode.style.display=String.fromCharCode(110,111,110,101)">'+
-       '<div class="match-map-banner-overlay"></div>'+
-       '<div class="match-map-banner-label">'+
+    ?'<div class="match-map-thumb">'+
+       '<img src="'+imgUrl+'" alt="" loading="lazy" onerror="this.style.display=String.fromCharCode(110,111,110,101)">'+
+       '<div class="match-map-thumb-overlay"></div>'+
+       '<div class="match-map-thumb-label">'+
          '<span class="match-map-name">'+(m.mapName||'')+'</span>'+
          '<span class="match-map-outcome '+(m.outcome===2?'win':m.outcome===3?'loss':'draw')+'">'+(m.placement||word)+'</span>'+
        '</div>'+
      '</div>'
     :'';
+  el.setAttribute('onclick','toggleMatch("'+_mkey+'",'+idx+')');
+  el.style.cursor='pointer';
+  if(bannerHtml)el.classList.add('has-banner');
   el.innerHTML=
     (bannerHtml?bannerHtml:'')+
-    '<div class="match-main" data-mkey="'+_mkey+'" data-idx="'+idx+'" onclick="toggleMatch(this.dataset.mkey,parseInt(this.dataset.idx))">'+
+    '<div class="match-main" data-mkey="'+_mkey+'" data-idx="'+idx+'">'+
       (bannerHtml?'':'<span class="outcome-pill '+pillClass+'">'+(m.placement||word)+'</span>')+
       '<div class="match-info">'+
         '<div class="match-mode">'+(m.gameMode||'Unknown Mode').replace(/Capture the Flag/gi,'CTF')+cqBadge+'</div>'+
@@ -2921,7 +2916,7 @@ function render(){
     var _last10=displayMatches.slice(0,10);
     html+='<div class="match-list">';
     _last10.forEach(function(m,i){
-      html+=renderMatchCard(m,i,window._fragrBaselines||{});
+      html+=renderMatchCard(m,i,window._fragrBaselines||{},0,true);
     });
     html+='</div>';
     html+='<div style="text-align:center;margin-top:8px"><button onclick="setTab(\'matches\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 18px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;letter-spacing:1px">VIEW ALL MATCHES →</button></div>';
