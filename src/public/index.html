@@ -564,6 +564,14 @@ try{activeTab=localStorage.getItem('haloTab')||'overview';}catch(e){}
 // --- Favorites ---
 var favorites = [];
 try { favorites = JSON.parse(localStorage.getItem('haloFavorites') || '[]'); } catch(e) { favorites = []; }
+// Merge any fragrFavs into haloFavorites on load (migration)
+(function(){
+  try {
+    var ff=JSON.parse(localStorage.getItem('fragrFavs')||'[]');
+    ff.forEach(function(gt){if(!favorites.some(function(f){return f.toLowerCase()===gt.toLowerCase();}))favorites.push(gt);});
+    if(ff.length)try{localStorage.setItem('haloFavorites',JSON.stringify(favorites));}catch(e){}
+  } catch(e) {}
+})();
 var favoritesData = {}; // gamertag -> player stats object (fetched from /api/search)
 var favoritesLoading = {}; // gamertag -> bool
 var favoritesError = {}; // gamertag -> bool
@@ -577,17 +585,30 @@ function saveFavorites() {
   try { localStorage.setItem('haloFavorites', JSON.stringify(favorites)); } catch(e) {}
 }
 async function addFavorite(gt) {
-  if (isFavorite(gt)) return;
-  favorites.push(gt);
+  var cgt=canonicalGt(gt);
+  if (isFavorite(cgt)) return;
+  // Remove old casing entry if present
+  favorites = favorites.filter(function(f){return f.toLowerCase()!==cgt.toLowerCase();});
+  favorites.push(cgt);
   saveFavorites();
+  // Sync fragrFavs
+  fragrFavs=fragrFavs.filter(function(g){return g.toLowerCase()!==cgt.toLowerCase();});
+  fragrFavs.unshift(cgt);
+  if(fragrFavs.length>20)fragrFavs=fragrFavs.slice(0,20);
+  _saveFragrFavs();
   renderPlayerBtns();
   // Fetch their stats so they show in the sidebar
-  await loadFavoriteData(gt);
+  await loadFavoriteData(cgt);
 }
 function removeFavorite(gt) {
-  favorites = favorites.filter(function(f) { return f.toLowerCase() !== gt.toLowerCase(); });
-  delete favoritesData[gt];
+  var cgt=canonicalGt(gt);
+  favorites = favorites.filter(function(f) { return f.toLowerCase() !== cgt.toLowerCase(); });
+  // Clean up favoritesData for any casing variant
+  Object.keys(favoritesData).forEach(function(k){if(k.toLowerCase()===cgt.toLowerCase())delete favoritesData[k];});
   saveFavorites();
+  // Sync fragrFavs
+  fragrFavs=fragrFavs.filter(function(g){return g.toLowerCase()!==cgt.toLowerCase();});
+  _saveFragrFavs();
   // If currently viewing this favorite, switch back to player 0
   var allPlayers = getAllPlayers();
   if (selectedPlayer >= allPlayers.length) selectedPlayer = 0;
@@ -1061,17 +1082,36 @@ document.addEventListener('click',function(e){
 var fragrFavs = [];
 try { fragrFavs = JSON.parse(localStorage.getItem('fragrFavs') || '[]'); } catch(e) {}
 
+// Return the best-known canonical casing for a gamertag
+function canonicalGt(gt) {
+  // Check if playerData or favoritesData has this gt with known casing
+  if(playerData&&playerData.gamertag&&playerData.gamertag.toLowerCase()===gt.toLowerCase()) return playerData.gamertag;
+  var fd=favoritesData[gt]||favoritesData[Object.keys(favoritesData).find(function(k){return k.toLowerCase()===gt.toLowerCase();})||''];
+  if(fd&&fd.gamertag) return fd.gamertag;
+  // Update casing in fragrFavs if we already have it stored differently
+  var stored=fragrFavs.find(function(g){return g.toLowerCase()===gt.toLowerCase();});
+  return stored||gt;
+}
+
 function isFragrFav(gt) { return fragrFavs.some(function(g){return g.toLowerCase()===gt.toLowerCase();}); }
+function _saveFragrFavs() { try { localStorage.setItem('fragrFavs', JSON.stringify(fragrFavs)); } catch(e) {} }
 function toggleCurrentFav() {
   if(!playerData) return;
-  var gt = playerData.gamertag;
+  var gt = canonicalGt(playerData.gamertag);
   if(isFragrFav(gt)) {
     fragrFavs = fragrFavs.filter(function(g){return g.toLowerCase()!==gt.toLowerCase();});
+    // Also remove from haloFavorites
+    favorites = favorites.filter(function(f){return f.toLowerCase()!==gt.toLowerCase();});
+    saveFavorites();
   } else {
+    // Update casing of any existing entry first
+    fragrFavs = fragrFavs.filter(function(g){return g.toLowerCase()!==gt.toLowerCase();});
     fragrFavs.unshift(gt);
     if(fragrFavs.length > 20) fragrFavs = fragrFavs.slice(0,20);
+    // Also add to haloFavorites with canonical casing
+    if(!isFavorite(gt)) { favorites = favorites.filter(function(f){return f.toLowerCase()!==gt.toLowerCase();}); favorites.push(gt); saveFavorites(); }
   }
-  try { localStorage.setItem('fragrFavs', JSON.stringify(fragrFavs)); } catch(e) {}
+  _saveFragrFavs();
   updateFavBtn();
   renderFavChips();
 }
@@ -1883,9 +1923,21 @@ function clearSearch(){
   render();
 }
 function toggleFav(gt){
-  if(isFavorite(gt)){ removeFavorite(gt); } else { addFavorite(gt); }
+  var cgt=canonicalGt(gt);
+  if(isFavorite(cgt)){ removeFavorite(cgt); } else { addFavorite(cgt); }
+  // Sync fragrFavs
+  if(isFragrFav(cgt)){
+    fragrFavs=fragrFavs.filter(function(g){return g.toLowerCase()!==cgt.toLowerCase();});
+    if(!isFavorite(cgt)){ /* already removed above */ }
+  } else if(isFavorite(cgt)){
+    fragrFavs=fragrFavs.filter(function(g){return g.toLowerCase()!==cgt.toLowerCase();});
+    fragrFavs.unshift(cgt);
+    if(fragrFavs.length>20)fragrFavs=fragrFavs.slice(0,20);
+  }
+  _saveFragrFavs();
   renderPlayerBtns();
-  if(searchData&&searchData.gamertag===gt){ updateBannerFavBtn(); renderSearch(); }
+  updateFavBtn();
+  if(searchData&&searchData.gamertag.toLowerCase()===cgt.toLowerCase()){ updateBannerFavBtn(); renderSearch(); }
   render();
 }
 function toggleBannerFavorite(){ if(!searchData)return; toggleFav(searchData.gamertag); }
