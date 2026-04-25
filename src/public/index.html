@@ -12,32 +12,32 @@
 :root{
   --fragr-blue:#185FA5;--fragr-light:#85B7EB;--fragr-dark:#0C447C;
   --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
-  --border:#1a3050;--border2:#254268;--accent:#378ADD;--win:#4CAF82;
+  --border:#1a3050;--border2:#254268;--accent:#378ADD;--accent-r:56;--accent-g:138;--accent-b:221;--win:#4CAF82;
   --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
 }
 [data-theme="covenant"]{
   --bg:#080610;--surface:#0e0b1a;--surface2:#130f22;--surface3:#180c2e;
-  --border:#2a1e50;--border2:#3a2870;--accent:#9b59f5;--win:#7c4dff;
+  --border:#2a1e50;--border2:#3a2870;--accent:#9b59f5;--accent-r:155;--accent-g:89;--accent-b:245;--win:#7c4dff;
   --loss:#ff3d57;--gold:#e040fb;--text:#d4c8f8;--muted:#5a4890;--muted2:#3a2870;
 }
 [data-theme="forerunner"]{
   --bg:#080700;--surface:#121000;--surface2:#1a1800;--surface3:#222000;
-  --border:#3a3000;--border2:#4a4000;--accent:#f0b030;--win:#d4a020;
+  --border:#3a3000;--border2:#4a4000;--accent:#f0b030;--accent-r:240;--accent-g:176;--accent-b:48;--win:#d4a020;
   --loss:#e05020;--gold:#f0b030;--text:#e8d890;--muted:#7a6830;--muted2:#5a4820;
 }
 [data-theme="oni"]{
   --bg:#050505;--surface:#0c0c0c;--surface2:#121212;--surface3:#181818;
-  --border:#222222;--border2:#2a2a2a;--accent:#e8002a;--win:#00c853;
+  --border:#222222;--border2:#2a2a2a;--accent:#e8002a;--accent-r:232;--accent-g:0;--accent-b:42;--win:#00c853;
   --loss:#e8002a;--gold:#ff6d00;--text:#e0e0e0;--muted:#555555;--muted2:#333333;
 }
 [data-theme="flood"]{
   --bg:#040808;--surface:#080e0a;--surface2:#0c1410;--surface3:#101a14;
-  --border:#1a2e1e;--border2:#243c28;--accent:#2aff7a;--win:#2aff7a;
+  --border:#1a2e1e;--border2:#243c28;--accent:#2aff7a;--accent-r:42;--accent-g:255;--accent-b:122;--win:#2aff7a;
   --loss:#ff2a6a;--gold:#aaff00;--text:#b0d8b8;--muted:#3a6845;--muted2:#2a4830;
 }
 [data-theme="onyx"]{
   --bg:#06080c;--surface:#0c1018;--surface2:#111820;--surface3:#162030;
-  --border:#1e2a3a;--border2:#283848;--accent:#00c8ff;--win:#00e5ff;
+  --border:#1e2a3a;--border2:#283848;--accent:#00c8ff;--accent-r:0;--accent-g:200;--accent-b:255;--win:#00e5ff;
   --loss:#ff4040;--gold:#ffd740;--text:#e0eeff;--muted:#4a6a90;--muted2:#2a4060;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -88,7 +88,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 /* Player buttons in sidebar */
 .player-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s;text-align:left;width:100%;letter-spacing:.3px}
 .player-btn:hover{border-color:var(--accent);color:var(--accent)}
-.player-btn.active{background:rgba(124,181,24,0.1);border-color:var(--accent);color:var(--accent)}
+.player-btn.active{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.1);border-color:var(--accent);color:var(--accent)}
 
 /* Mobile bottom tab bar */
 .mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
@@ -105,12 +105,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 /* Topbar search/refresh */
 .last-updated{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)}
 .refresh-btn{background:transparent;border:1px solid var(--border);color:var(--accent);padding:5px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Share Tech Mono',monospace;letter-spacing:.5px;transition:all 0.2s}
-.refresh-btn:hover{background:rgba(124,181,24,0.1);border-color:var(--accent)}
+.refresh-btn:hover{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.1);border-color:var(--accent)}
 .refresh-btn:disabled{opacity:0.4;cursor:not-allowed}
 .share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
 .hero{background:linear-gradient(135deg,#111a0a 0%,#0d1508 60%,#080c05 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(124,181,24,0.07) 0%,transparent 70%);pointer-events:none}
+.hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
 .hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
 .hero-name span{color:var(--accent)}
 .hero-sub{font-size:13px;color:var(--muted);margin-top:6px;font-family:'Share Tech Mono',monospace}
@@ -151,7 +151,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .dtab:hover{color:var(--text) !important}
 .search-bar{display:flex;gap:8px;align-items:center}
 .search-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;width:130px;outline:none;min-width:80px}
-.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 1px rgba(124,181,24,0.2)}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 1px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.2)}
 .search-input::placeholder{color:var(--muted)}
 .search-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer}
 .search-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -241,7 +241,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-detail tr.me-row td{background:rgba(0,212,255,0.05);color:var(--accent)}
 .team-divider{border:none;border-top:1px solid var(--border);margin:10px 0}
 .loading{text-align:center;padding:80px 24px;color:var(--muted)}
-.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(124,181,24,0.5))}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
@@ -277,7 +277,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .stale-banner{background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.2);border-radius:6px;padding:8px 14px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
 
 /* Player switcher active glow */
-.player-btn.active{background:rgba(124,181,24,0.12);border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(124,181,24,0.2)}
+.player-btn.active{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.12);border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.2)}
 
 /* Smooth card hover */
 .stat-card{transition:transform 0.15s,box-shadow 0.15s}
@@ -365,8 +365,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <div id="theme-picker">
   <h3><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Theme</h3>
   <div class="theme-option" onclick="setTheme('mc117')" data-theme="mc117">
-    <div class="theme-swatches"><div class="theme-swatch" style="background:#7cb518"></div><div class="theme-swatch" style="background:#cc4400"></div><div class="theme-swatch" style="background:#0a0c08"></div></div>
-    <div><div class="theme-name">MC-117 Green</div><div class="theme-sub">Battle-worn UNSC</div></div>
+    <div class="theme-swatches"><div class="theme-swatch" style="background:#378ADD"></div><div class="theme-swatch" style="background:#4CAF82"></div><div class="theme-swatch" style="background:#060d17"></div></div>
+    <div><div class="theme-name">Fragr Blue</div><div class="theme-sub">Default · Brand colors</div></div>
   </div>
   <div class="theme-option" onclick="setTheme('covenant')" data-theme="covenant">
     <div class="theme-swatches"><div class="theme-swatch" style="background:#9b59f5"></div><div class="theme-swatch" style="background:#ff3d57"></div><div class="theme-swatch" style="background:#080610"></div></div>
@@ -404,7 +404,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="mobile-logo-actions">
     <button class="mobile-action-btn" onclick="goHome()" title="Home"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
     <button class="mobile-action-btn" id="mobileFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
-    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
+    <button class="mobile-action-btn" id="mobileThemeBtn" onclick="event.stopPropagation();toggleMobileTheme()" title="Theme"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
@@ -456,7 +456,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div class="cmd-topbar-right">
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
         <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
-        <button id="themeBtn" onclick="toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
+        <button id="themeBtn" onclick="event.stopPropagation();toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
         <div class="search-bar search-wrap">
           <input class="search-input" id="searchInput" placeholder="Search gamertag..." autocomplete="off"
             onkeydown="handleSuggestKey(event,'suggestDropdown')"
@@ -2950,7 +2950,7 @@ function render(){
 
   // CHARTS TAB
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
-  var _cc=window._themeChartColors||['#7cb518','#d4860a'];
+  var _cc=window._themeChartColors||['#378ADD','#85B7EB'];
   // Season filter toggle
   html+=sectionHead('CSR History');
   html+=renderCsrFromMatches(allMatches,'Ranked Arena',_cc[0]);
