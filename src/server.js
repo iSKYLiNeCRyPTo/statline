@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getRedis } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic } = require('./halo');
 
 const app = express();
 app.use(cors());
@@ -42,35 +42,15 @@ const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 async function getFromCache(gamertag) {
   const key = gamertag.toLowerCase().trim();
-  // Check in-memory first
   if (searchCache[key] && Date.now() - searchCache[key].fetchedAt < CACHE_TTL) {
     return searchCache[key].data;
   }
-  // Check Redis
-  try {
-    const c = await getRedis();
-    if (c) {
-      const raw = await c.get('search:' + key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Date.now() - parsed.fetchedAt < CACHE_TTL) {
-          searchCache[key] = parsed;
-          return parsed.data;
-        }
-      }
-    }
-  } catch(e) {}
   return null;
 }
 
 async function saveToCache(gamertag, data) {
   const key = gamertag.toLowerCase().trim();
-  const entry = { data, fetchedAt: Date.now() };
-  searchCache[key] = entry;
-  try {
-    const c = await getRedis();
-    if (c) await c.setEx('search:' + key, 900, JSON.stringify(entry)); // 15 min TTL in Redis
-  } catch(e) {}
+  searchCache[key] = { data, fetchedAt: Date.now() };
 }
 
 // Deduplicate concurrent searches for the same gamertag
