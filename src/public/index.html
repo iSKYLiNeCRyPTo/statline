@@ -228,8 +228,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner{display:flex;align-items:stretch}
 .match-map-thumb{width:96px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)}
 .match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
-.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%)}
-.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px}
+.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none}
+.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px;pointer-events:none}
 .match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
 .match-map-outcome.win{background:var(--win);color:#000}
@@ -355,8 +355,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner{display:flex;align-items:stretch}
 .match-map-thumb{width:96px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)}
 .match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
-.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%)}
-.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px}
+.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none}
+.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px;pointer-events:none}
 .match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
 .match-map-outcome.win{background:var(--win);color:#000}
