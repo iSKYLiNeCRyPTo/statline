@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic } = require('./halo');
+const { startAutoRefresh } = require('./tokenRefresh');
 
 const app = express();
 app.use(cors());
@@ -13,7 +14,10 @@ const PORT = process.env.PORT || 3000;
 
 // Warn on missing required env vars
 if (!process.env.SPARTAN_TOKEN) {
-  console.error('[WARN] SPARTAN_TOKEN is not set — all API calls will fail with 401');
+  console.warn('[WARN] SPARTAN_TOKEN is not set — will wait for auto-refresh via MS_REFRESH_TOKEN');
+}
+if (!process.env.MS_REFRESH_TOKEN) {
+  console.warn('[WARN] MS_REFRESH_TOKEN is not set — token will expire in ~4 hours and not auto-refresh');
 }
 
 // --- Rate limiting (in-memory, per IP) ---
@@ -318,5 +322,8 @@ app.get('/api/emblem', async (req, res) => {
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Start token auto-refresh (requires MS_REFRESH_TOKEN env var)
+startAutoRefresh();
 
 app.listen(PORT, () => console.log(`[StatLine] Listening on port ${PORT}`));
