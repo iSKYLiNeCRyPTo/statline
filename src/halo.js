@@ -349,8 +349,11 @@ async function fetchPlayerStats(gamertag) {
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
 
+  // Resolve avatar: prefer emblem, fall back to gamerpic
+  const avatarUrl = emblemUrl || (xuid ? `/api/emblem?xuid=${xuid}` : null) || gamerpicUrl || null;
+
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl,
+    gamertag, xuid, emblemUrl, gamerpicUrl, avatarUrl,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
