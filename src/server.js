@@ -476,6 +476,38 @@ app.get('/api/suggest', async (req, res) => {
   }
 });
 
+
+// Map image proxy — blobs-infiniteugc requires auth headers that can't be sent from browser
+const mapImageProxyCache = new Map(); // url -> {buf, contentType, ts}
+const MAP_IMG_TTL = 24 * 60 * 60 * 1000; // 24h
+
+app.get('/api/map-image', async (req, res) => {
+  const url = req.query.url;
+  if (!url || !url.startsWith('https://blobs-infiniteugc.svc.halowaypoint.com/')) {
+    return res.status(400).send('invalid url');
+  }
+  try {
+    const cached = mapImageProxyCache.get(url);
+    if (cached && Date.now() - cached.ts < MAP_IMG_TTL) {
+      res.set('Content-Type', cached.contentType);
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.send(cached.buf);
+    }
+    const headers = getAuthHeaders();
+    const r = await fetch(url, { headers });
+    if (!r.ok) return res.status(r.status).send('upstream error');
+    const buf = Buffer.from(await r.arrayBuffer());
+    const ct = r.headers.get('content-type') || 'image/png';
+    mapImageProxyCache.set(url, { buf, contentType: ct, ts: Date.now() });
+    res.set('Content-Type', ct);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch(e) {
+    console.error('[MapImg]', e.message);
+    res.status(500).send('error');
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
