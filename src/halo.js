@@ -9,6 +9,7 @@ async function getRedis() {
 const xuidToGt = {};           // xuid -> gamertag
 const xuidToGamerpic = {};     // xuid -> gamerpic URL
 const mapNameCache = {};        // assetId -> map name
+const mapImageCache = {};       // assetId -> image URL
 const emblemPathCache = {};     // xuid -> gamecms image path
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
@@ -93,11 +94,21 @@ async function resolveMapName(assetId, versionId, headers) {
       if (rawName) {
         const name = rawName.replace(/\s*-\s*(Ranked|Competitive|Social|Arena|BTB|Big Team Battle)$/i, '').trim();
         mapNameCache[assetId] = name;
+        // Extract thumbnail URL from Files prefix + paths
+        const prefix = data.Files?.Prefix || '';
+        const paths = data.Files?.FileRelativePaths || [];
+        const thumb = paths.find(p => /thumbnail/i.test(p)) || paths.find(p => /screenshot/i.test(p)) || paths.find(p => /\.png$/i.test(p)) || paths.find(p => /\.jpg$/i.test(p));
+        if (prefix && thumb) mapImageCache[assetId] = prefix + thumb;
+        else if (prefix) mapImageCache[assetId] = prefix + 'images/thumbnail.png';
         return name;
       }
     }
   } catch(e) {}
   return null;
+}
+
+function getMapImageUrl(assetId) {
+  return assetId ? (mapImageCache[assetId] || null) : null;
 }
 
 async function resolveGamertags(xuids) {
@@ -349,11 +360,8 @@ async function fetchPlayerStats(gamertag) {
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
 
-  // Resolve avatar: prefer emblem, fall back to gamerpic
-  const avatarUrl = emblemUrl || (xuid ? `/api/emblem?xuid=${xuid}` : null) || gamerpicUrl || null;
-
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl, avatarUrl,
+    gamertag, xuid, emblemUrl, gamerpicUrl,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
@@ -473,7 +481,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
           gameMode = (gameMode||'').replace(/Capture the Flag \d+ Captures?/gi,'CTF').replace(/Capture the Flag/gi,'CTF').trim();
         } catch(e) { gameMode = (isRanked?'Ranked ':'') + (MODE_NAMES[catNum]||'Unknown'); }
 
-        mapName = await resolveMapName(md.MatchInfo?.MapVariant?.AssetId, md.MatchInfo?.MapVariant?.VersionId, headers);
+        const _mapAssetId = md.MatchInfo?.MapVariant?.AssetId;
+        mapName = await resolveMapName(_mapAssetId, md.MatchInfo?.MapVariant?.VersionId, headers);
+        const mapImageUrl = getMapImageUrl(_mapAssetId);
 
         for (const p of (md.Players||[])) {
           const rx = String(p.PlayerId||'').replace('xuid(','').replace(')','');
@@ -544,7 +554,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
       }
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
-        mapName, gameMode, isRanked, kills, deaths, assists, score,
+        mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
         shotsFired, shotsHit,
         placement: placementStr(placement), weaponStats, csrAfter, csrBefore, csrDelta, teams,
