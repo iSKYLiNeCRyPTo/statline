@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="description" content="fragr — Halo Infinite stat tracker. Search any player for K/D, CSR rank, match history, and more.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-32 -32 64 64'><circle cx='0' cy='0' r='30' fill='none' stroke='%23185FA5' stroke-width='3'/><circle cx='0' cy='0' r='9' fill='none' stroke='%23185FA5' stroke-width='2.5'/><circle cx='0' cy='0' r='3' fill='%23185FA5'/><line x1='0' y1='-30' x2='0' y2='-13' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='0' y1='13' x2='0' y2='30' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='-30' y1='0' x2='-13' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='13' y1='0' x2='30' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/></svg>"><rect x='0' y='22' width='14' height='3' rx='1.5' fill='%237cb518'/><rect x='0' y='15' width='14' height='3' rx='1.5' fill='%235a9010'/><rect x='0' y='8' width='14' height='3' rx='1.5' fill='%237cb518'/><rect x='0' y='1' width='14' height='3' rx='1.5' fill='%233a6808'/><line x1='17' y1='0' x2='20' y2='32' stroke='%23334422' stroke-width='2'/><text x='22' y='24' font-family='sans-serif' font-weight='bold' font-size='14' fill='%23c8d4b0'>SL</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-32 -32 64 64'><circle cx='0' cy='0' r='30' fill='none' stroke='%23185FA5' stroke-width='3'/><circle cx='0' cy='0' r='9' fill='none' stroke='%23185FA5' stroke-width='2.5'/><circle cx='0' cy='0' r='3' fill='%23185FA5'/><line x1='0' y1='-30' x2='0' y2='-13' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='0' y1='13' x2='0' y2='30' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='-30' y1='0' x2='-13' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='13' y1='0' x2='30' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/></svg>"><circle cx='0' cy='0' r='30' fill='none' stroke='%23185FA5' stroke-width='3'/><circle cx='0' cy='0' r='9' fill='none' stroke='%23185FA5' stroke-width='2.5'/><circle cx='0' cy='0' r='3' fill='%23185FA5'/><line x1='0' y1='-30' x2='0' y2='-13' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='0' y1='13' x2='0' y2='30' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='-30' y1='0' x2='-13' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/><line x1='13' y1='0' x2='30' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/></svg>"><rect x='0' y='22' width='14' height='3' rx='1.5' fill='%237cb518'/><rect x='0' y='15' width='14' height='3' rx='1.5' fill='%235a9010'/><rect x='0' y='8' width='14' height='3' rx='1.5' fill='%237cb518'/><rect x='0' y='1' width='14' height='3' rx='1.5' fill='%233a6808'/><line x1='17' y1='0' x2='20' y2='32' stroke='%23334422' stroke-width='2'/><text x='22' y='24' font-family='sans-serif' font-weight='bold' font-size='14' fill='%23c8d4b0'>SL</text></svg>">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StatLine — Halo Infinite</title>
+<title>fragr — Halo Infinite Stat Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -538,9 +538,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 <script>
 var playerData=null,data=null,medalMeta={},expandedMatches={},rankedFilter=false,seasonFilter='current',fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
-// Halo Infinite season start dates
-var HALO_SEASONS={'S5':'2024-10-08','S6':'2025-10-01'};
-var CURRENT_SEASON_START=new Date(HALO_SEASONS['S5']);
+
 try{activeTab=localStorage.getItem('haloTab')||'overview';}catch(e){}
 
 // --- Favorites ---
@@ -2319,11 +2317,8 @@ function render(){
   // Use fullMatchCache if available (loaded from /api/matches), else fall back to p.allMatches/recentMatches
   var _fullMatches=fullMatchCache[p.gamertag]||(p.allMatches||p.recentMatches||[]);
   var _rawMatches=_fullMatches.filter(filterMatch);
-  var _seasonMatches=seasonFilter==='current'
-    ? _rawMatches.filter(function(m){ return m.startTime && new Date(m.startTime)>=CURRENT_SEASON_START; })
-    : _rawMatches;
-  var matches=_seasonMatches;
-  var allMatches=_seasonMatches;
+  var matches=_rawMatches;
+  var allMatches=_rawMatches;
   var displayMatches=_seasonMatches; // same 25 matches
   var filtered=rankedFilter?displayMatches.filter(function(m){return m.isRanked;}):displayMatches;
   // If season filter active, recompute nemeses/victims from filtered matches
@@ -2788,16 +2783,7 @@ function render(){
   html+='</div>'; // end bymap tab
 
 
-  // Shared season filter toggle HTML (used across CSR, By Map, Opponents tabs)
-  var _isCurS=seasonFilter==='current';
-  var _btnB='padding:4px 12px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;border:1px solid ';
-  var _sToggleCur=_btnB+(_isCurS?'var(--accent)':'var(--border)')+';background:'+(_isCurS?'rgba(0,200,255,0.1)':'transparent')+';color:'+(_isCurS?'var(--accent)':'var(--muted)');
-  var _sToggleAll=_btnB+(!_isCurS?'var(--accent)':'var(--border)')+';background:'+(!_isCurS?'rgba(0,200,255,0.1)':'transparent')+';color:'+(!_isCurS?'var(--accent)':'var(--muted)');
-  var _seasonToggleHtml='<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">'
-    +'<button onclick="seasonFilter=\'current\';render()" style="'+_sToggleCur+'">Current Season</button>'
-    +'<button onclick="seasonFilter=\'all\';render()" style="'+_sToggleAll+'">All Time</button>'
-    +(_isCurS?'<span style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Since Oct 8, 2024 &middot; '+_seasonMatches.filter(function(m){return m.isRanked;}).length+' ranked games</span>':'')
-    +'</div>';
+  var _seasonToggleHtml=''; // season filter removed
 
   // CHARTS TAB
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
