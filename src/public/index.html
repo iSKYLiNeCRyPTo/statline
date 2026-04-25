@@ -1239,20 +1239,7 @@ function avgMmrForPlaylist(matches,isSlayer){
 }
 function renderCsrCards(csr,matches){if(!csr)return'';return Object.entries(csr).map(function(e){var label=e[0],c=e[1];if(!c||!c.tier)return'';var s=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)',icon:''};
   var isSlayer=label.indexOf('Slayer')>-1;
-  var avgMmr=avgMmrForPlaylist(matches||[],isSlayer);
-  var mmrGap=avgMmr&&c.value?c.value-avgMmr:null;
-  var mmrHtml='';
-  if(avgMmr){
-    var gapColor=mmrGap>15?'var(--loss)':mmrGap<-15?'var(--win)':'var(--muted)';
-    var gapLabel=mmrGap>15?'CSR above MMR — gains will be small':mmrGap<-15?'CSR below MMR — gains will be large':'CSR aligned with MMR';
-    mmrHtml='<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace">'
-      +'<span style="color:var(--muted2)">Avg MMR: </span>'
-      +'<span style="color:var(--accent)">'+avgMmr+'</span>'
-      +' <span style="color:'+gapColor+'">'+(mmrGap>=0?'+':'')+mmrGap+' gap</span>'
-      +'<br><span style="color:'+gapColor+';font-size:9px">'+gapLabel+'</span>'
-      +'</div>';
-  }
-  return'<div class="csr-card" style="border-color:'+s.border+'33;background:'+s.bg+'"><div class="csr-icon" style="background:'+s.bg+';border:2px solid '+s.border+';color:'+s.text+'">'+csrIcon(c.tier,s.border,s.bg)+'</div><div class="csr-info"><div class="csr-tier" style="color:'+s.text+'">'+c.display+'</div><div class="csr-detail">CSR '+c.value+' · '+label+'</div><div class="csr-bar-wrap"><div class="csr-bar-fill" style="width:'+(c.pct||0)+'%;background:'+s.border+'"></div></div><div class="csr-bar-labels"><span>'+(c.tier==='Onyx'?'Onyx':c.tier+' '+(c.subTier||1))+'</span><span>'+(c.pct||0)+'%</span><span>'+(c.nextLabel||'')+'</span></div>'+(c.seasonMax?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">Season peak: <span style="color:var(--gold)">'+c.seasonMax+'</span>'+(c.allTimeMax&&c.allTimeMax!==c.seasonMax?'<br>All-time: <span style="color:var(--accent)">'+c.allTimeMax+'</span>':'')+'</div>':'')+mmrHtml+'</div></div>';}).join('');}
+  return'<div class="csr-card" style="border-color:'+s.border+'33;background:'+s.bg+'"><div class="csr-icon" style="background:'+s.bg+';border:2px solid '+s.border+';color:'+s.text+'">'+csrIcon(c.tier,s.border,s.bg)+'</div><div class="csr-info"><div class="csr-tier" style="color:'+s.text+'">'+c.display+'</div><div class="csr-detail">CSR '+c.value+' · '+label+'</div><div class="csr-bar-wrap"><div class="csr-bar-fill" style="width:'+(c.pct||0)+'%;background:'+s.border+'"></div></div><div class="csr-bar-labels"><span>'+(c.tier==='Onyx'?'Onyx':c.tier+' '+(c.subTier||1))+'</span><span>'+(c.pct||0)+'%</span><span>'+(c.nextLabel||'')+'</span></div>'+(c.seasonMax?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">Season peak: <span style="color:var(--gold)">'+c.seasonMax+'</span>'+(c.allTimeMax&&c.allTimeMax!==c.seasonMax?'<br>All-time: <span style="color:var(--accent)">'+c.allTimeMax+'</span>':'')+'</div>':'')+'</div></div>';}).join('');}
 function renderConnectionDetail(cq){
   if(!cq||!cq.signals.length)return'';
   return'<div style="margin:10px 0;padding:10px 14px;background:var(--surface2);border-radius:6px;border-left:3px solid '+cq.verdict.color+'">'
@@ -1402,11 +1389,17 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       if(os.flagCarrierKills!=null)objRows.push(['Carriers Killed',os.flagCarrierKills]);
       if(os.timeAsCarrier!=null)objRows.push(['Carrier Time',fmtDurS(os.timeAsCarrier)]);
     } else if(os.mode==='Strongholds'||os.mode==='King of the Hill'||os.mode==='Land Grab'){
-      if(os.captures!=null)objRows.push(['Zone Captures',os.captures]);
-      if(os.secures!=null)objRows.push(['Zone Secures',os.secures]);
+      var _isKoth=os.mode==='King of the Hill';
+      var _isLand=os.mode==='Land Grab';
+      var _capLabel=_isKoth?'Hills Captured':_isLand?'Zones Captured':'Zone Captures';
+      var _secLabel=_isKoth?'Hill Secures':'Zone Secures';
+      var _occLabel=_isKoth?'Hill Hold Time':'Occupation Time';
+      if(os.captures!=null)objRows.push([_capLabel,os.captures]);
+      if(os.secures!=null&&!_isLand)objRows.push([_secLabel,os.secures]);
       if(os.defensiveKills!=null)objRows.push(['Defensive Kills',os.defensiveKills]);
       if(os.offensiveKills!=null)objRows.push(['Offensive Kills',os.offensiveKills]);
-      if(os.occupationTime!=null)objRows.push(['Occupation Time',fmtDurS(os.occupationTime)]);
+      if(os.scoringTicks!=null)objRows.push(['Scoring Ticks',os.scoringTicks]);
+      if(os.occupationTime)objRows.push([_occLabel,fmtDurS(os.occupationTime)]);
     } else if(os.mode==='Stockpile'){
       if(os.seedsDeposited!=null)objRows.push(['Seeds Deposited',os.seedsDeposited]);
       if(os.seedsStolen!=null)objRows.push(['Seeds Stolen',os.seedsStolen]);
@@ -2976,7 +2969,8 @@ function render(){
   var mapData={};
   allMatches.forEach(function(m){
     var map=m.mapName||'Unknown';
-    if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,modes:{},recentResults:[]};
+    if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,modes:{},recentResults:[],imageUrl:null};
+    if(!mapData[map].imageUrl&&m.mapImageUrl)mapData[map].imageUrl=m.mapImageUrl;
     var d=mapData[map];
     d.count++;d.kills+=m.kills||0;d.deaths+=m.deaths||0;d.assists+=m.assists||0;
     d.dmgDealt+=m.damageDealt||0;d.dmgTaken+=m.damageTaken||0;
@@ -3016,9 +3010,17 @@ function render(){
       for(var ri=0;ri<e.recentResults.length;ri++){if(e.recentResults[ri]===streakType)streak++;else break;}
       var streakStr=streak>1?(streakType==='W'?'<span style="color:var(--win)">'+streak+'W streak</span>':'<span style="color:var(--loss)">'+streak+'L streak</span>'):'';
 
-      html+='<div style="background:var(--surface);border:1px solid '+(isBest?'rgba(0,230,118,0.3)':isWorst?'rgba(255,61,87,0.3)':'var(--border)')+';border-radius:8px;overflow:hidden">';
+      var _mapImgUrl=e.imageUrl?'/api/map-image?url='+encodeURIComponent(e.imageUrl):null;
+      html+='<div style="background:var(--surface);border:1px solid '+(isBest?'rgba(0,230,118,0.3)':isWorst?'rgba(255,61,87,0.3)':'var(--border)')+';border-radius:8px;overflow:hidden;display:flex;align-items:stretch">';
+      // Map thumbnail
+      if(_mapImgUrl){
+        html+='<div style="width:100px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)" onclick="toggleMapExpand(\'' +panelId+'\')" >'
+          +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
+          +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none"></div>'
+          +'</div>';
+      }
       // Main row — always visible
-      html+='<div onclick="toggleMapExpand(\'' +panelId+'\')" style="display:flex;align-items:center;gap:14px;padding:12px 16px;cursor:pointer;transition:background 0.15s">';
+      html+='<div onclick="toggleMapExpand(\'' +panelId+'\')" style="flex:1;display:flex;align-items:center;gap:14px;padding:12px 16px;cursor:pointer;transition:background 0.15s">';
       html+='<div style="flex:1;min-width:0">';
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
       html+='<span style="font-size:13px;font-weight:700;color:var(--text)">'+e.map+'</span>';
@@ -3034,9 +3036,9 @@ function render(){
       html+='<div style="text-align:center"><div style="font-size:12px;color:var(--muted);font-family:Share Tech Mono,monospace">'+e.count+'</div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">GAMES</div></div>';
       html+='</div>';
       html+='<span style="color:var(--muted2);font-size:10px" id="'+panelId+'_arr">▼</span>';
-      html+='</div>';
-      // Expanded panel
-      html+='<div id="'+panelId+'" style="display:none;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface2)">';
+      html+='</div>'; // closes main row onclick div
+      // Expanded panel (outside flex row, inside card)
+      html+='</div><div id="'+panelId+'" style="display:none;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface2)">';
       html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:12px">';
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:3px">AVG KILLS</div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgKills+'</div></div>';
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:3px">AVG DEATHS</div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgDeaths+'</div></div>';
