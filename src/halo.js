@@ -525,6 +525,12 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
             placement = player.Rank ? player.Rank + 1 : null;
             weaponStats = { headshots: pcore.HeadshotKills||0, melee: pcore.MeleeKills||0, grenades: pcore.GrenadeKills||0, powerWeapon: pcore.PowerWeaponKills||0 };
             const pstats = player.PlayerTeamStats?.[0]?.Stats || {};
+            const rawMatchMedals = pstats.CoreStats?.Medals || pcore.Medals || [];
+            const matchTopMedals = rawMatchMedals
+              .filter(mm => mm.Count > 0)
+              .sort((a,b) => (b.Count||0)-(a.Count||0))
+              .slice(0,12)
+              .map(mm => ({ nameId: mm.NameId, count: mm.Count }));
             const oddball=pstats.OddballStats, zones=pstats.ZonesStats, ctf=pstats.CaptureTheFlagStats, stockpile=pstats.StockpileStats;
             const parseDur = s => { if(!s||s==='PT0S'||s==='PT')return 0; const mm=String(s).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/); return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0; };
             if (oddball && (catNum===12||catNum===18) && !zones) objStats={mode:'Oddball',timeAsCarrier:parseDur(oddball.TimeAsSkullCarrier),longestCarry:parseDur(oddball.LongestTimeAsSkullCarrier),ballGrabs:oddball.SkullGrabs??null,killsAsCarrier:oddball.KillsAsSkullCarrier??null,carrierKills:oddball.SkullCarriersKilled??null,scoringTicks:oddball.SkullScoringTicks??null};
@@ -609,7 +615,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 25) {
         mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
         shotsFired, shotsHit,
-        placement: placementStr(placement), weaponStats, csrAfter, csrBefore, csrDelta, teams,
+        placement: placementStr(placement), weaponStats, topMedals: matchTopMedals, csrAfter, csrBefore, csrDelta, teams,
         mmr, oppMmr, expectedKills, expectedDeaths, objStats,
       });
     } catch(e) {
