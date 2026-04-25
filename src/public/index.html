@@ -155,6 +155,16 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .search-input::placeholder{color:var(--muted)}
 .search-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer}
 .search-btn:hover{border-color:var(--accent);color:var(--accent)}
+.search-wrap{position:relative}
+.suggest-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:260px;background:var(--surface);border:1px solid var(--border2);border-radius:6px;z-index:2000;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.5);display:none}
+.suggest-dropdown.open{display:block}
+.suggest-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;transition:background 0.1s}
+.suggest-item:hover,.suggest-item.active{background:var(--surface2)}
+.suggest-pic{width:32px;height:32px;border-radius:4px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+.suggest-pic-placeholder{width:32px;height:32px;border-radius:4px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.suggest-gt{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);font-weight:600}
+.suggest-gs{font-size:9px;color:var(--muted);margin-top:1px;font-family:'Share Tech Mono',monospace}
+.suggest-empty{padding:10px 12px;font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .player-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.5px}
 .player-btn.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700}
 .player-btn:hover:not(.active){border-color:var(--accent);color:var(--accent)}
@@ -405,7 +415,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;width:100%;max-width:360px">
     <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:10px;letter-spacing:1px">SEARCH PLAYER</div>
     <div style="display:flex;gap:8px">
-      <input id="mobileSearchInput" class="search-input" style="width:100%;flex:1" placeholder="Enter gamertag..." onkeydown="if(event.key==='Enter'){document.getElementById('searchInput').value=this.value;searchPlayer();document.getElementById('mobileSearch').style.display='none'}">
+      <div class="search-wrap" style="flex:1;position:relative">
+        <input id="mobileSearchInput" class="search-input" style="width:100%" placeholder="Enter gamertag..." autocomplete="off"
+          onkeydown="handleSuggestKey(event,'mobileSuggestDropdown')"
+          oninput="debounceSuggest(this.value,'mobileSuggestDropdown','mobileSearchInput')">
+        <div class="suggest-dropdown" id="mobileSuggestDropdown" style="min-width:100%"></div>
+      </div>
       <button onclick="document.getElementById('searchInput').value=document.getElementById('mobileSearchInput').value;searchPlayer();document.getElementById('mobileSearch').style.display='none'" style="background:var(--accent);border:none;color:var(--bg);padding:0 14px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;font-weight:700">GO</button>
     </div>
   </div>
@@ -444,9 +459,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
         <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
         <button id="themeBtn" onclick="toggleThemePicker()" title="Theme" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2C6.5 2 2 6.5 2 12a10 10 0 0 0 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg></button>
-        <div class="search-bar">
-          <input class="search-input" id="searchInput" placeholder="Search gamertag..." onkeydown="if(event.key==='Enter')searchPlayer()">
+        <div class="search-bar search-wrap">
+          <input class="search-input" id="searchInput" placeholder="Search gamertag..." autocomplete="off"
+            onkeydown="handleSuggestKey(event,'suggestDropdown')"
+            oninput="debounceSuggest(this.value,'suggestDropdown','searchInput')">
           <button class="search-btn" onclick="searchPlayer()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+          <div class="suggest-dropdown" id="suggestDropdown"></div>
         </div>
       </div>
     </div>
@@ -697,7 +715,7 @@ document.addEventListener('click',function(e){
 // Load saved theme
 (function(){
   var saved='mc117';
-  try{saved=localStorage.getItem('fragrTheme')||localStorage.getItem('statlineTheme')||'mc117';}catch(e){}
+  try{saved=localStorage.getItem('fragrTheme')||localStorage.getItem('fragrTheme')||localStorage.getItem('statlineTheme')||'mc117';}catch(e){}
   applyTheme(saved);
 })();
 // ── Match History Pagination ──
@@ -958,6 +976,70 @@ async function landingSearchPlayer(){
   document.getElementById('searchInput').value=gt;
   await doSearch(gt);
 }
+
+// ── Gamertag autocomplete ──────────────────────────────────────────────────
+var _suggestTimer=null,_suggestIdx=-1,_suggestCache={};
+
+function debounceSuggest(val,dropId,inputId){
+  clearTimeout(_suggestTimer);
+  var drop=document.getElementById(dropId);
+  if(!val||val.length<2){if(drop)drop.classList.remove('open');return;}
+  _suggestTimer=setTimeout(function(){fetchSuggest(val,dropId,inputId);},280);
+}
+function fetchSuggest(q,dropId,inputId){
+  if(_suggestCache[q]){renderSuggest(_suggestCache[q],dropId,inputId);return;}
+  fetch('/api/suggest?q='+encodeURIComponent(q))
+    .then(function(r){return r.json();})
+    .then(function(d){_suggestCache[q]=d.people||[];renderSuggest(_suggestCache[q],dropId,inputId);})
+    .catch(function(){});
+}
+function renderSuggest(people,dropId,inputId){
+  var drop=document.getElementById(dropId);
+  if(!drop)return;
+  _suggestIdx=-1;
+  if(!people.length){drop.innerHTML='<div class="suggest-empty">No results</div>';drop.classList.add('open');return;}
+  var html='';
+  var userSvg='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  people.forEach(function(p,i){
+    var escapedGt=p.gamertag.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    var pic=p.gamerpicUrl
+      ? '<img class="suggest-pic" src="'+p.gamerpicUrl+'" alt="">'
+      : '<div class="suggest-pic-placeholder">'+userSvg+'</div>';
+    var gs=p.gamerScore!=null?'<div class="suggest-gs">'+Number(p.gamerScore).toLocaleString()+' GS</div>':'';
+    html+='<div class="suggest-item" data-gt="'+escapedGt+'" data-dropid="'+dropId+'" data-inputid="'+inputId+'"'
+      +' onclick="selectSuggest(this)">'
+      +pic+'<div><div class="suggest-gt">'+p.gamertag+'</div>'+gs+'</div></div>';
+  });
+  drop.innerHTML=html;
+  drop.classList.add('open');
+}
+function selectSuggest(el){
+  var gt=el.dataset.gt,dropId=el.dataset.dropid,inputId=el.dataset.inputid;
+  var drop=document.getElementById(dropId);
+  if(drop)drop.classList.remove('open');
+  var inp=document.getElementById(inputId);
+  if(inp)inp.value=gt;
+  var si=document.getElementById('searchInput');
+  if(si)si.value=gt;
+  searchPlayer();
+  if(inputId==='mobileSearchInput'){var ms=document.getElementById('mobileSearch');if(ms)ms.style.display='none';}
+}
+function handleSuggestKey(e,dropId){
+  var drop=document.getElementById(dropId);
+  if(!drop||!drop.classList.contains('open')){if(e.key==='Enter')searchPlayer();return;}
+  var items=drop.querySelectorAll('.suggest-item');
+  if(e.key==='ArrowDown'){e.preventDefault();_suggestIdx=Math.min(_suggestIdx+1,items.length-1);items.forEach(function(el,i){el.classList.toggle('active',i===_suggestIdx);});}
+  else if(e.key==='ArrowUp'){e.preventDefault();_suggestIdx=Math.max(_suggestIdx-1,-1);items.forEach(function(el,i){el.classList.toggle('active',i===_suggestIdx);});}
+  else if(e.key==='Enter'){if(_suggestIdx>=0&&items[_suggestIdx]){e.preventDefault();items[_suggestIdx].click();}else{drop.classList.remove('open');searchPlayer();}}
+  else if(e.key==='Escape'){drop.classList.remove('open');}
+}
+document.addEventListener('click',function(e){
+  ['suggestDropdown','mobileSuggestDropdown'].forEach(function(id){
+    var drop=document.getElementById(id);
+    if(drop&&drop.parentElement&&!drop.parentElement.contains(e.target))drop.classList.remove('open');
+  });
+});
+// ──────────────────────────────────────────────────────────────────────────
 
 // ── Fragr local favorites (localStorage) ───────────────────────────────────
 var fragrFavs = [];
@@ -1684,6 +1766,7 @@ async function doSearch(gt){
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display=window.innerWidth>=768?'flex':'none';
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
+  matchHistoryData=null;
   matchHistoryData=null;
   document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+gt+'</strong>...</p></div>';
   try{
