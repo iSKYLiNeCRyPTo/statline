@@ -811,12 +811,13 @@ function loadMatchHistory(page){
         var sMatches=searchData.allMatches||searchData.recentMatches||[];
         d={matches:sMatches,page:1,totalPages:1,total:sMatches.length};
       }
+      d._gamertag=gt;
       matchHistoryData=d;
       matchHistoryLoading=false;
       renderMatchHistory(d);
     }).catch(function(e){
       var sMatches=searchData.allMatches||searchData.recentMatches||[];
-      var d={matches:sMatches,page:1,totalPages:1,total:sMatches.length};
+      var d={matches:sMatches,page:1,totalPages:1,total:sMatches.length,_gamertag:gt};
       matchHistoryData=d;
       matchHistoryLoading=false;
       renderMatchHistory(d);
@@ -833,6 +834,7 @@ function loadMatchHistory(page){
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
   var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=25'+(rankedFilter?'&ranked=1':'');
   fetch(url).then(function(r){return r.json();}).then(function(d){
+    d._gamertag=gt;
     matchHistoryData=d;
     matchHistoryLoading=false;
     renderMatchHistory(d);
@@ -952,7 +954,9 @@ function setTab(t){
   if(window.innerWidth<768){var sb=document.getElementById('sidebar');if(sb)sb.classList.remove('open');}
   // Load match history when switching to that tab
   if(t==='matches'){
-    if(matchHistoryData&&matchHistoryData.matches&&matchHistoryData.matches.length>0){
+    var _curGt=(getAllPlayers()[selectedPlayer]||searchData||{}).gamertag||'';
+    if(matchHistoryData&&matchHistoryData.matches&&matchHistoryData.matches.length>0&&
+       matchHistoryData._gamertag&&matchHistoryData._gamertag.toLowerCase()===_curGt.toLowerCase()){
       renderMatchHistory(matchHistoryData);
     } else {
       matchHistoryPage=1;loadMatchHistory(1);
