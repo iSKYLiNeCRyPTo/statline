@@ -594,7 +594,7 @@ app.get('/api/admin', (req, res) => {
   function loadData(){
     fetch('/api/admin/searches?pass=${pass}').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(d=>{
       allRows=d.searches||[];
-      document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TOTAL SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt+'<br><span style=\'font-size:12px;color:#555\'>'+d.top[0].count+' searches</span>':'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>';
+      document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TOTAL SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>';
       renderRows(allRows);
     }).catch(e=>{document.getElementById('summary').innerHTML='<div style="color:#f44336">Error: '+e.message+'</div>';});
   }
