@@ -1691,21 +1691,21 @@ function renderCsrFromMatches(matches,playlist,color){
   }
   if(!lastCsr)return'';
 
-  // Build array of CSR values from most recent backwards
-  // For matches without csrDelta, use csrAfter directly if available
+  // Build array of CSR values + outcomes from most recent backwards
   var vals=[lastCsr];
+  var outcomes=[pm[pm.length-1].outcome];
   for(var i=0;i<pm.length-1;i++){
     var _m=pm[pm.length-1-i];
     var _d=_getDelta(_m);
     if(_d!=null){
       vals.unshift(vals[0]-_d);
     } else if(_m.csrAfter){
-      // Anchor directly from csrAfter value — break the running chain here
       var _av=parseInt(String(_m.csrAfter).match(/\d+/));
       vals.unshift(!isNaN(_av)?_av:vals[0]);
     } else {
-      vals.unshift(vals[0]); // flat — unknown delta
+      vals.unshift(vals[0]);
     }
+    outcomes.unshift(pm[pm.length-2-i].outcome);
   }
 
   var w=800,h=130,pad={t:18,r:70,b:24,l:44};
@@ -1735,11 +1735,22 @@ function renderCsrFromMatches(matches,playlist,color){
   var points=vals.map(function(v,i){return x(i)+','+y(v);}).join(' ');
   svg+='<polyline points="'+points+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
 
-  // Dots for each game
+  // Dots — draws get a gray diamond marker
   vals.forEach(function(v,i){
     var isLast=i===n-1;
-    svg+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(isLast?4:2)+'" fill="'+(isLast?color:'rgba(255,255,255,0.3)')+'"'+(isLast?' stroke="'+color+'" stroke-width="1"':'')+'/>';
+    var isDraw=outcomes[i]!==2&&outcomes[i]!==3;
+    if(isDraw){
+      var ds=isLast?5:3.5;
+      svg+='<rect x="'+(x(i)-ds)+'" y="'+(y(v)-ds)+'" width="'+(ds*2)+'" height="'+(ds*2)+'" transform="rotate(45 '+x(i)+' '+y(v)+')" fill="#4a6a90" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>';
+    } else {
+      svg+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(isLast?4:2)+'" fill="'+(isLast?color:'rgba(255,255,255,0.3)')+'"'+(isLast?' stroke="'+color+'" stroke-width="1"':'')+'/>';
+    }
   });
+  // Legend if draws exist
+  if(outcomes.some(function(o){return o!==2&&o!==3;})){
+    svg+='<rect x="'+(pad.l+4)+'" y="'+(pad.t+1)+'" width="6" height="6" transform="rotate(45 '+(pad.l+7)+' '+(pad.t+4)+')" fill="#4a6a90" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>';
+    svg+='<text x="'+(pad.l+15)+'" y="'+(pad.t+8)+'" fill="#4a7aaa" font-size="8" font-family="Share Tech Mono">draw</text>';
+  }
 
   // End label — positioned to the right of the last dot, never behind the line
   var lx=x(n-1)+8;
@@ -3086,8 +3097,8 @@ function render(){
     if(recent.length>=3&&older.length>=3){
       function avgKD(arr){var t=arr.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0);return t/arr.length;}
       var recentKD=avgKD(recent);var olderKD=avgKD(older);var delta=recentKD-olderKD;
-      if(Math.abs(delta)>=0.15){
-        if(delta>=0.15) insights.push(insightCard('📈','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
+      if(Math.abs(delta)>=0.10){
+        if(delta>=0.10) insights.push(insightCard('📈','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
         else insights.push(insightCard('📉','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+delta.toFixed(2)+' from the prior 5 — you may be fatiguing or facing harder lobbies.','var(--loss)'));
       }
     }
@@ -3097,8 +3108,8 @@ function render(){
     if(accRecent.length>=3&&accOlder.length>=3){
       function avgAcc(arr){return arr.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/arr.length;}
       var aR=avgAcc(accRecent);var aO=avgAcc(accOlder);var aDelta=aR-aO;
-      if(Math.abs(aDelta)>=3){
-        if(aDelta>=3) insights.push(insightCard('🎯','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
+      if(Math.abs(aDelta)>=2){
+        if(aDelta>=2) insights.push(insightCard('🎯','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
         else insights.push(insightCard('🎯','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%).','var(--gold)'));
       }
     }
@@ -3106,7 +3117,7 @@ function render(){
     var dpkMatches=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0;});
     if(dpkMatches.length>=5){
       var avgDPK=dpkMatches.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/dpkMatches.length;
-      if(avgDPK>750) insights.push(insightCard('💥','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
+      if(avgDPK>650) insights.push(insightCard('💥','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
     }
 
     var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
@@ -3114,17 +3125,17 @@ function render(){
       var totK=0,totG=0,totM=0,totHS=0,totPW=0;
       weaponMatches.forEach(function(m){totK+=m.kills;totG+=m.weaponStats.grenades||0;totM+=m.weaponStats.melee||0;totHS+=m.weaponStats.headshots||0;totPW+=m.weaponStats.powerWeapon||0;});
       var gPct=totG/totK*100;var mPct=totM/totK*100;var hsPct2=totHS/totK*100;var pwPct=totPW/totK*100;
-      if(gPct>20) insights.push(insightCard('💣','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
-      if(mPct>18) insights.push(insightCard('👊','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
-      if(hsPct2<15&&totHS>0) insights.push(insightCard('🎯','Low Headshot Rate','Only '+Math.round(hsPct2)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
-      if(pwPct>35) insights.push(insightCard('🔫','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
+      if(gPct>15) insights.push(insightCard('💣','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
+      if(mPct>14) insights.push(insightCard('👊','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
+      if(hsPct2<20&&totHS>0) insights.push(insightCard('🎯','Low Headshot Rate','Only '+Math.round(hsPct2)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
+      if(pwPct>28) insights.push(insightCard('🔫','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
     }
 
     var placementMatches=allMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
     if(placementMatches.length>=5){
       var avgPlace=placementMatches.reduce(function(s,m){return s+parseInt(m.placement);},0)/placementMatches.length;
-      if(avgPlace<=2.5) insights.push(insightCard('🏆','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
-      else if(avgPlace>=5.5) insights.push(insightCard('⚠️','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
+      if(avgPlace<=3.0) insights.push(insightCard('🏆','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
+      else if(avgPlace>=5.0) insights.push(insightCard('⚠️','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
     }
 
     var ctfGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='CTF';});
@@ -3151,7 +3162,7 @@ function render(){
     if(slots.length>=2){
       slots.sort(function(a,b){return b.kd-a.kd;});
       var best=slots[0];var worst=slots[slots.length-1];
-      if(best.kd-worst.kd>=0.25){
+      if(best.kd-worst.kd>=0.18){
         var nameMap={morning:'mornings',afternoon:'afternoons',evening:'evenings'};
         insights.push(insightCard('🕐','Peak Hours','You perform best in the '+nameMap[best.name]+' ('+best.kd.toFixed(2)+' K/D) vs '+nameMap[worst.name]+' ('+worst.kd.toFixed(2)+' K/D). Schedule your ranked sessions accordingly.','var(--accent)'));
       }
@@ -3163,7 +3174,7 @@ function render(){
       var underdog=mmrGames.filter(function(m){return m.mmr<m.oppMmr;});
       var favWR=favored.length?favored.filter(function(m){return m.outcome===2;}).length/favored.length*100:null;
       var dogWR=underdog.length?underdog.filter(function(m){return m.outcome===2;}).length/underdog.length*100:null;
-      if(favWR!==null&&dogWR!==null&&Math.abs(favWR-dogWR)>=20){
+      if(favWR!==null&&dogWR!==null&&Math.abs(favWR-dogWR)>=15){
         if(dogWR>favWR) insights.push(insightCard('⚔️','Underdog Mentality','You win '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% as the favorite — you rise to the challenge.','var(--win)'));
         else insights.push(insightCard('⚔️','Favored Team Pressure','Win rate drops to '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% when favored — you may tighten up in harder lobbies.','var(--gold)'));
       }
@@ -3180,7 +3191,7 @@ function render(){
     if(mapAccList.length>=3){
       mapAccList.sort(function(a,b){return b.avg-a.avg;});
       var bestMap=mapAccList[0];var worstMap=mapAccList[mapAccList.length-1];
-      if(bestMap.avg-worstMap.avg>=6){
+      if(bestMap.avg-worstMap.avg>=4){
         insights.push(insightCard('🗺️','Map Accuracy Variance','Your accuracy is '+bestMap.avg.toFixed(1)+'% on '+bestMap.map+' vs '+worstMap.avg.toFixed(1)+'% on '+worstMap.map+' — study the sight lines on your weakest maps.','var(--accent)'));
       }
     }
@@ -3188,9 +3199,26 @@ function render(){
     var dpd=allMatches.filter(function(m){return m.deaths>0&&m.damageTaken>0;});
     if(dpd.length>=5){
       var avgDPD=dpd.reduce(function(s,m){return s+m.damageTaken/m.deaths;},0)/dpd.length;
-      if(avgDPD<170) insights.push(insightCard('💀','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
-      else if(avgDPD>320) insights.push(insightCard('🛡️','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
+      if(avgDPD<200) insights.push(insightCard('💀','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
+      else if(avgDPD>280) insights.push(insightCard('🛡️','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
     }
+
+    // Win rate check
+    var _wGames=allMatches.filter(function(m){return m.outcome===2||m.outcome===3;});
+    if(_wGames.length>=5){
+      var _wr=_wGames.filter(function(m){return m.outcome===2;}).length/_wGames.length*100;
+      if(_wr<40) insights.push(insightCard('📉','Below 40% Win Rate','Your win rate over '+_wGames.length+' games is '+Math.round(_wr)+'% — focus on one playlist and map type until your fundamentals solidify.','var(--loss)'));
+      else if(_wr>=60) insights.push(insightCard('📈','Above 60% Win Rate','Winning '+Math.round(_wr)+'% of '+_wGames.length+' games — you are consistently outperforming your lobbies.','var(--win)'));
+    }
+
+    // Damage ratio
+    var _dmgGames=allMatches.filter(function(m){return m.damageTaken>200&&m.damageDealt>200;});
+    if(_dmgGames.length>=5){
+      var _avgRatio=_dmgGames.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgGames.length;
+      if(_avgRatio<0.85) insights.push(insightCard('💢','Taking More Than Dealing','Avg damage ratio '+_avgRatio.toFixed(2)+' — absorbing more damage than you output. Escape bad fights earlier.','var(--loss)'));
+      else if(_avgRatio>1.2) insights.push(insightCard('💪','Damage Positive','Avg damage ratio '+_avgRatio.toFixed(2)+' — you consistently deal more damage than you take.','var(--win)'));
+    }
+
 
     if(!insights.length) return;
     html+=sectionHead('Performance Insights', insights.length+' active');
