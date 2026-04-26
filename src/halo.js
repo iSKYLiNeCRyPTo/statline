@@ -285,14 +285,11 @@ async function fetchPlayerStats(gamertag) {
     }
   } catch(e) {}
 
-  // All-modes service record (used for wins/losses/medals/damage fallback)
+  // All-modes service record (used for medals/damage/accuracy fallback only)
   const core = statsData.CoreStats || statsData.Summary?.CoreStats || statsData;
-  const wins = statsData.Wins || statsData.MatchesWon || 0;
-  const losses = statsData.Losses || statsData.MatchesLost || 0;
-  const matches = matchesPlayed || statsData.MatchesPlayed || (wins + losses) || 0;
 
-  // Ranked-only stats — use these for all career figures if available
-  let kills, deaths, assists, rankedKd, rankedKda;
+  // Ranked-only stats — use for all career figures if available
+  let kills, deaths, assists, wins, losses, matches, rankedKd, rankedKda;
   try {
     if (rankedStatsRes?.ok) {
       const rd = await rankedStatsRes.json();
@@ -300,10 +297,12 @@ async function fetchPlayerStats(gamertag) {
       kills   = rc.Kills   || 0;
       deaths  = rc.Deaths  || 0;
       assists = rc.Assists || 0;
-      const rankedMatchCount = rd.MatchesCompleted || rd.MatchesPlayed || 0;
+      wins    = rd.Wins || rd.MatchesWon || 0;
+      losses  = rd.Losses || rd.MatchesLost || 0;
+      matches = rd.MatchesCompleted || rd.MatchesPlayed || (wins + losses) || 0;
       rankedKd  = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
-      rankedKda = rankedMatchCount > 0
-        ? ((kills - deaths + assists / 3) / rankedMatchCount).toFixed(2)
+      rankedKda = matches > 0
+        ? ((kills - deaths + assists / 3) / matches).toFixed(2)
         : (kills - deaths + assists / 3).toFixed(2);
     }
   } catch(e) { console.error('[RankedStats]', e.message); }
@@ -312,6 +311,9 @@ async function fetchPlayerStats(gamertag) {
   if (kills === undefined)   kills   = core.Kills   || statsData.Kills   || 0;
   if (deaths === undefined)  deaths  = core.Deaths  || statsData.Deaths  || 0;
   if (assists === undefined) assists = core.Assists || statsData.Assists || 0;
+  if (wins === undefined)    wins    = statsData.Wins || statsData.MatchesWon || 0;
+  if (losses === undefined)  losses  = statsData.Losses || statsData.MatchesLost || 0;
+  if (matches === undefined) matches = matchesPlayed || statsData.MatchesPlayed || (wins + losses) || 0;
   if (!rankedKd)  rankedKd  = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
   if (!rankedKda) rankedKda = matches > 0 ? ((kills - deaths + assists / 3) / matches).toFixed(2) : '0.00';
 
