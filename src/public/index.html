@@ -559,7 +559,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
         </div>
       </div>
-      <p style="margin-top:32px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">fragr.live &nbsp;·&nbsp; Based on last 50 matches &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft</p>
+      <p style="margin-top:32px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">fragr.live &nbsp;·&nbsp; Based on last 100 matches &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft</p>
     </div>
   </div>
 </div>
@@ -764,7 +764,7 @@ function loadMatchHistory(page){
     matchHistoryLoading=true;
     var container=document.getElementById('matchHistoryContainer');
     if(container)container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading match history...</p></div>';
-    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+(page||1)+'&perPage=50';
+    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+(page||1)+'&perPage=100';
     fetch(url).then(function(r){return r.json();}).then(function(d){
       // If server has no matches, fall back to what we have in searchData
       if(!d.matches||d.matches.length===0){
@@ -792,7 +792,7 @@ function loadMatchHistory(page){
   var gt=p.gamertag;
   if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
-  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=50';
+  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=100';
   fetch(url).then(function(r){return r.json();}).then(function(d){
     d._gamertag=gt;
     matchHistoryData=d;
@@ -2565,7 +2565,7 @@ function renderObjectiveStats(matches){
 }
 
 function renderCsrEfficiency(matches){
-  var cm=matches.filter(function(m){return m.csrDelta!=null&&m.csrDelta!==0&&m.isRanked;}).slice(0,50);
+  var cm=matches.filter(function(m){return m.csrDelta!=null&&m.csrDelta!==0&&m.isRanked;}).slice(0,100);
   if(cm.length<3)return'';
 
   var wins=cm.filter(function(m){return m.csrDelta>0;});
@@ -3161,7 +3161,7 @@ function render(){
   // Kill breakdown
   (function(){
     function _durSecs(m){if(!m.duration)return 999;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):999;}
-    var _kbSample=displayMatches.slice(0,50);
+    var _kbSample=displayMatches.slice(0,100);
     var totalHS=0,totalMelee=0,totalGrenades=0,totalPower=0,totalKillsSample=0,totalDeathsSample=0,kbWins=0,kbLosses=0,kbDraws=0;
     var totalShotsFired=0,totalShotsHit=0;
     _kbSample.forEach(function(m){
