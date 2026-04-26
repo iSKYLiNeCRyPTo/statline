@@ -95,7 +95,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
 .mapexp-inner{display:grid;grid-template-columns:220px 1fr;gap:0}
 .mapexp-img{min-height:160px}
-@media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{height:120px;min-height:unset}}
+.mapexp-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+@media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{height:120px;min-height:unset}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
 @media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
@@ -3150,7 +3151,7 @@ function render(){
       html+='<div style="padding:16px 20px;background:var(--surface2)">';
 
       // Row 1 — core stats
-      html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+      html+='<div class="mapexp-stats-row">';
       function _mStat(label,val,color){return'<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">'+label+'</div><div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
       html+=_mStat('AVG KILLS',avgKills);
       html+=_mStat('AVG DEATHS',avgDeaths);
@@ -3159,7 +3160,7 @@ function render(){
       html+='</div>';
 
       // Row 2 — accuracy, CSR, headshot rate, damage ratio
-      html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+      html+='<div class="mapexp-stats-row">';
       html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=50?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<40?'var(--loss)':'var(--text)');
       html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
       html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
