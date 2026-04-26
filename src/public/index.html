@@ -808,7 +808,7 @@ function renderMatchHistory(d,clientPage){
   var container=document.getElementById('matchHistoryContainer');
   if(!container)return;
   var allMatches=d.matches||[];
-  var PER_PAGE=25;
+  var PER_PAGE=25; // 4 pages of 25 = 100 games
   var page=clientPage||1;
   var totalPages=Math.max(1,Math.ceil(allMatches.length/PER_PAGE));
   page=Math.min(page,totalPages);
@@ -855,13 +855,17 @@ function renderMatchHistory(d,clientPage){
 
   var html='';
 
-  // Pagination header — simple prev/next for 2-page view
+  // Pagination header — prev/next with page numbers for 4-page view
   html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
   html+='<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+total+' matches · Page '+page+' of '+totalPages+'</div>';
   if(totalPages>1){
-    html+='<div style="display:flex;gap:6px;align-items:center">';
-    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹ Prev</button>';
-    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">Next ›</button>';
+    html+='<div style="display:flex;gap:4px;align-items:center">';
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹</button>';
+    for(var _pi=1;_pi<=totalPages;_pi++){
+      var _active=_pi===page;
+      html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+_pi+')" style="background:'+(_active?'var(--accent)':'transparent')+';border:1px solid '+(_active?'var(--accent)':'var(--border)')+';color:'+(_active?'#000':'var(--muted)')+';padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:'+(_active?'default':'pointer')+';font-weight:'+(_active?'700':'400')+'">'+_pi+'</button>';
+    }
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">›</button>';
     html+='</div>';
   }
   html+='</div>';
@@ -878,10 +882,13 @@ function renderMatchHistory(d,clientPage){
 
   // Bottom pagination
   if(totalPages>1){
-    html+='<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">';
-    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹ Previous</button>';
-    html+='<span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+page+' / '+totalPages+'</span>';
-    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">Next ›</button>';
+    html+='<div style="display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">';
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹</button>';
+    for(var _pj=1;_pj<=totalPages;_pj++){
+      var _activeJ=_pj===page;
+      html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+_pj+')" style="background:'+(_activeJ?'var(--accent)':'transparent')+';border:1px solid '+(_activeJ?'var(--accent)':'var(--border)')+';color:'+(_activeJ?'#000':'var(--muted)')+';padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:'+(_activeJ?'default':'pointer')+';font-weight:'+(_activeJ?'700':'400')+'">'+_pj+'</button>';
+    }
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">›</button>';
     html+='</div>';
   }
 
