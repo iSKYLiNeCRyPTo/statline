@@ -235,7 +235,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
 .match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none}
 .match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px;pointer-events:none}
-.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.cq-badge-mobile{display:none}.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
 .match-map-outcome.win{background:var(--win);color:#000}
 .match-map-outcome.loss{background:var(--loss);color:#fff}
@@ -249,7 +249,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner.expanded .match-main{z-index:2}
 .match-detail-panel{width:100%;flex-basis:100%}
 @media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
-@media(max-width:768px){.cq-badge-desktop{display:none}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+@media(max-width:768px){.cq-badge-desktop{display:none}.cq-badge-mobile{display:inline !important}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
 .dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
@@ -364,7 +364,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
 .match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none}
 .match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px;pointer-events:none}
-.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.cq-badge-mobile{display:none}.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
 .match-map-outcome.win{background:var(--win);color:#000}
 .match-map-outcome.loss{background:var(--loss);color:#fff}
@@ -378,7 +378,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner.expanded .match-main{z-index:2}
 .match-detail-panel{width:100%;flex-basis:100%}
 @media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
-@media(max-width:768px){.cq-badge-desktop{display:none}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+@media(max-width:768px){.cq-badge-desktop{display:none}.cq-badge-mobile{display:inline !important}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:9px}
   .match-dmg{min-width:80px}
   .dmg-bar-row span{width:32px;font-size:9px}
@@ -1572,7 +1572,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   }
 
 
-  // ── Match Insights ───────────────────────────────────────────────────────────
+  // ── Match Insights ────────────────────────────────────────────────────────
   (function(){
     var insights = [];
     var myGt = (getAllPlayers()[selectedPlayer]||{}).gamertag;
@@ -1595,56 +1595,33 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       var myKda = (me.kills||0) - (me.deaths||0) + (me.assists||0)/3;
       var teamAvgKda = teamKda.reduce(function(a,b){return a+b;},0) / teamKda.length;
       var kd = me.deaths > 0 ? me.kills / me.deaths : me.kills;
-      if (kd < 0.6 && me.deaths >= 8) {
-        insights.push(iCard(icoWarn, 'High Death Count', 'You died '+me.deaths+'x with only '+me.kills+' kills. Focus on positioning — trade gunfights only when you have shield advantage or high ground.', 'var(--loss)'));
-      }
+      if (kd < 0.6 && me.deaths >= 8) insights.push(iCard(icoWarn,'High Death Count','You died '+me.deaths+'x with only '+me.kills+' kills. Focus on positioning — trade gunfights only when you have shield advantage or high ground.','var(--loss)'));
       if (me.kills > 0 && me.damage > 0) {
         var dmgPerKill = me.damage / me.kills;
-        if (dmgPerKill > 800) {
-          insights.push(iCard(icoWarn, 'Low Damage Efficiency', Math.round(dmgPerKill)+' dmg/kill — you\'re finishing enemies your teammates already weakened. Try to open fights rather than clean up.', 'var(--gold)'));
-        } else if (dmgPerKill < 300 && me.kills >= 5) {
-          insights.push(iCard(icoOk, 'Clean Kills', Math.round(dmgPerKill)+' dmg/kill — you\'re winning gunfights efficiently and finishing opponents quickly.', 'var(--win)'));
-        }
+        if (dmgPerKill > 800) insights.push(iCard(icoWarn,'Low Damage Efficiency',Math.round(dmgPerKill)+' dmg/kill — you\'re finishing enemies your teammates already weakened. Try to open fights rather than clean up.','var(--gold)'));
+        else if (dmgPerKill < 300 && me.kills >= 5) insights.push(iCard(icoOk,'Clean Kills',Math.round(dmgPerKill)+' dmg/kill — you\'re winning gunfights efficiently and finishing opponents quickly.','var(--win)'));
       }
       if (m.objStats && m.outcome === 3) {
         var os = m.objStats;
-        if (os.mode === 'Oddball' && (os.timeAsCarrier||0) < 10 && me.kills < 8) {
-          insights.push(iCard(icoWarn, 'Low Oddball Contribution', 'Only '+(os.timeAsCarrier||0)+'s ball time in a loss. Prioritize contesting and holding the ball — kills alone don\'t win Oddball.', 'var(--loss)'));
-        }
-        if ((os.mode === 'Strongholds' || os.mode === 'King of the Hill') && (os.captures||0) === 0 && (os.secures||0) === 0 && (os.occupationTime||0) < 15) {
-          insights.push(iCard(icoWarn, 'No Zone Contribution', 'Zero captures or secures in a '+os.mode+' loss. Even one zone contest can swing a round — push the zones after winning a fight.', 'var(--loss)'));
-        }
-        if (os.mode === 'CTF' && (os.flagGrabs||0) === 0 && (os.flagReturns||0) === 0) {
-          insights.push(iCard(icoWarn, 'No CTF Participation', 'No flag grabs or returns. In CTF you need to grab the flag or defend yours — kills without obj play loses the game.', 'var(--loss)'));
-        }
+        if (os.mode==='Oddball'&&(os.timeAsCarrier||0)<10&&me.kills<8) insights.push(iCard(icoWarn,'Low Oddball Contribution','Only '+(os.timeAsCarrier||0)+'s ball time in a loss. Prioritize contesting and holding the ball.','var(--loss)'));
+        if ((os.mode==='Strongholds'||os.mode==='King of the Hill')&&(os.captures||0)===0&&(os.secures||0)===0&&(os.occupationTime||0)<15) insights.push(iCard(icoWarn,'No Zone Contribution','Zero captures or secures in a '+os.mode+' loss. Push zones after winning a fight.','var(--loss)'));
+        if (os.mode==='CTF'&&(os.flagGrabs||0)===0&&(os.flagReturns||0)===0) insights.push(iCard(icoWarn,'No CTF Participation','No flag grabs or returns. In CTF you need to grab the flag or defend yours.','var(--loss)'));
       }
-      if (me.assists > me.kills * 1.5 && me.assists >= 6) {
-        insights.push(iCard(icoInfo, 'Assist Heavy', me.assists+' assists vs '+me.kills+' kills — you\'re dealing damage but not finishing fights. Try to stay on targets longer before swapping.', 'var(--gold)'));
+      if (me.assists > me.kills * 1.5 && me.assists >= 6) insights.push(iCard(icoInfo,'Assist Heavy',me.assists+' assists vs '+me.kills+' kills — you\'re dealing damage but not finishing fights.','var(--gold)'));
+      var worstTm = teammates.slice().sort(function(a,b){ return ((a.kills||0)-(a.deaths||0)+(a.assists||0)/3)-((b.kills||0)-(b.deaths||0)+(b.assists||0)/3); })[0];
+      var worstKda = worstTm?(worstTm.kills||0)-(worstTm.deaths||0)+(worstTm.assists||0)/3:null;
+      if (m.outcome===3&&myKda>teamAvgKda+4&&myKda>2) insights.push(iCard(icoInfo,'You Out-Performed Your Team','Your KDA of '+myKda.toFixed(1)+' was well above your team\'s average of '+teamAvgKda.toFixed(1)+'. The loss wasn\'t on you.','var(--accent)'));
+      if (m.outcome===2&&myKda<teamAvgKda-4&&myKda<0) insights.push(iCard(icoInfo,'Teammates Carried This One','Your KDA of '+myKda.toFixed(1)+' was below the team average of '+teamAvgKda.toFixed(1)+'.','var(--accent)'));
+      if (worstTm&&worstKda!==null&&worstKda<-6&&worstTm.deaths>=10) {
+        var tmName=worstTm.gamertag&&worstTm.gamertag.startsWith('Spartan ')?'A teammate':worstTm.gamertag;
+        insights.push(iCard(icoWarn,'Teammate Struggled',tmName+' went '+worstTm.kills+'/'+worstTm.deaths+'/'+worstTm.assists+' (KDA '+worstKda.toFixed(1)+'). Their deaths likely gave the enemy free map control.','var(--gold)'));
       }
-      var worstTm = teammates.slice().sort(function(a,b){
-        return ((a.kills||0)-(a.deaths||0)+(a.assists||0)/3) - ((b.kills||0)-(b.deaths||0)+(b.assists||0)/3);
-      })[0];
-      var worstKda = worstTm ? (worstTm.kills||0)-(worstTm.deaths||0)+(worstTm.assists||0)/3 : null;
-      if (m.outcome === 3 && myKda > teamAvgKda + 4 && myKda > 2) {
-        insights.push(iCard(icoInfo, 'You Out-Performed Your Team', 'Your KDA of '+myKda.toFixed(1)+' was well above your team\'s average of '+teamAvgKda.toFixed(1)+'. The loss wasn\'t on you.', 'var(--accent)'));
-      }
-      if (m.outcome === 2 && myKda < teamAvgKda - 4 && myKda < 0) {
-        insights.push(iCard(icoInfo, 'Teammates Carried This One', 'Your KDA of '+myKda.toFixed(1)+' was below the team average of '+teamAvgKda.toFixed(1)+'. Good news — your teammates picked up the slack.', 'var(--accent)'));
-      }
-      if (worstTm && worstKda !== null && worstKda < -6 && worstTm.deaths >= 10) {
-        var isSpartan = worstTm.gamertag && worstTm.gamertag.startsWith('Spartan ');
-        var tmName = isSpartan ? 'A teammate' : worstTm.gamertag;
-        insights.push(iCard(icoWarn, 'Teammate Struggled', tmName+' went '+worstTm.kills+'/'+worstTm.deaths+'/'+worstTm.assists+' (KDA '+worstKda.toFixed(1)+'). Their deaths likely gave the enemy free map control and power positions.', 'var(--gold)'));
-      }
-      if (oppTeam && oppTeam.players.length) {
-        var oppBest = oppTeam.players.slice().sort(function(a,b){
-          return ((b.kills||0)-(b.deaths||0)+(b.assists||0)/3) - ((a.kills||0)-(a.deaths||0)+(a.assists||0)/3);
-        })[0];
-        var oppBestKda = (oppBest.kills||0)-(oppBest.deaths||0)+(oppBest.assists||0)/3;
-        if (oppBestKda > myKda + 8 && oppBest.kills >= 16) {
-          var oppIsSpartan = oppBest.gamertag && oppBest.gamertag.startsWith('Spartan ');
-          var oppName = oppIsSpartan ? 'An opponent' : oppBest.gamertag;
-          insights.push(iCard(icoWarn, 'Dominant Opponent', oppName+' went '+oppBest.kills+'/'+oppBest.deaths+' and dominated this lobby. Identifying and focusing their best player earlier can limit their impact.', 'var(--loss)'));
+      if (oppTeam&&oppTeam.players.length) {
+        var oppBest=oppTeam.players.slice().sort(function(a,b){ return ((b.kills||0)-(b.deaths||0)+(b.assists||0)/3)-((a.kills||0)-(a.deaths||0)+(a.assists||0)/3); })[0];
+        var oppBestKda=(oppBest.kills||0)-(oppBest.deaths||0)+(oppBest.assists||0)/3;
+        if (oppBestKda>myKda+8&&oppBest.kills>=16) {
+          var oppName=oppBest.gamertag&&oppBest.gamertag.startsWith('Spartan ')?'An opponent':oppBest.gamertag;
+          insights.push(iCard(icoWarn,'Dominant Opponent',oppName+' went '+oppBest.kills+'/'+oppBest.deaths+' and dominated this lobby.','var(--loss)'));
         }
       }
     }
@@ -1802,7 +1779,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
          '<span class="match-map-name">'+(m.mapName||'')+'</span>'+
          '<div style="display:flex;align-items:center;gap:4px;margin-top:2px">'+
          '<span class="match-map-outcome '+(m.outcome===2?'win':m.outcome===3?'loss':'draw')+'">'+(m.outcome===2||m.outcome===3?(m.placement||word):word)+'</span>'+
-         (cq?'<span style="font-size:9px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;text-shadow:0 1px 3px rgba(0,0,0,1);font-weight:700">'+cq.verdict.label+'</span>':'')+
+         (cq?'<span class="cq-badge-mobile" style="font-size:9px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;text-shadow:0 1px 3px rgba(0,0,0,1);font-weight:700">'+cq.verdict.label+'</span>':'')+
          '</div>'+
        '</div>'+
      '</div>'
@@ -2393,8 +2370,13 @@ async function loadFullMatches(gamertag){
     if(d.matches&&d.matches.length>0){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
-      render();
+      render(); // re-render with full match data including hitreg and insights
       if(activeTab==='objectives') setTimeout(resolveSynergyGamertags, 200);
+      if(activeTab==='matches'&&matchHistoryData&&matchHistoryData._gamertag===gamertag){
+        var _upd={matches:d.matches,page:1,totalPages:Math.max(1,Math.ceil(d.matches.length/25)),total:d.matches.length,_gamertag:gamertag};
+        matchHistoryData=_upd;
+        renderMatchHistory(_upd,matchHistoryData._clientPage||1);
+      }
     }
   }catch(e){ _hideBanner(); console.warn('[loadFullMatches]',e.message); }
 }
