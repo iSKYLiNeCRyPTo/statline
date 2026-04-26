@@ -169,7 +169,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
         return true;
-      }).slice(0, 50);
+      }).slice(0, 100);
       const result = {
         ...playerStats,
         recentMatches: matches,
@@ -201,7 +201,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 });
 
-// Match history (returns the 50 cached matches, paginated)
+// Match history (returns up to 100 cached matches, paginated)
 app.get('/api/matches', async (req, res) => {
   try {
     const { gamertag, page = 1, perPage = 100 } = req.query;
