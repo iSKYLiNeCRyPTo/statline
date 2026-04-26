@@ -951,12 +951,12 @@ function paginationBtnStyle(disabled){
   return 'background:transparent;border:1px solid var(--border);color:'+(disabled?'var(--muted2)':'var(--muted)')+';padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:'+(disabled?'not-allowed':'pointer')+';opacity:'+(disabled?'0.4':'1')+';';
 }
 
-// ── Tab time tracking ────────────────────────────────────────────────────────
+// ── Tab time tracking ─────────────────────────────────────────────────────────
 var _tabStart = Date.now();
 var _tabCurrent = 'overview';
 function flushTabTime(newTab) {
   var secs = (Date.now() - _tabStart) / 1000;
-  if (secs >= 2) { // only log if they spent at least 2 seconds
+  if (secs >= 2) {
     var gt = (getAllPlayers()[selectedPlayer]||{}).gamertag || null;
     fetch('/api/analytics/tab', {
       method: 'POST',
@@ -967,7 +967,6 @@ function flushTabTime(newTab) {
   _tabCurrent = newTab;
   _tabStart = Date.now();
 }
-// Flush on page unload
 window.addEventListener('beforeunload', function(){ flushTabTime('__exit__'); });
 
 function setTab(t){
