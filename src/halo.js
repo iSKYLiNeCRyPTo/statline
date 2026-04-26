@@ -730,5 +730,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100) {
 module.exports = {
   fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
+  getXuidToGt: () => xuidToGt,
+  resolveGamertags,
   getRedis,
 };
