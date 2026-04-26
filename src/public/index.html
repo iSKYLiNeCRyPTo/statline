@@ -249,7 +249,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner.expanded .match-main{z-index:2}
 .match-detail-panel{width:100%;flex-basis:100%}
 @media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
-@media(max-width:768px){.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+@media(max-width:768px){.cq-badge-desktop{display:none}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
 .dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
@@ -268,7 +268,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .team-divider{border:none;border-top:1px solid var(--border);margin:10px 0}
 .loading{text-align:center;padding:80px 24px;color:var(--muted)}
 .spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
-@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes gtpulse{0%,100%{opacity:0.4}50%{opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
@@ -378,7 +378,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner.expanded .match-main{z-index:2}
 .match-detail-panel{width:100%;flex-basis:100%}
 @media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
-@media(max-width:768px){.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+@media(max-width:768px){.cq-badge-desktop{display:none}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:9px}
   .match-dmg{min-width:80px}
   .dmg-bar-row span{width:32px;font-size:9px}
@@ -991,6 +991,7 @@ function setTab(t){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
+  if(t==='objectives') setTimeout(resolveSynergyGamertags, 150);
   // Update desktop tab active state
   document.querySelectorAll('.dtab').forEach(function(b){
     b.classList.toggle('active', b.dataset.tab===t);
@@ -1459,7 +1460,8 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       teamOutcome=isMyTeam?m.outcome:(m.outcome===2?3:m.outcome===3?2:0);
     }
     var oc=teamOutcome===2?'<span style="color:var(--win)">Victory</span>':teamOutcome===3?'<span style="color:var(--loss)">Defeat</span>':'<span style="color:var(--muted)">Draw</span>';
-    html+='<div class="team-label">'+oc+' — Team '+(team.teamId+1)+'</div><table><thead><tr><th>Player</th><th style="text-align:right">K</th><th style="text-align:right">D</th><th style="text-align:right">A</th><th style="text-align:right">K/D</th><th style="text-align:right">Dmg</th><th style="text-align:right">Acc</th></tr></thead><tbody>';
+    var _teamName=['Eagle','Cobra','Cobra','Eagle'][team.teamId]||('Team '+(team.teamId+1));
+    html+='<div class="team-label">'+oc+' — '+_teamName+'</div><table><thead><tr><th>Player</th><th style="text-align:right">K</th><th style="text-align:right">D</th><th style="text-align:right">A</th><th style="text-align:right">K/D</th><th style="text-align:right">KDA</th><th style="text-align:right">Dmg</th></tr></thead><tbody>';
     (team.players||[]).forEach(function(pl){
       var isMe=pl.gamertag===(getAllPlayers()[selectedPlayer]||{}).gamertag;
       var myGtCheck=(getAllPlayers()[selectedPlayer]||{}).gamertag;
@@ -1473,7 +1475,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
         checkBadge='<span title="'+check.reason.replace(/"/g,"'")+' — click to search" style="margin-left:4px;font-size:9px;cursor:pointer;color:'+cbColor+'" onclick="event.stopPropagation();quickSearch(\'' +pl.gamertag.replace(/'/g,"\\'")+'\')">'+cbIcon+'</span>';
       }
       var isSpartan=pl.gamertag&&pl.gamertag.startsWith('Spartan ');
-      var displayGt=isSpartan?'<span style="color:var(--muted);font-style:italic">Unknown Player</span>':pl.gamertag;
+      var displayGt=isSpartan?'<span class="gt-skeleton" style="display:inline-block;width:80px;height:10px;background:var(--surface3);border-radius:3px;vertical-align:middle;animation:gtpulse 1.2s ease-in-out infinite"></span>':pl.gamertag;
             var _gtFavBtn=(!isMe&&!isSpartan)?'<span data-gt="'+pl.gamertag.replace(/"/g,'&quot;')+'" onclick="event.stopPropagation();toggleFav(this.dataset.gt)" title="Toggle favorite" style="margin-left:3px;font-size:9px;cursor:pointer;opacity:0.4;color:#ffc107" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">'+( isFavorite(pl.gamertag)?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span>':'';
       var gtLink=isMe?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg> '+pl.gamertag:(isSpartan?displayGt:'<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\''+pl.gamertag.replace(/'/g,"\\\'")+'\')">'+pl.gamertag+'</span>'+checkBadge+_gtFavBtn);
       // Emblem/gamerpic — tracked players get Halo emblem, all others get Xbox gamerpic if available
@@ -1489,8 +1491,9 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
           +'<span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif">'+_rowInitials+'</span>'
           +'</div>';
       }
-      var _plAccStr=pl.accuracy!=null?parseFloat(pl.accuracy).toFixed(1)+'%':'—';
-      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
+      var _plKda=pl.kda!=null?pl.kda:'—';
+      var _plKdaColor=pl.kda!=null?(parseFloat(pl.kda)>=0?'var(--win)':'var(--loss)'):'var(--muted)';
+      html+='<tr'+(isMe?' class="me-row"':'')+(pl.rawXuid?' data-xuid="'+pl.rawXuid+'"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:'+_plKdaColor+'">'+_plKda+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td></tr>';
     });
     html+='</tbody></table>';
   });
@@ -1567,6 +1570,93 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
     });
     html+='</div></div>';
   }
+
+
+  // ── Match Insights ───────────────────────────────────────────────────────────
+  (function(){
+    var insights = [];
+    var myGt = (getAllPlayers()[selectedPlayer]||{}).gamertag;
+    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
+    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
+    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag === myGt; }) : null;
+    function iCard(icon, title, body, color) {
+      return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
+        +'<div style="flex-shrink:0;margin-top:1px;color:'+color+'">'+icon+'</div>'
+        +'<div><div style="font-size:11px;font-weight:700;color:'+color+';font-family:Share Tech Mono,monospace;letter-spacing:.5px">'+title+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4">'+body+'</div></div>'
+        +'</div>';
+    }
+    var icoWarn='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    var icoOk='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+    var icoInfo='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+    if (me && myTeam && myTeam.players.length > 1) {
+      var teammates = myTeam.players.filter(function(p){ return p.gamertag !== myGt; });
+      var teamKda = myTeam.players.map(function(p){ return (p.kills||0) - (p.deaths||0) + (p.assists||0)/3; });
+      var myKda = (me.kills||0) - (me.deaths||0) + (me.assists||0)/3;
+      var teamAvgKda = teamKda.reduce(function(a,b){return a+b;},0) / teamKda.length;
+      var kd = me.deaths > 0 ? me.kills / me.deaths : me.kills;
+      if (kd < 0.6 && me.deaths >= 8) {
+        insights.push(iCard(icoWarn, 'High Death Count', 'You died '+me.deaths+'x with only '+me.kills+' kills. Focus on positioning — trade gunfights only when you have shield advantage or high ground.', 'var(--loss)'));
+      }
+      if (me.kills > 0 && me.damage > 0) {
+        var dmgPerKill = me.damage / me.kills;
+        if (dmgPerKill > 800) {
+          insights.push(iCard(icoWarn, 'Low Damage Efficiency', Math.round(dmgPerKill)+' dmg/kill — you\'re finishing enemies your teammates already weakened. Try to open fights rather than clean up.', 'var(--gold)'));
+        } else if (dmgPerKill < 300 && me.kills >= 5) {
+          insights.push(iCard(icoOk, 'Clean Kills', Math.round(dmgPerKill)+' dmg/kill — you\'re winning gunfights efficiently and finishing opponents quickly.', 'var(--win)'));
+        }
+      }
+      if (m.objStats && m.outcome === 3) {
+        var os = m.objStats;
+        if (os.mode === 'Oddball' && (os.timeAsCarrier||0) < 10 && me.kills < 8) {
+          insights.push(iCard(icoWarn, 'Low Oddball Contribution', 'Only '+(os.timeAsCarrier||0)+'s ball time in a loss. Prioritize contesting and holding the ball — kills alone don\'t win Oddball.', 'var(--loss)'));
+        }
+        if ((os.mode === 'Strongholds' || os.mode === 'King of the Hill') && (os.captures||0) === 0 && (os.secures||0) === 0 && (os.occupationTime||0) < 15) {
+          insights.push(iCard(icoWarn, 'No Zone Contribution', 'Zero captures or secures in a '+os.mode+' loss. Even one zone contest can swing a round — push the zones after winning a fight.', 'var(--loss)'));
+        }
+        if (os.mode === 'CTF' && (os.flagGrabs||0) === 0 && (os.flagReturns||0) === 0) {
+          insights.push(iCard(icoWarn, 'No CTF Participation', 'No flag grabs or returns. In CTF you need to grab the flag or defend yours — kills without obj play loses the game.', 'var(--loss)'));
+        }
+      }
+      if (me.assists > me.kills * 1.5 && me.assists >= 6) {
+        insights.push(iCard(icoInfo, 'Assist Heavy', me.assists+' assists vs '+me.kills+' kills — you\'re dealing damage but not finishing fights. Try to stay on targets longer before swapping.', 'var(--gold)'));
+      }
+      var worstTm = teammates.slice().sort(function(a,b){
+        return ((a.kills||0)-(a.deaths||0)+(a.assists||0)/3) - ((b.kills||0)-(b.deaths||0)+(b.assists||0)/3);
+      })[0];
+      var worstKda = worstTm ? (worstTm.kills||0)-(worstTm.deaths||0)+(worstTm.assists||0)/3 : null;
+      if (m.outcome === 3 && myKda > teamAvgKda + 4 && myKda > 2) {
+        insights.push(iCard(icoInfo, 'You Out-Performed Your Team', 'Your KDA of '+myKda.toFixed(1)+' was well above your team\'s average of '+teamAvgKda.toFixed(1)+'. The loss wasn\'t on you.', 'var(--accent)'));
+      }
+      if (m.outcome === 2 && myKda < teamAvgKda - 4 && myKda < 0) {
+        insights.push(iCard(icoInfo, 'Teammates Carried This One', 'Your KDA of '+myKda.toFixed(1)+' was below the team average of '+teamAvgKda.toFixed(1)+'. Good news — your teammates picked up the slack.', 'var(--accent)'));
+      }
+      if (worstTm && worstKda !== null && worstKda < -6 && worstTm.deaths >= 10) {
+        var isSpartan = worstTm.gamertag && worstTm.gamertag.startsWith('Spartan ');
+        var tmName = isSpartan ? 'A teammate' : worstTm.gamertag;
+        insights.push(iCard(icoWarn, 'Teammate Struggled', tmName+' went '+worstTm.kills+'/'+worstTm.deaths+'/'+worstTm.assists+' (KDA '+worstKda.toFixed(1)+'). Their deaths likely gave the enemy free map control and power positions.', 'var(--gold)'));
+      }
+      if (oppTeam && oppTeam.players.length) {
+        var oppBest = oppTeam.players.slice().sort(function(a,b){
+          return ((b.kills||0)-(b.deaths||0)+(b.assists||0)/3) - ((a.kills||0)-(a.deaths||0)+(a.assists||0)/3);
+        })[0];
+        var oppBestKda = (oppBest.kills||0)-(oppBest.deaths||0)+(oppBest.assists||0)/3;
+        if (oppBestKda > myKda + 8 && oppBest.kills >= 16) {
+          var oppIsSpartan = oppBest.gamertag && oppBest.gamertag.startsWith('Spartan ');
+          var oppName = oppIsSpartan ? 'An opponent' : oppBest.gamertag;
+          insights.push(iCard(icoWarn, 'Dominant Opponent', oppName+' went '+oppBest.kills+'/'+oppBest.deaths+' and dominated this lobby. Identifying and focusing their best player earlier can limit their impact.', 'var(--loss)'));
+        }
+      }
+    }
+    if (!insights.length) return;
+    html += '<div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+    html += '<div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:1px">Match Insights</div>';
+    insights.forEach(function(card,i){
+      if(i===insights.length-1) card=card.replace('border-bottom:1px solid var(--border)','border-bottom:none');
+      html+=card;
+    });
+    html += '</div>';
+  })();
 
   return html+'</div>';
 }
@@ -1673,9 +1763,10 @@ function analyzeConnectionQuality(m, modeBaselines) {
 }
 
 function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
-  var _mkey=m.matchId?m.matchId.replace(/[^a-zA-Z0-9]/g,'_'):('idx_'+idx);
+  var _rawKey=m.matchId?m.matchId.replace(/[^a-zA-Z0-9]/g,'_'):('idx_'+idx);
   var _tabPrefix=(typeof activeTab!=="undefined"?activeTab:"")+"__";
-  var isOpen=!!expandedMatches[_tabPrefix+_mkey];
+  var _mkey=_tabPrefix+_rawKey;
+  var isOpen=!!expandedMatches[_mkey];
   var oc=m.outcome===2?'win-card':m.outcome===3?'loss-card':'draw-card';
   var word=m.outcome===2?'WIN':m.outcome===3?'LOSS':'DRAW';
   var pillClass=m.outcome===2?'outcome-win':m.outcome===3?'outcome-loss':'outcome-draw';
@@ -1691,13 +1782,14 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
     mmrStr=winProb+'% win prob';
   }
   var cq=analyzeConnectionQuality(m,modeBaselines||{});
-  var cqBadge=cq?'<span style="font-size:10px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;margin-left:4px;white-space:nowrap">'+cq.verdict.label+'</span>':'';
+  var cqBadge=cq?'<span class="cq-badge-desktop" style="font-size:10px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;margin-left:4px;white-space:nowrap">'+cq.verdict.label+'</span>':'';
   var detail=isOpen?renderMatchDetail(m,m,modeBaselines,durSecs||0):'';
   // Build as DOM element so no quoting issues, then capture outerHTML AFTER all setup
   var el=document.createElement('div');
   el.className='match-card '+oc;
   el.id='match_'+_mkey;
   el.setAttribute('data-mkey',_mkey);
+  el.setAttribute('data-rawkey',_rawKey);
   // Build innerHTML with _mkey and idx baked directly into onclick
   var safeKey=_mkey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   // Map image banner
@@ -1708,17 +1800,20 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
        '<div class="match-map-thumb-overlay"></div>'+
        '<div class="match-map-thumb-label">'+
          '<span class="match-map-name">'+(m.mapName||'')+'</span>'+
+         '<div style="display:flex;align-items:center;gap:4px;margin-top:2px">'+
          '<span class="match-map-outcome '+(m.outcome===2?'win':m.outcome===3?'loss':'draw')+'">'+(m.outcome===2||m.outcome===3?(m.placement||word):word)+'</span>'+
+         (cq?'<span style="font-size:9px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;text-shadow:0 1px 3px rgba(0,0,0,1);font-weight:700">'+cq.verdict.label+'</span>':'')+
+         '</div>'+
        '</div>'+
      '</div>'
     :'';
-  el.setAttribute('onclick','toggleMatch("'+_mkey+'",'+idx+')');
+  el.setAttribute('onclick','toggleMatch("'+_mkey+'",'+idx+',"'+_rawKey+'")');
   el.setAttribute('data-tab-ctx', typeof activeTab!=='undefined'?activeTab:'overview');
   el.style.cursor='pointer';
   if(bannerHtml)el.classList.add('has-banner');
   el.innerHTML=
     (bannerHtml?bannerHtml:'')+
-    '<div class="match-main" data-mkey="'+_mkey+'" data-idx="'+idx+'">'+
+    '<div class="match-main" data-mkey="'+_mkey+'" data-rawkey="'+_rawKey+'" data-idx="'+idx+'">'+
       (bannerHtml?'':'<span class="outcome-pill '+pillClass+'">'+(m.outcome===2||m.outcome===3?(m.placement||word):word)+'</span>')+
       '<div class="match-info">'+
         '<div class="match-mode">'+(m.gameMode||'Unknown Mode').replace(/Capture the Flag/gi,'CTF')+cqBadge+'</div>'+
@@ -1726,7 +1821,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
       '</div>'+
       '<div class="match-kda">'+
         '<div class="match-kda-big">'+m.kills+'&thinsp;/&thinsp;'+m.deaths+'&thinsp;/&thinsp;'+m.assists+'</div>'+
-        '<div class="match-kda-sub">K/D '+kd+'</div>'+
+        '<div class="match-kda-sub">KDA '+(m.kda!=null?m.kda:'—')+'</div>'+
       '</div>'+
       '<div class="match-dmg">'+
         '<div class="dmg-label">Damage</div>'+
@@ -2042,18 +2137,11 @@ function scheduleEmblemRetry(){
   },3500);
 }
 
-function toggleMatch(matchKey,idx){
-  var rawKey=matchKey!=null?String(matchKey):('idx_'+(idx||0));
-  // Find the card first so we can read its tab context
-  var allCards=document.querySelectorAll('.match-card[data-mkey="'+rawKey+'"]');
-  var card=null;
-  var histContainer=document.getElementById('matchHistoryContainer');
-  if(histContainer)card=histContainer.querySelector('.match-card[data-mkey="'+rawKey+'"]');
-  if(!card){var activePanel=document.querySelector('.tab-panel.active');if(activePanel)card=activePanel.querySelector('.match-card[data-mkey="'+rawKey+'"]');}
-  if(!card&&allCards.length)card=allCards[0];
-  // Scope the key to the tab this card belongs to
-  var tabCtx=(card&&card.getAttribute('data-tab-ctx'))||activeTab||'overview';
-  var key=tabCtx+'__'+rawKey;
+function toggleMatch(matchKey,idx,rawKeyArg){
+  var key=matchKey!=null?String(matchKey):('overview__idx_'+(idx||0));
+  var rawKey=rawKeyArg||key.replace(/^[^_]+__/,'');
+  var card=document.querySelector('.match-card[data-mkey="'+key+'"]');
+  if(!card){var activePanel=document.querySelector('.tab-panel.active');if(activePanel)card=activePanel.querySelector('.match-card[data-rawkey="'+rawKey+'"]');}
   expandedMatches[key]=!expandedMatches[key];
   if(!card){expandedMatches[key]=false;return;}
 
@@ -2091,10 +2179,67 @@ function toggleMatch(matchKey,idx){
   panel.innerHTML=renderMatchDetail(m,m,baselines,_gdsF(m));
   card.appendChild(panel);
   card.classList.add('expanded');
+  resolveMatchGamertags(card);
 }
 
 
 
+
+
+async function resolveSynergyGamertags() {
+  var panel = document.querySelector('.tab-panel[data-tab="objectives"]');
+  if (!panel) return;
+  var skeletons = panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]');
+  var xuids = [];
+  skeletons.forEach(function(el) {
+    var x = el.getAttribute('data-syn-xuid');
+    if (x && xuids.indexOf(x) === -1) xuids.push(x);
+  });
+  if (!xuids.length) return;
+  try {
+    var res = await fetch('/api/resolve-gamertags?xuids=' + xuids.join(','));
+    var d = await res.json();
+    var gt = d.gamertags || {};
+    panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]').forEach(function(el) {
+      var xuid = el.getAttribute('data-syn-xuid');
+      if (!gt[xuid]) return;
+      var name = gt[xuid];
+      if (el.style.animation) {
+        var span = document.createElement('span');
+        span.style.cssText = 'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit';
+        span.onclick = function(){ quickSearch(name); };
+        span.textContent = name;
+        el.parentNode.replaceChild(span, el);
+      } else {
+        el.textContent = name.toUpperCase();
+        el.removeAttribute('data-syn-xuid');
+        el.className = '';
+      }
+    });
+  } catch(e) {}
+}
+
+async function resolveMatchGamertags(card) {
+  var unknownRows = card.querySelectorAll('tr[data-xuid]');
+  var xuids = [];
+  unknownRows.forEach(function(row) {
+    var xuid = row.getAttribute('data-xuid');
+    if (xuid && row.querySelector('.gt-skeleton')) xuids.push(xuid);
+  });
+  if (!xuids.length) return;
+  try {
+    var res = await fetch('/api/resolve-gamertags?xuids=' + xuids.join(','));
+    var data = await res.json();
+    var gt = data.gamertags || {};
+    unknownRows.forEach(function(row) {
+      var xuid = row.getAttribute('data-xuid');
+      if (xuid && gt[xuid]) {
+        var skeleton = row.querySelector('.gt-skeleton');
+        if (skeleton) skeleton.outerHTML = '<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\'' + gt[xuid].replace(/'/g, "\\'") + '\')">' + gt[xuid] + '</span>';
+      }
+    });
+  } catch(e) {}
+}
 function toggleMapExpand(id){
   var panel=document.getElementById(id);
   var arr=document.getElementById(id+'_arr');
@@ -2249,6 +2394,7 @@ async function loadFullMatches(gamertag){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
       render();
+      if(activeTab==='objectives') setTimeout(resolveSynergyGamertags, 200);
     }
   }catch(e){ _hideBanner(); console.warn('[loadFullMatches]',e.message); }
 }
@@ -2443,11 +2589,12 @@ function renderTeamSynergy(duo,gamertag){
     // Avatar — use emblem endpoint if xuid available, gamerpic if not, initials as last resort
     var _isSpartanFallback=/^Spartan\s+\d+$/i.test(gt);
     var _initials=_isSpartanFallback?'?':gt.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
-    var _synSrc=tm.rawXuid?'/api/emblem?xuid='+tm.rawXuid:(tm.gamerpicUrl||null);
+    var _synXuid=tm.rawXuid||null;
+    var _synSrc=_synXuid?'/api/emblem?xuid='+_synXuid:(tm.gamerpicUrl||null);
     var _synPic=_synSrc
       ?'<div style="width:28px;height:28px;border-radius:4px;overflow:hidden;flex-shrink:0;background:var(--surface3);display:flex;align-items:center;justify-content:center"><img src="'+_synSrc+'" data-emblem-xuid="'+(tm.rawXuid||'')+'" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif">'+_initials+'</span></div>'
       :'<span style="width:28px;height:28px;border-radius:4px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif;flex-shrink:0">'+_initials+'</span>';
-    var _displayGt=_isSpartanFallback?'<span style="color:var(--muted)">Unknown Player</span>':gt;
+    var _displayGt=_isSpartanFallback&&_synXuid?'<span class="syn-gt-skeleton" data-syn-xuid="'+_synXuid+'" style="display:inline-block;width:90px;height:11px;background:var(--surface3);border-radius:3px;vertical-align:middle;animation:gtpulse 1.2s ease-in-out infinite"></span>':(_isSpartanFallback?'<span style="color:var(--muted)">Unknown</span>':gt);
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'+_synPic+'<span style="font-size:12px;font-weight:700;color:var(--text)">'+_displayGt+'</span></div>';
     html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace">'+tm.games+' games together</div>';
     html+='</div>';
@@ -2466,7 +2613,7 @@ function renderTeamSynergy(duo,gamertag){
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">';
     // Their column
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px">';
-    html+='<div style="font-size:11px;font-weight:700;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px;letter-spacing:1px">'+gt.toUpperCase()+'</div>';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px;letter-spacing:1px">'+((_isSpartanFallback&&_synXuid)?'<span class="syn-gt-skeleton" data-syn-xuid="'+_synXuid+'">???</span>':gt.toUpperCase())+'</div>';
     if(tmAvgKills!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--muted2)">Kills/game</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+tmAvgKills.toFixed(1)+'</span></div>';
     if(tmAvgKd!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--muted2)">K/D</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(tmAvgKd>=1?'var(--win)':'var(--loss)')+'">'+tmAvgKd.toFixed(2)+'</span></div>';
     if(tmAvgDmg!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:12px;color:var(--muted2)">Damage</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+Math.round(tmAvgDmg).toLocaleString()+'</span></div>';
@@ -3154,19 +3301,22 @@ function render(){
       html+='<div onclick="toggleMapExpand(\''+panelId+'\')" style="display:flex;align-items:stretch;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
       // Map thumbnail
       if(_mapImgUrl){
-        html+='<div style="width:120px;height:70px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
+        html+='<div class="map-collapsed-thumb" style="width:120px;height:70px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
           +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
           +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none"></div>'
+          +'<div class="map-name-overlay" style="display:none;position:absolute;bottom:5px;left:6px;right:6px">'
+          +'<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">'+e.map+'</span>'
+          +'</div>'
           +'</div>';
       }
       // Name + modes
       html+='<div style="flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center">';
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
-      html+='<span style="font-size:13px;font-weight:700;color:var(--text)">'+e.map+'</span>';
+      html+='<span class="map-name-inline" style="font-size:13px;font-weight:700;color:var(--text)">'+e.map+'</span>';
       if(isBest)html+='<span style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;background:rgba(0,230,118,0.1);padding:1px 6px;border-radius:3px"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px"><polyline points="20 6 9 17 4 12"/></svg> BEST</span>';
       if(isWorst)html+='<span style="font-size:8px;color:var(--loss);font-family:Share Tech Mono,monospace;background:rgba(255,61,87,0.1);padding:1px 6px;border-radius:3px"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> WORST</span>';
       html+='</div>';
-      html+='<div style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+modeStr+'</div>';
+      html+='<div class="map-mode-str" style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+modeStr+'</div>';
       html+='</div>';
       // Summary stats — win%, K/D, games count
       html+='<div style="display:flex;gap:20px;align-items:center;padding:12px 16px;flex-shrink:0">';
@@ -3200,7 +3350,7 @@ function render(){
 
       // Row 1 — core stats
       html+='<div class="mapexp-stats-row">';
-      function _mStat(label,val,color){return'<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">'+label+'</div><div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
+      function _mStat(label,val,color){return'<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">'+label+'</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
       html+=_mStat('AVG KILLS',avgKills);
       html+=_mStat('AVG DEATHS',avgDeaths);
       html+=_mStat('AVG ASSISTS',e.assists&&_validGames?(e.assists/_validGames).toFixed(1):'—');
@@ -3212,7 +3362,7 @@ function render(){
       html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=50?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<40?'var(--loss)':'var(--text)');
       html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
       html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
-      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">RECORD</div><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
+      html+='<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">RECORD</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
       html+='</div>';
 
       // CSR net bar if we have data
