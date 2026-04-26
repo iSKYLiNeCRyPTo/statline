@@ -92,10 +92,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .player-btn.active{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.1);border-color:var(--accent);color:var(--accent)}
 
 /* Mobile bottom tab bar */
-.mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:center;transition:transform 0.2s ease;position:sticky}
-.mobile-logo-bar{position:relative}.mobile-logo-bar.hidden{transform:translateY(-100%)}
+.mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
+.mobile-logo-bar.hidden{transform:translateY(-100%)}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
-.mobile-logo-actions{display:flex;gap:8px;align-items:center;position:absolute;right:14px;top:50%;transform:translateY(-50%)}
+.mobile-logo-actions{display:flex;gap:8px;align-items:center}
 .mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .mobile-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom))}
 .mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 1px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:0}
@@ -404,7 +404,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <div class="mobile-logo-bar" id="mobileLogoBar">
   <svg width="110" height="28" viewBox="0 0 110 28" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
     <rect width="28" height="28" rx="6" fill="#185FA5"/>
-    <g transform="translate(14,14) rotate(-35) scale(0.42)">
+    <g transform="translate(15,15) rotate(-35) scale(0.42)">
     <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
     <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
     <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
