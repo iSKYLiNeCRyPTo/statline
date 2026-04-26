@@ -1610,7 +1610,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
        '<div class="match-map-thumb-overlay"></div>'+
        '<div class="match-map-thumb-label">'+
          '<span class="match-map-name">'+(m.mapName||'')+'</span>'+
-         '<span class="match-map-outcome '+(m.outcome===2?'win':m.outcome===3?'loss':'draw')+'">'+(m.placement||word)+'</span>'+
+         '<span class="match-map-outcome '+(m.outcome===2?'win':m.outcome===3?'loss':'draw')+'">'+(m.outcome===2||m.outcome===3?(m.placement||word):word)+'</span>'+
        '</div>'+
      '</div>'
     :'';
@@ -1621,7 +1621,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
   el.innerHTML=
     (bannerHtml?bannerHtml:'')+
     '<div class="match-main" data-mkey="'+_mkey+'" data-idx="'+idx+'">'+
-      (bannerHtml?'':'<span class="outcome-pill '+pillClass+'">'+(m.placement||word)+'</span>')+
+      (bannerHtml?'':'<span class="outcome-pill '+pillClass+'">'+(m.outcome===2||m.outcome===3?(m.placement||word):word)+'</span>')+
       '<div class="match-info">'+
         '<div class="match-mode">'+(m.gameMode||'Unknown Mode').replace(/Capture the Flag/gi,'CTF')+cqBadge+'</div>'+
         '<div class="match-sub">'+(bannerHtml?[formatDur(m.duration),mmrStr].filter(Boolean).join(' \xb7 '):sub+(mmrStr?' \xb7 '+mmrStr:''))+'</div>'+
@@ -1664,7 +1664,9 @@ function renderCsrFromMatches(matches,playlist,color){
   }
   var pm=matches.slice().reverse().filter(function(m){
     if(!_matchesPlaylist(m))return false;
-    // Include if we have csrDelta OR can compute it OR have csrAfter to anchor from
+    // Draws always included — plotted flat at same CSR
+    if(m.outcome!==2&&m.outcome!==3) return true;
+    // Wins/losses: need delta or csrAfter to plot
     return _getDelta(m)!=null||m.csrAfter!=null;
   });
   if(pm.length<2)return'';
@@ -1678,12 +1680,10 @@ function renderCsrFromMatches(matches,playlist,color){
     return !/^Ranked Slayer$/i.test(gm);
   });
   if(recent&&recent.csrAfter){
-    // Parse csrAfter — could be "Diamond 4" or "Onyx 1350" or number
     var raw=recent.csrAfter;
     var num=parseInt(String(raw).match(/\d+/));
     if(!isNaN(num))lastCsr=num;
   }
-  // Fall back to current CSR from p.csr
   if(!lastCsr){
     var csrKey=playlist==='Ranked Arena'?'Ranked Arena':'Ranked Slayer';
     var pnow=(getAllPlayers()[selectedPlayer]||{});
@@ -1691,19 +1691,24 @@ function renderCsrFromMatches(matches,playlist,color){
   }
   if(!lastCsr)return'';
 
-  // Build array of CSR values + outcomes from most recent backwards
+  // Build array of CSR values + outcomes — draws always plot flat (0 delta)
   var vals=[lastCsr];
   var outcomes=[pm[pm.length-1].outcome];
   for(var i=0;i<pm.length-1;i++){
     var _m=pm[pm.length-1-i];
-    var _d=_getDelta(_m);
-    if(_d!=null){
-      vals.unshift(vals[0]-_d);
-    } else if(_m.csrAfter){
-      var _av=parseInt(String(_m.csrAfter).match(/\d+/));
-      vals.unshift(!isNaN(_av)?_av:vals[0]);
+    var _isDraw=_m.outcome!==2&&_m.outcome!==3;
+    if(_isDraw){
+      vals.unshift(vals[0]); // flat — no CSR change on a draw
     } else {
-      vals.unshift(vals[0]);
+      var _d=_getDelta(_m);
+      if(_d!=null){
+        vals.unshift(vals[0]-_d);
+      } else if(_m.csrAfter){
+        var _av=parseInt(String(_m.csrAfter).match(/\d+/));
+        vals.unshift(!isNaN(_av)?_av:vals[0]);
+      } else {
+        vals.unshift(vals[0]);
+      }
     }
     outcomes.unshift(pm[pm.length-2-i].outcome);
   }
