@@ -588,7 +588,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </nav>
 
 <script>
-var playerData=null,data=null,medalMeta={},expandedMatches={},rankedFilter=false,fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
+var playerData=null,data=null,medalMeta={},expandedMatches={},fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
 
 try{activeTab=localStorage.getItem('haloTab')||'overview';}catch(e){}
 
@@ -763,7 +763,7 @@ function loadMatchHistory(page){
     matchHistoryLoading=true;
     var container=document.getElementById('matchHistoryContainer');
     if(container)container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading match history...</p></div>';
-    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+(page||1)+'&perPage=50'+(rankedFilter?'&ranked=1':'');
+    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+(page||1)+'&perPage=50';
     fetch(url).then(function(r){return r.json();}).then(function(d){
       // If server has no matches, fall back to what we have in searchData
       if(!d.matches||d.matches.length===0){
@@ -791,7 +791,7 @@ function loadMatchHistory(page){
   var gt=p.gamertag;
   if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
-  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=50'+(rankedFilter?'&ranked=1':'');
+  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=50';
   fetch(url).then(function(r){return r.json();}).then(function(d){
     d._gamertag=gt;
     matchHistoryData=d;
@@ -803,13 +803,18 @@ function loadMatchHistory(page){
   });
 }
 
-function renderMatchHistory(d){
+function renderMatchHistory(d,clientPage){
   var container=document.getElementById('matchHistoryContainer');
   if(!container)return;
-  var matches=d.matches||[];
-  var page=d.page||1;
-  var totalPages=d.totalPages||1;
-  var total=d.total||0;
+  var allMatches=d.matches||[];
+  var PER_PAGE=25;
+  var page=clientPage||1;
+  var totalPages=Math.max(1,Math.ceil(allMatches.length/PER_PAGE));
+  page=Math.min(page,totalPages);
+  var matches=allMatches.slice((page-1)*PER_PAGE,page*PER_PAGE);
+  var total=allMatches.length;
+  // Store current client page on the data object for re-renders
+  d._clientPage=page;
   
   // Build mode baselines from all loaded matches for connection quality
   var validM=matches.filter(function(m){return m.damageDealt>500&&m.damageTaken>500;});
@@ -843,32 +848,23 @@ function renderMatchHistory(d){
 
   var html='';
 
-  // Pagination header
-  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
+  // Pagination header — simple prev/next for 2-page view
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
   html+='<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+total+' matches · Page '+page+' of '+totalPages+'</div>';
-  html+='<div style="display:flex;gap:6px;align-items:center">';
-  // Page buttons
   if(totalPages>1){
-    html+='<button onclick="loadMatchHistory(1)" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">«</button>';
-    html+='<button onclick="loadMatchHistory('+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹ Prev</button>';
-    // Page number pills
-    var startP=Math.max(1,page-2);
-    var endP=Math.min(totalPages,page+2);
-    for(var pg2=startP;pg2<=endP;pg2++){
-      var isActive=pg2===page;
-      html+='<button onclick="loadMatchHistory('+pg2+')" style="background:'+(isActive?'var(--accent)':'transparent')+';border:1px solid '+(isActive?'var(--accent)':'var(--border)')+';color:'+(isActive?'#000':'var(--muted)')+';padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:'+(isActive?'default':'pointer')+';font-weight:'+(isActive?'700':'400')+'">'+pg2+'</button>';
-    }
-    html+='<button onclick="loadMatchHistory('+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">Next ›</button>';
-    html+='<button onclick="loadMatchHistory('+totalPages+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">»</button>';
+    html+='<div style="display:flex;gap:6px;align-items:center">';
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹ Prev</button>';
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">Next ›</button>';
+    html+='</div>';
   }
-  html+='</div></div>';
+  html+='</div>';
 
   if(!matches.length){
     html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No matches on this page</div></div>';
   } else {
     html+='<div class="match-list">';
     matches.forEach(function(m,i){
-      html+=renderMatchCard(m,(page-1)*50+i,baselines);
+      html+=renderMatchCard(m,(page-1)*PER_PAGE+i,baselines);
     });
     html+='</div>';
   }
@@ -876,9 +872,9 @@ function renderMatchHistory(d){
   // Bottom pagination
   if(totalPages>1){
     html+='<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">';
-    html+='<button onclick="loadMatchHistory('+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹ Previous Page</button>';
-    html+='<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted)">'+page+' / '+totalPages+'</span>';
-    html+='<button onclick="loadMatchHistory('+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">Next Page ›</button>';
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page-1)+')" '+(page<=1?'disabled':'')+' style="'+paginationBtnStyle(page<=1)+'">‹ Previous</button>';
+    html+='<span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+page+' / '+totalPages+'</span>';
+    html+='<button onclick="renderMatchHistory(window.matchHistoryData,'+(page+1)+')" '+(page>=totalPages?'disabled':'')+' style="'+paginationBtnStyle(page>=totalPages)+'">Next ›</button>';
     html+='</div>';
   }
 
@@ -891,7 +887,12 @@ function paginationBtnStyle(disabled){
 }
 
 function setTab(t){
+  // Clear expanded match state for the tab we're leaving so cards render cleanly on return
+  var _prevTab=activeTab;
   activeTab=t;
+  Object.keys(expandedMatches).forEach(function(k){
+    if(k.indexOf(_prevTab+'__')===0) delete expandedMatches[k];
+  });
   try{localStorage.setItem('haloTab',t);}catch(e){}
   // Update sidebar nav
   document.querySelectorAll('.sidebar-nav-item').forEach(function(b){
@@ -916,7 +917,7 @@ function setTab(t){
     var _curGt=(getAllPlayers()[selectedPlayer]||searchData||{}).gamertag||'';
     if(matchHistoryData&&matchHistoryData.matches&&matchHistoryData.matches.length>0&&
        matchHistoryData._gamertag&&matchHistoryData._gamertag.toLowerCase()===_curGt.toLowerCase()){
-      renderMatchHistory(matchHistoryData);
+      renderMatchHistory(matchHistoryData,matchHistoryData._clientPage||1);
     } else {
       matchHistoryPage=1;loadMatchHistory(1);
     }
@@ -1926,7 +1927,6 @@ function playerEmblem(p,size){
   return'<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center"><img src="'+src+'" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent)">'+initials+'</span></div>';
 }
 
-function setFilter(ranked){rankedFilter=ranked;render();}
 function toggleMatch(matchKey,idx){
   var rawKey=matchKey!=null?String(matchKey):('idx_'+(idx||0));
   // Find the card first so we can read its tab context
@@ -1958,8 +1958,8 @@ function toggleMatch(matchKey,idx){
   var displayM=(p.recentMatches||[]);
   // Find match — check player matches and matchHistoryData (paginated API results)
   var _histMatches=(window.matchHistoryData&&window.matchHistoryData.matches)||[];
-  var m=allM.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===String(key);})
-    ||_histMatches.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===String(key);})
+  var m=allM.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===rawKey;})
+    ||_histMatches.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===rawKey;})
     ||displayM[idx]||_histMatches[idx]||null;
   if(!m)return;
 
@@ -2681,7 +2681,7 @@ function render(){
   var matches=_rawMatches;
   var allMatches=_rawMatches;
   var displayMatches=_rawMatches; // same 25 matches
-  var filtered=rankedFilter?displayMatches.filter(function(m){return m.isRanked;}):displayMatches;
+  var filtered=displayMatches;
   // Compute nemeses/victims from current match data
   var nemeses, victims;
   var _rivalMap={};
@@ -2887,7 +2887,6 @@ function render(){
   var _modeBaselines=window._fragrBaselines||{};
 
   html+='<div class="tab-panel'+(activeTab==='matches'?' active':'')+'" data-tab="matches">';
-  html+='<div class="filter-row"><button class="filter-btn '+(!rankedFilter?'active':'')+'" onclick="setFilter(false)">All</button><button class="filter-btn '+(rankedFilter?'active':'')+'" onclick="setFilter(true)">Ranked Only</button></div>';
   html+='<div id="matchHistoryContainer"><div class="loading"><div class="spinner"></div><p>Loading match history...</p></div></div>';
   html+='</div>'; // end matches tab
 
