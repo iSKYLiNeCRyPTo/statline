@@ -96,7 +96,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mapexp-inner{display:grid;grid-template-columns:280px 1fr;gap:0}
 .mapexp-img{min-height:200px}
 .mapexp-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
-@media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{height:120px;min-height:unset}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
+@media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{display:none}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
 @media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
@@ -3106,7 +3106,7 @@ function render(){
       html+='<div onclick="toggleMapExpand(\''+panelId+'\')" style="display:flex;align-items:stretch;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
       // Map thumbnail
       if(_mapImgUrl){
-        html+='<div style="width:120px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
+        html+='<div style="width:120px;height:70px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
           +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
           +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none"></div>'
           +'</div>';
