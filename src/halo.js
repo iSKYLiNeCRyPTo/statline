@@ -382,8 +382,8 @@ async function fetchPlayerStats(gamertag) {
 }
 
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
-async function fetchMatchHistory(xuid, gamertag, count = 50) {
-  const TARGET   = 50;  // desired valid (non-custom/PvE) matches
+async function fetchMatchHistory(xuid, gamertag, count = 100) {
+  const TARGET   = 100;  // desired valid (non-custom/PvE) matches
   const BATCH    = 20;  // matches to request per API call
   const MAX_SCAN = 250; // give up after scanning this many raw matches
 
