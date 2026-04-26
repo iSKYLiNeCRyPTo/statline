@@ -93,8 +93,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 /* Mobile bottom tab bar */
 .mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
-.mapexp-inner{display:grid;grid-template-columns:280px 1fr;gap:0}
-.mapexp-img{min-height:200px}
+.mapexp-inner{display:block}
+.mapexp-img{display:none}
 .mapexp-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
 @media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{display:none}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
 @media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
