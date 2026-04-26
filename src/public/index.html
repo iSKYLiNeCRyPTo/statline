@@ -1304,11 +1304,8 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   if(m.shotsFired>0&&m.kills>0){
     var _spkM=m.shotsFired/m.kills;
     var _hsRateM=m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:null;
-    var _engaged=m.kills+(m.assists||0);
-    var _dpeM=_engaged>0&&m.damageDealt>0?m.damageDealt/_engaged:null;
     var _spkColor=_spkM<=7?'var(--win)':_spkM<=9?'var(--muted)':'var(--loss)';
     var _hsColor=_hsRateM!=null?(_hsRateM>=60?'var(--win)':_hsRateM>=35?'var(--muted)':'var(--loss)'):'var(--muted)';
-    var _dpeColor=_dpeM!=null?(_dpeM>=155?'var(--win)':_dpeM>=100?'var(--muted)':'var(--loss)'):'var(--muted)';
     html+='<div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">';
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
       +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Shots / Kill</div>'
@@ -1322,13 +1319,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
         +'<div style="font-size:9px;color:var(--muted)">aim for 50%+</div>'
         +'</div>';
     }
-    if(_dpeM!=null){
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
-        +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Dmg / Enemy</div>'
-        +'<div style="font-size:18px;font-weight:700;color:'+_dpeColor+'">'+Math.round(_dpeM)+'</div>'
-        +'<div style="font-size:9px;color:var(--muted)">Spartan = 185 HP</div>'
-        +'</div>';
-    }
+
     html+='</div>';
   }
 
@@ -1539,16 +1530,20 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var kd=m.deaths>0?m.kills/m.deaths:m.kills;
   var spk=m.kills>0&&m.shotsFired>0?m.shotsFired/m.kills:null;
 
-  // Get baseline — prefer mode-specific, fall back to overall, require min 5 games
+  // Get baseline — mode-specific for DPM (objective/pacing varies by mode)
+  // but SPK and accuracy use __overall__ — weapon mechanics don't change by mode
   var mode=m.gameMode||'Unknown';
-  var bl=modeBaselines[mode]||modeBaselines['__overall__'];
+  var blMode=modeBaselines[mode]||modeBaselines['__overall__'];
+  var blOverall=modeBaselines['__overall__']||blMode;
+  var bl=blMode; // used for DPM signals
   if(!bl||bl.count<5) return null;
+  if(!blOverall||blOverall.count<5) blOverall=bl;
 
   var dpmDealtRatio=bl.avgDpmDealt>0?dpmDealt/bl.avgDpmDealt:1;
   var dpmTakenRatio=bl.avgDpmTaken>0?dpmTaken/bl.avgDpmTaken:1;
-  var accDelta=acc!=null&&bl.avgAcc>0?acc-bl.avgAcc:null;
-  // Bandit SPK signal: your personal SPK vs baseline (9+ is spraying, 5-7 is clean)
-  var spkDelta=spk!=null&&bl.avgSpk>0?spk-bl.avgSpk:null;
+  // Accuracy and SPK always vs overall — weapon is the same regardless of mode
+  var accDelta=acc!=null&&blOverall.avgAcc>0?acc-blOverall.avgAcc:null;
+  var spkDelta=spk!=null&&blOverall.avgSpk>0?spk-blOverall.avgSpk:null;
 
   var signals=[];
   var score=0;
@@ -1556,10 +1551,10 @@ function analyzeConnectionQuality(m, modeBaselines) {
   // ── GOOD CONNECTION signals ──────────────────────────────────────────
   // Accuracy well above your norm
   if(accDelta!=null&&accDelta>=10&&kd>=1.5){
-    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+bl.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
     score+=2;
   } else if(accDelta!=null&&accDelta>=6&&kd>=1.8){
-    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your '+mode.replace('Ranked ','')+' avg) — hitreg in your favour'});
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg) — hitreg in your favour'});
     score+=1;
   }
   // DPM well above baseline with good K/D
@@ -1569,7 +1564,7 @@ function analyzeConnectionQuality(m, modeBaselines) {
   }
   // Bandit SPK: well below your own average (cleaner kills than usual)
   if(spkDelta!=null&&spkDelta<=-1.5&&spk<=7){
-    signals.push({bad:false,msg:spk.toFixed(1)+' shots/kill vs your '+bl.avgSpk.toFixed(1)+' avg — winning gunfights faster than usual'});
+    signals.push({bad:false,msg:spk.toFixed(1)+' shots/kill vs your '+blOverall.avgSpk.toFixed(1)+' overall avg — winning gunfights faster than usual'});
     score+=1;
   }
   // MMR expectation significantly beaten
@@ -1581,10 +1576,10 @@ function analyzeConnectionQuality(m, modeBaselines) {
   // ── POOR CONNECTION signals ──────────────────────────────────────────
   // Accuracy well below your norm — strongest signal
   if(accDelta!=null&&accDelta<=-12){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+bl.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — shots not registering server-side'});
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — shots not registering server-side'});
     score-=3;
   } else if(accDelta!=null&&accDelta<=-8){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your '+mode.replace('Ranked ','')+' norm) — suspect hitreg'});
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — suspect hitreg'});
     score-=2;
   }
   // DPM tanked AND taking more damage — lag comp against you
@@ -1597,7 +1592,7 @@ function analyzeConnectionQuality(m, modeBaselines) {
   }
   // Bandit SPK: significantly above your own baseline (forced to fire more to kill)
   if(spkDelta!=null&&spkDelta>=2.5&&spk>=10){
-    signals.push({bad:true,msg:spk.toFixed(1)+' shots/kill vs your '+bl.avgSpk.toFixed(1)+' avg — taking far more shots to finish kills, shots may not be registering'});
+    signals.push({bad:true,msg:spk.toFixed(1)+' shots/kill vs your '+blOverall.avgSpk.toFixed(1)+' overall avg — taking far more shots to finish kills, shots may not be registering'});
     score-=2;
   }
   // MMR expected much more kills
@@ -3274,24 +3269,6 @@ function render(){
       if(mPct>32) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0\"/><path d=\"M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2\"/><path d=\"M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/></svg>','Over-Relying on Melee',Math.round(mPct)+'% of kills are melee — BXB combos are healthy but at '+Math.round(mPct)+'% you may be rushing into melee range instead of finishing gunfights. Opponents at higher ranks will punish aggressive melee approaches.','var(--gold)'));
       if(hsPct2<35&&totHS>0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Not Finishing with the Headshot','Only '+Math.round(hsPct2)+'% of kills are headshot finishes. With the Bandit, 4 body shots break shields and a headshot closes it — that last shot should be a headshot on most kills. Body-shotting to the finish takes 1-2 extra shots and gives opponents more time to trade or disengage. Consciously aim for the head on the final shot.','var(--gold)'));
       if(pwPct>28) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"13\" y1=\"2\" x2=\"13\" y2=\"6\"/><line x1=\"21\" y1=\"2\" x2=\"21\" y2=\"6\"/><line x1=\"17\" y1=\"6\" x2=\"17\" y2=\"22\"/><line x1=\"9\" y1=\"22\" x2=\"25\" y2=\"22\"/><line x1=\"9\" y1=\"12\" x2=\"13\" y2=\"6\"/></svg>','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
-    }
-
-    // Damage per enemy engaged = damageDealt / (kills + assists)
-    // Full Spartan HP = 185 (70 shield + 115 health)
-    // This is the cleanest damage metric — accounts for both kills and assists
-    var _engGames=allMatches.filter(function(m){
-      return m.kills>0&&m.damageDealt>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;
-    });
-    if(_engGames.length>=5){
-      var _avgDpe=_engGames.reduce(function(s,m){
-        var engaged=m.kills+(m.assists||0);
-        return engaged>0?s+m.damageDealt/engaged:s;
-      },0)/_engGames.length;
-      if(_avgDpe<100){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\"/></svg>','Low Engagement Damage','Avg '+Math.round(_avgDpe)+' damage per enemy engaged — a full Spartan is 185 HP. You are leaving enemies with over half their HP, meaning teammates must do the heavy lifting or enemies escape to fight again. Push engagements further before disengaging.','var(--loss)'));
-      } else if(_avgDpe>=155){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\"/></svg>','High Engagement Damage','Avg '+Math.round(_avgDpe)+' damage per enemy engaged — you are dealing near-lethal damage to almost everyone you touch (full Spartan = 185 HP). Assists are quality setups for teammates.','var(--win)'));
-      }
     }
 
         var placementMatches=allMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
