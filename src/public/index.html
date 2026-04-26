@@ -2097,19 +2097,30 @@ function renderSearch(){
 }
 async function loadFullMatches(gamertag){
   if(!gamertag) return;
-  // Already loaded and fresh (< 5 min)?
   var cached=fullMatchCache[gamertag];
   if(cached&&cached._fetchedAt&&Date.now()-cached._fetchedAt<300000) return;
+  var _showBanner=function(){
+    if(document.getElementById('_fullMatchBanner')) return;
+    var b=document.createElement('div');
+    b.id='_fullMatchBanner';
+    b.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);z-index:500;display:flex;align-items:center;gap:8px;pointer-events:none';
+    b.innerHTML='<div style="width:8px;height:8px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>Loading full match history…';
+    document.body.appendChild(b);
+  };
+  var _hideBanner=function(){
+    var b=document.getElementById('_fullMatchBanner');if(b)b.remove();
+  };
   try{
+    _showBanner();
     var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=2000');
     var d=await res.json();
+    _hideBanner();
     if(d.matches&&d.matches.length>0){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
-      // Re-render if we're on a tab that uses full matches
-      if(['bymap','charts','objectives','opponents'].indexOf(activeTab)>-1) render();
+      render();
     }
-  }catch(e){ console.warn('[loadFullMatches]',e.message); }
+  }catch(e){ _hideBanner(); console.warn('[loadFullMatches]',e.message); }
 }
 function cycleMobilePlayer(){
   var players = getAllPlayers().filter(function(p){ return !p._loading && !p._error && p.stats; });
