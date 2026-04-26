@@ -3039,13 +3039,25 @@ function render(){
   html+='<div class="tab-panel'+(activeTab==='bymap'?' active':'')+'" data-tab="bymap">';
   // Build rich per-map data including mode breakdown and streaks
   var mapData={};
+  function _mapDurSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
   allMatches.forEach(function(m){
     var map=m.mapName||'Unknown';
-    if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,modes:{},recentResults:[],imageUrl:null};
+    if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,
+      accGames:0,accTotal:0,csrGames:0,csrTotal:0,hsKills:0,totalKillsHs:0,
+      shotsFired:0,shotsHit:0,modes:{},recentResults:[],imageUrl:null};
     if(!mapData[map].imageUrl&&m.mapImageUrl)mapData[map].imageUrl=m.mapImageUrl;
     var d=mapData[map];
-    d.count++;d.kills+=m.kills||0;d.deaths+=m.deaths||0;d.assists+=m.assists||0;
-    if((m.outcome===2||m.outcome===3)){var _ms=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);var _msc=_ms?(parseInt(_ms[1]||0)*3600)+(parseInt(_ms[2]||0)*60)+parseFloat(_ms[3]||0):0;if(_msc>=180){d.dmgDealt+=m.damageDealt||0;d.dmgTaken+=m.damageTaken||0;}}
+    var secs=_mapDurSecs(m);
+    var validGame=(m.outcome===2||m.outcome===3)&&secs>=180;
+    d.count++;
+    if(validGame){
+      d.kills+=m.kills||0;d.deaths+=m.deaths||0;d.assists+=m.assists||0;
+      d.dmgDealt+=m.damageDealt||0;d.dmgTaken+=m.damageTaken||0;
+      if(m.accuracy!=null){d.accGames++;d.accTotal+=parseFloat(m.accuracy);}
+      if(m.csrDelta!=null){d.csrGames++;d.csrTotal+=m.csrDelta;}
+      if(m.weaponStats){d.hsKills+=m.weaponStats.headshots||0;d.totalKillsHs+=m.kills||0;}
+      if(m.shotsFired){d.shotsFired+=m.shotsFired||0;d.shotsHit+=m.shotsHit||0;}
+    }
     if(m.outcome===2)d.wins++;else if(m.outcome===3)d.losses++;
     var mode=(m.gameMode||'Unknown').replace(/Ranked Arena:/i,'').replace(/Ranked /i,'').trim();
     if(!d.modes[mode])d.modes[mode]={wins:0,losses:0,count:0};
@@ -3123,31 +3135,80 @@ function render(){
           +'</div>';
       }
 
-      // Right — all stats
+      // Right — rich stats
+      var _mapAcc=e.accGames>0?(e.accTotal/e.accGames).toFixed(1):null;
+      var _mapCsrAvg=e.csrGames>0?(e.csrTotal/e.csrGames).toFixed(1):null;
+      var _mapHsRate=e.totalKillsHs>0?Math.round(e.hsKills/e.totalKillsHs*100):null;
+      var _mapAssistRatio=e.kills+e.assists>0?Math.round(e.assists/(e.kills+e.assists)*100):null;
+      var _validGames=e.wins+e.losses;
+
       html+='<div style="padding:16px 20px;background:var(--surface2)">';
 
-      // Stat cards row
-      html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">';
-      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">AVG KILLS</div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgKills+'</div></div>';
-      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">AVG DEATHS</div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgDeaths+'</div></div>';
-      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">DMG RATIO</div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)')+'">'+dmgRatio+'</div></div>';
-      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">RECORD</div><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
+      // Row 1 — core stats
+      html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+      function _mStat(label,val,color){return'<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">'+label+'</div><div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
+      html+=_mStat('AVG KILLS',avgKills);
+      html+=_mStat('AVG DEATHS',avgDeaths);
+      html+=_mStat('AVG ASSISTS',e.assists&&_validGames?(e.assists/_validGames).toFixed(1):'—');
+      html+=_mStat('K/D',kd,parseFloat(kd)>=1?'var(--win)':'var(--loss)');
+      html+='</div>';
+
+      // Row 2 — accuracy, CSR, headshot rate, damage ratio
+      html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">';
+      html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=50?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<40?'var(--loss)':'var(--text)');
+      html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
+      html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
+      html+=_mStat('RECORD','',null);
+      // Override record cell with W/L
+      html=html.slice(0,-6)+'<span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
+      html+='</div>';
+
+      // CSR net bar if we have data
+      if(e.csrGames>=2){
+        var _csrNet=Math.round(e.csrTotal);
+        var _csrPos=_csrNet>=0;
+        html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 12px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;min-width:60px">CSR ON MAP</div>';
+        html+='<div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(_csrPos?'var(--win)':'var(--loss)')+'">'+(_csrPos?'+':'')+_csrNet+'</div>';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+_mapCsrAvg+' avg / game &nbsp;·&nbsp; '+e.csrGames+' ranked games</div>';
+        html+='</div>';
+      }
+
+      // Win rate bar
+      html+='<div style="margin-bottom:12px">';
+      html+='<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">WIN RATE</span>';
+      html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:'+wrColor+'">'+wr+'% ('+e.wins+'W / '+e.losses+'L)</span>';
+      html+='</div>';
+      html+='<div style="height:4px;background:var(--surface3);border-radius:2px;overflow:hidden">';
+      html+='<div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px;transition:width .4s"></div>';
+      html+='</div>';
       html+='</div>';
 
       // Recent form
       html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
-      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">RECENT FORM</span>';
+      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;white-space:nowrap">RECENT FORM</span>';
       html+=formDots;
       if(streakStr)html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;margin-left:4px">'+streakStr+'</span>';
       html+='</div>';
 
-      // Modes on this map
-      if(topModes.length>1){
+      // Mode pills with mini win rate bars
+      if(topModes.length>=1){
         html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:6px">MODES ON THIS MAP</div>';
         html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
-        topModes.forEach(function(m){
-          var mwr=Math.round((m[1].wins/m[1].count)*100);
-          html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:5px 10px;font-size:10px"><span style="color:var(--text);font-family:Share Tech Mono,monospace">'+m[0]+'</span> <span style="color:'+(mwr>=50?'var(--win)':'var(--loss)')+';font-weight:700">'+mwr+'%</span> <span style="color:var(--muted2)">('+m[1].count+'g)</span></div>';
+        topModes.forEach(function(md){
+          var mwr=Math.round((md[1].wins/md[1].count)*100);
+          var mwrColor=mwr>=55?'var(--win)':mwr<=40?'var(--loss)':'var(--gold)';
+          html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;min-width:100px">';
+          html+='<div style="font-size:10px;color:var(--text);font-family:Share Tech Mono,monospace;margin-bottom:4px">'+md[0]+'</div>';
+          html+='<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+          html+='<span style="font-size:9px;color:'+mwrColor+';font-weight:700">'+mwr+'%</span>';
+          html+='<span style="font-size:9px;color:var(--muted2)">'+md[1].wins+'W '+md[1].losses+'L</span>';
+          html+='</div>';
+          html+='<div style="height:2px;background:var(--surface3);border-radius:1px;overflow:hidden">';
+          html+='<div style="height:100%;width:'+mwr+'%;background:'+mwrColor+'"></div>';
+          html+='</div>';
+          html+='</div>';
         });
         html+='</div>';
       }
