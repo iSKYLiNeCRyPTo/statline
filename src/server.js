@@ -31,6 +31,7 @@ async function logSearch(gamertag, ip, cached, success) {
 }
 
 const app = express();
+app.set('trust proxy', 1); // trust Render's proxy for real IPs
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -177,7 +178,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
   if (searchInFlight[key]) {
     try {
       const result = await searchInFlight[key];
-      logSearch(gamertag, req.ip, false, true); return res.json({ success: true, player: result });
+      logSearch(gamertag, req.ip, 'inflight', true); return res.json({ success: true, player: result });
     } catch(e) {
       logSearch(gamertag, req.ip, false, false); return res.status(404).json({ success: false, error: e.message });
     }
@@ -600,7 +601,7 @@ app.get('/api/admin', (req, res) => {
   }
   loadData();
   setInterval(loadData,30000);
-  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached?'<span class="muted">cached</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
+  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached===true?'<span class="muted">cached</span>':s.cached==="inflight"?'<span style="color:#555">inflight</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(r=>r.gamertag.toLowerCase().includes(q)):allRows);}
   </script></body></html>`);
 });
