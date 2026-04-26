@@ -1311,13 +1311,13 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   if(m.shotsFired>0&&m.kills>0){
     var _spkM=m.shotsFired/m.kills;
     var _hsRateM=m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:null;
-    var _spkColor=_spkM<=7?'var(--win)':_spkM<=9?'var(--muted)':'var(--loss)';
+    var _spkColor='var(--muted)'; // SPK is mixed weapons so no colour judgment
     var _hsColor=_hsRateM!=null?(_hsRateM>=60?'var(--win)':_hsRateM>=35?'var(--muted)':'var(--loss)'):'var(--muted)';
     html+='<div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">';
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
       +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Shots / Kill</div>'
       +'<div style="font-size:18px;font-weight:700;color:'+_spkColor+'">'+_spkM.toFixed(1)+'</div>'
-      +'<div style="font-size:9px;color:var(--muted)">ideal 5–7</div>'
+      +'<div style="font-size:9px;color:var(--muted)">all weapons</div>'
       +'</div>';
     if(_hsRateM!=null){
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
@@ -3392,15 +3392,7 @@ function render(){
     }
 
     // Trigger discipline — calibrated for Bandit Evo (5-shot perfect, 7-8 realistic)
-    // >13 = spraying/missing, <7 = suspiciously clean (possible power weapon skew)
-    if(_aimGames.length>=8){
-      var _spk=_aimGames.reduce(function(s,m){return s+m.shotsFired/m.kills;},0)/_aimGames.length;
-      if(_spk>9.5){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Trigger Discipline','Avg '+Math.round(_spk)+' shots fired per kill across all weapons. A clean Bandit kill is 5 shots — you\'re well above that even accounting for grenades and power weapons in the mix. Focus on committing to fights only when you have positioning advantage, and disengage if you miss your opener.','var(--gold)'));
-      } else if(_spk>=5&&_spk<=7&&_aimGames.length>=10){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Efficient Gunfights','Avg '+Math.round(_spk)+' shots per kill across all weapons — right in the clean range. You\'re not wasting ammo to finish fights.','var(--win)'));
-      }
-    }
+
 
     // ── TEAM & ASSIST INSIGHTS ──────────────────────────────────────────────
 
