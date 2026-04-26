@@ -3098,8 +3098,8 @@ function render(){
       function avgKD(arr){var t=arr.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0);return t/arr.length;}
       var recentKD=avgKD(recent);var olderKD=avgKD(older);var delta=recentKD-olderKD;
       if(Math.abs(delta)>=0.10){
-        if(delta>=0.10) insights.push(insightCard('📈','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
-        else insights.push(insightCard('📉','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+delta.toFixed(2)+' from the prior 5 — you may be fatiguing or facing harder lobbies.','var(--loss)'));
+        if(delta>=0.10) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
+        else insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+delta.toFixed(2)+' from the prior 5 — you may be fatiguing or facing harder lobbies.','var(--loss)'));
       }
     }
 
@@ -3109,15 +3109,15 @@ function render(){
       function avgAcc(arr){return arr.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/arr.length;}
       var aR=avgAcc(accRecent);var aO=avgAcc(accOlder);var aDelta=aR-aO;
       if(Math.abs(aDelta)>=2){
-        if(aDelta>=2) insights.push(insightCard('🎯','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
-        else insights.push(insightCard('🎯','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%).','var(--gold)'));
+        if(aDelta>=2) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
+        else insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%).','var(--gold)'));
       }
     }
 
     var dpkMatches=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0;});
     if(dpkMatches.length>=5){
       var avgDPK=dpkMatches.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/dpkMatches.length;
-      if(avgDPK>650) insights.push(insightCard('💥','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
+      if(avgDPK>650) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\"/></svg>','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
     }
 
     var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
@@ -3125,28 +3125,28 @@ function render(){
       var totK=0,totG=0,totM=0,totHS=0,totPW=0;
       weaponMatches.forEach(function(m){totK+=m.kills;totG+=m.weaponStats.grenades||0;totM+=m.weaponStats.melee||0;totHS+=m.weaponStats.headshots||0;totPW+=m.weaponStats.powerWeapon||0;});
       var gPct=totG/totK*100;var mPct=totM/totK*100;var hsPct2=totHS/totK*100;var pwPct=totPW/totK*100;
-      if(gPct>15) insights.push(insightCard('💣','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
-      if(mPct>14) insights.push(insightCard('👊','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
-      if(hsPct2<20&&totHS>0) insights.push(insightCard('🎯','Low Headshot Rate','Only '+Math.round(hsPct2)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
-      if(pwPct>28) insights.push(insightCard('🔫','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
+      if(gPct>15) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
+      if(mPct>14) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0\"/><path d=\"M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2\"/><path d=\"M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/></svg>','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
+      if(hsPct2<20&&totHS>0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Low Headshot Rate','Only '+Math.round(hsPct2)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
+      if(pwPct>28) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"13\" y1=\"2\" x2=\"13\" y2=\"6\"/><line x1=\"21\" y1=\"2\" x2=\"21\" y2=\"6\"/><line x1=\"17\" y1=\"6\" x2=\"17\" y2=\"22\"/><line x1=\"9\" y1=\"22\" x2=\"25\" y2=\"22\"/><line x1=\"9\" y1=\"12\" x2=\"13\" y2=\"6\"/></svg>','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
     }
 
     var placementMatches=allMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
     if(placementMatches.length>=5){
       var avgPlace=placementMatches.reduce(function(s,m){return s+parseInt(m.placement);},0)/placementMatches.length;
-      if(avgPlace<=3.0) insights.push(insightCard('🏆','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
-      else if(avgPlace>=5.0) insights.push(insightCard('⚠️','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
+      if(avgPlace<=3.0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"6 9 6 2 18 2 18 9\"/><path d=\"M6 18H4a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2\"/><rect x=\"6\" y=\"18\" width=\"12\" height=\"4\"/><line x1=\"12\" y1=\"13\" x2=\"12\" y2=\"9\"/></svg>','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
+      else if(avgPlace>=5.0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
     }
 
     var ctfGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='CTF';});
     var oddballGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='Oddball';});
     if(ctfGames.length>=3){
       var avgCaps=ctfGames.reduce(function(s,m){return s+(m.objStats.flagCaptures||0);},0)/ctfGames.length;
-      if(avgCaps<0.3) insights.push(insightCard('🚩','Low Flag Contribution','Avg '+avgCaps.toFixed(2)+' CTF caps per game — consider being more aggressive about contesting and capping flags.','var(--gold)'));
+      if(avgCaps<0.3) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z\"/><line x1=\"4\" y1=\"22\" x2=\"4\" y2=\"15\"/></svg>','Low Flag Contribution','Avg '+avgCaps.toFixed(2)+' CTF caps per game — consider being more aggressive about contesting and capping flags.','var(--gold)'));
     }
     if(oddballGames.length>=3){
       var avgHold=oddballGames.reduce(function(s,m){return s+(m.objStats.timeAsCarrier||0);},0)/oddballGames.length;
-      if(avgHold<20) insights.push(insightCard('💀','Low Ball Hold Time','Avg ball carry time is only '+Math.round(avgHold)+'s — you\'re dying too fast or passing to teammates rarely.','var(--gold)'));
+      if(avgHold<20) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 2a9 9 0 0 1 9 9c0 3.18-1.65 5.97-4.13 7.58L16 21H8l-.87-2.42A9.14 9.14 0 0 1 3 11 9 9 0 0 1 12 2z\"/><line x1=\"9\" y1=\"15\" x2=\"9.01\" y2=\"15\"/><line x1=\"15\" y1=\"15\" x2=\"15.01\" y2=\"15\"/><line x1=\"10\" y1=\"18\" x2=\"14\" y2=\"18\"/></svg>','Low Ball Hold Time','Avg ball carry time is only '+Math.round(avgHold)+'s — you\'re dying too fast or passing to teammates rarely.','var(--gold)'));
     }
 
     var timeSlots={morning:[],afternoon:[],evening:[]};
@@ -3164,7 +3164,7 @@ function render(){
       var best=slots[0];var worst=slots[slots.length-1];
       if(best.kd-worst.kd>=0.18){
         var nameMap={morning:'mornings',afternoon:'afternoons',evening:'evenings'};
-        insights.push(insightCard('🕐','Peak Hours','You perform best in the '+nameMap[best.name]+' ('+best.kd.toFixed(2)+' K/D) vs '+nameMap[worst.name]+' ('+worst.kd.toFixed(2)+' K/D). Schedule your ranked sessions accordingly.','var(--accent)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>','Peak Hours','You perform best in the '+nameMap[best.name]+' ('+best.kd.toFixed(2)+' K/D) vs '+nameMap[worst.name]+' ('+worst.kd.toFixed(2)+' K/D). Schedule your ranked sessions accordingly.','var(--accent)'));
       }
     }
 
@@ -3175,8 +3175,8 @@ function render(){
       var favWR=favored.length?favored.filter(function(m){return m.outcome===2;}).length/favored.length*100:null;
       var dogWR=underdog.length?underdog.filter(function(m){return m.outcome===2;}).length/underdog.length*100:null;
       if(favWR!==null&&dogWR!==null&&Math.abs(favWR-dogWR)>=15){
-        if(dogWR>favWR) insights.push(insightCard('⚔️','Underdog Mentality','You win '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% as the favorite — you rise to the challenge.','var(--win)'));
-        else insights.push(insightCard('⚔️','Favored Team Pressure','Win rate drops to '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% when favored — you may tighten up in harder lobbies.','var(--gold)'));
+        if(dogWR>favWR) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"14.5 17.5 3 6 3 3 6 3 17.5 14.5\"/><line x1=\"13\" y1=\"19\" x2=\"19\" y2=\"13\"/><line x1=\"16\" y1=\"16\" x2=\"20\" y2=\"20\"/><line x1=\"19\" y1=\"21\" x2=\"21\" y2=\"19\"/><polyline points=\"14.5 6.5 18 3 21 3 21 6 17.5 9.5\"/><line x1=\"5\" y1=\"14\" x2=\"9\" y2=\"18\"/><line x1=\"7\" y1=\"21\" x2=\"9\" y2=\"19\"/></svg>','Underdog Mentality','You win '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% as the favorite — you rise to the challenge.','var(--win)'));
+        else insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"14.5 17.5 3 6 3 3 6 3 17.5 14.5\"/><line x1=\"13\" y1=\"19\" x2=\"19\" y2=\"13\"/><line x1=\"16\" y1=\"16\" x2=\"20\" y2=\"20\"/><line x1=\"19\" y1=\"21\" x2=\"21\" y2=\"19\"/><polyline points=\"14.5 6.5 18 3 21 3 21 6 17.5 9.5\"/><line x1=\"5\" y1=\"14\" x2=\"9\" y2=\"18\"/><line x1=\"7\" y1=\"21\" x2=\"9\" y2=\"19\"/></svg>','Favored Team Pressure','Win rate drops to '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% when favored — you may tighten up in harder lobbies.','var(--gold)'));
       }
     }
 
@@ -3192,31 +3192,31 @@ function render(){
       mapAccList.sort(function(a,b){return b.avg-a.avg;});
       var bestMap=mapAccList[0];var worstMap=mapAccList[mapAccList.length-1];
       if(bestMap.avg-worstMap.avg>=4){
-        insights.push(insightCard('🗺️','Map Accuracy Variance','Your accuracy is '+bestMap.avg.toFixed(1)+'% on '+bestMap.map+' vs '+worstMap.avg.toFixed(1)+'% on '+worstMap.map+' — study the sight lines on your weakest maps.','var(--accent)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"18\"/><line x1=\"16\" y1=\"6\" x2=\"16\" y2=\"22\"/></svg>','Map Accuracy Variance','Your accuracy is '+bestMap.avg.toFixed(1)+'% on '+bestMap.map+' vs '+worstMap.avg.toFixed(1)+'% on '+worstMap.map+' — study the sight lines on your weakest maps.','var(--accent)'));
       }
     }
 
     var dpd=allMatches.filter(function(m){return m.deaths>0&&m.damageTaken>0;});
     if(dpd.length>=5){
       var avgDPD=dpd.reduce(function(s,m){return s+m.damageTaken/m.deaths;},0)/dpd.length;
-      if(avgDPD<200) insights.push(insightCard('💀','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
-      else if(avgDPD>280) insights.push(insightCard('🛡️','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
+      if(avgDPD<200) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 2a9 9 0 0 1 9 9c0 3.18-1.65 5.97-4.13 7.58L16 21H8l-.87-2.42A9.14 9.14 0 0 1 3 11 9 9 0 0 1 12 2z\"/><line x1=\"9\" y1=\"15\" x2=\"9.01\" y2=\"15\"/><line x1=\"15\" y1=\"15\" x2=\"15.01\" y2=\"15\"/><line x1=\"10\" y1=\"18\" x2=\"14\" y2=\"18\"/></svg>','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
+      else if(avgDPD>280) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg>','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
     }
 
     // Win rate check
     var _wGames=allMatches.filter(function(m){return m.outcome===2||m.outcome===3;});
     if(_wGames.length>=5){
       var _wr=_wGames.filter(function(m){return m.outcome===2;}).length/_wGames.length*100;
-      if(_wr<40) insights.push(insightCard('📉','Below 40% Win Rate','Your win rate over '+_wGames.length+' games is '+Math.round(_wr)+'% — focus on one playlist and map type until your fundamentals solidify.','var(--loss)'));
-      else if(_wr>=60) insights.push(insightCard('📈','Above 60% Win Rate','Winning '+Math.round(_wr)+'% of '+_wGames.length+' games — you are consistently outperforming your lobbies.','var(--win)'));
+      if(_wr<40) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','Below 40% Win Rate','Your win rate over '+_wGames.length+' games is '+Math.round(_wr)+'% — focus on one playlist and map type until your fundamentals solidify.','var(--loss)'));
+      else if(_wr>=60) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','Above 60% Win Rate','Winning '+Math.round(_wr)+'% of '+_wGames.length+' games — you are consistently outperforming your lobbies.','var(--win)'));
     }
 
     // Damage ratio
     var _dmgGames=allMatches.filter(function(m){return m.damageTaken>200&&m.damageDealt>200;});
     if(_dmgGames.length>=5){
       var _avgRatio=_dmgGames.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgGames.length;
-      if(_avgRatio<0.85) insights.push(insightCard('💢','Taking More Than Dealing','Avg damage ratio '+_avgRatio.toFixed(2)+' — absorbing more damage than you output. Escape bad fights earlier.','var(--loss)'));
-      else if(_avgRatio>1.2) insights.push(insightCard('💪','Damage Positive','Avg damage ratio '+_avgRatio.toFixed(2)+' — you consistently deal more damage than you take.','var(--win)'));
+      if(_avgRatio<0.85) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>','Taking More Than Dealing','Avg damage ratio '+_avgRatio.toFixed(2)+' — absorbing more damage than you output. Escape bad fights earlier.','var(--loss)'));
+      else if(_avgRatio>1.2) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/></svg>','Damage Positive','Avg damage ratio '+_avgRatio.toFixed(2)+' — you consistently deal more damage than you take.','var(--win)'));
     }
 
 
