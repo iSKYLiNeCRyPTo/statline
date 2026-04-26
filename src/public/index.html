@@ -769,6 +769,18 @@ function loadMatchHistory(page){
     var container=document.getElementById('matchHistoryContainer');
     if(container)container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading match history...</p></div>';
     var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+(page||1)+'&perPage=100';
+    // Render immediately from searchData if available, fetch API in background
+    var _sImmediate=searchData.allMatches||searchData.recentMatches||[];
+    if(_sImmediate.length>0){
+      var _si={matches:_sImmediate,page:1,totalPages:Math.max(1,Math.ceil(_sImmediate.length/25)),total:_sImmediate.length,_gamertag:gt};
+      matchHistoryData=_si;
+      matchHistoryLoading=false;
+      renderMatchHistory(_si);
+      fetch(url).then(function(r){return r.json();}).then(function(d){
+        if(d.matches&&d.matches.length>0){d._gamertag=gt;matchHistoryData=d;renderMatchHistory(d,matchHistoryData._clientPage||1);}
+      }).catch(function(){});
+      return;
+    }
     fetch(url).then(function(r){return r.json();}).then(function(d){
       // If server has no matches, fall back to what we have in searchData
       if(!d.matches||d.matches.length===0){
@@ -797,14 +809,49 @@ function loadMatchHistory(page){
   if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
   var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=100';
+  // If we already have matches in memory for this player, render them immediately
+  // then update in the background from the API
+  var _existing=getAllPlayers()[selectedPlayer];
+  var _existingMatches=_existing&&(_existing.allMatches||_existing.recentMatches)||[];
+  if(_existingMatches.length>0){
+    var _d={matches:_existingMatches,page:1,totalPages:Math.max(1,Math.ceil(_existingMatches.length/25)),total:_existingMatches.length,_gamertag:gt};
+    matchHistoryData=_d;
+    matchHistoryLoading=false;
+    renderMatchHistory(_d);
+    // Still fetch in background to get any newer matches, but don't show spinner
+    fetch(url).then(function(r){return r.json();}).then(function(d){
+      if(d.matches&&d.matches.length>0){
+        d._gamertag=gt;
+        matchHistoryData=d;
+        renderMatchHistory(d,matchHistoryData._clientPage||1);
+      }
+    }).catch(function(){});
+    return;
+  }
   fetch(url).then(function(r){return r.json();}).then(function(d){
+    // If API returns empty, fall back to in-memory matches
+    if(!d.matches||d.matches.length===0){
+      var fb=getAllPlayers()[selectedPlayer];
+      var fbM=fb&&(fb.allMatches||fb.recentMatches)||[];
+      if(fbM.length>0){d={matches:fbM,page:1,totalPages:1,total:fbM.length};}
+    }
     d._gamertag=gt;
     matchHistoryData=d;
     matchHistoryLoading=false;
     renderMatchHistory(d);
   }).catch(function(e){
-    container.innerHTML='<div class="error-card">Failed to load matches: '+e.message+'</div>';
-    matchHistoryLoading=false;
+    // On error, fall back to in-memory matches
+    var fb=getAllPlayers()[selectedPlayer];
+    var fbM=fb&&(fb.allMatches||fb.recentMatches)||[];
+    if(fbM.length>0){
+      var _fd={matches:fbM,page:1,totalPages:1,total:fbM.length,_gamertag:gt};
+      matchHistoryData=_fd;
+      matchHistoryLoading=false;
+      renderMatchHistory(_fd);
+    } else {
+      container.innerHTML='<div class="error-card">Failed to load matches: '+e.message+'</div>';
+      matchHistoryLoading=false;
+    }
   });
 }
 
@@ -943,10 +990,6 @@ function setTab(t){
   if(['bymap','charts','objectives','opponents'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
-  }
-  if(t==='objectives'){
-    // Small delay to let the tab render first, then resolve unknown gamertags
-    setTimeout(resolveSynergyGamertags, 150);
   }
   // Update desktop tab active state
   document.querySelectorAll('.dtab').forEach(function(b){
@@ -2052,43 +2095,6 @@ function toggleMatch(matchKey,idx){
 
 
 
-
-// Resolve unknown gamertags in the Team Synergy section
-async function resolveSynergyGamertags() {
-  var panel = document.querySelector('.tab-panel[data-tab="objectives"]');
-  if (!panel) return;
-  var skeletons = panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]');
-  var xuids = [];
-  skeletons.forEach(function(el) {
-    var x = el.getAttribute('data-syn-xuid');
-    if (x && xuids.indexOf(x) === -1) xuids.push(x);
-  });
-  if (!xuids.length) return;
-  try {
-    var res = await fetch('/api/resolve-gamertags?xuids=' + xuids.join(','));
-    var d = await res.json();
-    var gt = d.gamertags || {};
-    // Patch all skeleton elements with the resolved name
-    panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]').forEach(function(el) {
-      var xuid = el.getAttribute('data-syn-xuid');
-      if (!gt[xuid]) return;
-      var name = gt[xuid];
-      // Main header skeleton — replace with clickable name
-      if (el.style.animation) {
-        var span = document.createElement('span');
-        span.style.cssText = 'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit';
-        span.onclick = function(){ quickSearch(name); };
-        span.textContent = name;
-        el.parentNode.replaceChild(span, el);
-      } else {
-        // Detail panel header — show uppercase
-        el.textContent = name.toUpperCase();
-        el.removeAttribute('data-syn-xuid');
-        el.className = '';
-      }
-    });
-  } catch(e) { /* silent fail */ }
-}
 function toggleMapExpand(id){
   var panel=document.getElementById(id);
   var arr=document.getElementById(id+'_arr');
@@ -2243,7 +2249,6 @@ async function loadFullMatches(gamertag){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
       render();
-      if(activeTab==='objectives') setTimeout(resolveSynergyGamertags, 200);
     }
   }catch(e){ _hideBanner(); console.warn('[loadFullMatches]',e.message); }
 }
@@ -2438,12 +2443,11 @@ function renderTeamSynergy(duo,gamertag){
     // Avatar — use emblem endpoint if xuid available, gamerpic if not, initials as last resort
     var _isSpartanFallback=/^Spartan\s+\d+$/i.test(gt);
     var _initials=_isSpartanFallback?'?':gt.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
-    var _synXuid=tm.rawXuid||null;
-    var _synSrc=_synXuid?'/api/emblem?xuid='+_synXuid:(tm.gamerpicUrl||null);
+    var _synSrc=tm.rawXuid?'/api/emblem?xuid='+tm.rawXuid:(tm.gamerpicUrl||null);
     var _synPic=_synSrc
       ?'<div style="width:28px;height:28px;border-radius:4px;overflow:hidden;flex-shrink:0;background:var(--surface3);display:flex;align-items:center;justify-content:center"><img src="'+_synSrc+'" data-emblem-xuid="'+(tm.rawXuid||'')+'" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif">'+_initials+'</span></div>'
       :'<span style="width:28px;height:28px;border-radius:4px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif;flex-shrink:0">'+_initials+'</span>';
-    var _displayGt=_isSpartanFallback&&_synXuid?'<span class="syn-gt-skeleton" data-syn-xuid="'+_synXuid+'" style="display:inline-block;width:90px;height:11px;background:var(--surface3);border-radius:3px;vertical-align:middle;animation:gtpulse 1.2s ease-in-out infinite"></span>':(_isSpartanFallback?'<span style="color:var(--muted)">Unknown</span>':gt);
+    var _displayGt=_isSpartanFallback?'<span style="color:var(--muted)">Unknown Player</span>':gt;
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'+_synPic+'<span style="font-size:12px;font-weight:700;color:var(--text)">'+_displayGt+'</span></div>';
     html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace">'+tm.games+' games together</div>';
     html+='</div>';
@@ -2462,7 +2466,7 @@ function renderTeamSynergy(duo,gamertag){
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">';
     // Their column
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px">';
-    html+='<div style="font-size:11px;font-weight:700;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px;letter-spacing:1px">'+((_isSpartanFallback&&_synXuid)?'<span class="syn-gt-skeleton" data-syn-xuid="'+_synXuid+'">???</span>':gt.toUpperCase())+'</div>';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px;letter-spacing:1px">'+gt.toUpperCase()+'</div>';
     if(tmAvgKills!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--muted2)">Kills/game</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+tmAvgKills.toFixed(1)+'</span></div>';
     if(tmAvgKd!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--muted2)">K/D</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(tmAvgKd>=1?'var(--win)':'var(--loss)')+'">'+tmAvgKd.toFixed(2)+'</span></div>';
     if(tmAvgDmg!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:12px;color:var(--muted2)">Damage</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+Math.round(tmAvgDmg).toLocaleString()+'</span></div>';
