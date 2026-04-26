@@ -527,6 +527,50 @@ app.get('/api/map-image', async (req, res) => {
   }
 });
 
+
+// ── Admin: search log JSON ────────────────────────────────────────────────────
+app.get('/api/admin/searches', (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
+  if (pass !== ADMIN_PASS) return res.status(401).send('Unauthorized');
+  try {
+    if (!fs.existsSync(SEARCH_LOG)) return res.json({ searches: [], total: 0, uniquePlayers: 0, top: [] });
+    const lines = fs.readFileSync(SEARCH_LOG, 'utf8').trim().split('\n').filter(Boolean);
+    const searches = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const recent = searches.slice(-500).reverse();
+    const unique = [...new Set(searches.map(s => s.gamertag.toLowerCase()))];
+    const topMap = {};
+    searches.forEach(s => { const k = s.gamertag.toLowerCase(); topMap[k] = (topMap[k]||0)+1; });
+    const top = Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([gt,count])=>({gt,count}));
+    res.json({ total: searches.length, uniquePlayers: unique.length, top, searches: recent });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: search log UI ──────────────────────────────────────────────────────
+app.get('/api/admin', (req, res) => {
+  const pass = req.query.pass || '';
+  const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
+  if (pass !== ADMIN_PASS) {
+    return res.send(`<!DOCTYPE html><html><body style="font-family:monospace;background:#0a0f1a;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><form method="get"><input name="pass" type="password" placeholder="Password" style="padding:8px;background:#1a2035;border:1px solid #333;color:#fff;border-radius:4px;margin-right:8px"><button type="submit" style="padding:8px 16px;background:#00d4ff;color:#000;border:none;border-radius:4px;cursor:pointer">Enter</button></form></body></html>`);
+  }
+  res.send(`<!DOCTYPE html><html><head><title>fragr // searches</title>
+  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1{color:#00d4ff;font-size:16px;letter-spacing:2px;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.summary{display:flex;gap:24px;margin-bottom:24px}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035}.stat-val{font-size:28px;font-weight:700;color:#00d4ff}.stat-lbl{font-size:10px;color:#555;margin-top:2px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}</style></head>
+  <body><h1>// fragr search log</h1>
+  <div class="summary" id="summary">Loading...</div>
+  <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
+  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>CACHED</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
+  <script>
+  var allRows=[];
+  fetch('/api/admin/searches?pass=${pass}').then(r=>r.json()).then(d=>{
+    allRows=d.searches||[];
+    document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TOTAL SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>';
+    renderRows(allRows);
+  });
+  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+s.ts.replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached?'<span class="muted">cached</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
+  function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(r=>r.gamertag.toLowerCase().includes(q)):allRows);}
+  </script></body></html>`);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
