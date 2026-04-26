@@ -3076,49 +3076,67 @@ function render(){
       var streakStr=streak>1?(streakType==='W'?'<span style="color:var(--win)">'+streak+'W streak</span>':'<span style="color:var(--loss)">'+streak+'L streak</span>'):'';
 
       var _mapImgUrl=e.imageUrl?'/api/map-image?url='+encodeURIComponent(e.imageUrl):null;
-      html+='<div style="background:var(--surface);border:1px solid '+(isBest?'rgba(0,230,118,0.3)':isWorst?'rgba(255,61,87,0.3)':'var(--border)')+';border-radius:8px;overflow:hidden;display:flex;align-items:stretch">';
+      html+='<div style="background:var(--surface);border:1px solid '+(isBest?'rgba(0,230,118,0.3)':isWorst?'rgba(255,61,87,0.3)':'var(--border)')+';border-radius:8px;overflow:hidden">';
+      // Collapsed row — always visible, click anywhere to expand
+      html+='<div onclick="toggleMapExpand(\''+panelId+'\')" style="display:flex;align-items:stretch;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
       // Map thumbnail
       if(_mapImgUrl){
-        html+='<div style="width:100px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)" onclick="toggleMapExpand(\'' +panelId+'\')" >'
+        html+='<div style="width:90px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
           +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
           +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none"></div>'
           +'</div>';
       }
-      // Main row — always visible
-      html+='<div onclick="toggleMapExpand(\'' +panelId+'\')" style="flex:1;display:flex;align-items:center;gap:14px;padding:12px 16px;cursor:pointer;transition:background 0.15s">';
-      html+='<div style="flex:1;min-width:0">';
+      // Name + modes
+      html+='<div style="flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center">';
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
       html+='<span style="font-size:13px;font-weight:700;color:var(--text)">'+e.map+'</span>';
-      if(isBest)html+='<span style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;background:rgba(0,230,118,0.1);padding:1px 6px;border-radius:3px"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-1px\"><polyline points=\"20 6 9 17 4 12\"/></svg> BEST</span>';
-      if(isWorst)html+='<span style="font-size:8px;color:var(--loss);font-family:Share Tech Mono,monospace;background:rgba(255,61,87,0.1);padding:1px 6px;border-radius:3px"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"9\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg> WORST</span>';
+      if(isBest)html+='<span style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;background:rgba(0,230,118,0.1);padding:1px 6px;border-radius:3px"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-1px"><polyline points="20 6 9 17 4 12"/></svg> BEST</span>';
+      if(isWorst)html+='<span style="font-size:8px;color:var(--loss);font-family:Share Tech Mono,monospace;background:rgba(255,61,87,0.1);padding:1px 6px;border-radius:3px"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> WORST</span>';
       html+='</div>';
       html+='<div style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+modeStr+'</div>';
       html+='</div>';
-      // Stats cluster
-      html+='<div style="display:flex;gap:20px;align-items:center;flex-shrink:0">';
+      // Summary stats — win%, K/D, games count
+      html+='<div style="display:flex;gap:20px;align-items:center;padding:12px 16px;flex-shrink:0">';
       html+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+wrColor+'">'+wr+'%</div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">WIN</div></div>';
       html+='<div style="text-align:center"><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(parseFloat(kd)>=1?'var(--win)':'var(--loss)')+'">'+kd+'</div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">K/D</div></div>';
       html+='<div style="text-align:center"><div style="font-size:12px;color:var(--muted);font-family:Share Tech Mono,monospace">'+e.count+'</div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">GAMES</div></div>';
+      html+='<span style="color:var(--muted2);font-size:10px;margin-left:4px" id="'+panelId+'_arr">▼</span>';
       html+='</div>';
-      html+='<span style="color:var(--muted2);font-size:10px" id="'+panelId+'_arr">▼</span>';
-      html+='</div>'; // closes main row onclick div
-      // Expanded panel — inside card, below the flex row
-      html+='<div id="'+panelId+'" style="display:none;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface2)">';
-      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:12px">';
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:3px">AVG KILLS</div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgKills+'</div></div>';
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:3px">AVG DEATHS</div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgDeaths+'</div></div>';
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:3px">DMG RATIO</div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)')+'">'+dmgRatio+'</div></div>';
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:3px">RECORD</div><div style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
+      html+='</div>'; // end collapsed row
+
+      // Expanded panel — two column on desktop
+      html+='<div id="'+panelId+'" style="display:none;border-top:1px solid var(--border)">';
+      html+='<div style="display:grid;grid-template-columns:'+(e.imageUrl?'220px ':'')+'1fr;gap:0">';
+
+      // Left — large map image
+      if(e.imageUrl){
+        html+='<div style="position:relative;overflow:hidden;min-height:160px;background:var(--surface3)">'
+          +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
+          +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 60%,var(--surface2) 100%)"></div>'
+          +'</div>';
+      }
+
+      // Right — all stats
+      html+='<div style="padding:16px 20px;background:var(--surface2)">';
+
+      // Stat cards row
+      html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">';
+      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">AVG KILLS</div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgKills+'</div></div>';
+      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">AVG DEATHS</div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+avgDeaths+'</div></div>';
+      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">DMG RATIO</div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)')+'">'+dmgRatio+'</div></div>';
+      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">RECORD</div><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
       html+='</div>';
+
       // Recent form
-      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
-      html+='<span style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace">RECENT FORM</span>';
+      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
+      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">RECENT FORM</span>';
       html+=formDots;
       if(streakStr)html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;margin-left:4px">'+streakStr+'</span>';
       html+='</div>';
-      // Mode breakdown on this map
+
+      // Modes on this map
       if(topModes.length>1){
-        html+='<div style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-bottom:6px">MODES ON THIS MAP</div>';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:6px">MODES ON THIS MAP</div>';
         html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
         topModes.forEach(function(m){
           var mwr=Math.round((m[1].wins/m[1].count)*100);
@@ -3126,7 +3144,10 @@ function render(){
         });
         html+='</div>';
       }
-      html+='</div>'; // end expanded
+
+      html+='</div>'; // end right column
+      html+='</div>'; // end grid
+      html+='</div>'; // end expanded panel
       html+='</div>'; // end map card
     });
     html+='</div>'; // end map list
