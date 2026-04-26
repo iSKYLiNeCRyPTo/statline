@@ -3127,6 +3127,7 @@ function render(){
   (function(){
     if(allMatches.length<5) return;
     var insights=[];
+    function _durSecs(m){if(!m.duration)return 999;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):999;}
 
     function insightCard(icon,label,msg,color){
       return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
@@ -3163,7 +3164,7 @@ function render(){
     var dpkMatches=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0;});
     if(dpkMatches.length>=5){
       var avgDPK=dpkMatches.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/dpkMatches.length;
-      if(avgDPK>650) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\"/></svg>','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
+      if(avgDPK>800) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\"/></svg>','Leaving Kills on the Table','Avg '+Math.round(avgDPK)+' damage per kill — a perfect Bandit kill is 532 dmg (4 body + 1 head). You\'re taking too many shots to finish. Disengage and reset when fights go long rather than dumping extra shots into a shielding opponent.','var(--gold)'));
     }
 
     var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
@@ -3171,9 +3172,9 @@ function render(){
       var totK=0,totG=0,totM=0,totHS=0,totPW=0;
       weaponMatches.forEach(function(m){totK+=m.kills;totG+=m.weaponStats.grenades||0;totM+=m.weaponStats.melee||0;totHS+=m.weaponStats.headshots||0;totPW+=m.weaponStats.powerWeapon||0;});
       var gPct=totG/totK*100;var mPct=totM/totK*100;var hsPct2=totHS/totK*100;var pwPct=totPW/totK*100;
-      if(gPct>15) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
-      if(mPct>14) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0\"/><path d=\"M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2\"/><path d=\"M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/></svg>','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
-      if(hsPct2<20&&totHS>0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Low Headshot Rate','Only '+Math.round(hsPct2)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
+      if(gPct>22) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Heavy Grenade Reliance',Math.round(gPct)+'% of kills from grenades — grenades should be setting up Bandit fights, not closing them. At this rate opponents may be damaged enough that your gunfight positioning matters less than it should.','var(--muted)'));
+      if(mPct>32) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0\"/><path d=\"M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2\"/><path d=\"M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/></svg>','Over-Relying on Melee',Math.round(mPct)+'% of kills are melee — BXB combos are healthy but at '+Math.round(mPct)+'% you may be rushing into melee range instead of finishing gunfights. Opponents at higher ranks will punish aggressive melee approaches.','var(--gold)'));
+      if(hsPct2<15&&totHS>0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Not Finishing with the Headshot','Only '+Math.round(hsPct2)+'% of kills are headshots. The Bandit kill is 4 body + 1 head — the headshot is what closes the fight. You may be body-shotting to the kill instead, which is slower and gives opponents more time to escape or trade. Aim at chest level and let the final shot drift to the head.','var(--gold)'));
       if(pwPct>28) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"13\" y1=\"2\" x2=\"13\" y2=\"6\"/><line x1=\"21\" y1=\"2\" x2=\"21\" y2=\"6\"/><line x1=\"17\" y1=\"6\" x2=\"17\" y2=\"22\"/><line x1=\"9\" y1=\"22\" x2=\"25\" y2=\"22\"/><line x1=\"9\" y1=\"12\" x2=\"13\" y2=\"6\"/></svg>','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
     }
 
@@ -3263,6 +3264,104 @@ function render(){
       var _avgRatio=_dmgGames.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgGames.length;
       if(_avgRatio<0.85) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>','Taking More Than Dealing','Avg damage ratio '+_avgRatio.toFixed(2)+' — absorbing more damage than you output. Escape bad fights earlier.','var(--loss)'));
       else if(_avgRatio>1.2) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/></svg>','Damage Positive','Avg damage ratio '+_avgRatio.toFixed(2)+' — you consistently deal more damage than you take.','var(--win)'));
+    }
+
+
+    // ── SENSITIVITY / AIM INSIGHTS ─────────────────────────────────────────
+
+    // Look sensitivity signal: high accuracy but low headshot rate → sensitivity likely too fast (overshooting heads)
+    //                          low accuracy but decent headshot rate → sensitivity too slow (only landing when very close)
+    var _aimGames=allMatches.filter(function(m){return m.shotsFired>0&&m.shotsHit!=null&&m.kills>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
+    if(_aimGames.length>=8){
+      var _acc=_aimGames.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_aimGames.length;
+      var _hs=_aimGames.reduce(function(s,m){return s+(m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:0);},0)/_aimGames.length;
+      var _dpk=_aimGames.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/_aimGames.length;
+      // High body accuracy but low headshots — shots landing body but not tracking to head → sens too high
+      if(_acc>=45&&_hs<15&&_dpk>700){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Lowering Look Sensitivity','Accuracy ('+_acc.toFixed(1)+'%) is solid but only '+_hs.toFixed(0)+'% headshot kills — with the Bandit you need the closing headshot on every kill. You may be dropping to body level before firing. Try aiming at chin height and your natural recoil compensation should land the finish on the head. If you feel like you\'re overshooting, try dropping sensitivity by 1.','var(--accent)'));
+      }
+      // Low accuracy overall but higher headshot % — only landing when almost stationary → sens too low / deadzone masking input
+      else if(_acc<40&&_hs>=18){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Raising Look Sensitivity','Low accuracy ('+_acc.toFixed(1)+'%) but solid headshot rate ('+_hs.toFixed(0)+'%) — you\'re precise when still but missing when targets strafe. With the Bandit this usually means sensitivity is too low to track lateral movement. Try raising look sensitivity by 1 or reducing your outer deadzone to improve strafe-tracking.','var(--accent)'));
+      }
+    }
+
+    // Deadzone signal: very low accuracy on close-range maps (high melee %) — controller input lag / sluggish response
+    var _meleeHeavy=_aimGames.filter(function(m){return m.weaponStats&&m.kills>0&&m.weaponStats.melee/m.kills>0.25;});
+    if(_meleeHeavy.length>=5){
+      var _meleeAcc=_meleeHeavy.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_meleeHeavy.length;
+      if(_meleeAcc<38){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Check Your Inner Deadzone','In close-range fights you finish with melee '+Math.round(_meleeHeavy.length/_aimGames.length*100)+'% of the time, but your accuracy in those games is only '+_meleeAcc.toFixed(1)+'%. A large inner deadzone can cause sluggish micro-adjustments at close range — try reducing it by 5-10% in Halo\'s controller settings.','var(--gold)'));
+      }
+    }
+
+    // Trigger discipline — calibrated for Bandit Evo (5-shot perfect, 7-8 realistic)
+    // >13 = spraying/missing, <7 = suspiciously clean (possible power weapon skew)
+    if(_aimGames.length>=8){
+      var _spk=_aimGames.reduce(function(s,m){return s+m.shotsFired/m.kills;},0)/_aimGames.length;
+      if(_spk>9.5){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Trigger Discipline','Avg '+Math.round(_spk)+' shots fired per kill. Against above-average ranked players a clean Bandit kill should be 5-7 shots — you\'re taking too long to finish fights. Focus on landing your first 2-3 shots before committing, and disengage if you miss your opener rather than spraying to finish.','var(--gold)'));
+      } else if(_spk>=5&&_spk<=7&&_aimGames.length>=10){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Clean Bandit Gunfights','Avg '+Math.round(_spk)+' shots per kill — right where it should be — the Bandit kills in 5 shots (4 body + 1 head). 6-7 is clean. You\'re winning gunfights without wasting ammo.','var(--win)'));
+      }
+    }
+
+    // ── TEAM & ASSIST INSIGHTS ──────────────────────────────────────────────
+
+    var _assistGames=allMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&m.kills>0&&m.assists!=null&&_durSecs(m)>=60;});
+    if(_assistGames.length>=8){
+      var _avgAssistRatio=_assistGames.reduce(function(s,m){return s+m.assists/(m.kills+m.assists);},0)/_assistGames.length*100;
+      if(_avgAssistRatio>40){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>','Strong Team Player',''+Math.round(_avgAssistRatio)+'% of your kill participations are assists — you set teammates up well. Make sure you\'re following up on your own damage to convert more of those into kills.','var(--accent)'));
+      } else if(_avgAssistRatio<12){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>','Going Solo','Only '+Math.round(_avgAssistRatio)+'% of your participations are assists. Try communicating callouts and softening targets before committing — sharing damage leads to cleaner trades and fewer deaths.','var(--gold)'));
+      }
+    }
+
+    // ── PERFORMANCE VS EXPECTATION ──────────────────────────────────────────
+
+    var _expGames=allMatches.filter(function(m){return m.expectedKills!=null&&m.expectedDeaths!=null&&m.kills!=null&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
+    if(_expGames.length>=5){
+      var _killDelta=_expGames.reduce(function(s,m){return s+(m.kills-m.expectedKills);},0)/_expGames.length;
+      var _deathDelta=_expGames.reduce(function(s,m){return s+(m.deaths-m.expectedDeaths);},0)/_expGames.length;
+      if(_killDelta>1.5&&_deathDelta<0.5){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Outperforming Your MMR','You average +'+_killDelta.toFixed(1)+' kills above expectation per game — you\'re playing above your current rank. Keep the consistency and CSR should follow.','var(--win)'));
+      } else if(_killDelta<-1.5){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Below Kill Expectation','Averaging '+_killDelta.toFixed(1)+' kills vs expectation. The matchmaker expects more from you at this MMR — focus on taking safer, higher-percentage fights rather than challenging every duel.','var(--loss)'));
+      }
+      if(_deathDelta>2){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Dying Too Much for Your MMR',''+_deathDelta.toFixed(1)+' deaths above expectation per game. Your opponents are punishing overextensions that players at your MMR typically avoid. Play slower — let them come to you.','var(--loss)'));
+      }
+    }
+
+    // ── STAMINA / LATE-GAME FADE ────────────────────────────────────────────
+
+    var _longGames=allMatches.filter(function(m){return _durSecs(m)>=480&&(m.outcome===2||m.outcome===3)&&m.kills!=null;});
+    var _shortGames=allMatches.filter(function(m){return _durSecs(m)>=60&&_durSecs(m)<300&&(m.outcome===2||m.outcome===3)&&m.kills!=null;});
+    if(_longGames.length>=4&&_shortGames.length>=4){
+      function _kpm(arr){return arr.reduce(function(s,m){return s+m.kills/_durSecs(m)*60;},0)/arr.length;}
+      var _lkpm=_kpm(_longGames);var _skpm=_kpm(_shortGames);
+      if(_skpm>0&&(_lkpm/_skpm)<0.65){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M18 8h1a4 4 0 0 1 0 8h-1\"/><path d=\"M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z\"/><line x1=\"6\" y1=\"1\" x2=\"6\" y2=\"4\"/><line x1=\"10\" y1=\"1\" x2=\"10\" y2=\"4\"/><line x1=\"14\" y1=\"1\" x2=\"14\" y2=\"4\"/></svg>','Late-Game Fade','Your kill rate drops to '+(_lkpm/_skpm*100).toFixed(0)+'% of your early pace in longer games. You may be fatiguing — take more cover in late rounds, rely on utility, and avoid unnecessary fights when the clock is running down.','var(--gold)'));
+      } else if(_skpm>0&&(_lkpm/_skpm)>1.2){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M18 8h1a4 4 0 0 1 0 8h-1\"/><path d=\"M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z\"/><line x1=\"6\" y1=\"1\" x2=\"6\" y2=\"4\"/><line x1=\"10\" y1=\"1\" x2=\"10\" y2=\"4\"/><line x1=\"14\" y1=\"1\" x2=\"14\" y2=\"4\"/></svg>','Warms Up Slowly','You perform '+Math.round((_lkpm/_skpm-1)*100)+'% better in longer games than short ones — you\'re a slow starter. Play extra conservatively in the first minute while you get your bearings.','var(--accent)'));
+      }
+    }
+
+    // ── CLOSE RANGE vs LONG RANGE ───────────────────────────────────────────
+
+    var _rangeGames=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0&&m.shotsFired>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
+    if(_rangeGames.length>=8){
+      // Proxy for engagement range: high damage-per-kill with high shots-per-kill = longer range fights
+      // Low DPK with low SPK = close quarters bursts
+      var _avgSpk=_rangeGames.reduce(function(s,m){return s+m.shotsFired/m.kills;},0)/_rangeGames.length;
+      var _avgDpk=_rangeGames.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/_rangeGames.length;
+      var _meleePct2=_rangeGames.reduce(function(s,m){return s+(m.weaponStats?m.weaponStats.melee/m.kills:0);},0)/_rangeGames.length*100;
+      if(_meleePct2>20&&_avgSpk<20){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/><line x1=\"8\" y1=\"11\" x2=\"14\" y2=\"11\"/></svg>','Close-Quarters Specialist',''+Math.round(_meleePct2)+'% melee rate and efficient shots-per-kill suggest you thrive in close range. Use this — prioritise SMG and shotgun spawns and look for flanks rather than holding long sightlines.','var(--accent)'));
+      } else if(_avgSpk>24&&_avgDpk>680&&_meleePct2<10){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/><line x1=\"8\" y1=\"11\" x2=\"14\" y2=\"11\"/></svg>','Long-Range Fighter','High shots-per-kill and low melee rate suggests you prefer distance. Practise your movement when opponents close the gap — backpedal, battle rifle burst, and use grenades to punish rushes.','var(--accent)'));
+      }
     }
 
 
