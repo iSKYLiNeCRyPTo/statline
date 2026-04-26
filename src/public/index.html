@@ -268,7 +268,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .team-divider{border:none;border-top:1px solid var(--border);margin:10px 0}
 .loading{text-align:center;padding:80px 24px;color:var(--muted)}
 .spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
-@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes gtpulse{0%,100%{opacity:0.4}50%{opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
@@ -1426,7 +1426,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
         checkBadge='<span title="'+check.reason.replace(/"/g,"'")+' — click to search" style="margin-left:4px;font-size:9px;cursor:pointer;color:'+cbColor+'" onclick="event.stopPropagation();quickSearch(\'' +pl.gamertag.replace(/'/g,"\\'")+'\')">'+cbIcon+'</span>';
       }
       var isSpartan=pl.gamertag&&pl.gamertag.startsWith('Spartan ');
-      var displayGt=isSpartan?'<span style="color:var(--muted);font-style:italic">Unknown Player</span>':pl.gamertag;
+      var displayGt=isSpartan?'<span class="gt-skeleton" style="display:inline-block;width:80px;height:10px;background:var(--surface3);border-radius:3px;vertical-align:middle;animation:gtpulse 1.2s ease-in-out infinite"></span>':pl.gamertag;
             var _gtFavBtn=(!isMe&&!isSpartan)?'<span data-gt="'+pl.gamertag.replace(/"/g,'&quot;')+'" onclick="event.stopPropagation();toggleFav(this.dataset.gt)" title="Toggle favorite" style="margin-left:3px;font-size:9px;cursor:pointer;opacity:0.4;color:#ffc107" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">'+( isFavorite(pl.gamertag)?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span>':'';
       var gtLink=isMe?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg> '+pl.gamertag:(isSpartan?displayGt:'<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\''+pl.gamertag.replace(/'/g,"\\\'")+'\')">'+pl.gamertag+'</span>'+checkBadge+_gtFavBtn);
       // Emblem/gamerpic — tracked players get Halo emblem, all others get Xbox gamerpic if available
@@ -1443,7 +1443,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
           +'</div>';
       }
       var _plAccStr=pl.accuracy!=null?parseFloat(pl.accuracy).toFixed(1)+'%':'—';
-      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
+      html+='<tr'+(isMe?' class="me-row"':'')+(pl.rawXuid?' data-xuid="'+pl.rawXuid+'"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
     });
     html+='</tbody></table>';
   });
@@ -2044,10 +2044,34 @@ function toggleMatch(matchKey,idx){
   panel.innerHTML=renderMatchDetail(m,m,baselines,_gdsF(m));
   card.appendChild(panel);
   card.classList.add('expanded');
+  resolveMatchGamertags(card);
 }
 
 
 
+
+// Resolve unknown gamertags in an expanded match card
+async function resolveMatchGamertags(card) {
+  var unknownRows = card.querySelectorAll('tr[data-xuid]');
+  var xuids = [];
+  unknownRows.forEach(function(row) {
+    var xuid = row.getAttribute('data-xuid');
+    if (xuid && row.querySelector('.gt-skeleton')) xuids.push(xuid);
+  });
+  if (!xuids.length) return;
+  try {
+    var res = await fetch('/api/resolve-gamertags?xuids=' + xuids.join(','));
+    var data = await res.json();
+    var gt = data.gamertags || {};
+    unknownRows.forEach(function(row) {
+      var xuid = row.getAttribute('data-xuid');
+      if (xuid && gt[xuid]) {
+        var skeleton = row.querySelector('.gt-skeleton');
+        if (skeleton) skeleton.outerHTML = '<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\'' + gt[xuid].replace(/'/g, "\\'") + '\')">' + gt[xuid] + '</span>';
+      }
+    });
+  } catch(e) { /* silent fail — skeleton stays */ }
+}
 function toggleMapExpand(id){
   var panel=document.getElementById(id);
   var arr=document.getElementById(id+'_arr');
@@ -3152,8 +3176,8 @@ function render(){
       html+='<div style="padding:20px 24px;background:var(--surface2)">';
 
       // Row 1 — core stats
-      html+='<div class="mapexp-stats-row" style="margin-bottom:20px">';
-      function _mStat(label,val,color){return'<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">'+label+'</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
+      html+='<div class="mapexp-stats-row">';
+      function _mStat(label,val,color){return'<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">'+label+'</div><div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
       html+=_mStat('AVG KILLS',avgKills);
       html+=_mStat('AVG DEATHS',avgDeaths);
       html+=_mStat('AVG ASSISTS',e.assists&&_validGames?(e.assists/_validGames).toFixed(1):'—');
@@ -3161,11 +3185,11 @@ function render(){
       html+='</div>';
 
       // Row 2 — accuracy, CSR, headshot rate, damage ratio
-      html+='<div class="mapexp-stats-row" style="margin-bottom:20px">';
+      html+='<div class="mapexp-stats-row">';
       html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=50?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<40?'var(--loss)':'var(--text)');
       html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
       html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
-      html+='<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">RECORD</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
+      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">RECORD</div><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
       html+='</div>';
 
       // CSR net bar if we have data
