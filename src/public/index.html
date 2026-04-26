@@ -1692,13 +1692,18 @@ function renderCsrFromMatches(matches,playlist,color){
   if(!lastCsr)return'';
 
   // Build array of CSR values + outcomes — draws always plot flat (0 delta)
+  // pm is oldest→newest. vals[i] = CSR after match pm[i].
+  // We reconstruct backwards from lastCsr (= CSR after pm[pm.length-1]).
   var vals=[lastCsr];
   var outcomes=[pm[pm.length-1].outcome];
   for(var i=0;i<pm.length-1;i++){
-    var _m=pm[pm.length-1-i];
+    // _m is the match whose result produced vals[0] (the current earliest point)
+    // We need to prepend the CSR *before* _m, i.e. after pm[pm.length-2-i]
+    var _m=pm[pm.length-1-i]; // match that produced the current vals[0]
+    var _prev=pm[pm.length-2-i]; // match before it
     var _isDraw=_m.outcome!==2&&_m.outcome!==3;
     if(_isDraw){
-      vals.unshift(vals[0]); // flat — no CSR change on a draw
+      vals.unshift(vals[0]); // flat — draw means no CSR change
     } else {
       var _d=_getDelta(_m);
       if(_d!=null){
@@ -1710,7 +1715,7 @@ function renderCsrFromMatches(matches,playlist,color){
         vals.unshift(vals[0]);
       }
     }
-    outcomes.unshift(pm[pm.length-2-i].outcome);
+    outcomes.unshift(_prev.outcome); // outcome of the match that ended at this new point
   }
 
   var w=800,h=130,pad={t:18,r:70,b:24,l:44};
@@ -1730,10 +1735,11 @@ function renderCsrFromMatches(matches,playlist,color){
     svg+='<text x="'+(pad.l-4)+'" y="'+(gy+4)+'" text-anchor="end" fill="#3a5070" font-size="9" font-family="Share Tech Mono">'+Math.round(gv)+'</text>';
   }
 
-  // Color segments — green for gains, red for losses
+  // Color segments — green for gains, red for losses, gray for draws
   for(var si=0;si<n-1;si++){
-    var segColor=vals[si+1]>=vals[si]?'rgba(0,230,118,0.15)':'rgba(255,61,87,0.1)';
-    svg+='<line x1="'+x(si)+'" y1="'+y(vals[si])+'" x2="'+x(si+1)+'" y2="'+y(vals[si+1])+'" stroke="'+(vals[si+1]>=vals[si]?'rgba(0,230,118,0.5)':'rgba(255,61,87,0.5)')+'" stroke-width="1.5"/>';
+    var _drawSeg=outcomes[si+1]!==2&&outcomes[si+1]!==3;
+    var _segStroke=_drawSeg?'rgba(74,106,144,0.6)':(vals[si+1]>=vals[si]?'rgba(0,230,118,0.5)':'rgba(255,61,87,0.5)');
+    svg+='<line x1="'+x(si)+'" y1="'+y(vals[si])+'" x2="'+x(si+1)+'" y2="'+y(vals[si+1])+'" stroke="'+_segStroke+'" stroke-width="1.5"'+(vals[si+1]===vals[si]?' stroke-dasharray="4,3"':'')+'/>';
   }
 
   // Main line
