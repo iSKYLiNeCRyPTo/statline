@@ -3029,9 +3029,19 @@ function render(){
 
   // Kill breakdown
   (function(){
+    function _durSecs(m){if(!m.duration)return 999;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):999;}
     var _kbSample=displayMatches.slice(0,50);
-    var totalHS=0,totalMelee=0,totalGrenades=0,totalPower=0,totalKillsSample=0,totalDeathsSample=0,kbWins=0,kbLosses=0;
+    var totalHS=0,totalMelee=0,totalGrenades=0,totalPower=0,totalKillsSample=0,totalDeathsSample=0,kbWins=0,kbLosses=0,kbDraws=0;
+    var totalShotsFired=0,totalShotsHit=0;
     _kbSample.forEach(function(m){
+      var isDraw=m.outcome!==2&&m.outcome!==3;
+      var isTooShort=_durSecs(m)<60;
+      // Count record for all games
+      if(m.outcome===2) kbWins++;
+      else if(m.outcome===3) kbLosses++;
+      else kbDraws++;
+      // Skip draws and sub-1-minute games from stats — their data is unreliable
+      if(isDraw||isTooShort) return;
       var ws=m.weaponStats||{};
       totalHS+=(ws.headshots||0);
       totalMelee+=(ws.melee||0);
@@ -3039,11 +3049,9 @@ function render(){
       totalPower+=(ws.powerWeapon||0);
       totalKillsSample+=(m.kills||0);
       totalDeathsSample+=(m.deaths||0);
-      if(m.outcome===2)kbWins++;
-      else if(m.outcome===3)kbLosses++;
+      totalShotsFired+=(m.shotsFired||0);
+      totalShotsHit+=(m.shotsHit||0);
     });
-    var totalShotsFired=0,totalShotsHit=0;
-    _kbSample.forEach(function(m){totalShotsFired+=(m.shotsFired||0);totalShotsHit+=(m.shotsHit||0);});
     var kbAccuracy=totalShotsFired>0?(totalShotsHit/totalShotsFired*100).toFixed(1):null;
     var hasWeaponData=totalHS+totalMelee+totalGrenades+totalPower>0;
     if(!hasWeaponData||!totalKillsSample) return;
@@ -3053,6 +3061,7 @@ function render(){
     var grenPct=Math.round((totalGrenades/totalKills)*100);
     var powerPct=Math.round((totalPower/totalKills)*100);
     var otherPct=Math.max(0,100-hsPct-meleePct-grenPct-powerPct);
+    var _validGames=_kbSample.filter(function(m){return m.outcome===2||m.outcome===3;}).filter(function(m){return _durSecs(m)>=60;});
     var sampleLabel='last '+_kbSample.length+' games';
     html+=sectionHead('Kill Breakdown',sampleLabel);
     function killStat(label,val,pct,color){
@@ -3066,11 +3075,13 @@ function render(){
     var kbKD=totalDeathsSample>0?(totalKillsSample/totalDeathsSample).toFixed(2):totalKillsSample.toFixed(2);
     var kbKDColor=parseFloat(kbKD)>=1?'var(--win)':'var(--loss)';
     var kbWLColor=kbWins>=kbLosses?'var(--win)':'var(--loss)';
+    var recordStr=kbWins+'W <span style="color:var(--muted);font-size:18px">/</span> '+kbLosses+'L'+(kbDraws?' <span style="color:var(--muted);font-size:18px">/</span> <span style="color:var(--muted2)">'+kbDraws+'D</span>':'');
+    var winPct=Math.round(kbWins/((kbWins+kbLosses)||1)*100);
     html+='<div class="stat-row">'
-      +'<div class="stat-card"><div class="stat-label">Record</div><div class="stat-value" style="color:'+kbWLColor+'">'+kbWins+'W <span style="color:var(--muted);font-size:18px">/</span> '+kbLosses+'L</div><div class="stat-sub">'+Math.round(kbWins/(kbWins+kbLosses||1)*100)+'% win rate</div></div>'
+      +'<div class="stat-card"><div class="stat-label">Record</div><div class="stat-value" style="color:'+kbWLColor+';font-size:'+(kbDraws?'20px':'28px')+'">'+recordStr+'</div><div class="stat-sub">'+winPct+'% win rate</div></div>'
       +'<div class="stat-card"><div class="stat-label">K / D</div><div class="stat-value" style="color:'+kbKDColor+'">'+kbKD+'</div><div class="stat-sub">'+totalKillsSample+' kills · '+totalDeathsSample+' deaths</div></div>'
-      +'<div class="stat-card"><div class="stat-label">Kills</div><div class="stat-value" style="color:var(--win)">'+totalKillsSample+'</div><div class="stat-sub">'+(totalKillsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
-      +'<div class="stat-card"><div class="stat-label">Deaths</div><div class="stat-value" style="color:var(--loss)">'+totalDeathsSample+'</div><div class="stat-sub">'+(totalDeathsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
+      +'<div class="stat-card"><div class="stat-label">Kills</div><div class="stat-value" style="color:var(--win)">'+totalKillsSample+'</div><div class="stat-sub">'+(_validGames.length?totalKillsSample/_validGames.length:0).toFixed(1)+' per game</div></div>'
+      +'<div class="stat-card"><div class="stat-label">Deaths</div><div class="stat-value" style="color:var(--loss)">'+totalDeathsSample+'</div><div class="stat-sub">'+(_validGames.length?totalDeathsSample/_validGames.length:0).toFixed(1)+' per game</div></div>'
       +(kbAccuracy!==null?'<div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" style="color:var(--accent)">'+kbAccuracy+'%</div><div class="stat-sub">shots hit / fired</div></div>':'')
       +killStat('Headshots',totalHS,hsPct,'#ff6b6b')
       +killStat('Power Weapon',totalPower,powerPct,'var(--gold)')
