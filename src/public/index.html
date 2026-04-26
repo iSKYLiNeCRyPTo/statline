@@ -817,30 +817,36 @@ function renderMatchHistory(d,clientPage){
   // Store current client page on the data object for re-renders
   d._clientPage=page;
   
-  // Build mode baselines from all loaded matches for connection quality
-  var validM=matches.filter(function(m){return m.damageDealt>500&&m.damageTaken>500;});
+  // Build mode baselines from ALL matches (not just current page) with strict data quality filters
   function getDurSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+  function isValidBaselineMatch(m){
+    var s=getDurSecs(m);
+    return s>=180&&m.damageDealt>=300&&m.damageTaken>=300&&(m.outcome===2||m.outcome===3);
+  }
+  function avg(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:0;}
+  function trimmedAvg(arr){
+    if(arr.length<6)return avg(arr);
+    var s=arr.slice().sort(function(a,b){return a-b;});
+    var cut=Math.max(1,Math.floor(s.length*0.1));
+    return avg(s.slice(cut,s.length-cut));
+  }
+  var _baseSource=(allMatches||[]).filter(isValidBaselineMatch);
   var buckets={};
-  validM.forEach(function(m){
+  _baseSource.forEach(function(m){
     var mode=m.gameMode||'Unknown';
-    var key=mode;
-    if(!buckets[key])buckets[key]={dpmDealt:[],dpmTaken:[],deaths:[],acc:[]};
-    if(!buckets['__overall__'])buckets['__overall__']={dpmDealt:[],dpmTaken:[],deaths:[],acc:[]};
     var mins=getDurSecs(m)/60||1;
-    buckets[key].dpmDealt.push((m.damageDealt||0)/mins);
-    buckets[key].dpmTaken.push((m.damageTaken||0)/mins);
-    buckets[key].deaths.push(m.deaths||0);
-    if(m.accuracy!=null)buckets[key].acc.push(m.accuracy);
-    buckets['__overall__'].dpmDealt.push((m.damageDealt||0)/mins);
-    buckets['__overall__'].dpmTaken.push((m.damageTaken||0)/mins);
-    buckets['__overall__'].deaths.push(m.deaths||0);
-    if(m.accuracy!=null)buckets['__overall__'].acc.push(m.accuracy);
+    [mode,'__overall__'].forEach(function(k){
+      if(!buckets[k])buckets[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
+      buckets[k].dpmDealt.push(m.damageDealt/mins);
+      buckets[k].dpmTaken.push(m.damageTaken/mins);
+      if(m.accuracy!=null)buckets[k].acc.push(parseFloat(m.accuracy));
+      if(m.kills>0&&m.shotsFired>0)buckets[k].spk.push(m.shotsFired/m.kills);
+    });
   });
-  function avg(arr){return arr.length>0?arr.reduce(function(a,b){return a+b;},0)/arr.length:0;}
   var baselines={};
   Object.keys(buckets).forEach(function(k){
     var b=buckets[k];
-    baselines[k]={avgDpmDealt:avg(b.dpmDealt),avgDpmTaken:avg(b.dpmTaken),avgDeaths:avg(b.deaths),avgAcc:avg(b.acc),count:b.dpmDealt.length};
+    baselines[k]={avgDpmDealt:trimmedAvg(b.dpmDealt),avgDpmTaken:trimmedAvg(b.dpmTaken),avgAcc:trimmedAvg(b.acc),avgSpk:trimmedAvg(b.spk),count:b.dpmDealt.length};
   });
 
   // Store globally so toggleMatch can access them
@@ -1484,98 +1490,101 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   return html+'</div>';
 }
 function analyzeConnectionQuality(m, modeBaselines) {
-  // Require meaningful damage data
-  if (!m.damageDealt || !m.damageTaken || m.damageDealt < 500 || m.damageTaken < 500) return null;
+  // Require a real competitive game — filter out early quits, draws, forfeit games
+  var dm=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);
+  var secs=dm?(parseInt(dm[1]||0)*3600)+(parseInt(dm[2]||0)*60)+parseFloat(dm[3]||0):0;
+  var mins=secs/60;
+  if(mins<3) return null;                          // under 3 min — meaningless data
+  if(!m.damageDealt||m.damageDealt<300) return null;
+  if(!m.damageTaken||m.damageTaken<300) return null;
+  if(m.outcome!==2&&m.outcome!==3) return null;   // draws unreliable
 
-  // Get match duration in minutes
-  var dm = String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);
-  var mins = dm ? (parseInt(dm[1]||0)*60)+(parseInt(dm[2]||0))+(parseFloat(dm[3]||0)/60) : null;
-  if (!mins || mins < 1) return null;
+  // Use per-minute rates throughout to normalise for game length
+  var dpmDealt=m.damageDealt/mins;
+  var dpmTaken=m.damageTaken/mins;
+  var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
+  var kd=m.deaths>0?m.kills/m.deaths:m.kills;
+  var spk=m.kills>0&&m.shotsFired>0?m.shotsFired/m.kills:null;
 
-  // Look up mode-specific baselines — fall back to overall if mode not found
-  var mode = m.gameMode||'Unknown';
-  var bl = modeBaselines[mode] || modeBaselines['__overall__'];
-  if (!bl || bl.count < 3) return null; // need at least 3 games to compare
+  // Get baseline — prefer mode-specific, fall back to overall, require min 5 games
+  var mode=m.gameMode||'Unknown';
+  var bl=modeBaselines[mode]||modeBaselines['__overall__'];
+  if(!bl||bl.count<5) return null;
 
-  var dpmDealt = m.damageDealt / mins;
-  var dpmTaken = m.damageTaken / mins;
-  var acc      = m.accuracy != null ? m.accuracy : null;
-  var kd       = m.deaths > 0 ? m.kills / m.deaths : m.kills;
-  var tankRatio = m.damageTaken / m.damageDealt;
+  var dpmDealtRatio=bl.avgDpmDealt>0?dpmDealt/bl.avgDpmDealt:1;
+  var dpmTakenRatio=bl.avgDpmTaken>0?dpmTaken/bl.avgDpmTaken:1;
+  var accDelta=acc!=null&&bl.avgAcc>0?acc-bl.avgAcc:null;
+  // Bandit SPK signal: your personal SPK vs baseline (9+ is spraying, 5-7 is clean)
+  var spkDelta=spk!=null&&bl.avgSpk>0?spk-bl.avgSpk:null;
 
-  // Ratios vs mode baseline
-  var dpmDealtRatio  = bl.avgDpmDealt  > 0 ? dpmDealt  / bl.avgDpmDealt  : 1;
-  var dpmTakenRatio  = bl.avgDpmTaken  > 0 ? dpmTaken  / bl.avgDpmTaken  : 1;
-  var deathRatio     = bl.avgDeaths    > 0 ? m.deaths  / bl.avgDeaths    : 1;
-  var accDelta       = (acc != null && bl.avgAcc > 0) ? acc - bl.avgAcc : null; // % points above/below your norm
+  var signals=[];
+  var score=0;
 
-  var signals = [];
-  var score = 0;
-
-  // ── SERVER-SIDE: Accuracy significantly above your mode norm ──
-  if (accDelta != null && accDelta >= 12 && kd >= 1.5 && m.kills >= 8) {
-    signals.push({ bad: false, msg: 'Accuracy ' + acc.toFixed(1) + '% vs your ' + bl.avgAcc.toFixed(1) + '% avg for this mode (+' + accDelta.toFixed(1) + '%) — shots landing cleanly' });
-    score += 2;
-  } else if (accDelta != null && accDelta >= 7 && kd >= 2.0) {
-    signals.push({ bad: false, msg: 'Accuracy ' + acc.toFixed(1) + '% (+' + accDelta.toFixed(1) + '% above your ' + mode.replace('Ranked ','') + ' avg) — hitreg in your favor' });
-    score += 1;
+  // ── GOOD CONNECTION signals ──────────────────────────────────────────
+  // Accuracy well above your norm
+  if(accDelta!=null&&accDelta>=10&&kd>=1.5){
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+bl.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
+    score+=2;
+  } else if(accDelta!=null&&accDelta>=6&&kd>=1.8){
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your '+mode.replace('Ranked ','')+' avg) — hitreg in your favour'});
+    score+=1;
+  }
+  // DPM well above baseline with good K/D
+  if(dpmDealtRatio>1.35&&kd>=1.8){
+    signals.push({bad:false,msg:Math.round(dpmDealt)+' dmg/min vs your '+Math.round(bl.avgDpmDealt)+' avg (+'+Math.round((dpmDealtRatio-1)*100)+'%) — shots registering'});
+    score+=1;
+  }
+  // Bandit SPK: well below your own average (cleaner kills than usual)
+  if(spkDelta!=null&&spkDelta<=-1.5&&spk<=7){
+    signals.push({bad:false,msg:spk.toFixed(1)+' shots/kill vs your '+bl.avgSpk.toFixed(1)+' avg — winning gunfights faster than usual'});
+    score+=1;
+  }
+  // MMR expectation significantly beaten
+  if(m.expectedKills!=null&&m.kills>m.expectedKills+4&&dpmDealtRatio>1.1){
+    signals.push({bad:false,msg:'+'+(m.kills-Math.round(m.expectedKills))+' kills above MMR expectation — server-side advantage'});
+    score+=1;
   }
 
-  // ── SERVER-SIDE: DPM well above mode norm + strong K/D ──
-  if (dpmDealtRatio > 1.4 && kd >= 1.8 && m.kills >= 10) {
-    signals.push({ bad: false, msg: Math.round(dpmDealt) + ' dmg/min vs your ' + Math.round(bl.avgDpmDealt) + ' ' + mode.replace('Ranked ','') + ' avg (+' + Math.round((dpmDealtRatio-1)*100) + '%) — shots registering' });
-    score += 1;
+  // ── POOR CONNECTION signals ──────────────────────────────────────────
+  // Accuracy well below your norm — strongest signal
+  if(accDelta!=null&&accDelta<=-12){
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+bl.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — shots not registering server-side'});
+    score-=3;
+  } else if(accDelta!=null&&accDelta<=-8){
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your '+mode.replace('Ranked ','')+' norm) — suspect hitreg'});
+    score-=2;
+  }
+  // DPM tanked AND taking more damage — lag comp against you
+  if(dpmDealtRatio<0.6&&dpmTakenRatio>1.5){
+    signals.push({bad:true,msg:'Damage output '+Math.round((1-dpmDealtRatio)*100)+'% below your avg while taking '+Math.round((dpmTakenRatio-1)*100)+'% more — lag comp against you'});
+    score-=3;
+  } else if(dpmDealtRatio<0.65){
+    signals.push({bad:true,msg:Math.round(dpmDealt)+' dmg/min ('+Math.round((1-dpmDealtRatio)*100)+'% below your '+mode.replace('Ranked ','')+' avg) — shots not registering'});
+    score-=2;
+  }
+  // Bandit SPK: significantly above your own baseline (forced to fire more to kill)
+  if(spkDelta!=null&&spkDelta>=2.5&&spk>=10){
+    signals.push({bad:true,msg:spk.toFixed(1)+' shots/kill vs your '+bl.avgSpk.toFixed(1)+' avg — taking far more shots to finish kills, shots may not be registering'});
+    score-=2;
+  }
+  // MMR expected much more kills
+  if(m.expectedKills!=null&&m.kills<m.expectedKills-5&&m.kills<=5){
+    signals.push({bad:true,msg:Math.round(m.expectedKills-m.kills)+' fewer kills than MMR expected — below your capability'});
+    score-=1;
   }
 
-  // ── SERVER-SIDE: Low tank ratio + kills ──
-  if (tankRatio < 0.55 && kd >= 2.0 && m.kills >= 10) {
-    signals.push({ bad: false, msg: 'Dealt ' + (1/tankRatio).toFixed(1) + 'x more damage than you took — lag comp working for you' });
-    score += 1;
-  }
+  if(signals.length===0) return null;
+  var verdict=
+    score<=-4?{level:'bad', label:'Poor Connection', color:'var(--loss)'}:
+    score<=-2?{level:'warn',label:'Suspect Hitreg',  color:'var(--gold)'}:
+    score>=3 ?{level:'good',label:'Server-Side',     color:'var(--win)'}:
+    null;
+  if(!verdict) return null;
 
-  // ── SERVER-SIDE: Kills vs MMR expectation ──
-  if (m.expectedKills != null && m.kills > m.expectedKills + 5 && dpmDealtRatio > 1.15) {
-    signals.push({ bad: false, msg: '+' + Math.round(m.kills - m.expectedKills) + ' kills above MMR expectation + above-avg damage — server-side advantage' });
-    score += 1;
-  }
-
-  // ── POOR CONNECTION: Accuracy well below mode norm ──
-  if (accDelta != null && accDelta <= -12 && deathRatio > 1.3) {
-    signals.push({ bad: true, msg: 'Accuracy ' + acc.toFixed(1) + '% vs your ' + bl.avgAcc.toFixed(1) + '% avg (' + accDelta.toFixed(1) + '%) + ' + Math.round((deathRatio-1)*100) + '% more deaths — shots not connecting' });
-    score -= 3;
-  } else if (accDelta != null && accDelta <= -10) {
-    signals.push({ bad: true, msg: 'Accuracy ' + acc.toFixed(1) + '% (' + accDelta.toFixed(1) + '% below your ' + mode.replace('Ranked ','') + ' norm) — hitreg issue' });
-    score -= 2;
-  }
-
-  // ── POOR CONNECTION: DPM tanked + deaths spiked simultaneously ──
-  if (dpmDealtRatio < 0.6 && deathRatio > 1.7) {
-    signals.push({ bad: true, msg: 'Damage ' + Math.round((1-dpmDealtRatio)*100) + '% below your ' + mode.replace('Ranked ','') + ' avg AND ' + Math.round((deathRatio-1)*100) + '% more deaths than usual — lag comp against you' });
-    score -= 3;
-  } else if (dpmDealtRatio < 0.55 && m.kills <= 6) {
-    signals.push({ bad: true, msg: Math.round(dpmDealt) + ' dmg/min (' + Math.round((1-dpmDealtRatio)*100) + '% below your ' + mode.replace('Ranked ','') + ' avg) — shots not registering' });
-    score -= 2;
-  }
-
-  // ── POOR CONNECTION: Deaths spiked hard with taking damage ──
-  if (dpmTakenRatio > 1.8 && deathRatio > 1.8 && m.deaths >= 10) {
-    signals.push({ bad: true, msg: 'Taking ' + Math.round((dpmTakenRatio-1)*100) + '% more damage/min than usual with ' + m.deaths + ' deaths — getting shredded' });
-    score -= 2;
-  }
-
-  // ── POOR CONNECTION: MMR expected way more kills ──
-  if (m.expectedKills != null && m.kills < m.expectedKills - 6 && m.kills <= 5) {
-    signals.push({ bad: true, msg: Math.round(m.expectedKills - m.kills) + ' fewer kills than MMR expected — shots not connecting' });
-    score -= 1;
-  }
-
-  if (signals.length === 0) return null;
-  var verdict = score <= -3 ? { level: 'bad',  label: '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Poor Connection', color: 'var(--loss)' }
-    : score === -2           ? { level: 'warn', label: '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Suspect Hitreg',  color: 'var(--gold)' }
-    : score >= 3             ? { level: 'great',label: '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg> Server-Side',     color: '#39ff14'     }
-    : null;
-  if (!verdict) return null;
-  return { verdict: verdict, signals: signals, score: score };
+  // Build the wifi SVG icon
+  var wifiSvg='<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
+  verdict.label=wifiSvg+' '+verdict.label;
+  return{verdict:verdict,signals:signals,score:score};
 }
 
 function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
@@ -1750,22 +1759,11 @@ function renderCsrFromMatches(matches,playlist,color){
   var points=vals.map(function(v,i){return x(i)+','+y(v);}).join(' ');
   svg+='<polyline points="'+points+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
 
-  // Dots — draws get a gray diamond marker
+  // Dots for each game
   vals.forEach(function(v,i){
     var isLast=i===n-1;
-    var isDraw=outcomes[i]!==2&&outcomes[i]!==3;
-    if(isDraw){
-      var ds=isLast?5:3.5;
-      svg+='<rect x="'+(x(i)-ds)+'" y="'+(y(v)-ds)+'" width="'+(ds*2)+'" height="'+(ds*2)+'" transform="rotate(45 '+x(i)+' '+y(v)+')" fill="#4a6a90" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>';
-    } else {
-      svg+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(isLast?4:2)+'" fill="'+(isLast?color:'rgba(255,255,255,0.3)')+'"'+(isLast?' stroke="'+color+'" stroke-width="1"':'')+'/>';
-    }
+    svg+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(isLast?4:2)+'" fill="'+(isLast?color:'rgba(255,255,255,0.3)')+'"'+(isLast?' stroke="'+color+'" stroke-width="1"':'')+'/>';
   });
-  // Legend if draws exist
-  if(outcomes.some(function(o){return o!==2&&o!==3;})){
-    svg+='<rect x="'+(pad.l+4)+'" y="'+(pad.t+1)+'" width="6" height="6" transform="rotate(45 '+(pad.l+7)+' '+(pad.t+4)+')" fill="#4a6a90" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>';
-    svg+='<text x="'+(pad.l+15)+'" y="'+(pad.t+8)+'" fill="#4a7aaa" font-size="8" font-family="Share Tech Mono">draw</text>';
-  }
 
   // End label — positioned to the right of the last dot, never behind the line
   var lx=x(n-1)+8;
@@ -2738,30 +2736,28 @@ function render(){
   nemeses=_sorted.filter(function(r){return r.losses>=r.wins;}).slice(0,10);
   victims=_sorted.filter(function(r){return r.wins>r.losses;}).slice(0,10);
 
-  // Compute mode baselines once — stored on window so toggleMatch can use them
+  // Compute mode baselines — use allMatches with strict quality filters, trimmed mean
   (function(){
     function _gdsR(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
-    var _vM=displayMatches.filter(function(m){return m.damageDealt>500&&m.damageTaken>500&&_gdsR(m)>60;});
+    function _validBL(m){var s=_gdsR(m);return s>=180&&m.damageDealt>=300&&m.damageTaken>=300&&(m.outcome===2||m.outcome===3);}
+    function _avgR(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:0;}
+    function _trimR(arr){if(arr.length<6)return _avgR(arr);var s=arr.slice().sort(function(a,b){return a-b;});var cut=Math.max(1,Math.floor(s.length*0.1));return _avgR(s.slice(cut,s.length-cut));}
+    var _vM=(allMatches||displayMatches).filter(_validBL);
     var _bk={};
     _vM.forEach(function(m){
-      var mode=m.gameMode||'Unknown';
-      if(!_bk[mode])_bk[mode]={dpmDealt:[],dpmTaken:[],deaths:[],acc:[]};
-      var mins=_gdsR(m)/60;
-      _bk[mode].dpmDealt.push((m.damageDealt||0)/mins);
-      _bk[mode].dpmTaken.push((m.damageTaken||0)/mins);
-      _bk[mode].deaths.push(m.deaths||0);
-      if(m.accuracy!=null)_bk[mode].acc.push(m.accuracy);
-      if(!_bk['__overall__'])_bk['__overall__']={dpmDealt:[],dpmTaken:[],deaths:[],acc:[]};
-      _bk['__overall__'].dpmDealt.push((m.damageDealt||0)/mins);
-      _bk['__overall__'].dpmTaken.push((m.damageTaken||0)/mins);
-      _bk['__overall__'].deaths.push(m.deaths||0);
-      if(m.accuracy!=null)_bk['__overall__'].acc.push(m.accuracy);
+      var mode=m.gameMode||'Unknown';var mins=_gdsR(m)/60||1;
+      [mode,'__overall__'].forEach(function(k){
+        if(!_bk[k])_bk[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
+        _bk[k].dpmDealt.push(m.damageDealt/mins);
+        _bk[k].dpmTaken.push(m.damageTaken/mins);
+        if(m.accuracy!=null)_bk[k].acc.push(parseFloat(m.accuracy));
+        if(m.kills>0&&m.shotsFired>0)_bk[k].spk.push(m.shotsFired/m.kills);
+      });
     });
-    function _avgR(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:0;}
     var bl={};
     Object.keys(_bk).forEach(function(mode){
       var b=_bk[mode];
-      bl[mode]={avgDpmDealt:_avgR(b.dpmDealt),avgDpmTaken:_avgR(b.dpmTaken),avgDeaths:_avgR(b.deaths),avgAcc:_avgR(b.acc),count:b.dpmDealt.length};
+      bl[mode]={avgDpmDealt:_trimR(b.dpmDealt),avgDpmTaken:_trimR(b.dpmTaken),avgAcc:_trimR(b.acc),avgSpk:_trimR(b.spk),count:b.dpmDealt.length};
     });
     window._fragrBaselines=bl;
     window._fragrGds=_gdsR;
@@ -3249,6 +3245,7 @@ function render(){
       if(avgDPD<200) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 2a9 9 0 0 1 9 9c0 3.18-1.65 5.97-4.13 7.58L16 21H8l-.87-2.42A9.14 9.14 0 0 1 3 11 9 9 0 0 1 12 2z\"/><line x1=\"9\" y1=\"15\" x2=\"9.01\" y2=\"15\"/><line x1=\"15\" y1=\"15\" x2=\"15.01\" y2=\"15\"/><line x1=\"10\" y1=\"18\" x2=\"14\" y2=\"18\"/></svg>','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
       else if(avgDPD>280) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg>','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
     }
+
 
     // Win rate check
     var _wGames=allMatches.filter(function(m){return m.outcome===2||m.outcome===3;});
