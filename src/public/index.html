@@ -1300,6 +1300,29 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   var cq=analyzeConnectionQuality(m,modeBaselines||{});
   if(cq)html+=renderConnectionDetail(cq);
 
+  // Bandit-specific per-match stats
+  if(m.shotsFired>0&&m.kills>0){
+    var _spkM=m.shotsFired/m.kills;
+    var _hsRateM=m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:null;
+    var _spkColor=_spkM<=7?'var(--win)':_spkM<=9?'var(--muted)':'var(--loss)';
+    var _hsColor=_hsRateM!=null?(_hsRateM>=18?'var(--win)':_hsRateM>=12?'var(--muted)':'var(--loss)'):'var(--muted)';
+    html+='<div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">';
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
+      +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Shots / Kill</div>'
+      +'<div style="font-size:18px;font-weight:700;color:'+_spkColor+'">'+_spkM.toFixed(1)+'</div>'
+      +'<div style="font-size:9px;color:var(--muted)">ideal 5–7</div>'
+      +'</div>';
+    if(_hsRateM!=null){
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
+        +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Headshot Kill Rate</div>'
+        +'<div style="font-size:18px;font-weight:700;color:'+_hsColor+'">'+_hsRateM.toFixed(0)+'%</div>'
+        +'<div style="font-size:9px;color:var(--muted)">1 HS per kill ≈ 20%</div>'
+        +'</div>';
+    }
+
+    html+='</div>';
+  }
+
   // Performance vs expected panel
   if(m.expectedKills!=null||m.mmr){
     var overK=m.expectedKills!=null&&m.kills>m.expectedKills;
@@ -1378,7 +1401,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       teamOutcome=isMyTeam?m.outcome:(m.outcome===2?3:m.outcome===3?2:0);
     }
     var oc=teamOutcome===2?'<span style="color:var(--win)">Victory</span>':teamOutcome===3?'<span style="color:var(--loss)">Defeat</span>':'<span style="color:var(--muted)">Draw</span>';
-    html+='<div class="team-label">'+oc+' — Team '+(team.teamId+1)+'</div><table><thead><tr><th>Player</th><th style="text-align:right">K</th><th style="text-align:right">D</th><th style="text-align:right">A</th><th style="text-align:right">K/D</th><th style="text-align:right">Dmg</th></tr></thead><tbody>';
+    html+='<div class="team-label">'+oc+' — Team '+(team.teamId+1)+'</div><table><thead><tr><th>Player</th><th style="text-align:right">K</th><th style="text-align:right">D</th><th style="text-align:right">A</th><th style="text-align:right">K/D</th><th style="text-align:right">Dmg</th><th style="text-align:right">Acc</th></tr></thead><tbody>';
     (team.players||[]).forEach(function(pl){
       var isMe=pl.gamertag===(getAllPlayers()[selectedPlayer]||{}).gamertag;
       var myGtCheck=(getAllPlayers()[selectedPlayer]||{}).gamertag;
@@ -1408,7 +1431,8 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
           +'<span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif">'+_rowInitials+'</span>'
           +'</div>';
       }
-      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td></tr>';
+      var _plAccStr=pl.accuracy!=null?parseFloat(pl.accuracy).toFixed(1)+'%':'—';
+      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
     });
     html+='</tbody></table>';
   });
@@ -2537,122 +2561,192 @@ function renderObjectiveStats(matches){
 }
 
 function renderCsrEfficiency(matches){
-  var cm=matches.filter(function(m){return m.csrDelta!=null&&m.isRanked;}).slice(0,50);
-  if(cm.length<1)return'';
+  var cm=matches.filter(function(m){return m.csrDelta!=null&&m.csrDelta!==0&&m.isRanked;}).slice(0,50);
+  if(cm.length<3)return'';
 
   var wins=cm.filter(function(m){return m.csrDelta>0;});
   var losses=cm.filter(function(m){return m.csrDelta<0;});
   var totalGained=wins.reduce(function(s,m){return s+m.csrDelta;},0);
   var totalLost=Math.abs(losses.reduce(function(s,m){return s+m.csrDelta;},0));
   var netCSR=totalGained-totalLost;
-  var avgGain=wins.length?(totalGained/wins.length).toFixed(1):0;
-  var avgLoss=losses.length?(totalLost/losses.length).toFixed(1):0;
-  var ratio=avgLoss>0?(avgGain/avgLoss).toFixed(2):'—';
-  var ratioNum=avgLoss>0?avgGain/avgLoss:0;
-
-  // MMR-based analysis — favored = your MMR > opp MMR
-  var cmWithMmr=cm.filter(function(m){return m.mmr&&m.oppMmr;});
-  var favoredLosses=cmWithMmr.filter(function(m){return m.outcome===3&&m.mmr>m.oppMmr;});
-  var underdogWins=cmWithMmr.filter(function(m){return m.outcome===2&&m.mmr<m.oppMmr;});
-  var favoredLossCSR=favoredLosses.length?Math.abs(favoredLosses.reduce(function(s,m){return s+m.csrDelta;},0)/favoredLosses.length).toFixed(1):null;
-  var underdogWinCSR=underdogWins.length?(underdogWins.reduce(function(s,m){return s+m.csrDelta;},0)/underdogWins.length).toFixed(1):null;
-
-  var overPerfLoss=cm.filter(function(m){return m.csrDelta<0&&m.expectedKills!=null&&m.kills>m.expectedKills&&m.deaths<=(m.expectedDeaths+1||999);}).length;
-  // Dynamic thresholds based on actual data
-  var allLosses=losses.map(function(m){return Math.abs(m.csrDelta);}).sort(function(a,b){return b-a;});
-  var bigLossThreshold=allLosses.length?Math.round(allLosses[Math.floor(allLosses.length*0.25)]):20; // top 25% worst losses
-  var bigLosses=cm.filter(function(m){return m.csrDelta<=-bigLossThreshold;}).length;
-  var allWins=wins.map(function(m){return m.csrDelta;}).sort(function(a,b){return a-b;});
-  var cheapWinThreshold=allWins.length?Math.round(allWins[Math.floor(allWins.length*0.25)]):5;
-  // Only flag as cheap win if we were also the FAVORED team — underdog wins are never cheap
-  var cheapWins=cm.filter(function(m){return m.csrDelta>0&&m.csrDelta<=cheapWinThreshold&&m.mmr&&m.oppMmr&&m.mmr>m.oppMmr;}).length;
-
+  var avgGain=wins.length?totalGained/wins.length:0;
+  var avgLoss=losses.length?totalLost/losses.length:0;
+  var ratio=avgLoss>0?(avgGain/avgLoss):0;
   var netColor=netCSR>=0?'var(--win)':'var(--loss)';
-  var netStr=(netCSR>=0?'+':'')+netCSR;
-  var ratioColor=ratioNum>=1.3?'var(--win)':ratioNum>=1.0?'var(--gold)':'var(--loss)';
+  var ratioColor=ratio>=1.1?'var(--win)':ratio>=0.9?'var(--gold)':'var(--loss)';
 
-  // Key reason why losses are bigger than wins
-  var whyMsg='';
-  if(favoredLosses.length>=2&&parseFloat(avgLoss)>parseFloat(avgGain)){
-    whyMsg='⚡ You lose '+favoredLosses.length+' games as the favored team — when you are expected to win and don\'t, the CSR penalty is large. These account for most of your big losses.';
-  } else if(parseFloat(avgLoss)>parseFloat(avgGain)*1.3){
-    whyMsg='⚡ Your average loss ('+avgLoss+' CSR) is significantly larger than your average gain ('+avgGain+' CSR). This usually means you are losing in lobbies where your team was favored.';
-  } else if(ratioNum>=1.0){
-    whyMsg='⚡ Your CSR efficiency is healthy — gains and losses are balanced.';
-  } else {
-    whyMsg='⚡ Gains ('+avgGain+') vs losses ('+avgLoss+') — grind more wins to offset the losses.';
+  // MMR analysis
+  var cmWithMmr=cm.filter(function(m){return m.mmr&&m.oppMmr;});
+  var p=(getAllPlayers()[selectedPlayer]||{});
+  var arenaCsr=p.csr&&p.csr['Ranked Arena']?p.csr['Ranked Arena'].value:null;
+  var slayerCsr=p.csr&&p.csr['Ranked Slayer']?p.csr['Ranked Slayer'].value:null;
+
+  // ── CSR SETTLEMENT DETECTION ─────────────────────────────────────────────
+  // Signs you are CSR-settled (system has high confidence in your rank):
+  //   1. Avg gain significantly less than avg loss
+  //   2. Your MMR ≈ your CSR (small gap)
+  //   3. You are consistently the lowest MMR player in your lobby
+  var settlementSignals=[];
+  var isSettled=false;
+  var settledExplanation='';
+
+  var gainLossGap=avgLoss-avgGain; // positive = losing more than gaining
+  if(gainLossGap>=1.5) settlementSignals.push('asymmetric');
+
+  // Detect lobby MMR vs your CSR
+  var arenaMatches=cmWithMmr.filter(function(m){return m.gameMode&&m.gameMode.indexOf('Arena')>-1;});
+  var slayerMatches=cmWithMmr.filter(function(m){return m.gameMode&&/^Ranked Slayer$/i.test(m.gameMode.trim());});
+
+  function analysisForPlaylist(plMatches, label, currentCsr){
+    if(!plMatches.length) return null;
+    var avgMyMmr=Math.round(plMatches.reduce(function(s,m){return s+m.mmr;},0)/plMatches.length);
+    var avgOppMmr=Math.round(plMatches.reduce(function(s,m){return s+m.oppMmr;},0)/plMatches.length);
+    var mmrVsCsr=currentCsr?avgMyMmr-currentCsr:null;
+
+    // Win rate vs expected
+    var expectedWins=plMatches.reduce(function(s,m){return s+(1/(1+Math.pow(10,-(m.mmr-m.oppMmr)/400)));},0);
+    var actualWins=plMatches.filter(function(m){return m.outcome===2;}).length;
+    var expWR=Math.round(expectedWins/plMatches.length*100);
+    var actWR=Math.round(actualWins/plMatches.length*100);
+    var wrDelta=actWR-expWR;
+
+    // Favored vs underdog breakdown
+    var favoredGames=plMatches.filter(function(m){return m.mmr>m.oppMmr;});
+    var underdogGames=plMatches.filter(function(m){return m.mmr<m.oppMmr;});
+    var favoredWins=favoredGames.filter(function(m){return m.outcome===2;});
+    var underdogWins=underdogGames.filter(function(m){return m.outcome===2;});
+    var favoredWR=favoredGames.length?Math.round(favoredWins.length/favoredGames.length*100):null;
+    var underdogWR=underdogGames.length?Math.round(underdogWins.length/underdogGames.length*100):null;
+
+    // Avg gain/loss by favored vs underdog
+    var favWins_csr=favoredWins.reduce(function(s,m){return s+m.csrDelta;},0);
+    var favLoss_csr=Math.abs(plMatches.filter(function(m){return m.outcome===3&&m.mmr>m.oppMmr;}).reduce(function(s,m){return s+m.csrDelta;},0));
+    var dogWins_csr=underdogWins.reduce(function(s,m){return s+m.csrDelta;},0);
+    var dogLoss_csr=Math.abs(plMatches.filter(function(m){return m.outcome===3&&m.mmr<m.oppMmr;}).reduce(function(s,m){return s+m.csrDelta;},0));
+
+    var avgFavGain=favoredWins.length?favWins_csr/favoredWins.length:null;
+    var avgFavLoss=plMatches.filter(function(m){return m.outcome===3&&m.mmr>m.oppMmr;}).length?favLoss_csr/plMatches.filter(function(m){return m.outcome===3&&m.mmr>m.oppMmr;}).length:null;
+    var avgDogGain=underdogWins.length?dogWins_csr/underdogWins.length:null;
+
+    return{label,avgMyMmr,avgOppMmr,mmrVsCsr,expWR,actWR,wrDelta,
+      favoredGames:favoredGames.length,underdogGames:underdogGames.length,
+      favoredWR,underdogWR,
+      avgFavGain,avgFavLoss,avgDogGain,
+      count:plMatches.length};
   }
 
-  var html=sectionHead('CSR Efficiency (Last '+cm.length+' Ranked Games)');
-  html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+  var arenaAnalysis=analysisForPlaylist(arenaMatches,'Ranked Arena',arenaCsr);
+  var slayerAnalysis=analysisForPlaylist(slayerMatches,'Ranked Slayer',slayerCsr);
 
-  // Stat row
-  html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">';
-  html+=csrStatMini('Net CSR',netStr,netColor);
-  html+=csrStatMini('Avg Gain','+'+avgGain,'var(--win)');
-  html+=csrStatMini('Avg Loss','-'+avgLoss,'var(--loss)');
-  html+=csrStatMini('Efficiency',ratio+'x',ratioColor,'gain / loss');
-  html+='</div>';
+  // Determine settlement state from primary playlist
+  var primaryAnalysis=arenaAnalysis||slayerAnalysis;
+  if(primaryAnalysis){
+    var mmrGap=primaryAnalysis.mmrVsCsr;
+    // MMR below CSR = system pushing you down = settled/over-placed
+    if(mmrGap!==null&&mmrGap<-30) settlementSignals.push('mmr_below_csr');
+    // MMR close to CSR = settled at true rank
+    if(mmrGap!==null&&Math.abs(mmrGap)<40) settlementSignals.push('mmr_at_csr');
+    // Consistent underdog in lobbies despite being the rank you are
+    if(primaryAnalysis.underdogGames>primaryAnalysis.favoredGames*1.5) settlementSignals.push('mostly_underdog');
+  }
 
-  // MMR vs CSR gap
-  var rankedMmrMatches=cmWithMmr.filter(function(m){return m.gameMode&&m.gameMode.indexOf('Arena')>-1;});
-  var avgTeamMmr=rankedMmrMatches.length?Math.round(rankedMmrMatches.reduce(function(s,m){return s+m.mmr;},0)/rankedMmrMatches.length):null;
-  var currentCsr=null;
-  try{currentCsr=parseInt((document.querySelector&&document.querySelector('.csr-detail')||{}).textContent)||null;}catch(e){}
+  isSettled=settlementSignals.indexOf('asymmetric')>-1&&
+    (settlementSignals.indexOf('mmr_below_csr')>-1||settlementSignals.indexOf('mmr_at_csr')>-1);
 
-  // MMR breakdown row
-  if(cmWithMmr.length>0){
-    html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">';
-    html+=csrStatMini('Favored Losses',String(favoredLosses.length),'var(--loss)',favoredLossCSR?'avg -'+favoredLossCSR+' CSR':'—');
-    html+=csrStatMini('Underdog Wins',String(underdogWins.length),'var(--win)',underdogWinCSR?'avg +'+underdogWinCSR+' CSR':'—');
-    html+=csrStatMini('Big Losses ('+bigLossThreshold+'+)',String(bigLosses),'var(--loss)','most damaging');
-    html+='</div>';
-    if(avgTeamMmr){
-      var avgOppMmr=Math.round(rankedMmrMatches.reduce(function(s,m){return s+m.oppMmr;},0)/rankedMmrMatches.length);
-      var mmrAdv=avgTeamMmr-avgOppMmr;
-      // CSR vs lobby MMR gap — are you playing above your CSR?
-      var p=(getAllPlayers()[selectedPlayer]||{});
-      var arenaCsr=p.csr&&p.csr['Ranked Arena']?p.csr['Ranked Arena'].value:null;
-      var lobbyGap=arenaCsr?avgTeamMmr-arenaCsr:null;
-      html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">';
-      html+=csrStatMini('Your Avg MMR',String(avgTeamMmr),'var(--accent)','team MMR in lobbies');
-      html+=csrStatMini('Opp Avg MMR',String(avgOppMmr),'var(--muted)','opponent MMR');
-      html+=csrStatMini('Avg Advantage',(mmrAdv>=0?'+':'')+mmrAdv,mmrAdv>=0?'var(--win)':'var(--loss)','vs opponents');
-      html+='</div>';
-      if(lobbyGap!==null){
-        var lobbyColor=lobbyGap>50?'var(--loss)':lobbyGap<-50?'var(--win)':'var(--muted)';
-        var lobbyMsg=lobbyGap>100
-          ?'Your lobbies (MMR '+avgTeamMmr+') are '+lobbyGap+' above your CSR ('+arenaCsr+'). You are being pulled into harder lobbies than your rank — likely from queuing with higher-ranked players. This keeps losses equal but gains small.'
-          :lobbyGap>50
-          ?'Your lobby MMR ('+avgTeamMmr+') is '+lobbyGap+' above your CSR ('+arenaCsr+'). Slightly harder lobbies than your rank deserves.'
-          :lobbyGap<-50
-          ?'Your lobby MMR ('+avgTeamMmr+') is '+Math.abs(lobbyGap)+' below your CSR ('+arenaCsr+'). Easier lobbies than your rank — gains should be good.'
-          :'Your lobby MMR and CSR are well aligned.';
-        html+=csrInsight(lobbyColor,lobbyMsg);
-      }
+  // Build the settlement explanation
+  if(isSettled&&primaryAnalysis){
+    var gap=primaryAnalysis.mmrVsCsr;
+    if(gap!==null&&gap<-30){
+      settledExplanation='Your hidden MMR ('+primaryAnalysis.avgMyMmr+') is '+Math.abs(gap)+' below your CSR — the system thinks you\'re slightly over-placed and is applying a downward correction. It will offer smaller gains until your MMR rises to meet your CSR. Focus on win rate, not individual performance.';
+    } else {
+      settledExplanation='Your MMR and CSR are closely aligned — the system has high confidence in your rank and has tightened the gain/loss window. This is normal at your true rank. To move up you need to exceed expected performance consistently, not just win.';
+    }
+    if(settlementSignals.indexOf('mostly_underdog')>-1){
+      settledExplanation+=' You\'re also consistently the lowest-ranked player in your lobby — wins in these lobbies pay less because the system already expects you to lose, so it discounts your wins and maintains the same loss penalty.';
     }
   }
 
-  // Insights
-  html+='<div style="display:flex;flex-direction:column;gap:8px;font-size:12px">';
-  // Expected win rate from MMR vs actual
-  if(cmWithMmr.length>=3){
-    var expectedWins=cmWithMmr.reduce(function(s,m){return s+(1/(1+Math.pow(10,-(m.mmr-m.oppMmr)/400)));},0);
-    var actualWins=cmWithMmr.filter(function(m){return m.outcome===2;}).length;
-    var expWinPct=Math.round(expectedWins/cmWithMmr.length*100);
-    var actWinPct=Math.round(actualWins/cmWithMmr.length*100);
-    var wdiff=actWinPct-expWinPct;
-    var wcolor=wdiff>=3?'var(--win)':wdiff<=-3?'var(--loss)':'var(--muted)';
-    html+=csrInsight(wcolor,'Expected win rate based on MMR: '+expWinPct+'% — Actual: '+actWinPct+'% ('+(wdiff>=0?'+':'')+wdiff+'%). '+(wdiff>=5?'Outperforming expectations — your MMR will rise.':wdiff<=-5?'Underperforming vs MMR — focus on consistency.':'Performing right at expectations.'));
+  // Overperforming individually but losing
+  var overPerfLoss=cm.filter(function(m){return m.csrDelta<0&&m.expectedKills!=null&&m.kills>m.expectedKills&&m.deaths<=(m.expectedDeaths+1||999);}).length;
+
+  var html=sectionHead('CSR Efficiency');
+  html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+
+  // Top stat row
+  html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">';
+  html+=csrStatMini('Net CSR',(netCSR>=0?'+':'')+netCSR,netColor,'last '+cm.length+' games');
+  html+=csrStatMini('Avg Gain','+'+avgGain.toFixed(1),'var(--win)');
+  html+=csrStatMini('Avg Loss','-'+avgLoss.toFixed(1),'var(--loss)');
+  html+=csrStatMini('Ratio',ratio.toFixed(2)+'x',ratioColor,'gain / loss');
+  html+='</div>';
+
+  // Settlement banner — most important thing to communicate
+  if(isSettled){
+    var bannerColor=primaryAnalysis&&primaryAnalysis.mmrVsCsr<-30?'var(--loss)':'var(--gold)';
+    html+='<div style="padding:12px 14px;border-left:3px solid '+bannerColor+';background:var(--surface2);border-radius:0 6px 6px 0;margin-bottom:16px">';
+    html+='<div style="font-size:10px;color:'+bannerColor+';font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">CSR Settled — Why Gains Are Small</div>';
+    html+='<div style="font-size:12px;color:var(--text);line-height:1.6">'+settledExplanation+'</div>';
+    html+='</div>';
   }
-  if(favoredLosses.length>=2)html+=csrInsight('var(--loss)','Lost '+favoredLosses.length+' games as the favored team — this is why losses hurt more. The system expected you to win.');
-  if(overPerfLoss>0)html+=csrInsight('var(--gold)',overPerfLoss+' games you outperformed individually but still lost CSR — team lost despite your effort.');
-  if(cheapWins>0)html+=csrInsight('var(--muted)',cheapWins+' low-value wins ('+cheapWinThreshold+' CSR or less) — beating weaker lobbies barely moves your rank.');
-  if(underdogWins.length>0)html+=csrInsight('var(--win)',underdogWins.length+' underdog wins — these give the most CSR. Seek even or harder lobbies.');
-  html+='<div style="padding:8px 12px;background:var(--surface2);border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)">'+whyMsg+'</div>';
-  html+='</div></div>';
+
+  // Per-playlist MMR breakdown
+  [arenaAnalysis,slayerAnalysis].forEach(function(pa){
+    if(!pa||pa.count<3) return;
+    html+='<div style="margin-bottom:14px">';
+    html+='<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">'+pa.label+' ('+pa.count+' games)</div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:8px">';
+    html+=csrStatMini('Your Avg MMR',String(pa.avgMyMmr),'var(--accent)');
+    html+=csrStatMini('Opp Avg MMR',String(pa.avgOppMmr),'var(--muted)');
+    if(pa.mmrVsCsr!==null){
+      var gapColor=pa.mmrVsCsr>30?'var(--win)':pa.mmrVsCsr<-30?'var(--loss)':'var(--muted)';
+      html+=csrStatMini('MMR vs CSR',(pa.mmrVsCsr>=0?'+':'')+pa.mmrVsCsr,gapColor,'hidden vs visible rank');
+    }
+    html+=csrStatMini('Expected WR',pa.expWR+'%','var(--muted)');
+    var wrColor=pa.wrDelta>=3?'var(--win)':pa.wrDelta<=-3?'var(--loss)':'var(--muted)';
+    html+=csrStatMini('Actual WR',pa.actWR+'%',wrColor,(pa.wrDelta>=0?'+':'')+pa.wrDelta+'% vs expected');
+    html+='</div>';
+
+    // Favored vs underdog CSR breakdown
+    if(pa.favoredGames||pa.underdogGames){
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+      // Favored games
+      if(pa.favoredGames>0){
+        html+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Favored Lobbies ('+pa.favoredGames+'g)</div>';
+        if(pa.favoredWR!==null) html+='<div style="font-size:13px;color:'+(pa.favoredWR>=50?'var(--win)':'var(--loss)')+'">'+pa.favoredWR+'% WR</div>';
+        if(pa.avgFavGain!==null) html+='<div style="font-size:11px;color:var(--muted)">+'+pa.avgFavGain.toFixed(1)+' gain / '+(pa.avgFavLoss!=null?'-'+pa.avgFavLoss.toFixed(1)+' loss':'—')+'</div>';
+        html+='<div style="font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.4">Win expected — small gain, big penalty if you lose</div>';
+        html+='</div>';
+      }
+      // Underdog games
+      if(pa.underdogGames>0){
+        html+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Underdog Lobbies ('+pa.underdogGames+'g)</div>';
+        if(pa.underdogWR!==null) html+='<div style="font-size:13px;color:'+(pa.underdogWR>=50?'var(--win)':'var(--loss)')+'">'+pa.underdogWR+'% WR</div>';
+        if(pa.avgDogGain!==null) html+='<div style="font-size:11px;color:var(--muted)">+'+pa.avgDogGain.toFixed(1)+' gain per win</div>';
+        html+='<div style="font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.4">Win unexpected — highest CSR gains, smaller penalty if you lose</div>';
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+    html+='</div>';
+  });
+
+  // Individual insights
+  html+='<div style="display:flex;flex-direction:column;gap:6px;font-size:12px;margin-top:4px">';
+  if(primaryAnalysis){
+    var wrDelta=primaryAnalysis.wrDelta;
+    var wrColor=wrDelta>=5?'var(--win)':wrDelta<=-5?'var(--loss)':'var(--muted)';
+    html+=csrInsight(wrColor,'Win rate vs MMR expectation: '+primaryAnalysis.expWR+'% expected, '+primaryAnalysis.actWR+'% actual ('+(wrDelta>=0?'+':'')+wrDelta+'%). '+(wrDelta>=5?'Outperforming — MMR will rise and gains will improve.':wrDelta<=-5?'Underperforming vs matchmaker expectation — this is why CSR is hard to gain.':'Performing at expectation — consistent but won\'t accelerate rank gain.'));
+  }
+  if(overPerfLoss>0) html+=csrInsight('var(--gold)',overPerfLoss+' game'+(overPerfLoss>1?'s':'')+' where you outperformed individually but the team lost. These are the most tilting — your stats earn the win but the CSR doesn\'t follow.');
+  if(!isSettled&&ratio<0.9) html+=csrInsight('var(--loss)','Gaining '+avgGain.toFixed(1)+' CSR per win but losing '+avgLoss.toFixed(1)+' per loss. To break even you need to win '+(avgLoss/avgGain*100).toFixed(0)+'% of games.');
+  html+='</div>';
+
+  html+='</div>';
   return html;
 }
+
 function csrStatMini(label,val,color,sub){
   return'<div><div style="font-size:11px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">'+label+'</div>'
     +'<div style="font-size:24px;font-weight:700;color:'+color+'">'+val+'</div>'
@@ -2799,8 +2893,11 @@ function render(){
   var todayStr=new Date().toDateString();
   var todayMatches=matches.filter(function(m){return m.startTime&&new Date(m.startTime).toDateString()===todayStr;});
   if(todayMatches.length>0){
-    var sk=todayMatches.reduce(function(a,m){return a+(m.kills||0);},0);
-    var sd=todayMatches.reduce(function(a,m){return a+(m.deaths||0);},0);
+    // Filter to real competitive games for K/D — exclude draws and sub-3-min games
+    function _tgSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+    var _validToday=todayMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_tgSecs(m)>=180;});
+    var sk=_validToday.reduce(function(a,m){return a+(m.kills||0);},0);
+    var sd=_validToday.reduce(function(a,m){return a+(m.deaths||0);},0);
     var sw=todayMatches.filter(function(m){return m.outcome===2;}).length;
     var sl=todayMatches.filter(function(m){return m.outcome===3;}).length;
     var skd=sd>0?(sk/sd).toFixed(2):sk>0?String(sk):'—';
@@ -3157,12 +3254,6 @@ function render(){
       }
     }
 
-    var dpkMatches=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0;});
-    if(dpkMatches.length>=5){
-      var avgDPK=dpkMatches.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/dpkMatches.length;
-      if(avgDPK>800) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polygon points=\"13 2 3 14 12 14 11 22 21 10 12 10 13 2\"/></svg>','Leaving Kills on the Table','Avg '+Math.round(avgDPK)+' damage per kill — a perfect Bandit kill is 532 dmg (4 body + 1 head). You\'re taking too many shots to finish. Disengage and reset when fights go long rather than dumping extra shots into a shielding opponent.','var(--gold)'));
-    }
-
     var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
     if(weaponMatches.length>=5){
       var totK=0,totG=0,totM=0,totHS=0,totPW=0;
@@ -3226,6 +3317,8 @@ function render(){
     var mapAccData={};
     allMatches.forEach(function(m){
       if(!m.mapName||m.accuracy==null) return;
+      if(m.outcome!==2&&m.outcome!==3) return; // skip draws — unreliable accuracy data
+      var _ms=_durSecs(m);if(_ms<180) return; // skip sub-3-min games
       if(!mapAccData[m.mapName]) mapAccData[m.mapName]={total:0,count:0};
       mapAccData[m.mapName].total+=parseFloat(m.accuracy);
       mapAccData[m.mapName].count++;
@@ -3239,12 +3332,6 @@ function render(){
       }
     }
 
-    var dpd=allMatches.filter(function(m){return m.deaths>0&&m.damageTaken>0;});
-    if(dpd.length>=5){
-      var avgDPD=dpd.reduce(function(s,m){return s+m.damageTaken/m.deaths;},0)/dpd.length;
-      if(avgDPD<200) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 2a9 9 0 0 1 9 9c0 3.18-1.65 5.97-4.13 7.58L16 21H8l-.87-2.42A9.14 9.14 0 0 1 3 11 9 9 0 0 1 12 2z\"/><line x1=\"9\" y1=\"15\" x2=\"9.01\" y2=\"15\"/><line x1=\"15\" y1=\"15\" x2=\"15.01\" y2=\"15\"/><line x1=\"10\" y1=\"18\" x2=\"14\" y2=\"18\"/></svg>','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
-      else if(avgDPD>280) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/></svg>','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
-    }
 
 
     // Win rate check
@@ -3259,8 +3346,8 @@ function render(){
     var _dmgGames=allMatches.filter(function(m){return m.damageTaken>200&&m.damageDealt>200;});
     if(_dmgGames.length>=5){
       var _avgRatio=_dmgGames.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgGames.length;
-      if(_avgRatio<0.85) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>','Taking More Than Dealing','Avg damage ratio '+_avgRatio.toFixed(2)+' — absorbing more damage than you output. Escape bad fights earlier.','var(--loss)'));
-      else if(_avgRatio>1.2) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/></svg>','Damage Positive','Avg damage ratio '+_avgRatio.toFixed(2)+' — you consistently deal more damage than you take.','var(--win)'));
+      if(_avgRatio<0.85) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>','Losing More Fights Than Winning','Damage ratio '+_avgRatio.toFixed(2)+' — you\'re dealing less damage than you\'re receiving across the game. This doesn\'t mean individual fights are unwinnable, but overall you\'re on the back foot more than the front foot.','var(--loss)'));
+      else if(_avgRatio>1.2) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/></svg>','Damage Positive','Damage ratio '+_avgRatio.toFixed(2)+' — you\'re dealing more than you\'re receiving across the game. You\'re winning more engagements than you\'re losing.','var(--win)'));
     }
 
 
@@ -3297,9 +3384,9 @@ function render(){
     if(_aimGames.length>=8){
       var _spk=_aimGames.reduce(function(s,m){return s+m.shotsFired/m.kills;},0)/_aimGames.length;
       if(_spk>9.5){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Trigger Discipline','Avg '+Math.round(_spk)+' shots fired per kill. Against above-average ranked players a clean Bandit kill should be 5-7 shots — you\'re taking too long to finish fights. Focus on landing your first 2-3 shots before committing, and disengage if you miss your opener rather than spraying to finish.','var(--gold)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Trigger Discipline','Avg '+Math.round(_spk)+' shots fired per kill across all weapons. A clean Bandit kill is 5 shots — you\'re well above that even accounting for grenades and power weapons in the mix. Focus on committing to fights only when you have positioning advantage, and disengage if you miss your opener.','var(--gold)'));
       } else if(_spk>=5&&_spk<=7&&_aimGames.length>=10){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Clean Bandit Gunfights','Avg '+Math.round(_spk)+' shots per kill — right where it should be — the Bandit kills in 5 shots (4 body + 1 head). 6-7 is clean. You\'re winning gunfights without wasting ammo.','var(--win)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"22 7 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"15 7 22 7 22 14\"/></svg>','Efficient Gunfights','Avg '+Math.round(_spk)+' shots per kill across all weapons — right in the clean range. You\'re not wasting ammo to finish fights.','var(--win)'));
       }
     }
 
@@ -3310,8 +3397,8 @@ function render(){
       var _avgAssistRatio=_assistGames.reduce(function(s,m){return s+m.assists/(m.kills+m.assists);},0)/_assistGames.length*100;
       if(_avgAssistRatio>40){
         insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>','Strong Team Player',''+Math.round(_avgAssistRatio)+'% of your kill participations are assists — you set teammates up well. Make sure you\'re following up on your own damage to convert more of those into kills.','var(--accent)'));
-      } else if(_avgAssistRatio<12){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>','Going Solo','Only '+Math.round(_avgAssistRatio)+'% of your participations are assists. Try communicating callouts and softening targets before committing — sharing damage leads to cleaner trades and fewer deaths.','var(--gold)'));
+      } else if(_avgAssistRatio<7){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>','Going Solo','Only '+Math.round(_avgAssistRatio)+'% of your kill participations are assists — extremely low even for Bandit Evo fast TTK. Try communicating callouts and softening targets before committing — sharing damage leads to cleaner trades and fewer deaths.','var(--gold)'));
       }
     }
 
