@@ -386,7 +386,7 @@ async function fetchPlayerStats(gamertag) {
       winRate: matches > 0 ? ((wins / matches) * 100).toFixed(1) : '0.0',
       kills, deaths, assists,
       kd: deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2),
-      kda: (kills - deaths + assists / 3).toFixed(1),
+      kda: matches > 0 ? ((kills - deaths + assists / 3) / matches).toFixed(1) : '0.0',
       accuracy: core.ShotAccuracy != null ? (core.ShotAccuracy * 100).toFixed(1) : (core.ShotsFired > 0 ? ((core.ShotsHit / core.ShotsFired) * 100).toFixed(1) : null),
       avgKillsPerGame: matches > 0 ? (kills / matches).toFixed(1) : '0.0',
       totalMedals: allMedalsSlim.reduce((s, m) => s + (m.count || 0), 0),
