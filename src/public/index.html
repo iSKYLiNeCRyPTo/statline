@@ -331,6 +331,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .sidebar-toggle{display:block}
   .mobile-tabbar{display:flex}
   body.on-landing .mobile-tabbar{display:none !important}
+  body.on-landing .mobile-logo-bar{display:none !important}
   .mobile-logo-bar{display:flex}
   .search-input{font-size:16px !important}
   input[type="text"],input[type="search"]{font-size:16px !important}
@@ -403,7 +404,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <div class="mobile-logo-bar" id="mobileLogoBar">
   <svg width="110" height="28" viewBox="0 0 110 28" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
     <rect width="28" height="28" rx="6" fill="#185FA5"/>
-    <g transform="translate(14,15) rotate(-35) scale(0.44)">
+    <g transform="translate(14,14) rotate(-35) scale(0.42)">
     <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
     <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
     <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
@@ -1002,6 +1003,8 @@ async function loadMedalMeta(){try{var res=await fetch('/api/medal-meta');if(!re
 function showLanding(){
   var el=document.getElementById('landing');
   if(el)el.style.display='flex';
+  document.body.classList.add('on-landing');
+  var mlb=document.getElementById('mobileLogoBar');if(mlb)mlb.style.display='none';
   var _app=document.getElementById('app');if(_app)_app.innerHTML='';
   var _csb=document.getElementById('clearSearchBtn');if(_csb)_csb.style.display='none';
   var _si=document.getElementById('searchInput');if(_si)_si.value='';
@@ -1014,6 +1017,7 @@ function hideLanding(){
   var el=document.getElementById('landing');
   if(el)el.style.display='none';
   document.body.classList.remove('on-landing');
+  var mlb=document.getElementById('mobileLogoBar');if(mlb)mlb.style.display='';
 }
 function goHome(){
   playerData=null; data=null; searchData=null; searchMode=false;
