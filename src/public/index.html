@@ -93,7 +93,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 /* Mobile bottom tab bar */
 .mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
-.mobile-logo-bar.hidden{transform:translateY(-100%)}
+.mapexp-inner{display:grid;grid-template-columns:220px 1fr;gap:0}
+.mapexp-img{min-height:160px}
+@media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{height:120px;min-height:unset}}
+@media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
 .mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -3108,13 +3111,13 @@ function render(){
       html+='</div>';
       html+='</div>'; // end collapsed row
 
-      // Expanded panel — two column on desktop
+      // Expanded panel — two column desktop, stacked mobile
       html+='<div id="'+panelId+'" style="display:none;border-top:1px solid var(--border)">';
-      html+='<div style="display:grid;grid-template-columns:'+(e.imageUrl?'220px ':'')+'1fr;gap:0">';
+      html+='<div class="mapexp-inner">';
 
       // Left — large map image
       if(e.imageUrl){
-        html+='<div style="position:relative;overflow:hidden;min-height:160px;background:var(--surface3)">'
+        html+='<div class="mapexp-img" style="position:relative;overflow:hidden;min-height:160px;background:var(--surface3)">'
           +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
           +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 60%,var(--surface2) 100%)"></div>'
           +'</div>';
@@ -3150,7 +3153,7 @@ function render(){
       }
 
       html+='</div>'; // end right column
-      html+='</div>'; // end grid
+      html+='</div>'; // end mapexp-inner
       html+='</div>'; // end expanded panel
       html+='</div>'; // end map card
     });
