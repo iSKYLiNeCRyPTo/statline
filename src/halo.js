@@ -486,7 +486,6 @@ async function fetchMatchHistory(xuid, gamertag, count = 100) {
 
         const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
-        const ALL_RANKED_IDS = [RANKED_ARENA_ID, ...SLAYER_IDS];
         const matchPlaylistId = md.MatchInfo?.Playlist?.AssetId;
         const isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         const isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
