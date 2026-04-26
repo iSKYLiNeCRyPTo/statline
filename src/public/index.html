@@ -268,7 +268,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .team-divider{border:none;border-top:1px solid var(--border);margin:10px 0}
 .loading{text-align:center;padding:80px 24px;color:var(--muted)}
 .spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
-@keyframes spin{to{transform:rotate(360deg)}}@keyframes gtpulse{0%,100%{opacity:0.4}50%{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
@@ -944,6 +944,10 @@ function setTab(t){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
+  if(t==='objectives'){
+    // Small delay to let the tab render first, then resolve unknown gamertags
+    setTimeout(resolveSynergyGamertags, 150);
+  }
   // Update desktop tab active state
   document.querySelectorAll('.dtab').forEach(function(b){
     b.classList.toggle('active', b.dataset.tab===t);
@@ -1426,7 +1430,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
         checkBadge='<span title="'+check.reason.replace(/"/g,"'")+' — click to search" style="margin-left:4px;font-size:9px;cursor:pointer;color:'+cbColor+'" onclick="event.stopPropagation();quickSearch(\'' +pl.gamertag.replace(/'/g,"\\'")+'\')">'+cbIcon+'</span>';
       }
       var isSpartan=pl.gamertag&&pl.gamertag.startsWith('Spartan ');
-      var displayGt=isSpartan?'<span class="gt-skeleton" style="display:inline-block;width:80px;height:10px;background:var(--surface3);border-radius:3px;vertical-align:middle;animation:gtpulse 1.2s ease-in-out infinite"></span>':pl.gamertag;
+      var displayGt=isSpartan?'<span style="color:var(--muted);font-style:italic">Unknown Player</span>':pl.gamertag;
             var _gtFavBtn=(!isMe&&!isSpartan)?'<span data-gt="'+pl.gamertag.replace(/"/g,'&quot;')+'" onclick="event.stopPropagation();toggleFav(this.dataset.gt)" title="Toggle favorite" style="margin-left:3px;font-size:9px;cursor:pointer;opacity:0.4;color:#ffc107" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">'+( isFavorite(pl.gamertag)?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span>':'';
       var gtLink=isMe?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg> '+pl.gamertag:(isSpartan?displayGt:'<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\''+pl.gamertag.replace(/'/g,"\\\'")+'\')">'+pl.gamertag+'</span>'+checkBadge+_gtFavBtn);
       // Emblem/gamerpic — tracked players get Halo emblem, all others get Xbox gamerpic if available
@@ -1443,7 +1447,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
           +'</div>';
       }
       var _plAccStr=pl.accuracy!=null?parseFloat(pl.accuracy).toFixed(1)+'%':'—';
-      html+='<tr'+(isMe?' class="me-row"':'')+(pl.rawXuid?' data-xuid="'+pl.rawXuid+'"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
+      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
     });
     html+='</tbody></table>';
   });
@@ -2044,33 +2048,46 @@ function toggleMatch(matchKey,idx){
   panel.innerHTML=renderMatchDetail(m,m,baselines,_gdsF(m));
   card.appendChild(panel);
   card.classList.add('expanded');
-  resolveMatchGamertags(card);
 }
 
 
 
 
-// Resolve unknown gamertags in an expanded match card
-async function resolveMatchGamertags(card) {
-  var unknownRows = card.querySelectorAll('tr[data-xuid]');
+// Resolve unknown gamertags in the Team Synergy section
+async function resolveSynergyGamertags() {
+  var panel = document.querySelector('.tab-panel[data-tab="objectives"]');
+  if (!panel) return;
+  var skeletons = panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]');
   var xuids = [];
-  unknownRows.forEach(function(row) {
-    var xuid = row.getAttribute('data-xuid');
-    if (xuid && row.querySelector('.gt-skeleton')) xuids.push(xuid);
+  skeletons.forEach(function(el) {
+    var x = el.getAttribute('data-syn-xuid');
+    if (x && xuids.indexOf(x) === -1) xuids.push(x);
   });
   if (!xuids.length) return;
   try {
     var res = await fetch('/api/resolve-gamertags?xuids=' + xuids.join(','));
-    var data = await res.json();
-    var gt = data.gamertags || {};
-    unknownRows.forEach(function(row) {
-      var xuid = row.getAttribute('data-xuid');
-      if (xuid && gt[xuid]) {
-        var skeleton = row.querySelector('.gt-skeleton');
-        if (skeleton) skeleton.outerHTML = '<span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit" onclick="quickSearch(\'' + gt[xuid].replace(/'/g, "\\'") + '\')">' + gt[xuid] + '</span>';
+    var d = await res.json();
+    var gt = d.gamertags || {};
+    // Patch all skeleton elements with the resolved name
+    panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]').forEach(function(el) {
+      var xuid = el.getAttribute('data-syn-xuid');
+      if (!gt[xuid]) return;
+      var name = gt[xuid];
+      // Main header skeleton — replace with clickable name
+      if (el.style.animation) {
+        var span = document.createElement('span');
+        span.style.cssText = 'cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit';
+        span.onclick = function(){ quickSearch(name); };
+        span.textContent = name;
+        el.parentNode.replaceChild(span, el);
+      } else {
+        // Detail panel header — show uppercase
+        el.textContent = name.toUpperCase();
+        el.removeAttribute('data-syn-xuid');
+        el.className = '';
       }
     });
-  } catch(e) { /* silent fail — skeleton stays */ }
+  } catch(e) { /* silent fail */ }
 }
 function toggleMapExpand(id){
   var panel=document.getElementById(id);
@@ -2226,6 +2243,7 @@ async function loadFullMatches(gamertag){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
       render();
+      if(activeTab==='objectives') setTimeout(resolveSynergyGamertags, 200);
     }
   }catch(e){ _hideBanner(); console.warn('[loadFullMatches]',e.message); }
 }
@@ -2420,11 +2438,12 @@ function renderTeamSynergy(duo,gamertag){
     // Avatar — use emblem endpoint if xuid available, gamerpic if not, initials as last resort
     var _isSpartanFallback=/^Spartan\s+\d+$/i.test(gt);
     var _initials=_isSpartanFallback?'?':gt.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
-    var _synSrc=tm.rawXuid?'/api/emblem?xuid='+tm.rawXuid:(tm.gamerpicUrl||null);
+    var _synXuid=tm.rawXuid||null;
+    var _synSrc=_synXuid?'/api/emblem?xuid='+_synXuid:(tm.gamerpicUrl||null);
     var _synPic=_synSrc
       ?'<div style="width:28px;height:28px;border-radius:4px;overflow:hidden;flex-shrink:0;background:var(--surface3);display:flex;align-items:center;justify-content:center"><img src="'+_synSrc+'" data-emblem-xuid="'+(tm.rawXuid||'')+'" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif">'+_initials+'</span></div>'
       :'<span style="width:28px;height:28px;border-radius:4px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif;flex-shrink:0">'+_initials+'</span>';
-    var _displayGt=_isSpartanFallback?'<span style="color:var(--muted)">Unknown Player</span>':gt;
+    var _displayGt=_isSpartanFallback&&_synXuid?'<span class="syn-gt-skeleton" data-syn-xuid="'+_synXuid+'" style="display:inline-block;width:90px;height:11px;background:var(--surface3);border-radius:3px;vertical-align:middle;animation:gtpulse 1.2s ease-in-out infinite"></span>':(_isSpartanFallback?'<span style="color:var(--muted)">Unknown</span>':gt);
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'+_synPic+'<span style="font-size:12px;font-weight:700;color:var(--text)">'+_displayGt+'</span></div>';
     html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace">'+tm.games+' games together</div>';
     html+='</div>';
@@ -2443,7 +2462,7 @@ function renderTeamSynergy(duo,gamertag){
     html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">';
     // Their column
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px">';
-    html+='<div style="font-size:11px;font-weight:700;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px;letter-spacing:1px">'+gt.toUpperCase()+'</div>';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px;letter-spacing:1px">'+((_isSpartanFallback&&_synXuid)?'<span class="syn-gt-skeleton" data-syn-xuid="'+_synXuid+'">???</span>':gt.toUpperCase())+'</div>';
     if(tmAvgKills!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--muted2)">Kills/game</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+tmAvgKills.toFixed(1)+'</span></div>';
     if(tmAvgKd!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;color:var(--muted2)">K/D</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(tmAvgKd>=1?'var(--win)':'var(--loss)')+'">'+tmAvgKd.toFixed(2)+'</span></div>';
     if(tmAvgDmg!=null)html+='<div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:12px;color:var(--muted2)">Damage</span><span style="font-size:14px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+Math.round(tmAvgDmg).toLocaleString()+'</span></div>';
