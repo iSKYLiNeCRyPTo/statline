@@ -1466,14 +1466,13 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
     } else if(os.mode==='Strongholds'||os.mode==='King of the Hill'||os.mode==='Land Grab'){
       var _isKoth=os.mode==='King of the Hill';
       var _isLand=os.mode==='Land Grab';
-      var _capLabel=_isKoth?'Hills Captured':_isLand?'Zones Captured':'Zone Captures';
-      var _secLabel=_isKoth?'Hill Secures':'Zone Secures';
       var _occLabel=_isKoth?'Hill Hold Time':'Occupation Time';
-      if(os.captures!=null)objRows.push([_capLabel,os.captures]);
-      if(os.secures!=null&&!_isLand)objRows.push([_secLabel,os.secures]);
+      // KotH: skip captures/secures — hold time and kills are more meaningful
+      // Strongholds: skip scoring ticks — captures/secures/kills are sufficient
+      if(!_isKoth&&os.captures!=null)objRows.push([_isLand?'Zones Captured':'Zone Captures',os.captures]);
+      if(!_isKoth&&!_isLand&&os.secures!=null)objRows.push(['Zone Secures',os.secures]);
       if(os.defensiveKills!=null)objRows.push(['Defensive Kills',os.defensiveKills]);
       if(os.offensiveKills!=null)objRows.push(['Offensive Kills',os.offensiveKills]);
-      if(os.scoringTicks!=null)objRows.push(['Scoring Ticks',os.scoringTicks]);
       if(os.occupationTime)objRows.push([_occLabel,fmtDurS(os.occupationTime)]);
     } else if(os.mode==='Stockpile'){
       if(os.seedsDeposited!=null)objRows.push(['Seeds Deposited',os.seedsDeposited]);
