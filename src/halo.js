@@ -285,27 +285,35 @@ async function fetchPlayerStats(gamertag) {
     }
   } catch(e) {}
 
-  // Service record stats
+  // All-modes service record (used for wins/losses/medals/damage fallback)
   const core = statsData.CoreStats || statsData.Summary?.CoreStats || statsData;
-  const kills = core.Kills || statsData.Kills || 0;
-  const deaths = core.Deaths || statsData.Deaths || 0;
-  const assists = core.Assists || statsData.Assists || 0;
   const wins = statsData.Wins || statsData.MatchesWon || 0;
   const losses = statsData.Losses || statsData.MatchesLost || 0;
   const matches = matchesPlayed || statsData.MatchesPlayed || (wins + losses) || 0;
 
-  // Ranked-only K/D and KDA from ranked service record
-  let rankedKd = null, rankedKda = null, rankedMatchCount = 0;
+  // Ranked-only stats — use these for all career figures if available
+  let kills, deaths, assists, rankedKd, rankedKda;
   try {
     if (rankedStatsRes?.ok) {
       const rd = await rankedStatsRes.json();
       const rc = rd.CoreStats || rd.Summary?.CoreStats || rd;
-      const rk = rc.Kills || 0, rde = rc.Deaths || 0, ra = rc.Assists || 0;
-      rankedMatchCount = rd.MatchesCompleted || rd.MatchesPlayed || 0;
-      rankedKd  = rde > 0 ? (rk / rde).toFixed(2) : rk.toFixed(2);
-      rankedKda = rankedMatchCount > 0 ? ((rk - rde + ra / 3) / rankedMatchCount).toFixed(2) : (rk - rde + ra / 3).toFixed(2);
+      kills   = rc.Kills   || 0;
+      deaths  = rc.Deaths  || 0;
+      assists = rc.Assists || 0;
+      const rankedMatchCount = rd.MatchesCompleted || rd.MatchesPlayed || 0;
+      rankedKd  = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+      rankedKda = rankedMatchCount > 0
+        ? ((kills - deaths + assists / 3) / rankedMatchCount).toFixed(2)
+        : (kills - deaths + assists / 3).toFixed(2);
     }
-  } catch(e) { console.error("[RankedStats]", e.message); }
+  } catch(e) { console.error('[RankedStats]', e.message); }
+
+  // Fallback to all-modes if ranked fetch failed
+  if (kills === undefined)   kills   = core.Kills   || statsData.Kills   || 0;
+  if (deaths === undefined)  deaths  = core.Deaths  || statsData.Deaths  || 0;
+  if (assists === undefined) assists = core.Assists || statsData.Assists || 0;
+  if (!rankedKd)  rankedKd  = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+  if (!rankedKda) rankedKda = matches > 0 ? ((kills - deaths + assists / 3) / matches).toFixed(2) : '0.00';
 
   // Medal meta
   let topMedals = [], allMedalsSlim = [];
@@ -399,8 +407,8 @@ async function fetchPlayerStats(gamertag) {
       matchesPlayed: matches, wins, losses,
       winRate: matches > 0 ? ((wins / matches) * 100).toFixed(1) : '0.0',
       kills, deaths, assists,
-      kd: rankedKd !== null ? rankedKd : (deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2)),
-      kda: rankedKda !== null ? rankedKda : (matches > 0 ? ((kills - deaths + assists / 3) / matches).toFixed(2) : '0.00'),
+      kd: rankedKd,
+      kda: rankedKda,
       accuracy: core.ShotAccuracy != null ? (core.ShotAccuracy * 100).toFixed(1) : (core.ShotsFired > 0 ? ((core.ShotsHit / core.ShotsFired) * 100).toFixed(1) : null),
       avgKillsPerGame: matches > 0 ? (kills / matches).toFixed(1) : '0.0',
       totalMedals: allMedalsSlim.reduce((s, m) => s + (m.count || 0), 0),
