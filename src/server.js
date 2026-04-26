@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 
 const app = express();
@@ -476,6 +476,26 @@ app.get('/api/suggest', async (req, res) => {
   }
 });
 
+
+
+// Resolve gamertags on demand — called when a match card is expanded
+app.get('/api/resolve-gamertags', async (req, res) => {
+  const { xuids } = req.query;
+  if (!xuids) return res.json({ gamertags: {} });
+  const xuidList = String(xuids).split(',').map(x => x.trim()).filter(Boolean).slice(0, 100);
+  if (!xuidList.length) return res.json({ gamertags: {} });
+  try {
+    const missing = xuidList.filter(x => !getXuidToGt()[x]);
+    if (missing.length) await resolveGamertags(missing);
+    const gt = getXuidToGt();
+    const gamertags = {};
+    for (const xuid of xuidList) { if (gt[xuid]) gamertags[xuid] = gt[xuid]; }
+    res.json({ gamertags });
+  } catch(e) {
+    console.error('[ResolveGT]', e.message);
+    res.json({ gamertags: {} });
+  }
+});
 
 // Map image proxy — blobs-infiniteugc requires auth headers that can't be sent from browser
 const mapImageProxyCache = new Map(); // url -> {buf, contentType, ts}
