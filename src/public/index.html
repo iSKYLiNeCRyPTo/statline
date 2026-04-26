@@ -249,7 +249,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner.expanded .match-main{z-index:2}
 .match-detail-panel{width:100%;flex-basis:100%}
 @media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
-@media(max-width:768px){.cq-badge-desktop{display:none}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+@media(max-width:768px){.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
 .dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
@@ -378,7 +378,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-card.has-banner.expanded .match-main{z-index:2}
 .match-detail-panel{width:100%;flex-basis:100%}
 @media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
-@media(max-width:768px){.cq-badge-desktop{display:none}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+@media(max-width:768px){.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:9px}
   .match-dmg{min-width:80px}
   .dmg-bar-row span{width:32px;font-size:9px}
@@ -1644,7 +1644,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
     mmrStr=winProb+'% win prob';
   }
   var cq=analyzeConnectionQuality(m,modeBaselines||{});
-  var cqBadge=cq?'<span class="cq-badge-desktop" style="font-size:10px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;margin-left:4px;white-space:nowrap">'+cq.verdict.label+'</span>':'';
+  var cqBadge=cq?'<span style="font-size:10px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;margin-left:4px;white-space:nowrap">'+cq.verdict.label+'</span>':'';
   var detail=isOpen?renderMatchDetail(m,m,modeBaselines,durSecs||0):'';
   // Build as DOM element so no quoting issues, then capture outerHTML AFTER all setup
   var el=document.createElement('div');
@@ -3152,8 +3152,8 @@ function render(){
       html+='<div style="padding:20px 24px;background:var(--surface2)">';
 
       // Row 1 — core stats
-      html+='<div class="mapexp-stats-row">';
-      function _mStat(label,val,color){return'<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">'+label+'</div><div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
+      html+='<div class="mapexp-stats-row" style="margin-bottom:20px">';
+      function _mStat(label,val,color){return'<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">'+label+'</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1;color:'+(color||'var(--text)')+'">'+val+'</div></div>';}
       html+=_mStat('AVG KILLS',avgKills);
       html+=_mStat('AVG DEATHS',avgDeaths);
       html+=_mStat('AVG ASSISTS',e.assists&&_validGames?(e.assists/_validGames).toFixed(1):'—');
@@ -3161,11 +3161,11 @@ function render(){
       html+='</div>';
 
       // Row 2 — accuracy, CSR, headshot rate, damage ratio
-      html+='<div class="mapexp-stats-row">';
+      html+='<div class="mapexp-stats-row" style="margin-bottom:20px">';
       html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=50?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<40?'var(--loss)':'var(--text)');
       html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
       html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
-      html+='<div><div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">RECORD</div><div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
+      html+='<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">RECORD</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
       html+='</div>';
 
       // CSR net bar if we have data
