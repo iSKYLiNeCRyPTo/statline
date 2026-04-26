@@ -3060,8 +3060,13 @@ function render(){
     }
     if(m.outcome===2)d.wins++;else if(m.outcome===3)d.losses++;
     var mode=(m.gameMode||'Unknown').replace(/Ranked Arena:/i,'').replace(/Ranked /i,'').trim();
-    if(!d.modes[mode])d.modes[mode]={wins:0,losses:0,count:0};
-    d.modes[mode].count++;if(m.outcome===2)d.modes[mode].wins++;else if(m.outcome===3)d.modes[mode].losses++;
+    if(!d.modes[mode])d.modes[mode]={wins:0,losses:0,count:0,kills:0,deaths:0,accTotal:0,accGames:0};
+    d.modes[mode].count++;
+    if(m.outcome===2)d.modes[mode].wins++;else if(m.outcome===3)d.modes[mode].losses++;
+    if(validGame){
+      d.modes[mode].kills+=m.kills||0;d.modes[mode].deaths+=m.deaths||0;
+      if(m.accuracy!=null){d.modes[mode].accTotal+=parseFloat(m.accuracy);d.modes[mode].accGames++;}
+    }
     if(d.recentResults.length<10)d.recentResults.push(m.outcome===2?'W':m.outcome===3?'L':'D');
   });
   var mapRows=Object.values(mapData).filter(function(m){return m.count>=1;}).sort(function(a,b){return b.count-a.count;});
@@ -3209,6 +3214,73 @@ function render(){
           html+='<div style="height:100%;width:'+mwr+'%;background:'+mwrColor+'"></div>';
           html+='</div>';
           html+='</div>';
+        });
+        html+='</div>';
+      }
+
+      // ── Per-map insights ──────────────────────────────────────────────────
+      var _mapInsights=[];
+      var _mList=Object.entries(e.modes).filter(function(md){return md[1].count>=2;});
+
+      // Best and worst mode on this map
+      if(_mList.length>=2){
+        var _sorted=_mList.slice().sort(function(a,b){return(b[1].wins/b[1].count)-(a[1].wins/a[1].count);});
+        var _best=_sorted[0];var _worst=_sorted[_sorted.length-1];
+        var _bestWR=Math.round(_best[1].wins/_best[1].count*100);
+        var _worstWR=Math.round(_worst[1].wins/_worst[1].count*100);
+        if(_bestWR-_worstWR>=20){
+          _mapInsights.push({color:'var(--win)',text:_best[0]+' is your best mode here ('+_bestWR+'% WR) — queue it when this map comes up.'});
+          if(_worstWR<=35) _mapInsights.push({color:'var(--loss)',text:'Struggling in '+_worst[0]+' on this map ('+_worstWR+'% WR) — consider your approach or positioning for this mode here.'});
+        }
+      }
+
+      // Low headshot rate on this map — missing finishers
+      if(_mapHsRate!=null&&_mapHsRate<30&&e.totalKillsHs>=10){
+        _mapInsights.push({color:'var(--gold)',text:'Only '+_mapHsRate+'% headshot finishes here. The sightlines on this map may be throwing off your aim — focus on pre-aiming head level at common corners.'});
+      } else if(_mapHsRate!=null&&_mapHsRate>=55){
+        _mapInsights.push({color:'var(--win)',text:_mapHsRate+'% headshot finish rate — your aim translates well to this map sightlines.'});
+      }
+
+      // Accuracy vs overall average
+      if(_mapAcc!=null&&window._fragrBaselines){
+        var _overallAcc=(window._fragrBaselines['__overall__']||{}).avgAcc||0;
+        if(_overallAcc>0){
+          var _accDelta=parseFloat(_mapAcc)-_overallAcc;
+          if(_accDelta<=-6) _mapInsights.push({color:'var(--loss)',text:'Accuracy '+_mapAcc+'% here vs your '+_overallAcc.toFixed(1)+'% average — this map geometry is not suiting your playstyle. Study the key angles.'});
+          else if(_accDelta>=6) _mapInsights.push({color:'var(--win)',text:'Accuracy '+_mapAcc+'% here vs your '+_overallAcc.toFixed(1)+'% average — this map layout works in your favour.'});
+        }
+      }
+
+      // Per-mode K/D comparison — slayer-specific
+      var _slayer=e.modes['Slayer'];
+      if(_slayer&&_slayer.deaths>=5){
+        var _slayKD=(_slayer.kills/_slayer.deaths).toFixed(2);
+        if(parseFloat(_slayKD)<0.7) _mapInsights.push({color:'var(--loss)',text:'Slayer K/D here is '+_slayKD+' — you are losing the raw gunfights on this map. Try holding power positions rather than pushing open sightlines.'});
+        else if(parseFloat(_slayKD)>=1.2) _mapInsights.push({color:'var(--win)',text:'Slayer K/D '+_slayKD+' on this map — you win gunfights here consistently.'});
+      }
+
+      // CSR trend — net positive or negative
+      if(e.csrGames>=4){
+        var _csrPerGame=e.csrTotal/e.csrGames;
+        if(_csrPerGame<=-3) _mapInsights.push({color:'var(--loss)',text:'Losing '+Math.abs(_csrPerGame).toFixed(1)+' CSR per game here on average — this map is actively costing you rank. Dodge if you can.'});
+        else if(_csrPerGame>=3) _mapInsights.push({color:'var(--win)',text:'Gaining '+_csrPerGame.toFixed(1)+' CSR per game here on average — this is one of your best rank-climbing maps.'});
+      }
+
+      // Low win rate but positive K/D — not converting into wins
+      if(wr<=40&&parseFloat(kd)>=1.0&&e.count>=4){
+        _mapInsights.push({color:'var(--gold)',text:'Positive K/D ('+kd+') but only '+wr+'% wins — you are performing individually but the team is not converting. Focus on objective pressure and calling out.'});
+      }
+
+      // Low assists — not sharing damage
+      if(_mapAssistRatio!=null&&_mapAssistRatio<6&&e.kills>=15){
+        _mapInsights.push({color:'var(--muted)',text:'Low assist rate ('+_mapAssistRatio+'%) on this map — you are going for solo kills. Softening enemies for teammates can open better trade opportunities here.'});
+      }
+
+      if(_mapInsights.length){
+        html+='<div style="margin-top:14px;display:flex;flex-direction:column;gap:6px">';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">MAP INSIGHTS</div>';
+        _mapInsights.forEach(function(ins){
+          html+='<div style="padding:7px 10px;border-left:3px solid '+ins.color+';background:var(--surface);border-radius:0 4px 4px 0;font-size:11px;color:var(--text);line-height:1.5">'+ins.text+'</div>';
         });
         html+='</div>';
       }
