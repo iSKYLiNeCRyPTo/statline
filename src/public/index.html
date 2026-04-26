@@ -1932,9 +1932,31 @@ function playerEmblem(p,size){
   var initials=(p.gamertag||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
   var fs=Math.round(size*0.38);
   var fallback='<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent);flex-shrink:0">'+initials+'</div>';
+  // Always use the emblem endpoint — it serves the Halo emblem when cached, gamerpic otherwise
   var src=p.emblemUrl||(p.xuid?'/api/emblem?xuid='+p.xuid:null)||p.gamerpicUrl||null;
   if(!src)return fallback;
-  return'<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center"><img src="'+src+'" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent)">'+initials+'</span></div>';
+  // data-emblem-xuid lets the retry pass upgrade gamerpics to emblems after server caches them
+  var xuidAttr=p.xuid?' data-emblem-xuid="'+p.xuid+'"':'';
+  return'<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center"><img src="'+src+'"'+xuidAttr+' style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent)">'+initials+'</span></div>';
+}
+
+// After render, retry emblem images that may have loaded a gamerpic before the server cached the path
+function scheduleEmblemRetry(){
+  clearTimeout(window._emblemRetryTimer);
+  window._emblemRetryTimer=setTimeout(function(){
+    document.querySelectorAll('img[data-emblem-xuid]').forEach(function(img){
+      var xuid=img.getAttribute('data-emblem-xuid');
+      if(!xuid)return;
+      // Re-request the emblem endpoint with a cache-bust — server should have it cached now
+      var retryUrl='/api/emblem?xuid='+xuid+'&_r='+Date.now();
+      var probe=new Image();
+      probe.onload=function(){
+        // Only swap if this looks different (can't easily tell, so always upgrade)
+        img.src=retryUrl;
+      };
+      probe.src=retryUrl;
+    });
+  },3500);
 }
 
 function toggleMatch(matchKey,idx){
@@ -2200,7 +2222,7 @@ function renderPlayerBtns(){
   var av=document.getElementById('sidebarAvatar');
   var rk=document.getElementById('sidebarRank');
   if(gt)gt.textContent=p.gamertag||'';
-  if(av){av.src=p.emblemUrl||p.gamerpicUrl||'';av.style.display=p.emblemUrl||p.gamerpicUrl?'block':'none';}
+  if(av){var _avSrc=p.emblemUrl||(p.xuid?'/api/emblem?xuid='+p.xuid:null)||p.gamerpicUrl||'';av.src=_avSrc;av.setAttribute('data-emblem-xuid',p.xuid||'');av.style.display=_avSrc?'block':'none';}
   if(rk){var csr=p.csr;var topCsr=csr?Object.values(csr).filter(function(c){return c&&c.tier;}).sort(function(a,b){return b.value-a.value;})[0]:null;rk.textContent=topCsr?topCsr.display:'';}
 }
 function duoCard(label,labelColor,games,wr,avgCsr){
@@ -3275,6 +3297,7 @@ function render(){
 
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
+  scheduleEmblemRetry();
 }
 loadStats();
 
