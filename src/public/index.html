@@ -495,7 +495,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <button onclick="setTab('overview')" data-tab="overview" class="dtab active" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◈ Overview</button>
       <button onclick="setTab('matches')" data-tab="matches" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◉ Matches</button>
       <button onclick="setTab('bymap')" data-tab="bymap" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◫ By Map</button>
-      <button onclick="setTab('charts')" data-tab="charts" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◧ CSR Charts</button>
+      <button onclick="setTab('charts')" data-tab="charts" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◧ Performance</button>
       <button onclick="setTab('objectives')" data-tab="objectives" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◎ Objectives</button>
       <button onclick="setTab('opponents')" data-tab="opponents" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◐ Opponents</button>
     </nav>
@@ -555,8 +555,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
           <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">CSR Charts</div>
-          <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression & efficiency</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">Performance</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
         </div>
       </div>
       <p style="margin-top:32px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">fragr.live &nbsp;·&nbsp; Based on last 50 matches &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft</p>
@@ -584,7 +584,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
   <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">By Map</span></div>
   <div class="mobile-tab" data-tab="objectives" onclick="setTab('objectives')"><span>◎</span><span class="mobile-tab-label">Objectives</span></div>
-  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Charts</span></div>
+  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Perf</span></div>
   <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Opponents</span></div>
 </nav>
 
@@ -2844,284 +2844,6 @@ function render(){
     +'</div>';
   if(s.topMedals&&s.topMedals.length){html+=sectionHead('Top Medals')+'<div class="medals-grid">';s.topMedals.forEach(function(m){html+=medalImg(m);});html+='</div>';}
 
-  // Kill breakdown — always last 25 display matches for consistency
-  var _kbSample=displayMatches.slice(0,50);
-  var totalHS=0,totalMelee=0,totalGrenades=0,totalPower=0,totalKillsSample=0,totalDeathsSample=0,kbWins=0,kbLosses=0;
-  _kbSample.forEach(function(m){
-    var ws=m.weaponStats||{};
-    totalHS+=(ws.headshots||0);
-    totalMelee+=(ws.melee||0);
-    totalGrenades+=(ws.grenades||0);
-    totalPower+=(ws.powerWeapon||0);
-    totalKillsSample+=(m.kills||0);
-    totalDeathsSample+=(m.deaths||0);
-    if(m.outcome===2)kbWins++;
-    else if(m.outcome===3)kbLosses++;
-  });
-  // Only show if we have weapon breakdown data (some matches may lack it)
-  var totalShotsFired=0,totalShotsHit=0;
-  _kbSample.forEach(function(m){totalShotsFired+=(m.shotsFired||0);totalShotsHit+=(m.shotsHit||0);});
-  var kbAccuracy=totalShotsFired>0?(totalShotsHit/totalShotsFired*100).toFixed(1):null;
-  var hasWeaponData=totalHS+totalMelee+totalGrenades+totalPower>0;
-  if(hasWeaponData&&totalKillsSample>0){
-    var totalKills=totalKillsSample;
-    var hsPct=Math.round((totalHS/totalKills)*100);
-    var meleePct=Math.round((totalMelee/totalKills)*100);
-    var grenPct=Math.round((totalGrenades/totalKills)*100);
-    var powerPct=Math.round((totalPower/totalKills)*100);
-    var otherPct=Math.max(0,100-hsPct-meleePct-grenPct-powerPct);
-    var sampleLabel='last '+_kbSample.length+' games';
-    html+=sectionHead('Kill Breakdown',sampleLabel);
-    function killStat(label,val,pct,color){
-      return'<div class="stat-card"><div class="stat-label">'+label+'</div>'
-        +'<div class="stat-value" style="color:'+color+'">'+val+'</div>'
-        +'<div class="stat-sub">'+pct+'% of kills</div>'
-        +'<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:8px">'
-        +'<div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>'
-        +'</div>';
-    }
-    var kbKD=totalDeathsSample>0?(totalKillsSample/totalDeathsSample).toFixed(2):totalKillsSample.toFixed(2);
-    var kbKDColor=parseFloat(kbKD)>=1?'var(--win)':'var(--loss)';
-    var kbWLColor=kbWins>=kbLosses?'var(--win)':'var(--loss)';
-    html+='<div class="stat-row">'
-      +'<div class="stat-card"><div class="stat-label">Record</div><div class="stat-value" style="color:'+kbWLColor+'">'+kbWins+'W <span style="color:var(--muted);font-size:18px">/</span> '+kbLosses+'L</div><div class="stat-sub">'+Math.round(kbWins/(kbWins+kbLosses||1)*100)+'% win rate</div></div>'
-      +'<div class="stat-card"><div class="stat-label">K / D</div><div class="stat-value" style="color:'+kbKDColor+'">'+kbKD+'</div><div class="stat-sub">'+totalKillsSample+' kills · '+totalDeathsSample+' deaths</div></div>'
-      +'<div class="stat-card"><div class="stat-label">Kills</div><div class="stat-value" style="color:var(--win)">'+totalKillsSample+'</div><div class="stat-sub">'+(totalKillsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
-      +'<div class="stat-card"><div class="stat-label">Deaths</div><div class="stat-value" style="color:var(--loss)">'+totalDeathsSample+'</div><div class="stat-sub">'+(totalDeathsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
-      +(kbAccuracy!==null?'<div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" style="color:var(--accent)">'+kbAccuracy+'%</div><div class="stat-sub">shots hit / fired</div></div>':'')
-      +killStat('Headshots',totalHS,hsPct,'#ff6b6b')
-      +killStat('Power Weapon',totalPower,powerPct,'var(--gold)')
-      +killStat('Grenade',totalGrenades,grenPct,'#51cf66')
-      +killStat('Melee',totalMelee,meleePct,'#339af0')
-      +killStat('Body Shots',Math.max(0,totalKills-totalHS-totalMelee-totalGrenades-totalPower),otherPct,'var(--muted)')
-      +'</div>';
-  }
-
-  // Win condition correlation
-  var last25wc=matches.slice(0,50);
-  var winMatches=last25wc.filter(function(m){return m.outcome===2;});
-  var lossMatches=last25wc.filter(function(m){return m.outcome===3;});
-  if(winMatches.length>=3&&lossMatches.length>=3){
-    html+=sectionHead('Win Conditions', last25wc.length+' games');
-
-    function avg(arr,fn){if(!arr.length)return 0;return arr.reduce(function(s,m){return s+fn(m);},0)/arr.length;}
-    function pct(arr,fn){var passing=arr.filter(fn);return Math.round((passing.length/arr.length)*100);}
-
-    // Damage ratio correlation
-    // Filter out bad damage data (0 taken or extreme ratios)
-    var validDmg=function(m){return m.damageTaken>500&&m.damageDealt>500&&(m.damageDealt/m.damageTaken)<5;};
-    var avgDmgWin=avg(winMatches.filter(validDmg),function(m){return m.damageDealt/m.damageTaken;});
-    var avgDmgLoss=avg(lossMatches.filter(validDmg),function(m){return m.damageDealt/m.damageTaken;});
-    var winWhenDmgPos=pct(matches.filter(function(m){return m.outcome!==0&&validDmg(m);}),function(m){return m.damageDealt/m.damageTaken>=1&&m.outcome===2;});
-    var winWhenDmgNeg=pct(matches.filter(function(m){return m.outcome!==0&&validDmg(m)&&m.damageDealt/m.damageTaken<1;}),function(m){return m.outcome===2;});
-
-    // K/D correlation
-    var avgKDWin=avg(winMatches,function(m){return m.deaths>0?m.kills/m.deaths:m.kills;});
-    var avgKDLoss=avg(lossMatches,function(m){return m.deaths>0?m.kills/m.deaths:m.kills;});
-
-    // Accuracy correlation
-    var accMatches=matches.filter(function(m){return m.accuracy!=null;});
-    var avgAccWin=avg(winMatches.filter(function(m){return m.accuracy!=null;}),function(m){return parseFloat(m.accuracy);});
-    var avgAccLoss=avg(lossMatches.filter(function(m){return m.accuracy!=null;}),function(m){return parseFloat(m.accuracy);});
-
-    // First blood / placement correlation
-    var winWhenTopHalf=pct(matches.filter(function(m){return m.outcome!==0&&m.placement;}),function(m){
-      var rank=parseInt(m.placement);return rank<=4&&m.outcome===2;
-    });
-
-    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-    html+='<table class="mode-table"><thead><tr><th>Factor</th><th style="text-align:right">When Winning</th><th style="text-align:right">When Losing</th><th style="text-align:right">Insight</th></tr></thead><tbody>';
-
-    // Damage ratio row
-    var dmgDiff=((avgDmgWin-avgDmgLoss)/avgDmgLoss*100).toFixed(0);
-    html+='<tr>'
-      +'<td class="mode-name">Damage Ratio</td>'
-      +'<td style="text-align:right;color:var(--win)">'+avgDmgWin.toFixed(2)+'</td>'
-      +'<td style="text-align:right;color:var(--loss)">'+avgDmgLoss.toFixed(2)+'</td>'
-      +'<td style="text-align:right;color:var(--muted);font-size:11px">'+(avgDmgWin>1?'Win '+winWhenDmgPos+'% when ratio >1.0':'')+'</td>'
-      +'</tr>';
-
-    // K/D row
-    html+='<tr>'
-      +'<td class="mode-name">K/D</td>'
-      +'<td style="text-align:right;color:var(--win)">'+avgKDWin.toFixed(2)+'</td>'
-      +'<td style="text-align:right;color:var(--loss)">'+avgKDLoss.toFixed(2)+'</td>'
-      +'<td style="text-align:right;color:var(--muted);font-size:11px">+'+(avgKDWin-avgKDLoss).toFixed(2)+' K/D in wins</td>'
-      +'</tr>';
-
-    // Accuracy row
-    if(avgAccWin>0){
-      html+='<tr>'
-        +'<td class="mode-name">Accuracy</td>'
-        +'<td style="text-align:right;color:var(--win)">'+avgAccWin.toFixed(1)+'%</td>'
-        +'<td style="text-align:right;color:var(--loss)">'+avgAccLoss.toFixed(1)+'%</td>'
-        +'<td style="text-align:right;color:var(--muted);font-size:11px">+'+(avgAccWin-avgAccLoss).toFixed(1)+'% accuracy in wins</td>'
-        +'</tr>';
-    }
-
-    html+='</tbody></table>';
-
-    // Key insight callout
-    var keyInsight='';
-    var dmgImpact=Math.abs(avgDmgWin-avgDmgLoss);
-    var kdImpact=Math.abs(avgKDWin-avgKDLoss);
-    var accImpact=Math.abs(avgAccWin-avgAccLoss);
-    if(dmgImpact>0.15)keyInsight='Damage ratio is your strongest win predictor — focus on dealing more than you take.';
-    else if(kdImpact>0.5)keyInsight='K/D separates your wins from losses more than anything else.';
-    else if(accImpact>5)keyInsight='Accuracy is your biggest differentiator — slow down your shots when it matters.';
-    else keyInsight='Your wins and losses are fairly consistent \u2014 not throwing on individual stats.';
-
-    html+='<div style="padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--accent);font-family:Share Tech Mono,monospace">⚡ '+keyInsight+'</div>';
-    html+='</div>';
-  }
-
-  // ── PERFORMANCE INSIGHTS ──────────────────────────────────────────────────
-  (function(){
-    if(allMatches.length<5) return;
-    var insights=[];
-
-    function insightCard(icon,label,msg,color){
-      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
-        +'<span style="font-size:15px;flex-shrink:0;margin-top:1px">'+icon+'</span>'
-        +'<div><div style="font-size:10px;color:'+color+';font-family:Share Tech Mono,monospace;letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">'+label+'</div>'
-        +'<div style="font-size:12px;color:var(--text);line-height:1.5">'+msg+'</div></div>'
-        +'</div>';
-    }
-
-    var sorted=allMatches.slice().sort(function(a,b){return new Date(b.startTime||0)-new Date(a.startTime||0);});
-    var recent=sorted.slice(0,Math.min(5,sorted.length));
-    var older=sorted.slice(5,Math.min(10,sorted.length));
-
-    // 1. K/D Trend
-    if(recent.length>=3&&older.length>=3){
-      function avgKD(arr){var t=arr.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0);return t/arr.length;}
-      var recentKD=avgKD(recent);var olderKD=avgKD(older);var delta=recentKD-olderKD;
-      if(Math.abs(delta)>=0.15){
-        if(delta>=0.15) insights.push(insightCard('📈','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
-        else insights.push(insightCard('📉','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+delta.toFixed(2)+' from the prior 5 — you may be fatiguing or facing harder lobbies.','var(--loss)'));
-      }
-    }
-
-    // 2. Accuracy Trend
-    var accRecent=recent.filter(function(m){return m.accuracy!=null;});
-    var accOlder=older.filter(function(m){return m.accuracy!=null;});
-    if(accRecent.length>=3&&accOlder.length>=3){
-      function avgAcc(arr){return arr.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/arr.length;}
-      var aR=avgAcc(accRecent);var aO=avgAcc(accOlder);var aDelta=aR-aO;
-      if(Math.abs(aDelta)>=3){
-        if(aDelta>=3) insights.push(insightCard('🎯','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
-        else insights.push(insightCard('🎯','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%).','var(--gold)'));
-      }
-    }
-
-    // 3. Leaving Kills on the Table (high damage per kill)
-    var dpkMatches=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0;});
-    if(dpkMatches.length>=5){
-      var avgDPK=dpkMatches.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/dpkMatches.length;
-      if(avgDPK>750) insights.push(insightCard('💥','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
-    }
-
-    // 4. Weapon Reliance
-    var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
-    if(weaponMatches.length>=5){
-      var totK=0,totG=0,totM=0,totHS=0,totPW=0;
-      weaponMatches.forEach(function(m){totK+=m.kills;totG+=m.weaponStats.grenades||0;totM+=m.weaponStats.melee||0;totHS+=m.weaponStats.headshots||0;totPW+=m.weaponStats.powerWeapon||0;});
-      var gPct=totG/totK*100;var mPct=totM/totK*100;var hsPct=totHS/totK*100;var pwPct=totPW/totK*100;
-      if(gPct>20) insights.push(insightCard('💣','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
-      if(mPct>18) insights.push(insightCard('👊','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
-      if(hsPct<15&&totHS>0) insights.push(insightCard('🎯','Low Headshot Rate','Only '+Math.round(hsPct)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
-      if(pwPct>35) insights.push(insightCard('🔫','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
-    }
-
-    // 5. Placement Pattern (team rank)
-    var placementMatches=allMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
-    if(placementMatches.length>=5){
-      var avgPlace=placementMatches.reduce(function(s,m){return s+parseInt(m.placement);},0)/placementMatches.length;
-      if(avgPlace<=2.5) insights.push(insightCard('🏆','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
-      else if(avgPlace>=5.5) insights.push(insightCard('⚠️','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
-    }
-
-    // 6. Objective Contribution
-    var ctfGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='CTF';});
-    var oddballGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='Oddball';});
-    if(ctfGames.length>=3){
-      var avgCaps=ctfGames.reduce(function(s,m){return s+(m.objStats.flagCaptures||0);},0)/ctfGames.length;
-      if(avgCaps<0.3) insights.push(insightCard('🚩','Low Flag Contribution','Avg '+avgCaps.toFixed(2)+' CTF caps per game — consider being more aggressive about contesting and capping flags.','var(--gold)'));
-    }
-    if(oddballGames.length>=3){
-      var avgHold=oddballGames.reduce(function(s,m){return s+(m.objStats.timeAsCarrier||0);},0)/oddballGames.length;
-      if(avgHold<20) insights.push(insightCard('💀','Low Ball Hold Time','Avg ball carry time is only '+Math.round(avgHold)+'s — you\'re dying too fast or passing to teammates rarely.','var(--gold)'));
-    }
-
-    // 7. Peak Hours
-    var timeSlots={morning:[],afternoon:[],evening:[]};
-    allMatches.forEach(function(m){
-      if(!m.startTime||m.deaths===undefined) return;
-      var h=new Date(m.startTime).getHours();var kd=m.deaths>0?m.kills/m.deaths:m.kills;
-      if(h>=5&&h<12) timeSlots.morning.push(kd);
-      else if(h>=12&&h<18) timeSlots.afternoon.push(kd);
-      else timeSlots.evening.push(kd);
-    });
-    function slotAvg(arr){return arr.length?arr.reduce(function(s,v){return s+v;},0)/arr.length:null;}
-    var slots=Object.entries(timeSlots).filter(function(e){return e[1].length>=3;}).map(function(e){return{name:e[0],kd:slotAvg(e[1]),count:e[1].length};});
-    if(slots.length>=2){
-      slots.sort(function(a,b){return b.kd-a.kd;});
-      var best=slots[0];var worst=slots[slots.length-1];
-      if(best.kd-worst.kd>=0.25){
-        var nameMap={morning:'mornings',afternoon:'afternoons',evening:'evenings'};
-        insights.push(insightCard('🕐','Peak Hours','You perform best in the '+nameMap[best.name]+' ('+best.kd.toFixed(2)+' K/D) vs '+nameMap[worst.name]+' ('+worst.kd.toFixed(2)+' K/D). Schedule your ranked sessions accordingly.','var(--accent)'));
-      }
-    }
-
-    // 8. Favored vs Underdog
-    var mmrGames=allMatches.filter(function(m){return m.isRanked&&m.mmr&&m.oppMmr&&m.outcome!==0;});
-    if(mmrGames.length>=5){
-      var favored=mmrGames.filter(function(m){return m.mmr>m.oppMmr;});
-      var underdog=mmrGames.filter(function(m){return m.mmr<m.oppMmr;});
-      var favWR=favored.length?favored.filter(function(m){return m.outcome===2;}).length/favored.length*100:null;
-      var dogWR=underdog.length?underdog.filter(function(m){return m.outcome===2;}).length/underdog.length*100:null;
-      if(favWR!==null&&dogWR!==null&&Math.abs(favWR-dogWR)>=20){
-        if(dogWR>favWR) insights.push(insightCard('⚔️','Underdog Mentality','You win '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% as the favorite — you rise to the challenge.','var(--win)'));
-        else insights.push(insightCard('⚔️','Favored Team Pressure','Win rate drops to '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% when favored — you may tighten up in harder lobbies.','var(--gold)'));
-      }
-    }
-
-    // 9. Map Accuracy Variance
-    var mapAccData={};
-    allMatches.forEach(function(m){
-      if(!m.mapName||m.accuracy==null) return;
-      if(!mapAccData[m.mapName]) mapAccData[m.mapName]={total:0,count:0};
-      mapAccData[m.mapName].total+=parseFloat(m.accuracy);
-      mapAccData[m.mapName].count++;
-    });
-    var mapAccList=Object.entries(mapAccData).filter(function(e){return e[1].count>=2;}).map(function(e){return{map:e[0],avg:e[1].total/e[1].count};});
-    if(mapAccList.length>=3){
-      mapAccList.sort(function(a,b){return b.avg-a.avg;});
-      var bestMap=mapAccList[0];var worstMap=mapAccList[mapAccList.length-1];
-      if(bestMap.avg-worstMap.avg>=6){
-        insights.push(insightCard('🗺️','Map Accuracy Variance','Your accuracy is '+bestMap.avg.toFixed(1)+'% on '+bestMap.map+' vs '+worstMap.avg.toFixed(1)+'% on '+worstMap.map+' — study the sight lines on your weakest maps.','var(--accent)'));
-      }
-    }
-
-    // 10. Dying Fast vs Surviving
-    var dpd=allMatches.filter(function(m){return m.deaths>0&&m.damageTaken>0;});
-    if(dpd.length>=5){
-      var avgDPD=dpd.reduce(function(s,m){return s+m.damageTaken/m.deaths;},0)/dpd.length;
-      if(avgDPD<170) insights.push(insightCard('💀','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
-      else if(avgDPD>320) insights.push(insightCard('🛡️','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
-    }
-
-    if(!insights.length) return;
-
-    html+=sectionHead('Performance Insights', insights.length+' active');
-    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-    insights.forEach(function(card){html+=card;});
-    // strip last border-bottom
-    html=html.replace(/border-bottom:1px solid var\(--border\)(?=[^}]*<\/div><\/div><\/div><\/div>)/,'border-bottom:none');
-    html+='</div>';
-  })();
-  // ── END PERFORMANCE INSIGHTS ──────────────────────────────────────────────
-
   // Last 10 matches on overview — skip if in search mode (they have their own matches shown)
   if(displayMatches.length>0){
     html+=sectionHead('Recent Matches','last 10');
@@ -3276,15 +2998,203 @@ function render(){
 
 
 
-  // CHARTS TAB
+  // PERFORMANCE TAB
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
   var _cc=window._themeChartColors||['#378ADD','#85B7EB'];
-  // Season filter toggle
+
+  // Kill breakdown
+  (function(){
+    var _kbSample=displayMatches.slice(0,50);
+    var totalHS=0,totalMelee=0,totalGrenades=0,totalPower=0,totalKillsSample=0,totalDeathsSample=0,kbWins=0,kbLosses=0;
+    _kbSample.forEach(function(m){
+      var ws=m.weaponStats||{};
+      totalHS+=(ws.headshots||0);
+      totalMelee+=(ws.melee||0);
+      totalGrenades+=(ws.grenades||0);
+      totalPower+=(ws.powerWeapon||0);
+      totalKillsSample+=(m.kills||0);
+      totalDeathsSample+=(m.deaths||0);
+      if(m.outcome===2)kbWins++;
+      else if(m.outcome===3)kbLosses++;
+    });
+    var totalShotsFired=0,totalShotsHit=0;
+    _kbSample.forEach(function(m){totalShotsFired+=(m.shotsFired||0);totalShotsHit+=(m.shotsHit||0);});
+    var kbAccuracy=totalShotsFired>0?(totalShotsHit/totalShotsFired*100).toFixed(1):null;
+    var hasWeaponData=totalHS+totalMelee+totalGrenades+totalPower>0;
+    if(!hasWeaponData||!totalKillsSample) return;
+    var totalKills=totalKillsSample;
+    var hsPct=Math.round((totalHS/totalKills)*100);
+    var meleePct=Math.round((totalMelee/totalKills)*100);
+    var grenPct=Math.round((totalGrenades/totalKills)*100);
+    var powerPct=Math.round((totalPower/totalKills)*100);
+    var otherPct=Math.max(0,100-hsPct-meleePct-grenPct-powerPct);
+    var sampleLabel='last '+_kbSample.length+' games';
+    html+=sectionHead('Kill Breakdown',sampleLabel);
+    function killStat(label,val,pct,color){
+      return'<div class="stat-card"><div class="stat-label">'+label+'</div>'
+        +'<div class="stat-value" style="color:'+color+'">'+val+'</div>'
+        +'<div class="stat-sub">'+pct+'% of kills</div>'
+        +'<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:8px">'
+        +'<div style="height:100%;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>'
+        +'</div>';
+    }
+    var kbKD=totalDeathsSample>0?(totalKillsSample/totalDeathsSample).toFixed(2):totalKillsSample.toFixed(2);
+    var kbKDColor=parseFloat(kbKD)>=1?'var(--win)':'var(--loss)';
+    var kbWLColor=kbWins>=kbLosses?'var(--win)':'var(--loss)';
+    html+='<div class="stat-row">'
+      +'<div class="stat-card"><div class="stat-label">Record</div><div class="stat-value" style="color:'+kbWLColor+'">'+kbWins+'W <span style="color:var(--muted);font-size:18px">/</span> '+kbLosses+'L</div><div class="stat-sub">'+Math.round(kbWins/(kbWins+kbLosses||1)*100)+'% win rate</div></div>'
+      +'<div class="stat-card"><div class="stat-label">K / D</div><div class="stat-value" style="color:'+kbKDColor+'">'+kbKD+'</div><div class="stat-sub">'+totalKillsSample+' kills · '+totalDeathsSample+' deaths</div></div>'
+      +'<div class="stat-card"><div class="stat-label">Kills</div><div class="stat-value" style="color:var(--win)">'+totalKillsSample+'</div><div class="stat-sub">'+(totalKillsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
+      +'<div class="stat-card"><div class="stat-label">Deaths</div><div class="stat-value" style="color:var(--loss)">'+totalDeathsSample+'</div><div class="stat-sub">'+(totalDeathsSample/_kbSample.length).toFixed(1)+' per game</div></div>'
+      +(kbAccuracy!==null?'<div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" style="color:var(--accent)">'+kbAccuracy+'%</div><div class="stat-sub">shots hit / fired</div></div>':'')
+      +killStat('Headshots',totalHS,hsPct,'#ff6b6b')
+      +killStat('Power Weapon',totalPower,powerPct,'var(--gold)')
+      +killStat('Grenade',totalGrenades,grenPct,'#51cf66')
+      +killStat('Melee',totalMelee,meleePct,'#339af0')
+      +killStat('Body Shots',Math.max(0,totalKills-totalHS-totalMelee-totalGrenades-totalPower),otherPct,'var(--muted)')
+      +'</div>';
+  })();
+
+  // Performance Insights
+  (function(){
+    if(allMatches.length<5) return;
+    var insights=[];
+
+    function insightCard(icon,label,msg,color){
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
+        +'<span style="font-size:15px;flex-shrink:0;margin-top:1px">'+icon+'</span>'
+        +'<div><div style="font-size:10px;color:'+color+';font-family:Share Tech Mono,monospace;letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px">'+label+'</div>'
+        +'<div style="font-size:12px;color:var(--text);line-height:1.5">'+msg+'</div></div>'
+        +'</div>';
+    }
+
+    var sorted=allMatches.slice().sort(function(a,b){return new Date(b.startTime||0)-new Date(a.startTime||0);});
+    var recent=sorted.slice(0,Math.min(5,sorted.length));
+    var older=sorted.slice(5,Math.min(10,sorted.length));
+
+    if(recent.length>=3&&older.length>=3){
+      function avgKD(arr){var t=arr.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0);return t/arr.length;}
+      var recentKD=avgKD(recent);var olderKD=avgKD(older);var delta=recentKD-olderKD;
+      if(Math.abs(delta)>=0.15){
+        if(delta>=0.15) insights.push(insightCard('📈','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
+        else insights.push(insightCard('📉','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+delta.toFixed(2)+' from the prior 5 — you may be fatiguing or facing harder lobbies.','var(--loss)'));
+      }
+    }
+
+    var accRecent=recent.filter(function(m){return m.accuracy!=null;});
+    var accOlder=older.filter(function(m){return m.accuracy!=null;});
+    if(accRecent.length>=3&&accOlder.length>=3){
+      function avgAcc(arr){return arr.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/arr.length;}
+      var aR=avgAcc(accRecent);var aO=avgAcc(accOlder);var aDelta=aR-aO;
+      if(Math.abs(aDelta)>=3){
+        if(aDelta>=3) insights.push(insightCard('🎯','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
+        else insights.push(insightCard('🎯','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%).','var(--gold)'));
+      }
+    }
+
+    var dpkMatches=allMatches.filter(function(m){return m.kills>0&&m.damageDealt>0;});
+    if(dpkMatches.length>=5){
+      var avgDPK=dpkMatches.reduce(function(s,m){return s+m.damageDealt/m.kills;},0)/dpkMatches.length;
+      if(avgDPK>750) insights.push(insightCard('💥','Leaving Kills on the Table','Your average damage per kill is '+Math.round(avgDPK)+' (baseline ~550) — you\'re doing big damage but not finishing. Prioritize clean kills over burst.','var(--gold)'));
+    }
+
+    var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
+    if(weaponMatches.length>=5){
+      var totK=0,totG=0,totM=0,totHS=0,totPW=0;
+      weaponMatches.forEach(function(m){totK+=m.kills;totG+=m.weaponStats.grenades||0;totM+=m.weaponStats.melee||0;totHS+=m.weaponStats.headshots||0;totPW+=m.weaponStats.powerWeapon||0;});
+      var gPct=totG/totK*100;var mPct=totM/totK*100;var hsPct2=totHS/totK*100;var pwPct=totPW/totK*100;
+      if(gPct>20) insights.push(insightCard('💣','Heavy Grenade Reliance',Math.round(gPct)+'% of your kills come from grenades — effective, but you may struggle in low-nade modes.','var(--muted)'));
+      if(mPct>18) insights.push(insightCard('👊','Melee Heavy',Math.round(mPct)+'% melee kills — high risk at range. Consider backing off and letting your gun finish.','var(--muted)'));
+      if(hsPct2<15&&totHS>0) insights.push(insightCard('🎯','Low Headshot Rate','Only '+Math.round(hsPct2)+'% of kills are headshots — aim for the head on precision weapons to end fights faster.','var(--gold)'));
+      if(pwPct>35) insights.push(insightCard('🔫','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
+    }
+
+    var placementMatches=allMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
+    if(placementMatches.length>=5){
+      var avgPlace=placementMatches.reduce(function(s,m){return s+parseInt(m.placement);},0)/placementMatches.length;
+      if(avgPlace<=2.5) insights.push(insightCard('🏆','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
+      else if(avgPlace>=5.5) insights.push(insightCard('⚠️','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
+    }
+
+    var ctfGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='CTF';});
+    var oddballGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='Oddball';});
+    if(ctfGames.length>=3){
+      var avgCaps=ctfGames.reduce(function(s,m){return s+(m.objStats.flagCaptures||0);},0)/ctfGames.length;
+      if(avgCaps<0.3) insights.push(insightCard('🚩','Low Flag Contribution','Avg '+avgCaps.toFixed(2)+' CTF caps per game — consider being more aggressive about contesting and capping flags.','var(--gold)'));
+    }
+    if(oddballGames.length>=3){
+      var avgHold=oddballGames.reduce(function(s,m){return s+(m.objStats.timeAsCarrier||0);},0)/oddballGames.length;
+      if(avgHold<20) insights.push(insightCard('💀','Low Ball Hold Time','Avg ball carry time is only '+Math.round(avgHold)+'s — you\'re dying too fast or passing to teammates rarely.','var(--gold)'));
+    }
+
+    var timeSlots={morning:[],afternoon:[],evening:[]};
+    allMatches.forEach(function(m){
+      if(!m.startTime||m.deaths===undefined) return;
+      var h=new Date(m.startTime).getHours();var kd=m.deaths>0?m.kills/m.deaths:m.kills;
+      if(h>=5&&h<12) timeSlots.morning.push(kd);
+      else if(h>=12&&h<18) timeSlots.afternoon.push(kd);
+      else timeSlots.evening.push(kd);
+    });
+    function slotAvg(arr){return arr.length?arr.reduce(function(s,v){return s+v;},0)/arr.length:null;}
+    var slots=Object.entries(timeSlots).filter(function(e){return e[1].length>=3;}).map(function(e){return{name:e[0],kd:slotAvg(e[1]),count:e[1].length};});
+    if(slots.length>=2){
+      slots.sort(function(a,b){return b.kd-a.kd;});
+      var best=slots[0];var worst=slots[slots.length-1];
+      if(best.kd-worst.kd>=0.25){
+        var nameMap={morning:'mornings',afternoon:'afternoons',evening:'evenings'};
+        insights.push(insightCard('🕐','Peak Hours','You perform best in the '+nameMap[best.name]+' ('+best.kd.toFixed(2)+' K/D) vs '+nameMap[worst.name]+' ('+worst.kd.toFixed(2)+' K/D). Schedule your ranked sessions accordingly.','var(--accent)'));
+      }
+    }
+
+    var mmrGames=allMatches.filter(function(m){return m.isRanked&&m.mmr&&m.oppMmr&&m.outcome!==0;});
+    if(mmrGames.length>=5){
+      var favored=mmrGames.filter(function(m){return m.mmr>m.oppMmr;});
+      var underdog=mmrGames.filter(function(m){return m.mmr<m.oppMmr;});
+      var favWR=favored.length?favored.filter(function(m){return m.outcome===2;}).length/favored.length*100:null;
+      var dogWR=underdog.length?underdog.filter(function(m){return m.outcome===2;}).length/underdog.length*100:null;
+      if(favWR!==null&&dogWR!==null&&Math.abs(favWR-dogWR)>=20){
+        if(dogWR>favWR) insights.push(insightCard('⚔️','Underdog Mentality','You win '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% as the favorite — you rise to the challenge.','var(--win)'));
+        else insights.push(insightCard('⚔️','Favored Team Pressure','Win rate drops to '+Math.round(dogWR)+'% as the underdog vs '+Math.round(favWR)+'% when favored — you may tighten up in harder lobbies.','var(--gold)'));
+      }
+    }
+
+    var mapAccData={};
+    allMatches.forEach(function(m){
+      if(!m.mapName||m.accuracy==null) return;
+      if(!mapAccData[m.mapName]) mapAccData[m.mapName]={total:0,count:0};
+      mapAccData[m.mapName].total+=parseFloat(m.accuracy);
+      mapAccData[m.mapName].count++;
+    });
+    var mapAccList=Object.entries(mapAccData).filter(function(e){return e[1].count>=2;}).map(function(e){return{map:e[0],avg:e[1].total/e[1].count};});
+    if(mapAccList.length>=3){
+      mapAccList.sort(function(a,b){return b.avg-a.avg;});
+      var bestMap=mapAccList[0];var worstMap=mapAccList[mapAccList.length-1];
+      if(bestMap.avg-worstMap.avg>=6){
+        insights.push(insightCard('🗺️','Map Accuracy Variance','Your accuracy is '+bestMap.avg.toFixed(1)+'% on '+bestMap.map+' vs '+worstMap.avg.toFixed(1)+'% on '+worstMap.map+' — study the sight lines on your weakest maps.','var(--accent)'));
+      }
+    }
+
+    var dpd=allMatches.filter(function(m){return m.deaths>0&&m.damageTaken>0;});
+    if(dpd.length>=5){
+      var avgDPD=dpd.reduce(function(s,m){return s+m.damageTaken/m.deaths;},0)/dpd.length;
+      if(avgDPD<170) insights.push(insightCard('💀','Dying Fast','Avg '+Math.round(avgDPD)+' damage taken per death — you\'re getting ambushed or caught out of position regularly. Peek less aggressively.','var(--loss)'));
+      else if(avgDPD>320) insights.push(insightCard('🛡️','Tanky Survivor','Avg '+Math.round(avgDPD)+' damage taken per death — opponents need nearly 2 full clips to drop you. You hold angles well.','var(--win)'));
+    }
+
+    if(!insights.length) return;
+    html+=sectionHead('Performance Insights', insights.length+' active');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+    insights.forEach(function(card){html+=card;});
+    html=html.replace(/border-bottom:1px solid var\(--border\)(?=[^}]*<\/div><\/div><\/div><\/div>)/,'border-bottom:none');
+    html+='</div>';
+  })();
+
+  // CSR History
   html+=sectionHead('CSR History');
   html+=renderCsrFromMatches(allMatches,'Ranked Arena',_cc[0]);
   html+=renderCsrFromMatches(allMatches,'Ranked Slayer',_cc[1]);
   html+=renderCsrEfficiency(allMatches);
-  html+='</div>'; // end charts tab
+  html+='</div>'; // end performance tab
 
   // OBJECTIVES TAB
   html+='<div class="tab-panel'+(activeTab==='objectives'?' active':'')+'" data-tab="objectives">';
