@@ -93,9 +93,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 /* Mobile bottom tab bar */
 .mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
-.mapexp-inner{display:grid;grid-template-columns:220px 1fr;gap:0}
-.mapexp-img{min-height:160px}
-.mapexp-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.mapexp-inner{display:grid;grid-template-columns:280px 1fr;gap:0}
+.mapexp-img{min-height:200px}
+.mapexp-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
 @media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{height:120px;min-height:unset}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
 @media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
@@ -3106,7 +3106,7 @@ function render(){
       html+='<div onclick="toggleMapExpand(\''+panelId+'\')" style="display:flex;align-items:stretch;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
       // Map thumbnail
       if(_mapImgUrl){
-        html+='<div style="width:90px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
+        html+='<div style="width:120px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)">'
           +'<img src="'+_mapImgUrl+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="" loading="lazy">'
           +'<div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none"></div>'
           +'</div>';
@@ -3148,7 +3148,7 @@ function render(){
       var _mapAssistRatio=e.kills+e.assists>0?Math.round(e.assists/(e.kills+e.assists)*100):null;
       var _validGames=e.wins+e.losses;
 
-      html+='<div style="padding:16px 20px;background:var(--surface2)">';
+      html+='<div style="padding:20px 24px;background:var(--surface2)">';
 
       // Row 1 — core stats
       html+='<div class="mapexp-stats-row">';
@@ -3276,10 +3276,10 @@ function render(){
       }
 
       if(_mapInsights.length){
-        html+='<div style="margin-top:14px;display:flex;flex-direction:column;gap:6px">';
+        html+='<div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">';
         html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:2px">MAP INSIGHTS</div>';
         _mapInsights.forEach(function(ins){
-          html+='<div style="padding:7px 10px;border-left:3px solid '+ins.color+';background:var(--surface);border-radius:0 4px 4px 0;font-size:11px;color:var(--text);line-height:1.5">'+ins.text+'</div>';
+          html+='<div style="padding:10px 14px;border-left:3px solid '+ins.color+';background:var(--surface);border-radius:0 4px 4px 0;font-size:11px;color:var(--text);line-height:1.6">'+ins.text+'</div>';
         });
         html+='</div>';
       }
