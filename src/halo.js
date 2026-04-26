@@ -221,9 +221,10 @@ async function fetchPlayerStats(gamertag) {
     'Ranked Slayer2': 'dcb2e24e-05fb-4390-8076-32a0cdb4326e',
   };
 
-  const [statsRes, countRes, ...csrResponses] = await Promise.all([
+  const [statsRes, countRes, rankedStatsRes, ...csrResponses] = await Promise.all([
     fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord`, { headers: freshHeaders }),
     fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches/count`, { headers: freshHeaders }),
+    fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord?isRanked=true`, { headers: freshHeaders }).catch(() => null),
     ...Object.entries(RANKED_PLAYLISTS).map(([, id]) =>
       fetch(`https://skill.svc.halowaypoint.com/hi/playlist/${id}/csrs?players=xuid(${xuid})`, { headers: freshHeaders }).catch(() => null)
     ),
@@ -292,6 +293,19 @@ async function fetchPlayerStats(gamertag) {
   const wins = statsData.Wins || statsData.MatchesWon || 0;
   const losses = statsData.Losses || statsData.MatchesLost || 0;
   const matches = matchesPlayed || statsData.MatchesPlayed || (wins + losses) || 0;
+
+  // Ranked-only K/D and KDA from ranked service record
+  let rankedKd = null, rankedKda = null, rankedMatchCount = 0;
+  try {
+    if (rankedStatsRes?.ok) {
+      const rd = await rankedStatsRes.json();
+      const rc = rd.CoreStats || rd.Summary?.CoreStats || rd;
+      const rk = rc.Kills || 0, rde = rc.Deaths || 0, ra = rc.Assists || 0;
+      rankedMatchCount = rd.MatchesCompleted || rd.MatchesPlayed || 0;
+      rankedKd  = rde > 0 ? (rk / rde).toFixed(2) : rk.toFixed(2);
+      rankedKda = rankedMatchCount > 0 ? ((rk - rde + ra / 3) / rankedMatchCount).toFixed(2) : (rk - rde + ra / 3).toFixed(2);
+    }
+  } catch(e) { console.error("[RankedStats]", e.message); }
 
   // Medal meta
   let topMedals = [], allMedalsSlim = [];
@@ -385,8 +399,8 @@ async function fetchPlayerStats(gamertag) {
       matchesPlayed: matches, wins, losses,
       winRate: matches > 0 ? ((wins / matches) * 100).toFixed(1) : '0.0',
       kills, deaths, assists,
-      kd: deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2),
-      kda: matches > 0 ? ((kills - deaths + assists / 3) / matches).toFixed(1) : '0.0',
+      kd: rankedKd !== null ? rankedKd : (deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2)),
+      kda: rankedKda !== null ? rankedKda : (matches > 0 ? ((kills - deaths + assists / 3) / matches).toFixed(2) : '0.00'),
       accuracy: core.ShotAccuracy != null ? (core.ShotAccuracy * 100).toFixed(1) : (core.ShotsFired > 0 ? ((core.ShotsHit / core.ShotsFired) * 100).toFixed(1) : null),
       avgKillsPerGame: matches > 0 ? (kills / matches).toFixed(1) : '0.0',
       totalMedals: allMedalsSlim.reduce((s, m) => s + (m.count || 0), 0),
