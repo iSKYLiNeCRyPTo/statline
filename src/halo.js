@@ -386,7 +386,7 @@ async function fetchPlayerStats(gamertag) {
       winRate: matches > 0 ? ((wins / matches) * 100).toFixed(1) : '0.0',
       kills, deaths, assists,
       kd: deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2),
-      kda: deaths > 0 ? ((kills + assists * 0.33) / deaths).toFixed(2) : (kills + assists * 0.33).toFixed(2),
+      kda: (kills - deaths + assists / 3).toFixed(1),
       accuracy: core.ShotAccuracy != null ? (core.ShotAccuracy * 100).toFixed(1) : (core.ShotsFired > 0 ? ((core.ShotsHit / core.ShotsFired) * 100).toFixed(1) : null),
       avgKillsPerGame: matches > 0 ? (kills / matches).toFixed(1) : '0.0',
       totalMedals: allMedalsSlim.reduce((s, m) => s + (m.count || 0), 0),
@@ -523,7 +523,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100) {
             kills: pk, deaths: pd, assists: pa,
             score: pcore.Score||0,
             kd: pd>0?(pk/pd).toFixed(2):pk.toString(),
-            kda: pd>0?((pk+pa*0.33)/pd).toFixed(2):(pk+pa*0.33).toFixed(2),
+            kda: (pk - pd + pa/3).toFixed(1),
             damage: pcore.DamageDealt||0,
             gamerpicUrl: xuidToGamerpic[rawXuid]||null,
             // Objective stats for ranking
@@ -641,7 +641,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100) {
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
         mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
-        kda: deaths > 0 ? ((kills + assists*0.33)/deaths).toFixed(2) : (kills + assists*0.33).toFixed(2),
+        kda: (kills - deaths + assists/3).toFixed(1),
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
         shotsFired, shotsHit,
         placement: placementStr(placement), weaponStats, topMedals: matchTopMedals, csrAfter, csrBefore, csrDelta, teams,
