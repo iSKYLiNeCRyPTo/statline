@@ -600,7 +600,7 @@ app.get('/api/admin', (req, res) => {
   }
   loadData();
   setInterval(loadData,30000);
-  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+String(s.ts).replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached?'<span class="muted">cached</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
+  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached?'<span class="muted">cached</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(r=>r.gamertag.toLowerCase().includes(q)):allRows);}
   </script></body></html>`);
 });
