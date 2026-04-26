@@ -561,11 +561,15 @@ app.get('/api/admin', (req, res) => {
   <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>CACHED</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
   <script>
   var allRows=[];
-  fetch('/api/admin/searches?pass=${pass}').then(r=>r.json()).then(d=>{
-    allRows=d.searches||[];
-    document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TOTAL SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>';
-    renderRows(allRows);
-  });
+  function loadData(){
+    fetch('/api/admin/searches?pass=${pass}').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(d=>{
+      allRows=d.searches||[];
+      document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TOTAL SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>';
+      renderRows(allRows);
+    }).catch(e=>{document.getElementById('summary').innerHTML='<div style="color:#f44336">Error loading data: '+e.message+'</div>';});
+  }
+  loadData();
+  setInterval(loadData, 30000);
   function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+s.ts.replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached?'<span class="muted">cached</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(r=>r.gamertag.toLowerCase().includes(q)):allRows);}
   </script></body></html>`);
