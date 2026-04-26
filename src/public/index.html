@@ -1412,7 +1412,7 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       teamOutcome=isMyTeam?m.outcome:(m.outcome===2?3:m.outcome===3?2:0);
     }
     var oc=teamOutcome===2?'<span style="color:var(--win)">Victory</span>':teamOutcome===3?'<span style="color:var(--loss)">Defeat</span>':'<span style="color:var(--muted)">Draw</span>';
-    html+='<div class="team-label">'+oc+' — Team '+(team.teamId+1)+'</div><table><thead><tr><th>Player</th><th style="text-align:right">K</th><th style="text-align:right">D</th><th style="text-align:right">A</th><th style="text-align:right">K/D</th><th style="text-align:right">Dmg</th><th style="text-align:right">Acc</th></tr></thead><tbody>';
+    html+='<div class="team-label">'+oc+' — Team '+(team.teamId+1)+'</div><table><thead><tr><th>Player</th><th style="text-align:right">K</th><th style="text-align:right">D</th><th style="text-align:right">A</th><th style="text-align:right">K/D</th><th style="text-align:right">KDA</th><th style="text-align:right">Dmg</th></tr></thead><tbody>';
     (team.players||[]).forEach(function(pl){
       var isMe=pl.gamertag===(getAllPlayers()[selectedPlayer]||{}).gamertag;
       var myGtCheck=(getAllPlayers()[selectedPlayer]||{}).gamertag;
@@ -1442,8 +1442,9 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
           +'<span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--accent);font-family:Rajdhani,sans-serif">'+_rowInitials+'</span>'
           +'</div>';
       }
-      var _plAccStr=pl.accuracy!=null?parseFloat(pl.accuracy).toFixed(1)+'%':'—';
-      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td><td style="text-align:right;color:var(--muted)">'+_plAccStr+'</td></tr>';
+      var _plKda=pl.kda!=null?pl.kda:'—';
+      var _plKdaColor=pl.kda!=null?(parseFloat(pl.kda)>=0?'var(--win)':'var(--loss)'):'var(--muted)';
+      html+='<tr'+(isMe?' class="me-row"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:'+_plKdaColor+'">'+_plKda+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td></tr>';
     });
     html+='</tbody></table>';
   });
@@ -1679,7 +1680,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
       '</div>'+
       '<div class="match-kda">'+
         '<div class="match-kda-big">'+m.kills+'&thinsp;/&thinsp;'+m.deaths+'&thinsp;/&thinsp;'+m.assists+'</div>'+
-        '<div class="match-kda-sub">K/D '+kd+'</div>'+
+        '<div class="match-kda-sub">KDA '+(m.kda!=null?m.kda:'—')+'</div>'+
       '</div>'+
       '<div class="match-dmg">'+
         '<div class="dmg-label">Damage</div>'+
