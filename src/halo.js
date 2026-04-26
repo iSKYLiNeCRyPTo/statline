@@ -116,19 +116,35 @@ async function resolveGamertags(xuids) {
   if (!missing.length) return;
   try {
     const headers = getAuthHeaders();
+    // Batch resolve up to 100 at once
     const batch = missing.slice(0, 100);
     const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
     const r = await fetch(url, { headers });
     if (r.ok) {
       const data = await r.json();
       const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
+      const resolved = new Set();
       for (const user of users) {
         if (!user || typeof user !== 'object') continue;
         const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
         const gt = user.gamertag || user.Gamertag || '';
-        if (xuid && gt) xuidToGt[xuid] = gt;
+        if (xuid && gt) { xuidToGt[xuid] = gt; resolved.add(xuid); }
         const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
         if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
+      }
+      // Retry any that the batch missed — fetch individually
+      const stillMissing = batch.filter(x => !resolved.has(x));
+      for (const xuid of stillMissing.slice(0, 20)) {
+        try {
+          const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            const gt2 = d2.gamertag || d2.Gamertag || d2.modernGamertag || '';
+            if (gt2) xuidToGt[xuid] = gt2;
+            const gp2 = d2.gamerpic?.medium || d2.gamerpic?.large || null;
+            if (gp2 && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp2;
+          }
+        } catch(e) { /* individual retry failed — skip */ }
       }
       getRedis().then(c => {
         if (!c) return;
