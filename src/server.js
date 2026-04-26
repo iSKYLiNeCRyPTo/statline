@@ -6,75 +6,28 @@ const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const _memSearchLog = [];
-const _memTabLog = [];
 let _dbPool = null;
 
 async function getDb() {
   if (!_dbPool && process.env.DATABASE_URL) {
     _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
     try {
-      await _dbPool.query(`CREATE TABLE IF NOT EXISTS search_log (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), gamertag TEXT NOT NULL, ip TEXT, user_agent TEXT, cached TEXT, success BOOLEAN, duration_ms INTEGER)`);
-      await _dbPool.query(`CREATE TABLE IF NOT EXISTS tab_log (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), gamertag TEXT, ip TEXT, tab TEXT NOT NULL, seconds NUMERIC(8,2) NOT NULL)`);
-      await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-      await _dbPool.query(`ALTER TABLE search_log ADD COLUMN IF NOT EXISTS user_agent TEXT`).catch(()=>{});
-      await _dbPool.query(`ALTER TABLE search_log ADD COLUMN IF NOT EXISTS duration_ms INTEGER`).catch(()=>{});
-      await _dbPool.query(`ALTER TABLE search_log ALTER COLUMN cached TYPE TEXT USING cached::text`).catch(()=>{});
-      console.log('[DB] Tables ready');
+      await _dbPool.query(`CREATE TABLE IF NOT EXISTS search_log (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), gamertag TEXT NOT NULL, ip TEXT, cached BOOLEAN, success BOOLEAN)`);
+      console.log('[DB] search_log table ready');
     } catch(e) { console.error('[DB] Table create error:', e.message); }
   }
   return _dbPool;
 }
 getDb();
 
-// Load persisted xuid->gamertag cache from DB on startup
-async function loadXuidCache() {
-  try {
-    const db = await getDb();
-    if (!db) return;
-    const result = await db.query('SELECT xuid, gamertag FROM xuid_cache');
-    if (result.rows.length > 0) {
-      const gt = getXuidToGt();
-      result.rows.forEach(r => { if (!gt[r.xuid]) gt[r.xuid] = r.gamertag; });
-      console.log('[DB] Loaded', result.rows.length, 'cached xuids');
-    }
-  } catch(e) { console.error('[DB] loadXuidCache error:', e.message); }
-}
-loadXuidCache();
-
-// Flush xuid cache to DB every 5 min
-setInterval(async () => {
-  try {
-    const db = await getDb();
-    if (!db) return;
-    const gt = getXuidToGt();
-    const entries = Object.entries(gt).filter(([,v]) => v && !v.startsWith('Spartan ')).slice(0, 500);
-    if (!entries.length) return;
-    for (let i = 0; i < entries.length; i += 100) {
-      const batch = entries.slice(i, i+100);
-      const vals = batch.map((_,j) => `($${j*2+1},$${j*2+2})`).join(',');
-      await db.query(`INSERT INTO xuid_cache (xuid,gamertag) VALUES ${vals} ON CONFLICT (xuid) DO UPDATE SET gamertag=EXCLUDED.gamertag,ts=NOW()`, batch.flatMap(([x,g])=>[x,g]));
-    }
-  } catch(e) { console.error('[DB] flushXuidCache error:', e.message); }
-}, 5 * 60 * 1000);
-
-async function logSearch(gamertag, ip, userAgent, cached, success, durationMs) {
-  const entry = { ts: new Date().toISOString(), gamertag, ip: ip||'unknown', user_agent: userAgent||null, cached: String(cached), success: !!success, duration_ms: durationMs||null };
+async function logSearch(gamertag, ip, cached, success) {
+  const entry = { ts: new Date().toISOString(), gamertag, ip: ip || 'unknown', cached: !!cached, success: !!success };
   _memSearchLog.push(entry);
   if (_memSearchLog.length > 1000) _memSearchLog.shift();
   try {
     const db = await getDb();
-    if (db) await db.query('INSERT INTO search_log (gamertag,ip,user_agent,cached,success,duration_ms) VALUES ($1,$2,$3,$4,$5,$6)', [gamertag, ip||'unknown', userAgent||null, String(cached), !!success, durationMs||null]);
+    if (db) await db.query('INSERT INTO search_log (gamertag, ip, cached, success) VALUES ($1, $2, $3, $4)', [gamertag, ip || 'unknown', !!cached, !!success]);
   } catch(e) { console.error('[DB] logSearch error:', e.message); }
-}
-
-async function logTab(gamertag, ip, tab, seconds) {
-  const entry = { ts: new Date().toISOString(), gamertag, ip: ip||'unknown', tab, seconds };
-  _memTabLog.push(entry);
-  if (_memTabLog.length > 2000) _memTabLog.shift();
-  try {
-    const db = await getDb();
-    if (db) await db.query('INSERT INTO tab_log (gamertag,ip,tab,seconds) VALUES ($1,$2,$3,$4)', [gamertag||null, ip||'unknown', tab, seconds]);
-  } catch(e) { console.error('[DB] logTab error:', e.message); }
 }
 
 const app = express();
@@ -218,16 +171,16 @@ app.get('/api/search', rateLimit, async (req, res) => {
   // Check cache (skip if force refresh requested)
   const forceRefresh = req.query.force === '1';
   const cached = await getFromCache(gamertag);
-  if (cached && !forceRefresh) { logSearch(gamertag, req.ip, req.headers['user-agent'], 'cached', true, null); return res.json({ success: true, player: cached, cached: true }); }
+  if (cached && !forceRefresh) { logSearch(gamertag, req.ip, true, true); return res.json({ success: true, player: cached, cached: true }); }
 
   // Deduplicate concurrent searches
   const key = gamertag.toLowerCase().trim();
   if (searchInFlight[key]) {
     try {
       const result = await searchInFlight[key];
-      logSearch(gamertag, req.ip, req.headers['user-agent'], 'inflight', true, null); return res.json({ success: true, player: result });
+      logSearch(gamertag, req.ip, 'inflight', true); return res.json({ success: true, player: result });
     } catch(e) {
-      logSearch(gamertag, req.ip, req.headers['user-agent'], 'error', false, null); return res.status(404).json({ success: false, error: e.message });
+      logSearch(gamertag, req.ip, false, false); return res.status(404).json({ success: false, error: e.message });
     }
   }
 
@@ -241,6 +194,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.isCustom) return false;
         if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
+        // Only include Ranked Arena and Ranked Slayer — exclude social, FFA, and other modes
+        if (!m.isRanked) return false;
         return true;
       }).slice(0, 100);
       const result = {
@@ -260,26 +215,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
   searchInFlight[key] = searchPromise;
 
   try {
-    const _t0 = Date.now();
     const result = await searchPromise;
-    const _dur = Date.now() - _t0;
-    logSearch(gamertag, req.ip, req.headers['user-agent'], 'fresh', true, _dur);
+    logSearch(gamertag, req.ip, false, true);
     res.json({ success: true, player: result });
-    // Flush new xuids to DB in background
-    (async () => {
-      try {
-        const db = await getDb();
-        if (!db) return;
-        const gt = getXuidToGt();
-        const entries = Object.entries(gt).filter(([,v]) => v && !v.startsWith('Spartan ')).slice(0,500);
-        if (!entries.length) return;
-        for (let i = 0; i < entries.length; i += 100) {
-          const batch = entries.slice(i, i+100);
-          const vals = batch.map((_,j) => `($${j*2+1},$${j*2+2})`).join(',');
-          await db.query(`INSERT INTO xuid_cache (xuid,gamertag) VALUES ${vals} ON CONFLICT (xuid) DO UPDATE SET gamertag=EXCLUDED.gamertag,ts=NOW()`, batch.flatMap(([x,g])=>[x,g]));
-        }
-      } catch(e) {}
-    })();
   } catch(e) {
     console.error('[Search] Error for', gamertag, ':', e.message);
     if (e.message.includes('Could not resolve gamertag') || e.message.includes('404')) {
@@ -619,48 +557,26 @@ app.get('/api/map-image', async (req, res) => {
   }
 });
 
-// ── Tab analytics ────────────────────────────────────────────────────────────
-app.post('/api/analytics/tab', async (req, res) => {
-  const { gamertag, tab, seconds } = req.body || {};
-  if (!tab || !seconds || seconds < 1 || seconds > 3600) return res.json({ ok: false });
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-  await logTab(gamertag || null, ip, tab, parseFloat(seconds));
-  res.json({ ok: true });
-});
-
 // ── Admin: search log JSON ───────────────────────────────────────────────────
 app.get('/api/admin/searches', async (req, res) => {
   const pass = req.query.pass || req.headers['x-admin-pass'];
   if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
   try {
     const db = await getDb();
-    let searches = [], tabStats = [];
+    let searches = [];
     if (db) {
-      const r = await db.query('SELECT ts,gamertag,ip,user_agent,cached,success,duration_ms FROM search_log ORDER BY ts DESC LIMIT 500');
-      searches = r.rows;
-      const tr = await db.query(`SELECT tab,COUNT(*) as visits,ROUND(AVG(seconds),1) as avg_seconds,ROUND(SUM(seconds)/60,1) as total_minutes FROM tab_log GROUP BY tab ORDER BY visits DESC`).catch(()=>({rows:[]}));
-      tabStats = tr.rows;
+      const result = await db.query('SELECT ts, gamertag, ip, cached, success FROM search_log ORDER BY ts DESC LIMIT 500');
+      searches = result.rows.map(r => ({ ts: r.ts, gamertag: r.gamertag, ip: r.ip, cached: r.cached, success: r.success }));
     } else {
       searches = _memSearchLog.slice().reverse();
-      tabStats = _memTabLog.reduce((acc,t)=>{
-        const e=acc.find(x=>x.tab===t.tab);
-        if(e){e.visits++;e._sum+=t.seconds;e.avg_seconds=(e._sum/e.visits).toFixed(1);e.total_minutes=(e._sum/60).toFixed(1);}
-        else acc.push({tab:t.tab,visits:1,avg_seconds:t.seconds.toFixed(1),total_minutes:(t.seconds/60).toFixed(1),_sum:t.seconds});
-        return acc;
-      },[]);
     }
-    const unique=[...new Set(searches.map(s=>s.gamertag.toLowerCase()))];
-    const topMap={};
-    searches.forEach(s=>{const k=s.gamertag.toLowerCase();topMap[k]=(topMap[k]||0)+1;});
-    const top=Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([gt,count])=>({gt,count}));
-    const devices={mobile:0,desktop:0,unknown:0};
-    searches.forEach(s=>{
-      if(!s.user_agent){devices.unknown++;return;}
-      if(/mobile|android|iphone|ipad/i.test(s.user_agent))devices.mobile++;
-      else devices.desktop++;
-    });
-    res.json({total:searches.length,uniquePlayers:unique.length,top,searches,tabStats,devices});
-  } catch(e){res.status(500).json({error:e.message});}
+    const all = searches;
+    const unique = [...new Set(all.map(s => s.gamertag.toLowerCase()))];
+    const topMap = {};
+    all.forEach(s => { const k = s.gamertag.toLowerCase(); topMap[k] = (topMap[k]||0)+1; });
+    const top = Object.entries(topMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([gt,count])=>({gt,count}));
+    res.json({ total: all.length, uniquePlayers: unique.length, top, searches: all });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Admin: search log UI ──────────────────────────────────────────────────────
@@ -670,82 +586,25 @@ app.get('/api/admin', (req, res) => {
   if (pass !== ADMIN_PASS) {
     return res.send(`<!DOCTYPE html><html><body style="font-family:monospace;background:#0a0f1a;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><form method="get"><input name="pass" type="password" placeholder="Password" style="padding:8px;background:#1a2035;border:1px solid #333;color:#fff;border-radius:4px;margin-right:8px"><button type="submit" style="padding:8px 16px;background:#00d4ff;color:#000;border:none;border-radius:4px;cursor:pointer">Enter</button></form></body></html>`);
   }
-  res.send(`<!DOCTYPE html><html><head><title>fragr // analytics</title>
-  <style>
-    body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}
-    h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}
-    h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}
-    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}
-    th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}
-    td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}
-    .win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}
-    .summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
-    .stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}
-    .stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}
-    .stat-lbl{font-size:10px;color:#555;margin-top:4px}
-    #filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}
-    .bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}
-    .bar{background:#00d4ff;height:6px;border-radius:3px}
-    .ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}
-  </style></head>
-  <body><h1>// fragr analytics</h1>
+  res.send(`<!DOCTYPE html><html><head><title>fragr // searches</title>
+  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1{color:#00d4ff;font-size:16px;letter-spacing:2px;text-transform:uppercase}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.summary{display:flex;gap:24px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035}.stat-val{font-size:28px;font-weight:700;color:#00d4ff}.stat-lbl{font-size:10px;color:#555;margin-top:2px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}</style></head>
+  <body><h1>// fragr search log</h1>
   <div class="summary" id="summary">Loading...</div>
-  <h2>// tab engagement</h2>
-  <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
-  <h2>// recent searches</h2>
   <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
-  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
+  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>CACHED</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
   <script>
   var allRows=[];
-  function ua2device(ua){
-    if(!ua)return'<span class="ua-pill">?</span>';
-    var u=ua.toLowerCase();
-    if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';
-    if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';
-    if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';
-    if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';
-    if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';
-    return'<span class="ua-pill">desktop</span>';
-  }
-  function fmtSec(s){if(!s)return'—';var n=parseFloat(s);return n>=60?(n/60).toFixed(1)+'m':n+'s';}
   function loadData(){
-    fetch('/api/admin/searches?pass=${pass}').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){
+    fetch('/api/admin/searches?pass=${pass}').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(d=>{
       allRows=d.searches||[];
-      var dev=d.devices||{};
-      document.getElementById('summary').innerHTML=
-        '<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">SEARCHES</div></div>'+
-        '<div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div>'+
-        '<div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>'+
-        '<div class="stat"><div class="stat-val">'+(dev.mobile||0)+'</div><div class="stat-lbl">MOBILE</div></div>'+
-        '<div class="stat"><div class="stat-val">'+(dev.desktop||0)+'</div><div class="stat-lbl">DESKTOP</div></div>';
-      var tabs=d.tabStats||[];
-      var maxV=tabs.reduce(function(m,t){return Math.max(m,parseInt(t.visits)||0);},1);
-      document.getElementById('tabtbody').innerHTML=tabs.length?tabs.map(function(t){
-        var pct=Math.round((parseInt(t.visits)/maxV)*100);
-        return '<tr><td style="color:#00d4ff">'+t.tab+'</td>'+
-          '<td>'+t.visits+'<div class="bar-wrap"><div class="bar" style="width:'+pct+'%"></div></div></td>'+
-          '<td class="gold">'+fmtSec(t.avg_seconds)+'</td>'+
-          '<td class="muted">'+t.total_minutes+'m</td></tr>';
-      }).join(''):'<tr><td colspan="4" class="muted">No tab data yet — visit fragr and switch tabs to populate</td></tr>';
+      document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">TOTAL SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div>';
       renderRows(allRows);
-    }).catch(function(e){document.getElementById('summary').innerHTML='<div style="color:#f44336">Error: '+e.message+'</div>';});
+    }).catch(e=>{document.getElementById('summary').innerHTML='<div style="color:#f44336">Error: '+e.message+'</div>';});
   }
   loadData();
   setInterval(loadData,30000);
-  function renderRows(rows){
-    document.getElementById('tbody').innerHTML=rows.map(function(s){
-      var cached=String(s.cached);
-      var cs=cached==='cached'?'<span class="muted">cached</span>':cached==='inflight'?'<span style="color:#555">inflight</span>':cached==='error'?'<span class="loss">error</span>':'<span style="color:#888">fresh</span>';
-      return '<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td>'+
-        '<td style="color:#00d4ff">'+s.gamertag+'</td>'+
-        '<td class="muted">'+s.ip+'</td>'+
-        '<td>'+ua2device(s.user_agent)+'</td>'+
-        '<td>'+cs+'</td>'+
-        '<td class="muted">'+(s.duration_ms?s.duration_ms+'ms':'—')+'</td>'+
-        '<td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>';
-    }).join('');
-  }
-  function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(function(r){return r.gamertag.toLowerCase().includes(q);}):allRows);}
+  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(s=>'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+(s.cached===true?'<span class="muted">cached</span>':s.cached==="inflight"?'<span style="color:#555">inflight</span>':'<span style="color:#888">fresh</span>')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>').join('');}
+  function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(r=>r.gamertag.toLowerCase().includes(q)):allRows);}
   </script></body></html>`);
 });
 
