@@ -300,6 +300,7 @@ async function fetchPlayerStats(gamertag) {
       wins    = rd.Wins || rd.MatchesWon || 0;
       losses  = rd.Losses || rd.MatchesLost || 0;
       matches = rd.MatchesCompleted || rd.MatchesPlayed || (wins + losses) || 0;
+      console.log("[RankedStats] MatchesCompleted:", rd.MatchesCompleted, "MatchesPlayed:", rd.MatchesPlayed, "Wins:", rd.Wins, "Losses:", rd.Losses, "Ties:", rd.Ties, "computed matches:", matches);
       rankedKd  = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
       rankedKda = matches > 0
         ? ((kills - deaths + assists / 3) / matches).toFixed(2)
