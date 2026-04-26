@@ -808,7 +808,6 @@ function loadMatchHistory(page){
   var gt=p.gamertag;
   if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
-  // Safety timeout — if still spinning after 8s, fall back to in-memory matches
   var _mhTimeout=setTimeout(function(){
     if(!matchHistoryLoading)return;
     matchHistoryLoading=false;
@@ -960,9 +959,28 @@ function paginationBtnStyle(disabled){
   return 'background:transparent;border:1px solid var(--border);color:'+(disabled?'var(--muted2)':'var(--muted)')+';padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:'+(disabled?'not-allowed':'pointer')+';opacity:'+(disabled?'0.4':'1')+';';
 }
 
+// ── Tab time tracking ─────────────────────────────────────────────────────────
+var _tabStart = Date.now();
+var _tabCurrent = 'overview';
+function flushTabTime(newTab) {
+  var secs = (Date.now() - _tabStart) / 1000;
+  if (secs >= 2) {
+    var gt = (getAllPlayers()[selectedPlayer]||{}).gamertag || null;
+    fetch('/api/analytics/tab', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gamertag: gt, tab: _tabCurrent, seconds: Math.round(secs) })
+    }).catch(function(){});
+  }
+  _tabCurrent = newTab;
+  _tabStart = Date.now();
+}
+window.addEventListener('beforeunload', function(){ flushTabTime('__exit__'); });
+
 function setTab(t){
   // Clear expanded match state for the tab we're leaving so cards render cleanly on return
   var _prevTab=activeTab;
+  flushTabTime(t);
   activeTab=t;
   Object.keys(expandedMatches).forEach(function(k){
     if(k.indexOf(_prevTab+'__')===0) delete expandedMatches[k];
