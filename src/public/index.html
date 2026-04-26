@@ -3228,7 +3228,7 @@ function render(){
         var _bestWR=Math.round(_best[1].wins/_best[1].count*100);
         var _worstWR=Math.round(_worst[1].wins/_worst[1].count*100);
         if(_bestWR-_worstWR>=20){
-          _mapInsights.push({color:'var(--win)',text:_best[0]+' is your best mode here ('+_bestWR+'% WR) — queue it when this map comes up.'});
+          _mapInsights.push({color:'var(--win)',text:_best[0]+' is your best mode here ('+_bestWR+'% WR).'});
           if(_worstWR<=35) _mapInsights.push({color:'var(--loss)',text:'Struggling in '+_worst[0]+' on this map ('+_worstWR+'% WR) — consider your approach or positioning for this mode here.'});
         }
       }
@@ -3237,7 +3237,11 @@ function render(){
       if(_mapHsRate!=null&&_mapHsRate<30&&e.totalKillsHs>=10){
         _mapInsights.push({color:'var(--gold)',text:'Only '+_mapHsRate+'% headshot finishes here. The sightlines on this map may be throwing off your aim — focus on pre-aiming head level at common corners.'});
       } else if(_mapHsRate!=null&&_mapHsRate>=55){
-        _mapInsights.push({color:'var(--win)',text:_mapHsRate+'% headshot finish rate — your aim translates well to this map sightlines.'});
+        var _slayerForHs=e.modes['Slayer'];
+        var _slayKDForHs=_slayerForHs&&_slayerForHs.deaths>=5?(_slayerForHs.kills/_slayerForHs.deaths):null;
+        if(_slayKDForHs===null||_slayKDForHs>=1.0){
+          _mapInsights.push({color:'var(--win)',text:_mapHsRate+'% headshot finish rate — your aim translates well to this map\'s sightlines.'});
+        }
       }
 
       // Accuracy vs overall average
@@ -3261,7 +3265,7 @@ function render(){
       // CSR trend — net positive or negative
       if(e.csrGames>=4){
         var _csrPerGame=e.csrTotal/e.csrGames;
-        if(_csrPerGame<=-3) _mapInsights.push({color:'var(--loss)',text:'Losing '+Math.abs(_csrPerGame).toFixed(1)+' CSR per game here on average — this map is actively costing you rank. Dodge if you can.'});
+        if(_csrPerGame<=-3) _mapInsights.push({color:'var(--loss)',text:'Losing '+Math.abs(_csrPerGame).toFixed(1)+' CSR per game here on average — this map is actively costing you rank. Focus on survival and objective play over fighting for kills.'});
         else if(_csrPerGame>=3) _mapInsights.push({color:'var(--win)',text:'Gaining '+_csrPerGame.toFixed(1)+' CSR per game here on average — this is one of your best rank-climbing maps.'});
       }
 
