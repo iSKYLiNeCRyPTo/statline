@@ -562,7 +562,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100) {
               const _occT = zones.StrongholdOccupationTime ?? zones.OccupationTime ?? zones.TotalTimeInZone ?? zones.TimeInZone ?? null;
               objStats={mode:zm,captures:_caps,secures:_secs,defensiveKills:_defK,offensiveKills:_offK,scoringTicks:_ticks,occupationTime:parseDur(_occT)};
             }
-            else if (ctf) objStats={mode:'CTF',flagCaptures:ctf.FlagCaptures??null,flagGrabs:ctf.FlagGrabs??null,flagReturns:ctf.FlagReturns??null,flagCarrierKills:ctf.FlagCarrierKills??null,flagsStolen:ctf.FlagsStolen??null,timeAsCarrier:parseDur(ctf.TimeAsCarrier)};
+            else if (ctf) { const ctfCarrier = ctf.TimeAsCarrier; const ctfCarrierSecs = typeof ctfCarrier==='number' ? ctfCarrier : parseDur(ctfCarrier); objStats={mode:'CTF',flagCaptures:ctf.FlagCaptures??null,flagGrabs:ctf.FlagGrabs??null,flagReturns:ctf.FlagReturns??null,flagCarrierKills:ctf.FlagCarrierKills??null,flagsStolen:ctf.FlagsStolen??null,timeAsCarrier:ctfCarrierSecs||null}; }
             else if (stockpile) objStats={mode:'Stockpile',seedsDeposited:stockpile.PowerSeedsDeposited??null,seedsStolen:stockpile.PowerSeedsStolenFromBase??null,seedsPickedUp:stockpile.PowerSeedsPickedUp??null};
             teamMap[teamId].outcome = player.Outcome || m.Outcome;
             // CSR delta
