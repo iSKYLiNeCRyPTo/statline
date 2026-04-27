@@ -652,11 +652,7 @@ app.get('/api/admin/searches', async (req, res) => {
       const statsR = await db.query(`SELECT COUNT(*) as total, COUNT(DISTINCT LOWER(gamertag)) as unique_players, SUM(CASE WHEN user_agent ~* 'mobile|android|iphone|ipad' THEN 1 ELSE 0 END) as mobile, SUM(CASE WHEN user_agent IS NOT NULL AND user_agent !~* 'mobile|android|iphone|ipad' THEN 1 ELSE 0 END) as desktop FROM search_log`).catch(()=>({rows:[{}]}));
       const topR = await db.query(`SELECT LOWER(gamertag) as gt, COUNT(*) as count FROM search_log GROUP BY LOWER(gamertag) ORDER BY count DESC LIMIT 10`).catch(()=>({rows:[]}));
       const st = statsR.rows[0] || {};
-      const devices = { mobile: parseInt(st.mobile)||0, desktop: parseInt(st.desktop)||0, unknown: 0 };
-      const unique2 = [...new Set(searches.map(s => s.gamertag.toLowerCase()))];
-      const topMap2 = {};
-      searches.forEach(s => { const k = s.gamertag.toLowerCase(); topMap2[k] = (topMap2[k]||0)+1; });
-      res.json({ total: parseInt(st.total)||searches.length, uniquePlayers: parseInt(st.unique_players)||0, top: topR.rows.map(r=>({gt:r.gt,count:parseInt(r.count)})), searches, tabStats, devices });
+      res.json({ total: parseInt(st.total)||searches.length, uniquePlayers: parseInt(st.unique_players)||0, top: topR.rows.map(r=>({gt:r.gt,count:parseInt(r.count)})), searches, tabStats, devices: { mobile: parseInt(st.mobile)||0, desktop: parseInt(st.desktop)||0, unknown: 0 } });
       return;
     } else {
       searches = _memSearchLog.slice().reverse();
