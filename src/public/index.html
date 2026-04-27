@@ -563,7 +563,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
         </div>
       </div>
-      <p style="margin-top:32px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">fragr.live &nbsp;·&nbsp; Based on last 100 matches &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft</p>
+      <div id="landingStats" style="margin-top:28px;display:flex;gap:24px;justify-content:center;flex-wrap:wrap"></div>
+      <p style="margin-top:20px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;line-height:1.8">fragr.live &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft &nbsp;·&nbsp; Stats sourced from the Halo Waypoint API<br>We collect anonymous usage data (gamertags searched, device type) to improve the service. No accounts, no cookies, no IP addresses stored.</p>
     </div>
   </div>
 </div>
@@ -1275,6 +1276,22 @@ function renderFavChips() {
 }
 async function loadStats(){
   await loadMedalMeta();
+  // Load landing page stats
+  fetch('/api/admin/searches?pass=' + (window._adminPass||''))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; });
+  // Use public stats endpoint instead
+  fetch('/api/stats')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d) return;
+      var el = document.getElementById('landingStats');
+      if (!el) return;
+      el.innerHTML =
+        '<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">' + (d.totalSearches||0).toLocaleString() + '</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">SEARCHES</div></div>' +
+        '<div style="width:1px;background:var(--border);align-self:stretch"></div>' +
+        '<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">' + (d.uniquePlayers||0).toLocaleString() + '</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">PLAYERS TRACKED</div></div>';
+    }).catch(function(){});
   // Check URL for player param
   var params=new URLSearchParams(window.location.search);
   var gt=params.get('player')||params.get('search');
