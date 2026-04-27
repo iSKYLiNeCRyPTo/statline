@@ -391,9 +391,16 @@ app.get('/api/emblem-img', async (req, res) => {
     } else {
       const parts = imgPath.split('/');
       const withFile = parts.length > 1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+imgPath;
+      // Try also a Spartan-injected variant (some def DisplayPaths drop the Spartan segment)
+      const stripped = imgPath.replace(/^progression\//,'');
+      const withSpartan = stripped.replace(/^Inventory\/Emblems\//, 'Inventory/Spartan/Emblems/');
+      const withSpartanFile = `progression/file/${withSpartan}`;
       candidates = [
         `https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`,
         `https://gamecms-hacs.svc.halowaypoint.com/hi/${imgPath}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withSpartanFile}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/${withSpartan}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/emblems/${stripped.split('/').pop()}`,
       ];
     }
     for (const url of candidates) {
@@ -444,8 +451,10 @@ app.get('/api/emblem', async (req, res) => {
   }
   const emblemPaths = require('./halo').getEmblemPathCache ? require('./halo').getEmblemPathCache() : {};
   const imagePath = emblemPaths[String(xuid)];
+  console.log('[Emblem/api] xuid:', xuid, '| cached imagePath:', imagePath);
   if (!imagePath || imagePath === '__none__') {
     const gpUrl = getXuidToGamerpic()[String(xuid)];
+    console.log('[Emblem/api] no path -> gamerpic fallback:', !!gpUrl);
     return gpUrl ? res.redirect(302, gpUrl) : res.status(404).send('No emblem');
   }
   try {
@@ -457,14 +466,25 @@ app.get('/api/emblem', async (req, res) => {
     } else {
       const parts = imagePath.split('/');
       const withFile = parts.length>1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+imagePath;
-      imgUrls = [`https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`, `https://gamecms-hacs.svc.halowaypoint.com/hi/${imagePath}`];
+      const stripped = imagePath.replace(/^progression\//,'');
+      const withSpartan = stripped.replace(/^Inventory\/Emblems\//, 'Inventory/Spartan/Emblems/');
+      const withSpartanFile = `progression/file/${withSpartan}`;
+      imgUrls = [
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/${imagePath}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withSpartanFile}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/${withSpartan}`,
+        `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/emblems/${stripped.split('/').pop()}`,
+      ];
     }
     let imgRes = null;
     for (const url of imgUrls) {
+      console.log('[Emblem/api] trying:', url);
       const r = await fetch(url, { headers });
-      if (r.ok) { imgRes = r; break; }
+      if (r.ok) { console.log('[Emblem/api] success:', url); imgRes = r; break; }
+      else { console.log('[Emblem/api] failed:', url, r.status); }
     }
-    if (!imgRes) { const gpUrl = getXuidToGamerpic()[String(xuid)]; emblemImgCache[xuid] = gpUrl || '__none__'; return gpUrl ? res.redirect(302, gpUrl) : res.status(404).send('Not found'); }
+    if (!imgRes) { const gpUrl = getXuidToGamerpic()[String(xuid)]; console.log('[Emblem/api] all candidates failed -> gamerpic fallback:', !!gpUrl); emblemImgCache[xuid] = gpUrl || '__none__'; return gpUrl ? res.redirect(302, gpUrl) : res.status(404).send('Not found'); }
     const ct = imgRes.headers.get('content-type') || 'image/png';
     const buf = Buffer.from(await imgRes.arrayBuffer());
     emblemImgCache[xuid] = { ct, buf };
