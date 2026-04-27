@@ -368,6 +368,11 @@ const imgInFlight = {};
 app.get('/api/emblem-img', async (req, res) => {
   const { path: imgPath, xuid } = req.query;
   if (!imgPath) return res.status(400).send('path required');
+  // Negative-cached path: skip straight to gamerpic.
+  if (imgCache[imgPath] === '__none__') {
+    if (xuid) { const gpUrl = getXuidToGamerpic()[String(xuid)]; if (gpUrl) return res.redirect(302, gpUrl); }
+    return res.status(404).send('Emblem not found');
+  }
   if (imgCache[imgPath]) {
     res.setHeader('Content-Type', imgCache[imgPath].ct);
     res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -385,9 +390,8 @@ app.get('/api/emblem-img', async (req, res) => {
   const fetchPromise = (async () => {
     try { await fetchClearanceToken(xuid || '2533274802953504'); } catch(e) {}
     const headers = getAuthHeaders();
-    let candidates;
     // imgPath may be a single path or ';'-separated list of candidates.
-    candidates = [];
+    const candidates = [];
     for (const p of imgPath.split(';').filter(Boolean)) {
       if (p.startsWith('waypoint:')) {
         candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${p.slice('waypoint:'.length)}`);
@@ -398,28 +402,26 @@ app.get('/api/emblem-img', async (req, res) => {
         const withFile = parts.length > 1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+p;
         candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`);
         candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/${p}`);
-        // Also try the Images branch with the raw progression path
         const stripped = p.replace(/^progression\//,'');
         candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/progression/${stripped}`);
       }
     }
     for (const url of candidates) {
       try {
-        console.log('[EmblemImg] trying:', url);
         const r = await fetch(url, { headers });
         if (r.ok) {
-          console.log('[EmblemImg] success:', url);
           const ct = r.headers.get('content-type') || 'image/png';
           const buf = Buffer.from(await r.arrayBuffer());
           imgCache[imgPath] = { ct, buf };
           return { ct, buf };
-        } else {
-          console.log('[EmblemImg] failed:', url, r.status);
         }
-      } catch(e) { console.log('[EmblemImg] error:', url, e.message); }
+      } catch(e) {}
     }
-    // Redirect to gamerpic fallback
+    // All candidates failed: negative-cache the path and downgrade the xuid emblem cache so
+    // future requests for this xuid fall straight through to gamerpic.
+    imgCache[imgPath] = '__none__';
     if (xuid) {
+      try { require('./halo').markEmblemMissing(xuid); } catch(e) {}
       const gpUrl = getXuidToGamerpic()[String(xuid)];
       if (gpUrl) return gpUrl;
     }
@@ -449,20 +451,25 @@ app.get('/api/emblem', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(emblemImgCache[xuid].buf);
   }
-  const emblemPaths = require('./halo').getEmblemPathCache ? require('./halo').getEmblemPathCache() : {};
-  const imagePath = emblemPaths[String(xuid)];
-  console.log('[Emblem/api] xuid:', xuid, '| cached imagePath:', imagePath);
+  const halo = require('./halo');
+  let imagePath = halo.getEmblemPathCache()[String(xuid)];
+  // Cache miss: trigger fresh resolution so we don't hard-404 for xuids that haven't been through getStats yet.
+  if (!imagePath) {
+    try {
+      const resolved = await halo.resolveEmblemForXuid(xuid);
+      imagePath = resolved?.emblemPath;
+    } catch(e) {}
+  }
   if (!imagePath || imagePath === '__none__') {
     const gpUrl = getXuidToGamerpic()[String(xuid)];
-    console.log('[Emblem/api] no path -> gamerpic fallback:', !!gpUrl);
+    if (gpUrl) emblemImgCache[xuid] = gpUrl;
     return gpUrl ? res.redirect(302, gpUrl) : res.status(404).send('No emblem');
   }
   try {
     await fetchClearanceToken(xuid);
     const headers = getAuthHeaders();
-    let imgUrls;
     // imagePath may be a single path or ';'-separated list of candidates.
-    imgUrls = [];
+    const imgUrls = [];
     for (const p of imagePath.split(';').filter(Boolean)) {
       if (p.startsWith('waypoint:')) {
         imgUrls.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${p.slice('waypoint:'.length)}`);
@@ -479,12 +486,16 @@ app.get('/api/emblem', async (req, res) => {
     }
     let imgRes = null;
     for (const url of imgUrls) {
-      console.log('[Emblem/api] trying:', url);
       const r = await fetch(url, { headers });
-      if (r.ok) { console.log('[Emblem/api] success:', url); imgRes = r; break; }
-      else { console.log('[Emblem/api] failed:', url, r.status); }
+      if (r.ok) { imgRes = r; break; }
     }
-    if (!imgRes) { const gpUrl = getXuidToGamerpic()[String(xuid)]; console.log('[Emblem/api] all candidates failed -> gamerpic fallback:', !!gpUrl); emblemImgCache[xuid] = gpUrl || '__none__'; return gpUrl ? res.redirect(302, gpUrl) : res.status(404).send('Not found'); }
+    if (!imgRes) {
+      // All candidates failed. Downgrade emblem cache so future requests skip path resolution.
+      halo.markEmblemMissing(xuid);
+      const gpUrl = getXuidToGamerpic()[String(xuid)];
+      emblemImgCache[xuid] = gpUrl || '__none__';
+      return gpUrl ? res.redirect(302, gpUrl) : res.status(404).send('Not found');
+    }
     const ct = imgRes.headers.get('content-type') || 'image/png';
     const buf = Buffer.from(await imgRes.arrayBuffer());
     emblemImgCache[xuid] = { ct, buf };
