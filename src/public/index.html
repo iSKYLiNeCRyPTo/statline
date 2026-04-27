@@ -116,7 +116,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
 .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .hero-nameplate{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:0.44;border-radius:12px;pointer-events:none;z-index:0}
-.hero>*{position:relative;z-index:1}
+.hero>*:not(.hero-nameplate){position:relative;z-index:1}
 .hero-adornment{width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 .hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
 .hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
@@ -255,6 +255,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 @media(max-width:768px){.cq-badge-desktop{display:none}.cq-badge-mobile{display:inline !important}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
 .match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
 .match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.match-dmg-mobile{display:none;align-items:center;padding:4px 12px 6px;gap:0}
 .dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
 .dmg-bar-track{flex:1;height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;min-width:40px}
 .dmg-bar-fill{height:100%;border-radius:2px}
@@ -399,6 +400,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .csr-row{grid-template-columns:1fr}
   .match-main{padding:8px 10px;gap:6px}
   .match-dmg{display:none}
+  .match-dmg-mobile{display:flex}
   .match-kda{min-width:60px}
   .match-kda-big{font-size:12px}
   .cmd-topbar-right .search-bar{display:none}
@@ -1950,7 +1952,23 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
         (m.csrDelta!=null?'<span class="match-csr" style="color:'+(m.csrDelta>=0?'var(--win)':'var(--loss)')+'\">'+(m.csrDelta>0?'+':'')+m.csrDelta+' CSR</span>':(m.csrAfter?'<span class="match-csr">'+m.csrAfter+'</span>':''))+
         '<span class="match-arrow">'+(isOpen?'▲':'▼')+'</span>'+
       '</div>'+
-    '</div>'+detail;
+    '</div>'+
+    ((m.damageDealt||m.damageTaken)?
+      (function(){
+        var d=m.damageDealt||0,t=m.damageTaken||0,tot=d+t||1;
+        var gPct=Math.round((d/tot)*100);
+        var rPct=100-gPct;
+        return '<div class="match-dmg-mobile">'
+          +'<span style="color:var(--loss);font-family:Share Tech Mono,monospace;font-size:9px">'+Math.round(t).toLocaleString()+'</span>'
+          +'<div style="flex:1;height:4px;border-radius:2px;overflow:hidden;display:flex;margin:0 6px">'
+          +'<div style="width:'+rPct+'%;background:var(--loss);opacity:0.8"></div>'
+          +'<div style="width:'+gPct+'%;background:var(--win);opacity:0.8"></div>'
+          +'</div>'
+          +'<span style="color:var(--win);font-family:Share Tech Mono,monospace;font-size:9px">'+Math.round(d).toLocaleString()+'</span>'
+          +'</div>';
+      })()
+    :'')+
+    detail;
   return el.outerHTML;
 }
 function renderCsrFromMatches(matches,playlist,color){
@@ -3574,7 +3592,9 @@ function render(){
     var map=m.mapName||'Unknown';
     if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,
       accGames:0,accTotal:0,csrGames:0,csrTotal:0,hsKills:0,totalKillsHs:0,
-      shotsFired:0,shotsHit:0,modes:{},recentResults:[],imageUrl:null};
+      shotsFired:0,shotsHit:0,modes:{},recentResults:[],imageUrl:null,
+      totalSecs:0,winDmgDealt:0,lossDmgDealt:0,winDmgGames:0,lossDmgGames:0,
+      peakDmg:0,dmgGames:0};
     if(!mapData[map].imageUrl&&m.mapImageUrl)mapData[map].imageUrl=m.mapImageUrl;
     var d=mapData[map];
     var secs=_mapDurSecs(m);
@@ -3583,6 +3603,13 @@ function render(){
     if(validGame){
       d.kills+=m.kills||0;d.deaths+=m.deaths||0;d.assists+=m.assists||0;
       d.dmgDealt+=m.damageDealt||0;d.dmgTaken+=m.damageTaken||0;
+      d.totalSecs+=secs;
+      if(m.damageDealt>300){
+        d.dmgGames++;
+        if(m.damageDealt>d.peakDmg)d.peakDmg=m.damageDealt;
+        if(m.outcome===2){d.winDmgDealt+=m.damageDealt;d.winDmgGames++;}
+        else if(m.outcome===3){d.lossDmgDealt+=m.damageDealt;d.lossDmgGames++;}
+      }
       if(m.accuracy!=null){d.accGames++;d.accTotal+=parseFloat(m.accuracy);}
       if(m.csrDelta!=null){d.csrGames++;d.csrTotal+=m.csrDelta;}
       if(m.weaponStats){d.hsKills+=m.weaponStats.headshots||0;d.totalKillsHs+=m.kills||0;}
@@ -3899,6 +3926,143 @@ function render(){
       });
       html+='</div>';
     }
+    // ── DPM (Damage Per Minute) by Map ───────────────────────────────────────
+    var dpmRows=mapRows.filter(function(r){return r.totalSecs>0&&r.dmgDealt>0&&r.dmgGames>=2;})
+      .map(function(r){
+        var mins=r.totalSecs/60;
+        return {map:r.map,dpmDealt:Math.round(r.dmgDealt/mins),dpmTaken:Math.round(r.dmgTaken/mins),
+          games:r.dmgGames,ratio:r.dmgTaken>0?r.dmgDealt/r.dmgTaken:0};
+      }).sort(function(a,b){return b.dpmDealt-a.dpmDealt;});
+
+    if(dpmRows.length>=2){
+      var maxDpm=Math.max.apply(null,dpmRows.map(function(r){return Math.max(r.dpmDealt,r.dpmTaken);}));
+      html+=sectionHead('Damage Per Minute by Map');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      html+='<div style="padding:10px 16px 6px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;display:flex;gap:16px">'
+        +'<span style="color:var(--win)">■ DPM Dealt</span><span style="color:var(--loss)">■ DPM Taken</span>'
+        +'</div>';
+      dpmRows.forEach(function(row,i){
+        var dp=Math.round((row.dpmDealt/maxDpm)*100);
+        var tp=Math.round((row.dpmTaken/maxDpm)*100);
+        var rColor=row.ratio>=1?'var(--win)':'var(--loss)';
+        var isBest=i===0;
+        var isWorst=i===dpmRows.length-1&&dpmRows.length>2;
+        html+='<div style="padding:10px 16px;'+(i<dpmRows.length-1?'border-bottom:1px solid var(--border2)':'')+'">';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+        html+='<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'
+          +row.map
+          +(isBest?' <span style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace">↑ HIGHEST</span>':'')
+          +(isWorst?' <span style="font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace">↓ LOWEST</span>':'')
+          +'</div>';
+        html+='<div style="display:flex;gap:14px">';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">DPM</div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif">'+row.dpmDealt.toLocaleString()+'</div></div>';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">TAKEN/M</div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--loss);font-family:Rajdhani,sans-serif">'+row.dpmTaken.toLocaleString()+'</div></div>';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">RATIO</div>'
+          +'<div style="font-size:14px;font-weight:700;color:'+rColor+';font-family:Rajdhani,sans-serif">'+row.ratio.toFixed(2)+'</div></div>';
+        html+='</div></div>';
+        html+='<div style="display:flex;flex-direction:column;gap:3px">';
+        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:36px;font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">dealt</div>'
+          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+dp+'%;background:var(--win);border-radius:3px"></div></div></div>';
+        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:36px;font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">taken</div>'
+          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+tp+'%;background:var(--loss);border-radius:3px"></div></div></div>';
+        html+='</div>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+
+    // ── Damage: Wins vs Losses ────────────────────────────────────────────────
+    var wlRows=mapRows.filter(function(r){return r.winDmgGames>=2&&r.lossDmgGames>=2;})
+      .map(function(r){
+        return {map:r.map,
+          avgWinDmg:Math.round(r.winDmgDealt/r.winDmgGames),
+          avgLossDmg:Math.round(r.lossDmgDealt/r.lossDmgGames),
+          winGames:r.winDmgGames,lossGames:r.lossDmgGames};
+      }).sort(function(a,b){return (b.avgWinDmg-b.avgLossDmg)-(a.avgWinDmg-a.avgLossDmg);});
+
+    if(wlRows.length>=2){
+      var wlMax=Math.max.apply(null,wlRows.map(function(r){return Math.max(r.avgWinDmg,r.avgLossDmg);}));
+      html+=sectionHead('Damage: Wins vs Losses','are you dealing damage or just losing fights?');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      html+='<div style="padding:10px 16px 6px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;display:flex;gap:16px">'
+        +'<span style="color:var(--win)">■ Avg damage in wins</span><span style="color:var(--muted)">■ Avg damage in losses</span>'
+        +'</div>';
+      wlRows.forEach(function(row,i){
+        var wp=Math.round((row.avgWinDmg/wlMax)*100);
+        var lp=Math.round((row.avgLossDmg/wlMax)*100);
+        var diff=row.avgWinDmg-row.avgLossDmg;
+        var diffColor=diff>=0?'var(--win)':'var(--loss)';
+        var insight=diff<-200?'High damage loser — you\'re dealing more when you lose. Fights are going long.':diff>300?'Clean wins — lower damage needed to win here.':'';
+        html+='<div style="padding:10px 16px;'+(i<wlRows.length-1?'border-bottom:1px solid var(--border2)':'')+'">';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
+        html+='<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+row.map+'</div>';
+        html+='<div style="display:flex;gap:14px">';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">WIN AVG</div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif">'+row.avgWinDmg.toLocaleString()+'</div></div>';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">LOSS AVG</div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--muted);font-family:Rajdhani,sans-serif">'+row.avgLossDmg.toLocaleString()+'</div></div>';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">DIFF</div>'
+          +'<div style="font-size:14px;font-weight:700;color:'+diffColor+';font-family:Rajdhani,sans-serif">'+(diff>=0?'+':'')+diff.toLocaleString()+'</div></div>';
+        html+='</div></div>';
+        html+='<div style="display:flex;flex-direction:column;gap:3px">';
+        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:32px;font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">W</div>'
+          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+wp+'%;background:var(--win);border-radius:3px;opacity:0.85"></div></div></div>';
+        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:32px;font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">L</div>'
+          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+lp+'%;background:var(--muted);border-radius:3px;opacity:0.7"></div></div></div>';
+        html+='</div>';
+        if(insight)html+='<div style="margin-top:6px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+insight+'</div>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+
+    // ── Damage Efficiency + Peak Game ─────────────────────────────────────────
+    var effRows=mapRows.filter(function(r){return r.dmgGames>=2&&r.dmgDealt>0&&r.dmgTaken>0;})
+      .map(function(r){
+        var games=r.wins+r.losses;
+        var eff=Math.round((r.dmgDealt/(r.dmgDealt+r.dmgTaken))*100);
+        var dpk=r.kills>0?Math.round(r.dmgDealt/r.kills):null;
+        return {map:r.map,eff:eff,dpk:dpk,peak:r.peakDmg,games:games};
+      }).sort(function(a,b){return b.eff-a.eff;});
+
+    if(effRows.length>=2){
+      html+=sectionHead('Damage Efficiency by Map','% of total damage you dealt vs taken · lower DPK = cleaner kills');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      html+='<table style="width:100%;border-collapse:collapse;font-family:Share Tech Mono,monospace;font-size:11px">';
+      html+='<thead><tr style="border-bottom:1px solid var(--border)">';
+      html+='<th style="text-align:left;padding:10px 16px;font-size:9px;color:var(--muted2);letter-spacing:.8px;font-weight:400">MAP</th>';
+      html+='<th style="text-align:center;padding:10px 8px;font-size:9px;color:var(--muted2);letter-spacing:.8px;font-weight:400">EFFICIENCY</th>';
+      html+='<th style="text-align:right;padding:10px 8px;font-size:9px;color:var(--muted2);letter-spacing:.8px;font-weight:400">DMG / KILL</th>';
+      html+='<th style="text-align:right;padding:10px 16px;font-size:9px;color:var(--muted2);letter-spacing:.8px;font-weight:400">PEAK GAME</th>';
+      html+='</tr></thead><tbody>';
+      effRows.forEach(function(row,i){
+        var effColor=row.eff>=55?'var(--win)':row.eff<=45?'var(--loss)':'var(--gold)';
+        var dpkColor=row.dpk&&row.dpk<=500?'var(--win)':row.dpk&&row.dpk>=700?'var(--loss)':'var(--text)';
+        var isBest=i===0;var isWorst=i===effRows.length-1&&effRows.length>2;
+        html+='<tr style="border-bottom:1px solid var(--border2);'+(isBest?'background:rgba(0,230,118,0.04)':isWorst?'background:rgba(255,61,87,0.04)':'')+'">';
+        html+='<td style="padding:10px 16px;color:var(--text);font-family:Rajdhani,sans-serif;font-weight:700;font-size:13px">'
+          +row.map
+          +(isBest?' <span style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace">BEST</span>':'')
+          +(isWorst?' <span style="font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace">WORST</span>':'')
+          +'</td>';
+        html+='<td style="padding:10px 8px;text-align:center">'
+          +'<div style="display:flex;align-items:center;gap:6px;justify-content:center">'
+          +'<div style="width:48px;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+row.eff+'%;background:'+effColor+';border-radius:3px"></div></div>'
+          +'<span style="color:'+effColor+';font-weight:700">'+row.eff+'%</span>'
+          +'</div></td>';
+        html+='<td style="padding:10px 8px;text-align:right;color:'+dpkColor+'">'+(row.dpk?row.dpk.toLocaleString():'—')+'</td>';
+        html+='<td style="padding:10px 16px;text-align:right;color:var(--accent);font-weight:700">'+(row.peak?Math.round(row.peak).toLocaleString():'—')+'</td>';
+        html+='</tr>';
+      });
+      html+='</tbody></table>';
+      html+='<div style="padding:8px 16px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;border-top:1px solid var(--border2)">'
+        +'Efficiency = dealt ÷ (dealt + taken) · DMG/Kill: &lt;500 clean, &gt;700 slugfest'
+        +'</div>';
+      html+='</div>';
+    }
+
   }
   html+='</div>'; // end bymap tab
 
@@ -4206,11 +4370,12 @@ function render(){
 
   // Damage Trends
   (function(){
+    var _isMobile=window.innerWidth<768;
     var dmgSample=displayMatches.filter(function(m){
       var s=m.duration?String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/):null;
       var secs=s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;
       return secs>=180&&m.damageDealt>300&&m.damageTaken>300&&(m.outcome===2||m.outcome===3);
-    }).slice(0,40).reverse(); // oldest→newest for trend direction
+    }).slice(0,_isMobile?20:40).reverse();
     if(dmgSample.length<3)return;
 
     var dealtVals=dmgSample.map(function(m){return m.damageDealt||0;});
@@ -4218,63 +4383,72 @@ function render(){
     var avgDealt=Math.round(dealtVals.reduce(function(a,b){return a+b;},0)/dealtVals.length);
     var avgTaken=Math.round(takenVals.reduce(function(a,b){return a+b;},0)/takenVals.length);
     var maxVal=Math.max.apply(null,dealtVals.concat(takenVals))||1;
-
-    // Rolling 5-game averages
+    var lastDealt=dealtVals[dealtVals.length-1];
+    var lastTaken=takenVals[takenVals.length-1];
     function roll5(arr){return arr.map(function(_,i){var sl=arr.slice(Math.max(0,i-4),i+1);return Math.round(sl.reduce(function(a,b){return a+b;},0)/sl.length);});}
     var roll5Dealt=roll5(dealtVals);
     var roll5Taken=roll5(takenVals);
-    var lastDealt=dealtVals[dealtVals.length-1];
-    var lastTaken=takenVals[takenVals.length-1];
     var trendDealt=roll5Dealt[roll5Dealt.length-1]-roll5Dealt[Math.max(0,roll5Dealt.length-6)];
     var trendTaken=roll5Taken[roll5Taken.length-1]-roll5Taken[Math.max(0,roll5Taken.length-6)];
     var dmgRatioAvg=(avgTaken>0?avgDealt/avgTaken:0).toFixed(2);
     var dmgRatioColor=parseFloat(dmgRatioAvg)>=1?'var(--win)':'var(--loss)';
 
-    html+=sectionHead('Damage Trends','last '+dmgSample.length+' games');
-    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
-
-    // Stat summary row
-    html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
     function dmgMini(label,val,color,sub){
       return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">'
         +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">'+label+'</div>'
-        +'<div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+color+'">'+val+'</div>'
-        +(sub?'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px">'+sub+'</div>':'')
+        +'<div style="font-size:18px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+color+'">'+val+'</div>'
+        +(sub?'<div style="font-size:9px;font-family:Share Tech Mono,monospace;margin-top:2px">'+sub+'</div>':'')
         +'</div>';
     }
-    var tDLabel=(trendDealt>=0?'↑ +':' ↓ ')+Math.abs(Math.round(trendDealt))+' trend';
+
+    html+=sectionHead('Damage Trends','last '+dmgSample.length+' games');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+
+    // Stat cards — 2-col on mobile, 4-col on desktop
+    var tDColor=trendDealt>=0?'var(--win)':'var(--loss)';
+    var tTColor=trendTaken<=0?'var(--win)':'var(--loss)';
+    var tDLabel=(trendDealt>=0?'↑ +':'↓ ')+Math.abs(Math.round(trendDealt))+' trend';
     var tTLabel=(trendTaken<=0?'↓ -':'↑ +')+Math.abs(Math.round(trendTaken))+' trend';
-    html+=dmgMini('Avg Dealt',avgDealt.toLocaleString(),'var(--win)',trendDealt>=0?'<span style="color:var(--win)">'+tDLabel+'</span>':'<span style="color:var(--loss)">'+tDLabel+'</span>');
-    html+=dmgMini('Avg Taken',avgTaken.toLocaleString(),'var(--loss)',trendTaken<=0?'<span style="color:var(--win)">'+tTLabel+'</span>':'<span style="color:var(--loss)">'+tTLabel+'</span>');
-    html+=dmgMini('Dmg Ratio',dmgRatioAvg,dmgRatioColor,'dealt / taken');
-    html+=dmgMini('Last Game',lastDealt.toLocaleString(),'var(--text)','vs '+lastTaken.toLocaleString()+' taken');
+    html+='<div style="display:grid;grid-template-columns:repeat('+(  _isMobile?'2':'4')+',1fr);gap:8px;margin-bottom:20px">';
+    html+=dmgMini('Avg Dealt',avgDealt.toLocaleString(),'var(--win)','<span style="color:'+tDColor+'">'+tDLabel+'</span>');
+    html+=dmgMini('Avg Taken',avgTaken.toLocaleString(),'var(--loss)','<span style="color:'+tTColor+'">'+tTLabel+'</span>');
+    html+=dmgMini('Dmg Ratio',dmgRatioAvg,dmgRatioColor,'<span style="color:var(--muted2)">dealt / taken</span>');
+    html+=dmgMini('Last Game',lastDealt.toLocaleString(),'var(--text)','<span style="color:var(--muted2)">vs '+lastTaken.toLocaleString()+' taken</span>');
     html+='</div>';
 
-    // Bar chart: dealt vs taken per game
-    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Per-Game Damage · <span style="color:var(--win)">■ Dealt</span>  <span style="color:var(--loss)">■ Taken</span></div>';
-    html+='<div style="display:flex;align-items:flex-end;gap:3px;height:72px;margin-bottom:8px">';
-    dmgSample.forEach(function(m,i){
+    // Legend
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">'
+      +'Per-Game &nbsp;<span style="color:var(--win)">■ Dealt</span> &nbsp;<span style="color:var(--loss)">■ Taken</span>'
+      +'</div>';
+
+    // Stacked bar chart — dealt on top, taken below, both grow from center
+    var barH=_isMobile?48:80;
+    html+='<div style="display:flex;align-items:flex-end;gap:2px;height:'+(barH*2+4)+'px;margin-bottom:16px">';
+    dmgSample.forEach(function(m){
       var d=m.damageDealt||0,t=m.damageTaken||0;
-      var dh=Math.round((d/maxVal)*68),th=Math.round((t/maxVal)*68);
-      var isWin=m.outcome===2;
-      html+='<div style="display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:0" title="'+(m.mapName||'')+' · Dealt '+Math.round(d).toLocaleString()+' / Taken '+Math.round(t).toLocaleString()+'">'
-        +'<div style="width:100%;background:var(--win);height:'+dh+'px;border-radius:2px 2px 0 0;opacity:0.85"></div>'
-        +'<div style="width:100%;background:var(--loss);height:'+th+'px;border-radius:0 0 2px 2px;opacity:0.75"></div>'
+      var dh=Math.round((d/maxVal)*barH);
+      var th=Math.round((t/maxVal)*barH);
+      html+='<div style="display:flex;flex-direction:column;flex:1;min-width:0;gap:2px" title="'+(m.mapName||'')+'&#10;Dealt: '+Math.round(d).toLocaleString()+'&#10;Taken: '+Math.round(t).toLocaleString()+'">'
+        +'<div style="display:flex;flex-direction:column;justify-content:flex-end;height:'+barH+'px">'
+        +'<div style="width:100%;height:'+dh+'px;background:var(--win);border-radius:2px 2px 0 0;opacity:0.85"></div>'
+        +'</div>'
+        +'<div style="height:'+barH+'px">'
+        +'<div style="width:100%;height:'+th+'px;background:var(--loss);border-radius:0 0 2px 2px;opacity:0.75"></div>'
+        +'</div>'
         +'</div>';
     });
     html+='</div>';
 
-    // Rolling 5-game avg line represented as dots
-    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">5-Game Rolling Avg</div>';
-    html+='<div style="display:flex;align-items:center;gap:3px;height:28px">';
-    roll5Dealt.forEach(function(v,i){
-      var pct=Math.round((v/maxVal)*100);
-      html+='<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px">'
-        +'<div style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;line-height:1">'+v.toLocaleString()+'</div>'
-        +'<div style="width:6px;height:6px;border-radius:50%;background:var(--win);opacity:'+( 0.4+0.6*(v/maxVal)).toFixed(2)+'"></div>'
-        +'</div>';
+    // Rolling 5-game avg — just dealt, shown as a thin progress strip
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">5-Game Rolling Avg (Dealt)</div>';
+    html+='<div style="display:flex;align-items:flex-end;gap:2px;height:20px">';
+    var r5max=Math.max.apply(null,roll5Dealt)||1;
+    roll5Dealt.forEach(function(v){
+      var h=Math.round((v/r5max)*18)+2;
+      html+='<div style="flex:1;min-width:0;height:'+h+'px;background:var(--accent);border-radius:1px;opacity:0.6" title="'+v.toLocaleString()+'"></div>';
     });
     html+='</div>';
+
     html+='</div>';
   })();
 
