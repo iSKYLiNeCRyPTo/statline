@@ -11,6 +11,7 @@ const xuidToGamerpic = {};     // xuid -> gamerpic URL
 const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
 const emblemPathCache = {};     // xuid -> gamecms image path
+const nameplatePathCache = {};  // xuid -> gamecms nameplate image path
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
 let emblemMappingFetchedAt = 0;
@@ -232,6 +233,9 @@ async function resolveEmblemForXuid(xuid) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
+            if (configMatch?.nameplateCmsPath) {
+              nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
+            }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
           if (configurationId !== undefined && configurationId !== null) {
@@ -437,8 +441,8 @@ async function fetchPlayerStats(gamertag) {
       });
   } catch(e) {}
 
-  // Emblem + gamerpic
-  let emblemUrl = null, gamerpicUrl = null;
+  // Emblem + gamerpic + nameplate
+  let emblemUrl = null, gamerpicUrl = null, nameplateUrl = null;
   try {
     let cachedPath = emblemPathCache[String(xuid)];
     // Migration: legacy cache entries are single-candidate (no ';images:' fallback). Treat as miss to re-resolve.
@@ -448,18 +452,31 @@ async function fetchPlayerStats(gamertag) {
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
+      const np = nameplatePathCache[String(xuid)];
+      if (np) {
+        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
+      } else {
+        // Emblem cached but nameplate not — re-resolve to get it (fresh server start)
+        try {
+          await resolveEmblemForXuid(xuid);
+          const np2 = nameplatePathCache[String(xuid)];
+          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}`;
+        } catch(e) {}
+      }
     } else if (!cachedPath) {
       const result = await resolveEmblemForXuid(xuid);
       gamerpicUrl = result?.gamerpicUrl || null;
       if (result?.emblemPath && result.emblemPath !== '__none__') {
         emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
       }
+      const np = nameplatePathCache[String(xuid)];
+      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
 
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl,
+    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
@@ -796,6 +813,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 module.exports = {
   fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
+  getNameplatePathCache: () => nameplatePathCache,
   getXuidToGt: () => xuidToGt,
   resolveGamertags,
   resolveEmblemForXuid, markEmblemMissing,
