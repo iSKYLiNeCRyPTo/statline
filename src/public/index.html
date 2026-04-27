@@ -896,7 +896,6 @@ function renderMatchHistory(d,clientPage){
     var mode=m.gameMode||'Unknown';
     var _rawSecs=getDurSecs(m);
     var _objHold=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
-    if(_objHold/_rawSecs>0.4) return;
     var mins=Math.max((_rawSecs-_objHold)/60,1);
     [mode,'__overall__'].forEach(function(k){
       if(!buckets[k])buckets[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
@@ -1692,11 +1691,8 @@ function analyzeConnectionQuality(m, modeBaselines) {
   if(m.objStats&&m.objStats.timeAsCarrier) objHoldSecs=m.objStats.timeAsCarrier;
   else if(m.timeAsCarrier) objHoldSecs=m.timeAsCarrier;
   var effectiveMins=Math.max((secs-objHoldSecs)/60,1);
-  // If >40% of game carrying, skip hitreg — not enough shooting data
-  if(objHoldSecs>0&&objHoldSecs/secs>0.4) return null;
-  // For Oddball/CTF without carry data, skip hitreg entirely — too unreliable
-  var _isObjMode=m.gameMode&&/oddball|ctf|capture|stronghold|stockpile|koth|king/i.test(m.gameMode);
-  if(_isObjMode&&!objHoldSecs) return null;
+  // Always subtract carry time — effectiveMins is actual shooting time
+  // Objective modes handled by effectiveMins subtraction above
   var dpmDealt=m.damageDealt/effectiveMins;
   var dpmTaken=m.damageTaken/effectiveMins;
   var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
@@ -3143,7 +3139,6 @@ function render(){
       var mode=m.gameMode||'Unknown';
       var _rs=_gdsR(m);
       var _oh=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
-      if(_oh/_rs>0.4) return;
       var mins=Math.max((_rs-_oh)/60,1);
       [mode,'__overall__'].forEach(function(k){
         if(!_bk[k])_bk[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
