@@ -1616,9 +1616,9 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   (function(){
     var insights = [];
     var myGt = (getAllPlayers()[selectedPlayer]||{}).gamertag;
-    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
-    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
-    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag === myGt; }) : null;
+    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }); }) : null;
+    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }); }) : null;
+    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }) : null;
     function iCard(icon, title, body, color) {
       return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
         +'<div style="flex-shrink:0;margin-top:1px;color:'+color+'">'+icon+'</div>'
@@ -2519,11 +2519,11 @@ function renderTeamSynergy(duo,gamertag){
   // Build rich per-teammate data including individual stats per shared match
   var tmMap={};
   rankedM.forEach(function(m){
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===gamertag;});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});});
     if(!myTeam)return;
-    var me=myTeam.players.find(function(pl){return pl.gamertag===gamertag;});
+    var me=myTeam.players.find(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});
     myTeam.players.forEach(function(pl){
-      if(pl.gamertag===gamertag)return;
+      if(pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase())return;
       var gt=pl.gamertag;
       var gtKey=gt.toLowerCase();  // normalize case for deduplication
       if(!tmMap[gtKey])tmMap[gtKey]={wins:0,losses:0,games:0,csrDeltas:[],
@@ -2557,14 +2557,7 @@ function renderTeamSynergy(duo,gamertag){
     });
   });
 
-  // Debug
-  if(rankedM.length>0){
-    var _firstM=rankedM[0];
-    var _firstTeam=_firstM.teams&&_firstM.teams[0];
-    console.log('[Synergy] rankedM:', rankedM.length, 'tmMap:', Object.keys(tmMap).length);
-    console.log('[Synergy] gamertag arg:', JSON.stringify(gamertag));
-    console.log('[Synergy] first match teams:', JSON.stringify((_firstM.teams||[]).map(function(t){return{outcome:t.outcome,players:(t.players||[]).map(function(p){return p.gamertag;})};})));
-  }
+
   function avg(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:null;}
   function pct(arr,fn){return arr.length?Math.round(arr.filter(fn).length/arr.length*100):null;}
 
@@ -2577,7 +2570,7 @@ function renderTeamSynergy(duo,gamertag){
   // Solo stats
   var soloM=rankedM.filter(function(m){
     if(!m.teams)return true;
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===gamertag;});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});});
     return !myTeam||myTeam.players.length===1;
   });
   var soloWR=soloM.length>=3?Math.round(soloM.filter(function(m){return m.outcome===2;}).length/soloM.length*100):null;
