@@ -274,6 +274,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes dotFade{0%,80%,100%{opacity:0}40%{opacity:1}}
+.load-dots span{animation:dotFade 1.4s ease-in-out infinite;opacity:0}.load-dots span:nth-child(1){animation-delay:0s}.load-dots span:nth-child(2){animation-delay:0.25s}.load-dots span:nth-child(3){animation-delay:0.5s}
 
 /* Skeleton loading */
 .skeleton{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px}
@@ -597,6 +599,88 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
 <script>
 var playerData=null,data=null,medalMeta={},expandedMatches={},fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
+
+// ── Sponsor ad rotation ──────────────────────────────────────────────────────
+// To add a real paid sponsor: set active:true on any entry and add image/link.
+// Fake/humor entries keep active:false — they always rotate in automatically.
+var FRAGR_ADS = [
+  // Insurance & Protection
+  {brand:'Teabagging Insurance',        tagline:'Comprehensive coverage for your post-kill dignity. Because some victories deserve protection.',        active:true,  image:'/images/ads/teabagging-insurance.jpg'},
+  {brand:'Teabag Defense LLC',          tagline:'Shielding Spartans from unwanted crouch encounters since Reach. Your reputation, fully insured.',      active:true,  image:'/images/ads/teabag-defense.jpg'},
+  {brand:'Corpse Protocol Insurance',   tagline:"Don't let a bad bag ruin your K/D. We've got you covered.",                                           active:true,  image:'/images/ads/corpse-protocol.jpg'},
+  // Energy & Hydration
+  {brand:'Spartan Hydrate',             tagline:"Master Chief's official electrolyte formula. Replenish. Dominate. Repeat.",                            active:true,  image:'/images/ads/spartan-hydrate.jpg'},
+  {brand:'Mjolnir Fuel',                tagline:'Powered by pure Forerunner tech. Because even legends need a boost between matches.',                  active:true,  image:'/images/ads/mjolnir-fuel.jpg'},
+  {brand:'Plasma Pulse Energy',         tagline:'Pink, powerful, and guaranteed to track your enemies (and your stats).',                               active:true,  image:'/images/ads/plasma-pulse.jpg'},
+  // Snacks & Nutrition
+  {brand:'Noob Bites',                  tagline:"Crunchy protein cubes. A Chief's favorite field ration. One bag turns noobs into pros.",               active:true,  image:'/images/ads/noob-bites.jpg'},
+  {brand:'UNSC Combat Rations',         tagline:'Battle-tested nutrition that tastes like victory. Now with extra accuracy sprinkles.',                  active:true,  image:'/images/ads/combat-rations.jpg'},
+  {brand:'Needler Nuggets',             tagline:'Pink, homing, and impossible to put down. The ultimate post-match snack.',                             active:true,  image:'/images/ads/needler-nuggets.jpg'},
+  // Weapon & Gear
+  {brand:'Overshield Protection Systems',tagline:'Extra lives for your stats. Because one shield is never enough.',                                     active:true,  image:'/images/ads/overshield.jpg'},
+  // Text-only (no image yet)
+  {brand:'Energy Sword Sharpening Co.', tagline:'Precision edge maintenance for Spartans who demand clean kills and clean stats.'},
+  {brand:'Gravity Hammer Athletics',    tagline:'Training gear that smashes PRs. Built for Spartans who play hard.'},
+  {brand:'Active Camo Solutions',       tagline:'Stealth technology for your gameplay. Hide your weaknesses, reveal your true rank.',        active:true,  image:'/images/ads/active-camo.png'},
+  {brand:'UNSC Logistics Division',     tagline:'Supplying accurate data to the front lines. Your stats, delivered with precision.'},
+  {brand:'Cortana Analytics',           tagline:'Smart data for smarter Spartans. She may be gone, but the insights remain.'},
+  {brand:'Ban Hammer Compliance Group', tagline:'Enforcing fair play and fair stats. Protecting the Halo community one match at a time.'},
+  {brand:'Respawn Dynamics',            tagline:'Engineering shorter waits and longer win streaks. Your comeback starts here.'},
+];
+// Locked per search so the ad doesn't flicker across re-renders
+var _fragrAdIdx = 0;
+function _pickNewAd(){ _fragrAdIdx = Math.floor(Math.random() * FRAGR_ADS.length); }
+_pickNewAd();
+
+// Renders an ad slot. variant: 'banner' (compact, loading screen) or 'card' (large, refresh page)
+function _renderAdSlot(variant){
+  var isCard = variant === 'card';
+  var isMobile = window.innerWidth < 768;
+  var ad = FRAGR_ADS[_fragrAdIdx] || FRAGR_ADS[0];
+
+  // Image-based ad
+  if(ad.active && ad.image){
+    // Portrait product images: use a fixed height that shows the subject well
+    // Card: taller on desktop, shorter on mobile. Banner: always short.
+    var imgH = isCard ? (isMobile ? '200px' : '260px') : (isMobile ? '90px' : '110px');
+    // Most product images have the main subject centred or slightly above centre
+    var imgPos = 'center 30%';
+    // First sentence of tagline only for banner (keeps it tight)
+    var taglineShort = ad.tagline.split(/[.!?]/)[0].trim() + '.';
+    return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2)">'
+      +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:4px 0;background:var(--surface3);text-transform:uppercase">Sponsored</div>'
+      +'<img src="'+ad.image+'" style="width:100%;display:block;height:'+imgH+';object-fit:cover;object-position:'+imgPos+'" alt="'+ad.brand+'">'
+      +'<div style="padding:'+(isCard?'12px 16px':'8px 12px')+'">'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:'+(isCard?'13px':'11px')+';font-weight:700;color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px">'+ad.brand+'</div>'
+      +'<div style="font-size:'+(isCard?'10px':'9px')+';font-family:Share Tech Mono,monospace;color:var(--muted2);line-height:1.5">'+(isCard?ad.tagline:taglineShort)+'</div>'
+      +'</div></div>';
+  }
+
+  // Text-based ad
+  var brandWords = ad.brand.split(' ');
+  var mid = Math.ceil(brandWords.length / 2);
+  var brandL1 = brandWords.slice(0, mid).join(' ');
+  var brandL2 = brandWords.slice(mid).join(' ');
+  var brandFontSize = isCard ? (isMobile ? '22px' : '26px') : '15px';
+
+  if(isCard){
+    return '<div style="border:1px solid var(--border2);border-radius:8px;background:var(--surface2);padding:20px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box">'
+      +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-transform:uppercase">Sponsored</div>'
+      +'<div style="font-family:Rajdhani,sans-serif;font-weight:700;line-height:1.05;color:var(--text)">'
+        +'<span style="font-size:'+brandFontSize+';color:var(--accent)">'+brandL1+'</span>'
+        +(brandL2?'<br><span style="font-size:'+brandFontSize+'">'+brandL2+'</span>':'')
+      +'</div>'
+      +'<div style="width:28px;height:2px;background:var(--accent);border-radius:1px;opacity:0.5"></div>'
+      +'<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6">'+ad.tagline+'</div>'
+      +'</div>';
+  } else {
+    return '<div style="border:1px solid var(--border2);border-radius:6px;background:var(--surface2);padding:12px 16px">'
+      +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-transform:uppercase;margin-bottom:5px">Sponsored</div>'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:'+brandFontSize+';font-weight:700;color:var(--accent);margin-bottom:4px">'+ad.brand+'</div>'
+      +'<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.5">'+ad.tagline+'</div>'
+      +'</div>';
+  }
+}
 
 try{activeTab=localStorage.getItem('haloTab')||'overview';}catch(e){}
 
@@ -1289,7 +1373,10 @@ function renderFavChips() {
   });
 }
 async function loadStats(){
-  await loadMedalMeta();
+  // Start medal meta fetch but don't block on it when a player is in the URL —
+  // doSearch will show the loading screen immediately, and medals will be ready
+  // long before the final render step.
+  var medalMetaPromise=loadMedalMeta();
   fetch('/api/stats').then(function(r){return r.ok?r.json():null;}).then(function(d){
     if(!d)return;
     var el=document.getElementById('landingStats');
@@ -1302,9 +1389,12 @@ async function loadStats(){
   var params=new URLSearchParams(window.location.search);
   var gt=params.get('player')||params.get('search');
   if(gt){
+    // Don't await medals first — doSearch shows the loading screen immediately.
+    // Medals will finish loading in the background well before the final render.
     document.getElementById('searchInput').value=gt;
-    await doSearch(gt);
+    await doSearch(gt, true); // isRefresh=true → shows the refresh page
   } else {
+    await medalMetaPromise;
     showLanding();
   }
 }
@@ -2286,7 +2376,7 @@ function quickSearch(gt){
   document.getElementById('searchInput').value=gt;
   searchPlayer();
 }
-async function doSearch(gt){
+async function doSearch(gt, isRefresh){
   if(!gt||!gt.trim())return;
   gt=gt.trim();
   hideLanding();
@@ -2294,7 +2384,9 @@ async function doSearch(gt){
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
   matchHistoryData=null;
-  // ── Loading progress steps ───────────────────────────────────────────────
+  _pickNewAd(); // rotate to a new sponsor each search
+
+  // ── Loading page (new search) ────────────────────────────────────────────
   var _loadSteps=[
     {id:'s1',label:'Service record'},
     {id:'s2',label:'Match history'},
@@ -2302,30 +2394,114 @@ async function doSearch(gt){
     {id:'s4',label:'Analyzing data'}
   ];
   function _renderLoadSteps(activeIdx,matchProgress){
-    var html='<div style="padding:32px 24px;text-align:left;max-width:320px;margin:0 auto">'
+    var _lsMobile=window.innerWidth<768;
+    var html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:'+(_lsMobile?'20px 16px':'24px')+';box-sizing:border-box">'
+      +'<div style="text-align:left;max-width:340px;width:100%">'
       +'<div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px">'+gt+'</div>'
       +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:20px;overflow:hidden">'
       +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+(Math.round((activeIdx/4)*100))+'%;transition:width 0.4s ease"></div>'
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px">';
     _loadSteps.forEach(function(step,i){
-      var done=i<activeIdx;
-      var active=i===activeIdx;
-      var label=step.label;
+      var done=i<activeIdx,active=i===activeIdx,label=step.label;
       if(active&&i===1&&matchProgress) label='Match history ('+matchProgress+'/100)';
       var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
       var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
+      var labelHtml=(active&&i===3)
+        ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+        :label+(done?' ✓':'');
       html+='<div style="display:flex;align-items:center;gap:10px">'
         +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
-        +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+label+(done?' ✓':'')+'</div>'
+        +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
         +'</div>';
     });
-    html+='</div></div>';
+    html+='</div>'
+      +'<div style="margin-top:28px">'+_renderAdSlot('banner')+'</div>'
+      +'</div></div>';
     document.getElementById('app').innerHTML=html;
   }
-  _renderLoadSteps(0, null);
+
+  // ── Refresh page (page reload with existing player) ──────────────────────
+  function _renderRefreshPage(player, status){
+    var p=player;
+    var isMobile=window.innerWidth<768;
+    var topCsr=null;
+    if(p&&p.csr){var cv=Object.values(p.csr);if(cv.length)topCsr=cv.sort(function(a,b){return b.value-a.value;})[0];}
+    var initials=gt.replace(/\s+/g,'').slice(0,2).toUpperCase();
+
+    // Responsive sizes
+    var emblemSize = isMobile ? '48px' : '60px';
+    var gtFontSize = isMobile ? 'clamp(20px, 6vw, 30px)' : '34px';
+    var statFontSize = isMobile ? '18px' : '20px';
+
+    // Player identity header
+    var playerSection=''
+      +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">'
+      +(p&&p.emblemUrl
+        ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
+        :'<div style="width:'+emblemSize+';height:'+emblemSize+';background:var(--surface3);border:2px solid var(--border2);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--accent)">'+initials+'</div>')
+      +'<div style="min-width:0">'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:'+gtFontSize+';font-weight:700;letter-spacing:2px;color:var(--text);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+gt+'</div>'
+      +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:4px;letter-spacing:1px">HALO INFINITE · RANKED</div>'
+      +'</div></div>';
+
+    // Stats grid
+    if(p&&p.stats){
+      playerSection+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">';
+      var statItems=[
+        {val:p.stats.kd||'—',lbl:'K/D',color:'var(--text)'},
+        {val:topCsr?(topCsr.display||'—'):'—',lbl:'CSR',color:'var(--accent)'},
+        {val:p.stats.winRate?(p.stats.winRate+'%'):'—',lbl:'WIN RATE',color:'var(--text)'}
+      ];
+      statItems.forEach(function(s){
+        playerSection+='<div style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:10px 6px;text-align:center">'
+          +'<div style="font-family:Rajdhani,sans-serif;font-size:'+statFontSize+';font-weight:700;color:'+s.color+';line-height:1">'+s.val+'</div>'
+          +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:3px;letter-spacing:1px">'+s.lbl+'</div>'
+          +'</div>';
+      });
+      playerSection+='</div>';
+    } else {
+      playerSection+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">';
+      for(var _i=0;_i<3;_i++) playerSection+='<div class="skeleton" style="height:52px;border-radius:6px"></div>';
+      playerSection+='</div>';
+    }
+
+    // Status line
+    var statusLabel=status==='analyzing'
+      ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+      :status==='loading'
+      ?'Updating stats<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+      :'Connecting<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>';
+    playerSection+='<div style="display:flex;align-items:center;gap:8px">'
+      +'<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;box-shadow:0 0 6px var(--accent);flex-shrink:0"></div>'
+      +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+statusLabel+'</div>'
+      +'</div>';
+
+    var html;
+    if(isMobile){
+      // Mobile: single column, ad stacks below player info
+      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:flex-start;justify-content:center;padding:20px 16px;box-sizing:border-box">'
+        +'<div style="width:100%;max-width:480px">'
+        +playerSection
+        +'<div style="margin-top:20px">'+_renderAdSlot('card')+'</div>'
+        +'</div></div>';
+    } else {
+      // Desktop: two-column — player left, ad right
+      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
+        +'<div style="display:flex;align-items:flex-start;gap:28px;max-width:720px;width:100%">'
+        +'<div style="flex:1;min-width:0">'+playerSection+'</div>'
+        +'<div style="width:280px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
+        +'</div></div>';
+    }
+    document.getElementById('app').innerHTML=html;
+  }
+
+  // ── Initial render ───────────────────────────────────────────────────────
+  if(isRefresh){ _renderRefreshPage(null,'init'); }
+  else { _renderLoadSteps(0,null); }
+
   try{
-    // ── Step 1: Service record (fast) ──────────────────────────────────────
+    // ── Step 1: Service record ───────────────────────────────────────────────
     var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1');
     var statsD=await statsRes.json();
     if(!statsD.success||!statsD.player){
@@ -2333,77 +2509,83 @@ async function doSearch(gt){
       document.getElementById('app').innerHTML='<div class="error-card">'+errMsg+'</div>';
       return;
     }
-    // Show service record immediately — render with empty matches
-    _renderLoadSteps(1, null);
     playerData=statsD.player;
     data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
     searchData=playerData; searchMode=false; selectedPlayer=0;
-    activeTab='overview'; render();
     var url=new URL(window.location);url.searchParams.set('player',gt);window.history.pushState({},'',url);
     document.title=gt+' — fragr';
     var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
     updateFavBtn();
 
-    // ── Step 2: Match history — poll progress while full search runs ────────
-    _renderLoadSteps(1, null);
-    var _progressPoll=setInterval(function(){
-      fetch('/api/search/progress?gamertag='+encodeURIComponent(gt))
-        .then(function(r){return r.ok?r.json():null;})
-        .then(function(p){
-          if(!p||p.step!==2) return;
-          _renderLoadSteps(1, p.valid>=20?(p.valid+'/100'):null);
-        }).catch(function(){});
-    },400);
+    if(isRefresh){
+      // Refresh page: show player identity + stats while full fetch runs
+      _renderRefreshPage(statsD.player,'loading');
+    } else {
+      // Loading page: show step 1 done, render partial stats, then put loading back
+      _renderLoadSteps(1,null);
+      activeTab='overview'; render();
+      _renderLoadSteps(1,null);
+    }
+
+    // ── Step 2: Match history ────────────────────────────────────────────────
+    var _progressPoll=null;
+    if(!isRefresh){
+      _progressPoll=setInterval(function(){
+        fetch('/api/search/progress?gamertag='+encodeURIComponent(gt))
+          .then(function(r){return r.ok?r.json():null;})
+          .then(function(p){
+            if(!p||p.step!==2) return;
+            _renderLoadSteps(1,p.valid>=20?p.valid:null);
+          }).catch(function(){});
+      },400);
+    }
 
     var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
     var fullD=await fullRes.json();
-    clearInterval(_progressPoll);
-    // If cached, jump straight to step 3 — no match scanning happened
-    if(fullD.cached) _renderLoadSteps(2, null);
+    if(_progressPoll) clearInterval(_progressPoll);
+    if(!isRefresh&&fullD.cached) _renderLoadSteps(2,null);
 
     if(fullD.success&&fullD.player){
-      // ── Step 3: Team data — prefetch rival/nemesis gamerpics ─────────────
-      _renderLoadSteps(2, null);
+      // ── Step 3: Preload rival/nemesis pics ───────────────────────────────
+      if(!isRefresh) _renderLoadSteps(2,null);
       var _rivals=(fullD.player.rivals||[]).concat(fullD.player.nemesisList||[],fullD.player.victimsList||[]);
-      // Dedupe rivals
       var _seenRiv={};
       _rivals=_rivals.filter(function(r){if(!r.gamertag||_seenRiv[r.gamertag.toLowerCase()])return false;_seenRiv[r.gamertag.toLowerCase()]=true;return true;});
       var _missingPics=_rivals.filter(function(r){return !r.gamerpicUrl&&r.gamertag&&!r.gamertag.startsWith('Spartan ');});
-      // Batch-fetch pics for rivals missing them
       if(_missingPics.length>0){
         try{
           var _gts=_missingPics.map(function(r){return r.gamertag;}).slice(0,30).join(',');
           var _prRes=await fetch('/api/rival-pics?gamertags='+encodeURIComponent(_gts));
           var _prData=await _prRes.json();
-          // Inject fetched pics back into rivals
-          _rivals.forEach(function(r){
-            if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];
-          });
-          // Also inject into player data
+          _rivals.forEach(function(r){if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];});
           ['rivals','nemesisList','victimsList'].forEach(function(key){
-            (fullD.player[key]||[]).forEach(function(r){
-              if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];
-            });
+            (fullD.player[key]||[]).forEach(function(r){if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];});
           });
         }catch(e){}
       }
-      // Preload all rival images so they render instantly
       var _picPromises=_rivals.filter(function(r){return r.gamerpicUrl;}).slice(0,30).map(function(r){
-        return new Promise(function(resolve){
-          var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;
-        });
+        return new Promise(function(resolve){var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;});
       });
       await Promise.all(_picPromises);
-      await new Promise(function(r){setTimeout(r,200);});
-      // ── Step 4: Analyzing data (synthetic 3.5s) ──────────────────────────
-      _renderLoadSteps(3, null);
-      await new Promise(function(r){setTimeout(r,3500);});
-      _renderLoadSteps(4, null);
-      await new Promise(function(r){setTimeout(r,120);});
+
+      if(isRefresh){
+        // ── Refresh: Analyzing overlay on top of the refresh page ────────────
+        // Re-render refresh page with an "Analyzing" status line before final reveal
+        _renderRefreshPage(fullD.player,'analyzing');
+        await new Promise(function(r){setTimeout(r,3500);});
+      } else {
+        // ── Loading: Analyzing step (new search — 3.5s showcase) ─────────────
+        await new Promise(function(r){setTimeout(r,200);});
+        _renderLoadSteps(3,null);
+        await new Promise(function(r){setTimeout(r,3500);});
+        _renderLoadSteps(4,null);
+        await new Promise(function(r){setTimeout(r,120);});
+      }
+
       playerData=fullD.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
-      render();
+      activeTab='overview'; render();
       loadFullMatches(gt);
     }
   } catch(e){
