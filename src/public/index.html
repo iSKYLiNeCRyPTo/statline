@@ -894,10 +894,10 @@ function renderMatchHistory(d,clientPage){
   var buckets={};
   _baseSource.forEach(function(m){
     var mode=m.gameMode||'Unknown';
-    var _rawSecs=getDurSecs(m);
-    var _objHold=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
-    if(_objHold/_rawSecs>0.4) return; // skip if >40% carrying — distorts DPM baseline
-    var mins=Math.max((_rawSecs-_objHold)/60,1);
+    var _rawSecs2=getDurSecs(m);
+    var _objHold2=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
+    if(_objHold2/_rawSecs2>0.4) return; // skip if >40% carrying
+    var mins=Math.max((_rawSecs2-_objHold2)/60,1);
     [mode,'__overall__'].forEach(function(k){
       if(!buckets[k])buckets[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
       buckets[k].dpmDealt.push(m.damageDealt/mins);
@@ -2557,12 +2557,11 @@ function renderTeamSynergy(duo,gamertag){
     });
   });
 
-
   function avg(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:null;}
   function pct(arr,fn){return arr.length?Math.round(arr.filter(fn).length/arr.length*100):null;}
 
   var teammates=Object.entries(tmMap)
-    .filter(function(e){return e[1].games>=2;})
+    .filter(function(e){return e[1].games>=4;})
     .sort(function(a,b){return b[1].games-a[1].games;})
     .slice(0,10)
     .map(function(e){return[e[1].displayName||e[0],e[1]];});  // use display name
@@ -3054,17 +3053,18 @@ function render(){
   var _rivalMap={};
   _rawMatches.forEach(function(m){
     if(!m.teams) return;
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===p.gamertag;});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===p.gamertag.toLowerCase();});});
     if(!myTeam) return;
     m.teams.forEach(function(t){
       if(t===myTeam) return;
       (t.players||[]).forEach(function(pl){
-        if(!pl.gamertag||pl.gamertag===p.gamertag||pl.gamertag.startsWith('Spartan ')) return;
-        if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
-          if(pl.gamerpicUrl&&!_rivalMap[pl.gamertag].gamerpicUrl)_rivalMap[pl.gamertag].gamerpicUrl=pl.gamerpicUrl;
-          _rivalMap[pl.gamertag].total++;
-          if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
-          else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
+        if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
+        var _rKey=pl.gamertag.toLowerCase();
+          if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
+          if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
+          _rivalMap[_rKey].total++;
+          if(m.outcome===2) _rivalMap[_rKey].wins++;
+          else if(m.outcome===3) _rivalMap[_rKey].losses++;
       });
     });
   });
