@@ -55,23 +55,23 @@ setInterval(async () => {
   } catch(e) { console.error('[DB] flushXuidCache error:', e.message); }
 }, 5 * 60 * 1000);
 
-async function logSearch(gamertag, ip, userAgent, cached, success, durationMs) {
-  const entry = { ts: new Date().toISOString(), gamertag, ip: ip||'unknown', user_agent: userAgent||null, cached: String(cached), success: !!success, duration_ms: durationMs||null };
+async function logSearch(gamertag, userAgent, cached, success, durationMs) {
+  const entry = { ts: new Date().toISOString(), gamertag, user_agent: userAgent||null, cached: String(cached), success: !!success, duration_ms: durationMs||null };
   _memSearchLog.push(entry);
   if (_memSearchLog.length > 1000) _memSearchLog.shift();
   try {
     const db = await getDb();
-    if (db) await db.query('INSERT INTO search_log (gamertag,ip,user_agent,cached,success,duration_ms) VALUES ($1,$2,$3,$4,$5,$6)', [gamertag, ip||'unknown', userAgent||null, String(cached), !!success, durationMs||null]);
+    if (db) await db.query('INSERT INTO search_log (gamertag,user_agent,cached,success,duration_ms) VALUES ($1,$2,$3,$4,$5)', [gamertag, userAgent||null, String(cached), !!success, durationMs||null]);
   } catch(e) { console.error('[DB] logSearch error:', e.message); }
 }
 
-async function logTab(gamertag, ip, tab, seconds) {
-  const entry = { ts: new Date().toISOString(), gamertag, ip: ip||'unknown', tab, seconds };
+async function logTab(gamertag, tab, seconds) {
+  const entry = { ts: new Date().toISOString(), gamertag, tab, seconds };
   _memTabLog.push(entry);
   if (_memTabLog.length > 2000) _memTabLog.shift();
   try {
     const db = await getDb();
-    if (db) await db.query('INSERT INTO tab_log (gamertag,ip,tab,seconds) VALUES ($1,$2,$3,$4)', [gamertag||null, ip||'unknown', tab, seconds]);
+    if (db) await db.query('INSERT INTO tab_log (gamertag,tab,seconds) VALUES ($1,$2,$3)', [gamertag||null, tab, seconds]);
   } catch(e) { console.error('[DB] logTab error:', e.message); }
 }
 
@@ -216,16 +216,16 @@ app.get('/api/search', rateLimit, async (req, res) => {
   // Check cache (skip if force refresh requested)
   const forceRefresh = req.query.force === '1';
   const cached = await getFromCache(gamertag);
-  if (cached && !forceRefresh) { logSearch(gamertag, req.ip, req.headers['user-agent'], 'cached', true, null); return res.json({ success: true, player: cached, cached: true }); }
+  if (cached && !forceRefresh) { logSearch(gamertag, req.headers['user-agent'], 'cached', true, null); return res.json({ success: true, player: cached, cached: true }); }
 
   // Deduplicate concurrent searches
   const key = gamertag.toLowerCase().trim();
   if (searchInFlight[key]) {
     try {
       const result = await searchInFlight[key];
-      logSearch(gamertag, req.ip, req.headers['user-agent'], 'inflight', true, null); return res.json({ success: true, player: result });
+      logSearch(gamertag, req.headers['user-agent'], 'inflight', true, null); return res.json({ success: true, player: result });
     } catch(e) {
-      logSearch(gamertag, req.ip, req.headers['user-agent'], 'error', false, null); return res.status(404).json({ success: false, error: e.message });
+      logSearch(gamertag, req.headers['user-agent'], 'error', false, null); return res.status(404).json({ success: false, error: e.message });
     }
   }
 
@@ -260,7 +260,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
   try {
     const _t0 = Date.now();
     const result = await searchPromise;
-    logSearch(gamertag, req.ip, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
+    logSearch(gamertag, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
     res.json({ success: true, player: result });
     (async () => {
       try {
@@ -633,8 +633,7 @@ app.get('/api/stats', async (req, res) => {
 app.post('/api/analytics/tab', async (req, res) => {
   const { gamertag, tab, seconds } = req.body || {};
   if (!tab || !seconds || seconds < 1 || seconds > 3600) return res.json({ ok: false });
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
-  await logTab(gamertag || null, ip, tab, parseFloat(seconds));
+  await logTab(gamertag || null, tab, parseFloat(seconds));
   res.json({ ok: true });
 });
 
@@ -691,7 +690,7 @@ app.get('/api/admin', (req, res) => {
   <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
   <h2>// recent searches</h2>
   <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
-  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
+  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
