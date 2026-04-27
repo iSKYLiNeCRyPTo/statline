@@ -506,6 +506,20 @@ async function fetchPlayerStats(gamertag) {
       }
       const np = nameplatePathCache[String(xuid)];
       if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
+    } else {
+      // cachedPath === '__none__' (emblem image failed before) — emblem stays hidden but still
+      // check nameplate independently: the config resolve may have cached it even if the image 404'd.
+      const np = nameplatePathCache[String(xuid)];
+      if (np) {
+        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
+      } else {
+        // No nameplate cached either — re-resolve to pick up the nameplate path
+        try {
+          await resolveEmblemForXuid(xuid);
+          const np2 = nameplatePathCache[String(xuid)];
+          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}&type=nameplate`;
+        } catch(e) {}
+      }
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }

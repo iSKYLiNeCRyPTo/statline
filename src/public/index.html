@@ -3730,48 +3730,45 @@ function render(){
       if(e.csrGames>=2){
         var _csrNet=Math.round(e.csrTotal);
         var _csrPos=_csrNet>=0;
-        html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:8px 12px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">';
-        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;min-width:60px">CSR ON MAP</div>';
-        html+='<div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(_csrPos?'var(--win)':'var(--loss)')+'">'+(_csrPos?'+':'')+_csrNet+'</div>';
-        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+_mapCsrAvg+' avg / game &nbsp;·&nbsp; '+e.csrGames+' ranked games</div>';
+        html+='<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:12px 16px;background:var(--surface);border-radius:8px;border:1px solid var(--border)">';
+        html+='<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;flex-shrink:0">CSR ON MAP</div>';
+        html+='<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+(_csrPos?'var(--win)':'var(--loss)')+'">'+(_csrPos?'+':'')+_csrNet+'</div>';
+        html+='<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+_mapCsrAvg+' avg / game &nbsp;·&nbsp; '+e.csrGames+' ranked games</div>';
         html+='</div>';
       }
 
       // Win rate bar
-      html+='<div style="margin-bottom:12px">';
-      html+='<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
-      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">WIN RATE</span>';
-      html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:'+wrColor+'">'+wr+'% ('+e.wins+'W / '+e.losses+'L)</span>';
+      html+='<div style="margin-bottom:20px">';
+      html+='<div style="display:flex;justify-content:space-between;margin-bottom:7px">';
+      html+='<span style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">WIN RATE</span>';
+      html+='<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:'+wrColor+'">'+wr+'% &nbsp;('+e.wins+'W / '+e.losses+'L)</span>';
       html+='</div>';
-      html+='<div style="height:4px;background:var(--surface3);border-radius:2px;overflow:hidden">';
-      html+='<div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px;transition:width .4s"></div>';
+      html+='<div style="height:7px;background:var(--surface3);border-radius:4px;overflow:hidden">';
+      html+='<div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:4px;transition:width .4s"></div>';
       html+='</div>';
       html+='</div>';
 
-      // Damage dealt vs taken bar
+      // Damage dealt vs taken bars
       if(e.dmgDealt>0&&e.dmgTaken>0&&e.dmgGames>=1){
         var _games=e.wins+e.losses||1;
         var _avgDealt=Math.round(e.dmgDealt/_games);
         var _avgTaken=Math.round(e.dmgTaken/_games);
-        var _dmgRatio=e.dmgTaken>0?e.dmgDealt/e.dmgTaken:1;
-        var _dmgBarColor=_dmgRatio>=1.1?'var(--win)':_dmgRatio<=0.9?'var(--loss)':'var(--gold)';
-        var _dTotal=_avgDealt+_avgTaken||1;
-        var _dPct=Math.round((_avgDealt/_dTotal)*100);
-        var _tPct=100-_dPct;
-        html+='<div style="margin-bottom:12px">';
-        html+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">';
-        html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">AVG DAMAGE</span>';
-        html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:'+_dmgBarColor+'">'
-          +'<span style="color:var(--win)">'+_avgDealt.toLocaleString()+'</span>'
-          +' <span style="color:var(--muted2)">dealt</span>'
-          +' &nbsp;·&nbsp; '
-          +'<span style="color:var(--loss)">'+_avgTaken.toLocaleString()+'</span>'
-          +' <span style="color:var(--muted2)">taken</span>'
-          +'</span>';
-        html+='</div>';
-        html+='<div style="height:5px;background:var(--surface3);border-radius:3px;overflow:hidden;display:flex">';
-        html+='<div style="width:'+_dPct+'%;background:var(--win);transition:width .4s"></div>';
-        html+='<div style="width:'+_tPct+'%;background:var(--loss);opacity:0.7;transition:width .4s"></div>';
+        var _dmgMax=Math.max(_avgDealt,_avgTaken)||1;
+        var _dPct=Math.round((_avgDealt/_dmgMax)*100);
+        var _tPct=Math.round((_avgTaken/_dmgMax)*100);
+        html+='<div style="margin-bottom:20px">';
+        html+='<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:8px">AVG DAMAGE</div>';
+        html+='<div style="display:flex;flex-direction:column;gap:7px">';
+        html+='<div style="display:flex;align-items:center;gap:10px">'
+          +'<div style="width:40px;font-size:10px;color:var(--win);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">dealt</div>'
+          +'<div style="flex:1;height:7px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+_dPct+'%;background:var(--win);border-radius:4px"></div></div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif;min-width:58px;text-align:right">'+_avgDealt.toLocaleString()+'</div>'
+          +'</div>';
+        html+='<div style="display:flex;align-items:center;gap:10px">'
+          +'<div style="width:40px;font-size:10px;color:var(--loss);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">taken</div>'
+          +'<div style="flex:1;height:7px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+_tPct+'%;background:var(--loss);border-radius:4px;opacity:0.85"></div></div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--loss);font-family:Rajdhani,sans-serif;min-width:58px;text-align:right">'+_avgTaken.toLocaleString()+'</div>'
+          +'</div>';
         html+='</div>';
         html+='</div>';
       }
@@ -3785,50 +3782,50 @@ function render(){
         var _lPct=Math.round((_avgLossDmg/_wlMax)*100);
         var _wlDiff=_avgWinDmg-_avgLossDmg;
         var _wlInsight=_wlDiff<-150?'High damage loser — dealing more in losses. Fights going long, not converting.':(_wlDiff>150?'Damage rises with wins — you\'re controlling fights here.':'');
-        html+='<div style="margin-bottom:12px">';
-        html+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">';
-        html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">DAMAGE: WINS VS LOSSES</span>';
-        html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'
+        html+='<div style="margin-bottom:20px">';
+        html+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">';
+        html+='<span style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">DAMAGE: WINS VS LOSSES</span>';
+        html+='<span style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">'
           +((_wlDiff>=0?'<span style="color:var(--win)">+'+_wlDiff.toLocaleString()+'</span>':'<span style="color:var(--loss)">'+_wlDiff.toLocaleString()+'</span>')+' diff')
           +'</span>';
         html+='</div>';
-        html+='<div style="display:flex;flex-direction:column;gap:4px">';
-        html+='<div style="display:flex;align-items:center;gap:8px">'
-          +'<div style="width:12px;font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;flex-shrink:0">W</div>'
-          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+_wPct+'%;background:var(--win);border-radius:3px;opacity:0.85"></div></div>'
-          +'<div style="font-size:11px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif;min-width:52px;text-align:right">'+_avgWinDmg.toLocaleString()+'</div>'
+        html+='<div style="display:flex;flex-direction:column;gap:7px">';
+        html+='<div style="display:flex;align-items:center;gap:10px">'
+          +'<div style="width:12px;font-size:10px;color:var(--win);font-family:Share Tech Mono,monospace;flex-shrink:0">W</div>'
+          +'<div style="flex:1;height:7px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+_wPct+'%;background:var(--win);border-radius:4px;opacity:0.85"></div></div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif;min-width:58px;text-align:right">'+_avgWinDmg.toLocaleString()+'</div>'
           +'</div>';
-        html+='<div style="display:flex;align-items:center;gap:8px">'
-          +'<div style="width:12px;font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;flex-shrink:0">L</div>'
-          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+_lPct+'%;background:var(--muted);border-radius:3px;opacity:0.7"></div></div>'
-          +'<div style="font-size:11px;font-weight:700;color:var(--muted);font-family:Rajdhani,sans-serif;min-width:52px;text-align:right">'+_avgLossDmg.toLocaleString()+'</div>'
+        html+='<div style="display:flex;align-items:center;gap:10px">'
+          +'<div style="width:12px;font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace;flex-shrink:0">L</div>'
+          +'<div style="flex:1;height:7px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+_lPct+'%;background:var(--muted);border-radius:4px;opacity:0.7"></div></div>'
+          +'<div style="font-size:14px;font-weight:700;color:var(--muted);font-family:Rajdhani,sans-serif;min-width:58px;text-align:right">'+_avgLossDmg.toLocaleString()+'</div>'
           +'</div>';
         html+='</div>';
-        if(_wlInsight)html+='<div style="margin-top:5px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+_wlInsight+'</div>';
+        if(_wlInsight)html+='<div style="margin-top:8px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;line-height:1.5">'+_wlInsight+'</div>';
         html+='</div>';
       }
 
       // Recent form
-      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
-      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;white-space:nowrap">RECENT FORM</span>';
+      html+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">';
+      html+='<span style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;white-space:nowrap">RECENT FORM</span>';
       html+=formDots;
-      if(streakStr)html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;margin-left:4px">'+streakStr+'</span>';
+      if(streakStr)html+='<span style="font-size:10px;font-family:Share Tech Mono,monospace;margin-left:4px">'+streakStr+'</span>';
       html+='</div>';
 
       // Mode pills with mini win rate bars
       if(topModes.length>=1){
-        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:6px">MODES ON THIS MAP</div>';
-        html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+        html+='<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:8px">MODES ON THIS MAP</div>';
+        html+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">';
         topModes.forEach(function(md){
           var mwr=Math.round((md[1].wins/md[1].count)*100);
           var mwrColor=mwr>=55?'var(--win)':mwr<=40?'var(--loss)':'var(--gold)';
-          html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;min-width:100px">';
-          html+='<div style="font-size:10px;color:var(--text);font-family:Share Tech Mono,monospace;margin-bottom:4px">'+md[0]+'</div>';
-          html+='<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
-          html+='<span style="font-size:9px;color:'+mwrColor+';font-weight:700">'+mwr+'%</span>';
-          html+='<span style="font-size:9px;color:var(--muted2)">'+md[1].wins+'W '+md[1].losses+'L</span>';
+          html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:110px">';
+          html+='<div style="font-size:11px;color:var(--text);font-family:Share Tech Mono,monospace;margin-bottom:6px">'+md[0]+'</div>';
+          html+='<div style="display:flex;justify-content:space-between;margin-bottom:5px">';
+          html+='<span style="font-size:13px;font-family:Rajdhani,sans-serif;color:'+mwrColor+';font-weight:700">'+mwr+'%</span>';
+          html+='<span style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;align-self:flex-end">'+md[1].wins+'W '+md[1].losses+'L</span>';
           html+='</div>';
-          html+='<div style="height:2px;background:var(--surface3);border-radius:1px;overflow:hidden">';
+          html+='<div style="height:4px;background:var(--surface3);border-radius:2px;overflow:hidden">';
           html+='<div style="height:100%;width:'+mwr+'%;background:'+mwrColor+'"></div>';
           html+='</div>';
           html+='</div>';
