@@ -2331,19 +2331,21 @@ async function doSearch(gt){
     updateFavBtn();
 
     // ── Step 2: Match history — poll progress while full search runs ────────
-    _renderLoadSteps(1, '0/100');
+    _renderLoadSteps(1, null);
     var _progressPoll=setInterval(function(){
       fetch('/api/search/progress?gamertag='+encodeURIComponent(gt))
         .then(function(r){return r.ok?r.json():null;})
         .then(function(p){
           if(!p||p.step!==2) return;
-          _renderLoadSteps(1, p.valid>0?(p.valid+'/100'):null);
+          _renderLoadSteps(1, p.valid>=20?(p.valid+'/100'):null);
         }).catch(function(){});
     },400);
 
     var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
     var fullD=await fullRes.json();
     clearInterval(_progressPoll);
+    // If cached, jump straight to step 3 — no match scanning happened
+    if(fullD.cached) _renderLoadSteps(2, null);
 
     if(fullD.success&&fullD.player){
       // ── Step 3: Team data — brief pause while emblems/pics load ───────────
