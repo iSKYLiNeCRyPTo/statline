@@ -366,12 +366,13 @@ app.get('/api/csr-image', async (req, res) => {
 const imgCache = {};
 const imgInFlight = {};
 app.get('/api/emblem-img', async (req, res) => {
-  const { path: imgPath, xuid } = req.query;
+  const { path: imgPath, xuid, type } = req.query;
+  const isNameplate = type === 'nameplate';
   if (!imgPath) return res.status(400).send('path required');
-  // Negative-cached path: skip straight to gamerpic.
+  // Negative-cached path: skip straight to gamerpic (for emblems only — nameplates just 404).
   if (imgCache[imgPath] === '__none__') {
-    if (xuid) { const gpUrl = getXuidToGamerpic()[String(xuid)]; if (gpUrl) return res.redirect(302, gpUrl); }
-    return res.status(404).send('Emblem not found');
+    if (!isNameplate && xuid) { const gpUrl = getXuidToGamerpic()[String(xuid)]; if (gpUrl) return res.redirect(302, gpUrl); }
+    return res.status(404).send('Not found');
   }
   if (imgCache[imgPath]) {
     res.setHeader('Content-Type', imgCache[imgPath].ct);
@@ -417,15 +418,16 @@ app.get('/api/emblem-img', async (req, res) => {
         }
       } catch(e) {}
     }
-    // All candidates failed: negative-cache the path and downgrade the xuid emblem cache so
-    // future requests for this xuid fall straight through to gamerpic.
+    // All candidates failed: negative-cache the path.
+    // For emblems: also downgrade xuid emblem cache and redirect to gamerpic.
+    // For nameplates: just 404 — don't touch the emblem cache.
     imgCache[imgPath] = '__none__';
-    if (xuid) {
+    if (!isNameplate && xuid) {
       try { require('./halo').markEmblemMissing(xuid); } catch(e) {}
       const gpUrl = getXuidToGamerpic()[String(xuid)];
       if (gpUrl) return gpUrl;
     }
-    throw new Error('Emblem not found');
+    throw new Error('Not found');
   })();
   imgInFlight[imgPath] = fetchPromise;
   try {
@@ -435,8 +437,8 @@ app.get('/api/emblem-img', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(result.buf);
   } catch(e) {
-    if (xuid) { const gpUrl = getXuidToGamerpic()[String(xuid)]; if (gpUrl) return res.redirect(302, gpUrl); }
-    res.status(404).send('Emblem not found');
+    if (!isNameplate && xuid) { const gpUrl = getXuidToGamerpic()[String(xuid)]; if (gpUrl) return res.redirect(302, gpUrl); }
+    res.status(404).send('Not found');
   } finally { delete imgInFlight[imgPath]; }
 });
 
