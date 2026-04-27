@@ -498,10 +498,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <nav id="desktopTabBar" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none;position:sticky;top:48px;z-index:49">
       <button onclick="setTab('overview')" data-tab="overview" class="dtab active" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◈ Overview</button>
       <button onclick="setTab('matches')" data-tab="matches" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◉ Matches</button>
-      <button onclick="setTab('bymap')" data-tab="bymap" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◫ By Map</button>
-      <button onclick="setTab('charts')" data-tab="charts" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◧ Performance</button>
+      <button onclick="setTab('bymap')" data-tab="bymap" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◫ Maps</button>
+      <button onclick="setTab('charts')" data-tab="charts" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◧ Stats</button>
       <button onclick="setTab('objectives')" data-tab="objectives" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◎ Objectives</button>
-      <button onclick="setTab('opponents')" data-tab="opponents" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◐ Opponents</button>
+      <button onclick="setTab('opponents')" data-tab="opponents" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◐ Rivals</button>
     </nav>
     <div class="cmd-content">
 <!-- Landing page -->
@@ -563,7 +563,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
         </div>
       </div>
-      <p style="margin-top:32px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">fragr.live &nbsp;·&nbsp; Based on last 100 matches &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft</p>
+      <div id="landingStats" style="margin-top:28px;display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:center"></div>
+      <p style="margin-top:20px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;line-height:1.8">fragr.live &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft &nbsp;·&nbsp; Stats sourced from the Halo Waypoint API<br>We collect anonymous usage data (gamertags searched, device type) to improve the service. No accounts, no cookies, no IP addresses stored.</p>
     </div>
   </div>
 </div>
@@ -586,10 +587,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <nav class="mobile-tabbar">
   <div class="mobile-tab active" data-tab="overview" onclick="setTab('overview')"><span>◈</span><span class="mobile-tab-label">Overview</span></div>
   <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
-  <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">By Map</span></div>
+  <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">Maps</span></div>
   <div class="mobile-tab" data-tab="objectives" onclick="setTab('objectives')"><span>◎</span><span class="mobile-tab-label">Objectives</span></div>
-  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Perf</span></div>
-  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Opponents</span></div>
+  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Stats</span></div>
+  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
 </nav>
 
 <script>
@@ -895,7 +896,7 @@ function renderMatchHistory(d,clientPage){
     var mode=m.gameMode||'Unknown';
     var _rawSecs=getDurSecs(m);
     var _objHold=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
-    if(_objHold/_rawSecs>0.4) return; // skip if >40% carrying — distorts DPM baseline
+    if(_objHold/_rawSecs>0.4) return;
     var mins=Math.max((_rawSecs-_objHold)/60,1);
     [mode,'__overall__'].forEach(function(k){
       if(!buckets[k])buckets[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
@@ -1002,7 +1003,7 @@ function setTab(t){
     p.classList.toggle('active', p.dataset.tab===t);
   });
   // Update topbar title
-  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// BY MAP & MODE',charts:'// CSR CHARTS',objectives:'// OBJECTIVES',opponents:'// OPPONENTS'};
+  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',objectives:'// OBJECTIVES',opponents:'// RIVALS'};
   var el=document.getElementById('topbarTitle');
   if(el)el.textContent=titles[t]||'// '+t.toUpperCase();
   // Close sidebar on mobile
@@ -1278,6 +1279,14 @@ function renderFavChips() {
 }
 async function loadStats(){
   await loadMedalMeta();
+  fetch('/api/stats').then(function(r){return r.ok?r.json():null;}).then(function(d){
+    if(!d)return;
+    var el=document.getElementById('landingStats');
+    if(!el)return;
+    el.innerHTML='<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.totalSearches.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">SEARCHES</div></div>'
+      +'<div style="width:1px;height:40px;background:var(--border)"></div>'
+      +'<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.uniquePlayers.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">PLAYERS TRACKED</div></div>';
+  }).catch(function(){});
   // Check URL for player param
   var params=new URLSearchParams(window.location.search);
   var gt=params.get('player')||params.get('search');
@@ -1607,9 +1616,9 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   (function(){
     var insights = [];
     var myGt = (getAllPlayers()[selectedPlayer]||{}).gamertag;
-    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
-    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
-    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag === myGt; }) : null;
+    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }); }) : null;
+    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }); }) : null;
+    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }) : null;
     function iCard(icon, title, body, color) {
       return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
         +'<div style="flex-shrink:0;margin-top:1px;color:'+color+'">'+icon+'</div>'
@@ -1682,10 +1691,7 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var objHoldSecs=0;
   if(m.objStats&&m.objStats.timeAsCarrier) objHoldSecs=m.objStats.timeAsCarrier;
   var effectiveMins=Math.max((secs-objHoldSecs)/60,1);
-  // If >40% of game was spent carrying, skip — data is too noisy
   if(objHoldSecs/secs>0.4) return null;
-
-  // Use per-minute rates throughout to normalise for game length
   var dpmDealt=m.damageDealt/effectiveMins;
   var dpmTaken=m.damageTaken/effectiveMins;
   var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
@@ -2275,11 +2281,43 @@ async function doSearch(gt){
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
   matchHistoryData=null;
-  document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+gt+'</strong>...</p></div>';
+  // ── Loading progress steps ───────────────────────────────────────────────
+  var _loadSteps=[
+    {id:'s1',label:'Service record'},
+    {id:'s2',label:'Match history'},
+    {id:'s3',label:'Team data'}
+  ];
+  function _renderLoadSteps(activeIdx,matchProgress){
+    var html='<div style="padding:32px 24px;text-align:left;max-width:320px;margin:0 auto">'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px">'+gt+'</div>'
+      +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:20px;overflow:hidden">'
+      +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+(Math.round((activeIdx/3)*100))+'%;transition:width 0.4s ease"></div>'
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:10px">';
+    _loadSteps.forEach(function(step,i){
+      var done=i<activeIdx;
+      var active=i===activeIdx;
+      var label=step.label;
+      if(active&&i===1&&matchProgress) label='Match history ('+matchProgress+'/100)';
+      var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
+      var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
+      html+='<div style="display:flex;align-items:center;gap:10px">'
+        +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent)':'')+';transition:all 0.3s"></div>'
+        +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+label+(done?' ✓':'')+'</div>'
+        +'</div>';
+    });
+    html+='</div></div>';
+    document.getElementById('app').innerHTML=html;
+  }
+  _renderLoadSteps(0, null);
   try{
     var res=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
     var d=await res.json();
     if(d.success&&d.player){
+      _renderLoadSteps(1, null);
+      await new Promise(function(r){setTimeout(r,200);});
+      _renderLoadSteps(2, null);
+      await new Promise(function(r){setTimeout(r,150);});
       playerData=d.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
@@ -2510,11 +2548,11 @@ function renderTeamSynergy(duo,gamertag){
   // Build rich per-teammate data including individual stats per shared match
   var tmMap={};
   rankedM.forEach(function(m){
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===gamertag;});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});});
     if(!myTeam)return;
-    var me=myTeam.players.find(function(pl){return pl.gamertag===gamertag;});
+    var me=myTeam.players.find(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});
     myTeam.players.forEach(function(pl){
-      if(pl.gamertag===gamertag)return;
+      if(pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase())return;
       var gt=pl.gamertag;
       var gtKey=gt.toLowerCase();  // normalize case for deduplication
       if(!tmMap[gtKey])tmMap[gtKey]={wins:0,losses:0,games:0,csrDeltas:[],
@@ -2552,7 +2590,7 @@ function renderTeamSynergy(duo,gamertag){
   function pct(arr,fn){return arr.length?Math.round(arr.filter(fn).length/arr.length*100):null;}
 
   var teammates=Object.entries(tmMap)
-    .filter(function(e){return e[1].games>=4;})
+    .filter(function(e){return e[1].games>=2;})
     .sort(function(a,b){return b[1].games-a[1].games;})
     .slice(0,10)
     .map(function(e){return[e[1].displayName||e[0],e[1]];});  // use display name
@@ -2560,7 +2598,7 @@ function renderTeamSynergy(duo,gamertag){
   // Solo stats
   var soloM=rankedM.filter(function(m){
     if(!m.teams)return true;
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===gamertag;});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});});
     return !myTeam||myTeam.players.length===1;
   });
   var soloWR=soloM.length>=3?Math.round(soloM.filter(function(m){return m.outcome===2;}).length/soloM.length*100):null;
@@ -3044,17 +3082,18 @@ function render(){
   var _rivalMap={};
   _rawMatches.forEach(function(m){
     if(!m.teams) return;
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===p.gamertag;});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===p.gamertag.toLowerCase();});});
     if(!myTeam) return;
     m.teams.forEach(function(t){
       if(t===myTeam) return;
       (t.players||[]).forEach(function(pl){
-        if(!pl.gamertag||pl.gamertag===p.gamertag||pl.gamertag.startsWith('Spartan ')) return;
-        if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
-          if(pl.gamerpicUrl&&!_rivalMap[pl.gamertag].gamerpicUrl)_rivalMap[pl.gamertag].gamerpicUrl=pl.gamerpicUrl;
-          _rivalMap[pl.gamertag].total++;
-          if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
-          else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
+        if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
+        var _rKey=pl.gamertag.toLowerCase();
+          if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
+          if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
+          _rivalMap[_rKey].total++;
+          if(m.outcome===2) _rivalMap[_rKey].wins++;
+          else if(m.outcome===3) _rivalMap[_rKey].losses++;
       });
     });
   });
@@ -3075,7 +3114,7 @@ function render(){
       var mode=m.gameMode||'Unknown';
       var _rs=_gdsR(m);
       var _oh=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
-      if(_oh/_rs>0.4) return; // skip if >40% carrying
+      if(_oh/_rs>0.4) return;
       var mins=Math.max((_rs-_oh)/60,1);
       [mode,'__overall__'].forEach(function(k){
         if(!_bk[k])_bk[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
@@ -3862,7 +3901,7 @@ function render(){
 
   // OPPONENTS TAB
   html+='<div class="tab-panel'+(activeTab==='opponents'?' active':'')+'" data-tab="opponents">';
-  html+=sectionHead('Opponent History');
+  html+=sectionHead('Rival History');
   if(nemeses.length||victims.length){html+='<div class="rivals-grid"><div><div class="rivals-col-label nemesis"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> Nemeses</div>';nemeses.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch(\''+r.gamertag.replace(/\'/g,"\\\'")+'\')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span></div></div>';});html+='</div><div><div class="rivals-col-label victim"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="11" r="5"/><path d="M9 17v2M15 17v2M7 11a5 5 0 0 1 10 0v2H7v-2z"/></svg> Victims</div>';victims.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch(\''+r.gamertag.replace(/\'/g,"\\\'")+'\')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span></div></div>';});html+='</div></div>';}
   else{html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="empty-state-msg">No opponent history yet</div><div class="empty-state-sub">Builds with each Refresh</div></div>';}
   html+='</div>'; // end opponents tab
