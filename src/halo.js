@@ -10,7 +10,8 @@ const xuidToGt = {};           // xuid -> gamertag
 const xuidToGamerpic = {};     // xuid -> gamerpic URL
 const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
-const emblemPathCache = {};     // xuid -> gamecms image path
+const emblemPathCache = {};     // xuid -> gamecms emblem image path
+const nameplatePathCache = {};  // xuid -> gamecms nameplate image path
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
 let emblemMappingFetchedAt = 0;
@@ -205,6 +206,10 @@ async function resolveEmblemForXuid(xuid) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
+            // Grab nameplate from same mapping entry
+            if (configMatch?.nameplateCmsPath) {
+              nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
+            }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
           if (configurationId !== undefined && configurationId !== null) {
@@ -233,7 +238,7 @@ async function resolveEmblemForXuid(xuid) {
           getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
         }
       }
-      return { gamerpicUrl: gp, emblemPath: path };
+      return { gamerpicUrl: gp, emblemPath: path, nameplatePath: nameplatePathCache[String(xuid)] || null };
     } finally { delete emblemInFlight[String(xuid)]; }
   })();
   return emblemInFlight[String(xuid)];
@@ -351,12 +356,28 @@ async function fetchPlayerStats(gamertag) {
       const crData = await crRes.json();
       const cr = crData?.RewardTracks?.[0]?.Result?.CurrentProgress || crData?.CurrentProgress || null;
       if (cr) {
+        const rankNum = cr.Rank ?? cr.CurrentRank ?? 0;
+        const rankTier = cr.RankTier ?? cr.Tier ?? null;
+        const rankGrade = cr.RankGrade ?? cr.Grade ?? null;
+        // Build the NameplateAdornment image path: career_rank/NameplateAdornment/{rank}_{Title_Case_Name}.png
+        // RankTitle e.g. "Master Sergeant" — comes from the API or we derive from tier/grade
+        const rankTitle = cr.RankTitle ?? cr.Title ?? null;
+        let adornmentUrl = null;
+        if (rankNum && rankTitle && rankTier) {
+          // Convert to filename format: spaces → underscores, keep capitalisation
+          const titlePart = rankTitle.replace(/\s+/g, '_');
+          const tierPart = rankTier.charAt(0).toUpperCase() + rankTier.slice(1).toLowerCase();
+          const gradePart = rankGrade != null ? `_${['I','II','III'][rankGrade] || rankGrade}` : '';
+          const adornPath = `career_rank/NameplateAdornment/${rankNum}_${titlePart}_${tierPart}${gradePart}.png`;
+          adornmentUrl = `/api/emblem-img?path=${encodeURIComponent('images:' + adornPath)}`;
+        }
         finalCareerRank = {
-          rank: cr.Rank ?? cr.CurrentRank ?? 0,
+          rank: rankNum,
           xp: cr.PartialProgress ?? cr.CurrentXP ?? null,
           xpToNext: cr.ProgressRequiredForNextRank ?? null,
-          tier: cr.RankTier ?? cr.Tier ?? null,
-          grade: cr.RankGrade ?? cr.Grade ?? null,
+          tier: rankTier,
+          grade: rankGrade,
+          adornmentUrl,
         };
       }
     }
@@ -410,8 +431,8 @@ async function fetchPlayerStats(gamertag) {
       });
   } catch(e) {}
 
-  // Emblem + gamerpic
-  let emblemUrl = null, gamerpicUrl = null;
+  // Emblem + gamerpic + nameplate
+  let emblemUrl = null, gamerpicUrl = null, nameplateUrl = null;
   try {
     let cachedPath = emblemPathCache[String(xuid)];
     // Migration: legacy cache entries are single-candidate (no ';images:' fallback). Treat as miss to re-resolve.
@@ -421,18 +442,23 @@ async function fetchPlayerStats(gamertag) {
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
+      const np = nameplatePathCache[String(xuid)];
+      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
     } else if (!cachedPath) {
       const result = await resolveEmblemForXuid(xuid);
       gamerpicUrl = result?.gamerpicUrl || null;
       if (result?.emblemPath && result.emblemPath !== '__none__') {
         emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
       }
+      if (result?.nameplatePath) {
+        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(result.nameplatePath)}&xuid=${xuid}`;
+      }
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
 
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl,
+    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
@@ -769,6 +795,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 module.exports = {
   fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
+  getNameplatePathCache: () => nameplatePathCache,
   getXuidToGt: () => xuidToGt,
   resolveGamertags,
   resolveEmblemForXuid, markEmblemMissing,
