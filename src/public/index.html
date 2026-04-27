@@ -563,8 +563,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
         </div>
       </div>
-      <div id="landingStats" style="margin-top:28px;display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:center"></div>
-      <p style="margin-top:20px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;line-height:1.8">fragr.live &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft &nbsp;·&nbsp; Stats sourced from the Halo Waypoint API<br>We collect anonymous usage data (gamertags searched, device type) to improve the service. No accounts, no cookies, no IP addresses stored.</p>
+      <p style="margin-top:32px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">fragr.live &nbsp;·&nbsp; Based on last 100 matches &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft</p>
     </div>
   </div>
 </div>
@@ -894,10 +893,10 @@ function renderMatchHistory(d,clientPage){
   var buckets={};
   _baseSource.forEach(function(m){
     var mode=m.gameMode||'Unknown';
-    var _rawSecs2=getDurSecs(m);
-    var _objHold2=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
-    if(_objHold2/_rawSecs2>0.4) return; // skip if >40% carrying
-    var mins=Math.max((_rawSecs2-_objHold2)/60,1);
+    var _rawSecs=getDurSecs(m);
+    var _objHold=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
+    if(_objHold/_rawSecs>0.4) return; // skip if >40% carrying — distorts DPM baseline
+    var mins=Math.max((_rawSecs-_objHold)/60,1);
     [mode,'__overall__'].forEach(function(k){
       if(!buckets[k])buckets[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
       buckets[k].dpmDealt.push(m.damageDealt/mins);
@@ -1279,14 +1278,6 @@ function renderFavChips() {
 }
 async function loadStats(){
   await loadMedalMeta();
-  fetch('/api/stats').then(function(r){return r.ok?r.json():null;}).then(function(d){
-    if(!d)return;
-    var el=document.getElementById('landingStats');
-    if(!el)return;
-    el.innerHTML='<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.totalSearches.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">SEARCHES</div></div>'
-      +'<div style="width:1px;height:40px;background:var(--border)"></div>'
-      +'<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.uniquePlayers.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">PLAYERS TRACKED</div></div>';
-  }).catch(function(){});
   // Check URL for player param
   var params=new URLSearchParams(window.location.search);
   var gt=params.get('player')||params.get('search');
@@ -1616,9 +1607,9 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   (function(){
     var insights = [];
     var myGt = (getAllPlayers()[selectedPlayer]||{}).gamertag;
-    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }); }) : null;
-    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }); }) : null;
-    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag&&p.gamertag.toLowerCase()===(myGt||'').toLowerCase(); }) : null;
+    var myTeam = m.teams ? m.teams.find(function(t){ return t.players && t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
+    var oppTeam = m.teams ? m.teams.find(function(t){ return !t.players.some(function(p){ return p.gamertag === myGt; }); }) : null;
+    var me = myTeam ? myTeam.players.find(function(p){ return p.gamertag === myGt; }) : null;
     function iCard(icon, title, body, color) {
       return '<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
         +'<div style="flex-shrink:0;margin-top:1px;color:'+color+'">'+icon+'</div>'
@@ -1690,8 +1681,8 @@ function analyzeConnectionQuality(m, modeBaselines) {
   // Subtract objective carry time — can't shoot while holding ball/flag
   var objHoldSecs=0;
   if(m.objStats&&m.objStats.timeAsCarrier) objHoldSecs=m.objStats.timeAsCarrier;
-  var effectiveMins=Math.max((secs-objHoldSecs)/60, 1);
-  // If >40% of game was spent holding objective, skip hitreg analysis — data is too noisy
+  var effectiveMins=Math.max((secs-objHoldSecs)/60,1);
+  // If >40% of game was spent carrying, skip — data is too noisy
   if(objHoldSecs/secs>0.4) return null;
 
   // Use per-minute rates throughout to normalise for game length
@@ -2519,11 +2510,11 @@ function renderTeamSynergy(duo,gamertag){
   // Build rich per-teammate data including individual stats per shared match
   var tmMap={};
   rankedM.forEach(function(m){
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===gamertag;});});
     if(!myTeam)return;
-    var me=myTeam.players.find(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});
+    var me=myTeam.players.find(function(pl){return pl.gamertag===gamertag;});
     myTeam.players.forEach(function(pl){
-      if(pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase())return;
+      if(pl.gamertag===gamertag)return;
       var gt=pl.gamertag;
       var gtKey=gt.toLowerCase();  // normalize case for deduplication
       if(!tmMap[gtKey])tmMap[gtKey]={wins:0,losses:0,games:0,csrDeltas:[],
@@ -2569,7 +2560,7 @@ function renderTeamSynergy(duo,gamertag){
   // Solo stats
   var soloM=rankedM.filter(function(m){
     if(!m.teams)return true;
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===gamertag.toLowerCase();});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===gamertag;});});
     return !myTeam||myTeam.players.length===1;
   });
   var soloWR=soloM.length>=3?Math.round(soloM.filter(function(m){return m.outcome===2;}).length/soloM.length*100):null;
@@ -3053,18 +3044,17 @@ function render(){
   var _rivalMap={};
   _rawMatches.forEach(function(m){
     if(!m.teams) return;
-    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===p.gamertag.toLowerCase();});});
+    var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag===p.gamertag;});});
     if(!myTeam) return;
     m.teams.forEach(function(t){
       if(t===myTeam) return;
       (t.players||[]).forEach(function(pl){
-        if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
-        var _rKey=pl.gamertag.toLowerCase();
-          if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
-          if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
-          _rivalMap[_rKey].total++;
-          if(m.outcome===2) _rivalMap[_rKey].wins++;
-          else if(m.outcome===3) _rivalMap[_rKey].losses++;
+        if(!pl.gamertag||pl.gamertag===p.gamertag||pl.gamertag.startsWith('Spartan ')) return;
+        if(!_rivalMap[pl.gamertag]) _rivalMap[pl.gamertag]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null};
+          if(pl.gamerpicUrl&&!_rivalMap[pl.gamertag].gamerpicUrl)_rivalMap[pl.gamertag].gamerpicUrl=pl.gamerpicUrl;
+          _rivalMap[pl.gamertag].total++;
+          if(m.outcome===2) _rivalMap[pl.gamertag].wins++;
+          else if(m.outcome===3) _rivalMap[pl.gamertag].losses++;
       });
     });
   });
@@ -3082,7 +3072,11 @@ function render(){
     var _vM=(allMatches||displayMatches).filter(_validBL);
     var _bk={};
     _vM.forEach(function(m){
-      var mode=m.gameMode||'Unknown';var mins=_gdsR(m)/60||1;
+      var mode=m.gameMode||'Unknown';
+      var _rs=_gdsR(m);
+      var _oh=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
+      if(_oh/_rs>0.4) return; // skip if >40% carrying
+      var mins=Math.max((_rs-_oh)/60,1);
       [mode,'__overall__'].forEach(function(k){
         if(!_bk[k])_bk[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
         _bk[k].dpmDealt.push(m.damageDealt/mins);
