@@ -2557,11 +2557,15 @@ function renderTeamSynergy(duo,gamertag){
     });
   });
 
+  // Debug — log what we have
+  console.log('[Synergy] rankedM:', rankedM.length, 'tmMap entries:', Object.keys(tmMap).length);
+  console.log('[Synergy] top teammates by games:', Object.entries(tmMap).sort(function(a,b){return b[1].games-a[1].games;}).slice(0,5).map(function(e){return e[0]+':'+e[1].games;}));
+  console.log('[Synergy] allM total:', allM.length, 'with teams:', allM.filter(function(m){return m.teams&&m.teams.length;}).length);
   function avg(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:null;}
   function pct(arr,fn){return arr.length?Math.round(arr.filter(fn).length/arr.length*100):null;}
 
   var teammates=Object.entries(tmMap)
-    .filter(function(e){return e[1].games>=4;})
+    .filter(function(e){return e[1].games>=2;})
     .sort(function(a,b){return b[1].games-a[1].games;})
     .slice(0,10)
     .map(function(e){return[e[1].displayName||e[0],e[1]];});  // use display name
