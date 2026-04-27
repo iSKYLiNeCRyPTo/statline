@@ -71,7 +71,7 @@ if (!process.env.MS_REFRESH_TOKEN) {
 // --- Rate limiting (in-memory, per IP) ---
 const rateLimitMap = {};
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_MAX = 10;       // 10 searches per minute per IP
+const RATE_LIMIT_MAX = 30;       // 30 searches per minute per IP
 
 function rateLimit(req, res, next) {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
