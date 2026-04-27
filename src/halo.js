@@ -374,12 +374,15 @@ async function fetchPlayerStats(gamertag) {
                   if (defRes.ok) {
                     const emblemDef = await defRes.json();
                     const dp = emblemDef?.CommonData?.DisplayPath;
+                    console.log('[Emblem] DisplayPath dump:', JSON.stringify(dp));
                     const mediaUrlPath = dp?.Media?.MediaUrl?.Path || '';
                     const mediaFolderPath = dp?.Media?.FolderPath || dp?.FolderPath || '';
                     const mediaFileName = dp?.Media?.FileName || dp?.FileName || '';
                     if (mediaUrlPath && mediaUrlPath.includes('/') && /\.png$/i.test(mediaUrlPath)) path = mediaUrlPath;
                     else if (mediaFolderPath && mediaFileName) path = `${mediaFolderPath}/${mediaFileName}`;
                     else { const sw = emblemJsonPath.replace(/\.json$/i, '.png'); path = sw.startsWith('progression/') ? sw : `progression/${sw}`; }
+                  } else {
+                    console.log('[Emblem] defRes not ok:', defRes.status);
                   }
                 }
                 console.log('[Emblem] resolved path:', path);
