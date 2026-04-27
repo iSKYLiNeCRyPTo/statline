@@ -339,7 +339,13 @@ async function fetchPlayerStats(gamertag) {
   // Emblem + gamerpic
   let emblemUrl = null, gamerpicUrl = null;
   try {
-    const cachedPath = emblemPathCache[String(xuid)];
+    let cachedPath = emblemPathCache[String(xuid)];
+    // Migration: legacy cache entries are single-candidate (no ';images:' fallback). Treat as miss to re-resolve.
+    if (cachedPath && cachedPath !== '__none__' && !cachedPath.includes('images:') && !cachedPath.includes(';')) {
+      console.log('[Emblem] legacy cache entry, re-resolving:', cachedPath);
+      delete emblemPathCache[String(xuid)];
+      cachedPath = undefined;
+    }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
     } else if (!cachedPath) {
@@ -367,19 +373,23 @@ async function fetchPlayerStats(gamertag) {
                 const mapping = await getEmblemMapping();
                 const emblemEntry = mapping[emblemId];
                 console.log('[Emblem] emblemId:', emblemId, '| mapping hit:', !!emblemEntry, '| configId:', configurationId);
+                const candidates = [];
+                // 1) Mapping hit (most reliable)
                 if (emblemEntry) {
                   const configKey = configurationId ? String(configurationId) : null;
                   const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
-                  if (configMatch?.emblemCmsPath) path = 'waypoint:' + configMatch.emblemCmsPath;
+                  if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
                 }
-                // Mapping miss but we know the convention: images/emblems/<emblemId>_<configId>.png
-                // Negative configIds are encoded with an 'n' prefix instead of '-'.
-                if (!path && (configurationId !== undefined && configurationId !== null)) {
+                // 2) Convention construct: images/emblems/<emblemId>_<configId>.png
+                //    Negative configIds are encoded with an 'n' prefix instead of '-'.
+                if (configurationId !== undefined && configurationId !== null) {
                   const configStr = configurationId < 0 ? `n${Math.abs(configurationId)}` : String(configurationId);
-                  path = `waypoint:images/emblems/${emblemId}_${configStr}.png`;
-                  console.log('[Emblem] constructed waypoint path from convention:', path);
+                  const conv = `waypoint:images/emblems/${emblemId}_${configStr}.png`;
+                  if (!candidates.includes(conv)) candidates.push(conv);
                 }
-                if (!path) {
+                // 3) Images-branch fallback: use def file's DisplayPath against the 'Images' CMS branch.
+                //    This covers emblems that aren't in mapping.json AND aren't published under the Waypoint convention.
+                try {
                   const defRes = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${emblemJsonPath}`, { headers: freshHeaders });
                   if (defRes.ok) {
                     const emblemDef = await defRes.json();
@@ -388,14 +398,17 @@ async function fetchPlayerStats(gamertag) {
                     const mediaUrlPath = dp?.Media?.MediaUrl?.Path || '';
                     const mediaFolderPath = dp?.Media?.FolderPath || dp?.FolderPath || '';
                     const mediaFileName = dp?.Media?.FileName || dp?.FileName || '';
-                    if (mediaUrlPath && mediaUrlPath.includes('/') && /\.png$/i.test(mediaUrlPath)) path = mediaUrlPath;
-                    else if (mediaFolderPath && mediaFileName) path = `${mediaFolderPath}/${mediaFileName}`;
-                    else { const sw = emblemJsonPath.replace(/\.json$/i, '.png'); path = sw.startsWith('progression/') ? sw : `progression/${sw}`; }
+                    let displayPath = '';
+                    if (mediaUrlPath && mediaUrlPath.includes('/') && /\.png$/i.test(mediaUrlPath)) displayPath = mediaUrlPath;
+                    else if (mediaFolderPath && mediaFileName) displayPath = `${mediaFolderPath}/${mediaFileName}`;
+                    else { const sw = emblemJsonPath.replace(/\.json$/i, '.png'); displayPath = sw.startsWith('progression/') ? sw : `progression/${sw}`; }
+                    if (displayPath) candidates.push(`images:${displayPath}`);
                   } else {
                     console.log('[Emblem] defRes not ok:', defRes.status);
                   }
-                }
-                console.log('[Emblem] resolved path:', path);
+                } catch(e) { console.log('[Emblem] defRes error:', e.message); }
+                path = candidates.length ? candidates.join(';') : null;
+                console.log('[Emblem] resolved candidates:', path);
                 if (path) {
                   emblemPathCache[String(xuid)] = path;
                   getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
