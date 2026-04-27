@@ -119,6 +119,7 @@ setInterval(() => {
 // --- Search cache (Redis + in-memory) ---
 const searchCache = {}; // gamertag.lower -> { data, fetchedAt }
 const CACHE_TTL = 60 * 60 * 1000; // 60 minutes
+const _searchProgress = {}; // gamertag.lower -> { step, valid, total, ts }
 
 async function getFromCache(gamertag) {
   const key = gamertag.toLowerCase().trim();
@@ -231,8 +232,13 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
   const searchPromise = (async () => {
     try {
+      _searchProgress[key] = { step: 1, valid: 0, total: 100, ts: Date.now() };
       const playerStats = await fetchPlayerStats(gamertag);
-      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100);
+      _searchProgress[key] = { step: 2, valid: 0, total: 100, ts: Date.now() };
+      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100, (valid, total) => {
+        _searchProgress[key] = { step: 2, valid, total, ts: Date.now() };
+      });
+      _searchProgress[key] = { step: 3, valid: 100, total: 100, ts: Date.now() };
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
       const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
       const matches = (histData.matches || []).filter(m => {
@@ -253,6 +259,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
       return result;
     } finally {
       delete searchInFlight[key];
+      setTimeout(()=>{ delete _searchProgress[key]; }, 10000);
     }
   })();
   searchInFlight[key] = searchPromise;
@@ -613,6 +620,14 @@ app.get('/api/map-image', async (req, res) => {
     console.error('[MapImg]', e.message);
     res.status(500).send('error');
   }
+});
+
+// ── Search progress SSE ──────────────────────────────────────────────────────
+app.get('/api/search/progress', (req, res) => {
+  const key = (req.query.gamertag||'').toLowerCase();
+  if (!key) return res.json({ step: 0, valid: 0, total: 100 });
+  const p = _searchProgress[key] || { step: 0, valid: 0, total: 100 };
+  res.json(p);
 });
 
 // ── Public stats (landing page) ──────────────────────────────────────────────
