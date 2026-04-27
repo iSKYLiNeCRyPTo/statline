@@ -59,8 +59,8 @@ async function loadCaches() {
   const c = await getRedis();
   if (!c) return;
   try {
-    const [gtRaw, gpRaw, emblemRaw, clearRaw] = await Promise.all([
-      c.get('xuidToGt'), c.get('xuidToGamerpic'), c.get('emblemPathCache'), c.get('clearanceToken')
+    const [gtRaw, gpRaw, emblemRaw, npRaw, clearRaw] = await Promise.all([
+      c.get('xuidToGt'), c.get('xuidToGamerpic'), c.get('emblemPathCache'), c.get('nameplatePathCache'), c.get('clearanceToken')
     ]);
     if (gtRaw) Object.assign(xuidToGt, JSON.parse(gtRaw));
     if (gpRaw) Object.assign(xuidToGamerpic, JSON.parse(gpRaw));
@@ -68,6 +68,12 @@ async function loadCaches() {
       const loaded = JSON.parse(emblemRaw) || {};
       for (const [xuid, p] of Object.entries(loaded)) {
         if (p && p !== '') emblemPathCache[xuid] = p;
+      }
+    }
+    if (npRaw) {
+      const loaded = JSON.parse(npRaw) || {};
+      for (const [xuid, p] of Object.entries(loaded)) {
+        if (p && p !== '') nameplatePathCache[xuid] = p;
       }
     }
     if (clearRaw) {
@@ -78,7 +84,7 @@ async function loadCaches() {
         console.log('[Clearance] Loaded from Redis');
       }
     }
-    console.log(`[Cache] Loaded: ${Object.keys(xuidToGt).length} gamertags, ${Object.keys(emblemPathCache).length} emblems`);
+    console.log(`[Cache] Loaded: ${Object.keys(xuidToGt).length} gamertags, ${Object.keys(emblemPathCache).length} emblems, ${Object.keys(nameplatePathCache).length} nameplates`);
   } catch(e) { console.error('[Cache] Load failed:', e.message); }
 }
 loadCaches();
@@ -235,6 +241,7 @@ async function resolveEmblemForXuid(xuid) {
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
             if (configMatch?.nameplateCmsPath) {
               nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
+              getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
             }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
@@ -454,13 +461,13 @@ async function fetchPlayerStats(gamertag) {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
       const np = nameplatePathCache[String(xuid)];
       if (np) {
-        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
+        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
       } else {
         // Emblem cached but nameplate not — re-resolve to get it (fresh server start)
         try {
           await resolveEmblemForXuid(xuid);
           const np2 = nameplatePathCache[String(xuid)];
-          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}`;
+          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}&type=nameplate`;
         } catch(e) {}
       }
     } else if (!cachedPath) {
@@ -470,7 +477,7 @@ async function fetchPlayerStats(gamertag) {
         emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
       }
       const np = nameplatePathCache[String(xuid)];
-      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
+      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
