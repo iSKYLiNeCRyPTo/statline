@@ -398,14 +398,18 @@ app.get('/api/emblem-img', async (req, res) => {
     }
     for (const url of candidates) {
       try {
+        console.log('[EmblemImg] trying:', url);
         const r = await fetch(url, { headers });
         if (r.ok) {
+          console.log('[EmblemImg] success:', url);
           const ct = r.headers.get('content-type') || 'image/png';
           const buf = Buffer.from(await r.arrayBuffer());
           imgCache[imgPath] = { ct, buf };
           return { ct, buf };
+        } else {
+          console.log('[EmblemImg] failed:', url, r.status);
         }
-      } catch(e) {}
+      } catch(e) { console.log('[EmblemImg] error:', url, e.message); }
     }
     // Redirect to gamerpic fallback
     if (xuid) {
