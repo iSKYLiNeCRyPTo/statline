@@ -641,14 +641,26 @@ function _renderAdSlot(variant){
 
   // Image-based ad
   if(ad.active && ad.image){
-    var imgH = isCard ? (isMobile ? 'auto' : '320px') : (isMobile ? '90px' : '110px');
-    var imgFlex = isCard && isMobile ? 'flex:1;min-height:200px;' : 'height:'+imgH+';';
     var taglineShort = ad.tagline.split(/[.!?]/)[0].trim() + '.';
-    var outerFlex = isCard && isMobile ? 'display:flex;flex-direction:column;height:100%;' : '';
-    return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2);'+outerFlex+'">'
+    if(isCard && isMobile){
+      // Mobile card: fill full available height, cover image, text cap pinned at bottom
+      return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2);display:flex;flex-direction:column;height:100%">'
+        +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:4px 0;background:var(--surface3);text-transform:uppercase;flex-shrink:0">Sponsored</div>'
+        +'<div style="flex:1;min-height:0;overflow:hidden">'
+        +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="'+ad.brand+'"></div>'
+        +'<div style="padding:10px 14px;flex-shrink:0;background:var(--surface2)">'
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">'+ad.brand+'</div>'
+        +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);line-height:1.4">'+taglineShort+'</div>'
+        +'</div>'
+        +'</div>';
+    }
+    // Desktop card or banner
+    var imgH = isCard ? '320px' : (isMobile ? '90px' : '110px');
+    var imgFit = isCard ? 'contain' : 'cover';
+    return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2)">'
       +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:4px 0;background:var(--surface3);text-transform:uppercase">Sponsored</div>'
-      +'<div style="width:100%;'+imgFlex+'background:var(--surface3);display:flex;align-items:center;justify-content:center">'
-      +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:contain;display:block" alt="'+ad.brand+'"></div>'
+      +'<div style="width:100%;height:'+imgH+';background:var(--surface3);display:flex;align-items:center;justify-content:center">'
+      +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:'+imgFit+';display:block" alt="'+ad.brand+'"></div>'
       +'<div style="padding:'+(isCard?'12px 16px':'8px 12px')+'">'
       +'<div style="font-family:Rajdhani,sans-serif;font-size:'+(isCard?'13px':'11px')+';font-weight:700;color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px">'+ad.brand+'</div>'
       +'<div style="font-size:'+(isCard?'10px':'9px')+';font-family:Share Tech Mono,monospace;color:var(--muted2);line-height:1.5">'+(isCard?ad.tagline:taglineShort)+'</div>'
@@ -2402,10 +2414,10 @@ async function doSearch(gt, isRefresh, force){
 
     var html;
     if(_lsMobile){
-      // Mobile: steps pinned at top, ad card fills remaining screen
-      html='<div style="min-height:calc(100vh - 100px);display:flex;flex-direction:column;padding:24px 16px 16px;box-sizing:border-box">'
-        +'<div style="margin-bottom:24px">'+stepsHtml+'</div>'
-        +'<div style="flex:1;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
+      // Mobile: steps pinned at top, ad card fills remaining screen — no scroll
+      html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
+        +'<div style="margin-bottom:16px;flex-shrink:0">'+stepsHtml+'</div>'
+        +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
         +'</div>';
     } else {
       // Desktop: two columns — steps left, ad card right
@@ -2476,10 +2488,10 @@ async function doSearch(gt, isRefresh, force){
 
     var html;
     if(isMobile){
-      // Mobile: player info at top, ad card fills remaining screen
-      html='<div style="min-height:calc(100vh - 100px);display:flex;flex-direction:column;padding:24px 16px 16px;box-sizing:border-box">'
-        +'<div style="margin-bottom:24px">'+playerSection+'</div>'
-        +'<div style="flex:1;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
+      // Mobile: player info at top, ad card fills remaining screen — no scroll
+      html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
+        +'<div style="margin-bottom:16px;flex-shrink:0">'+playerSection+'</div>'
+        +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
         +'</div>';
     } else {
       // Desktop: two-column — player left, ad right
@@ -3841,6 +3853,52 @@ function render(){
       });
       html+='</tbody></table></div>';
     }
+
+    // Damage by Map
+    var dmgMapRows=mapRows.filter(function(m){return m.dmgDealt>0&&m.dmgTaken>0&&m.count>=2;})
+      .map(function(m){
+        var games=m.wins+m.losses;
+        return {map:m.map,imageUrl:m.imageUrl,count:games,
+          avgDealt:games>0?Math.round(m.dmgDealt/games):0,
+          avgTaken:games>0?Math.round(m.dmgTaken/games):0,
+          ratio:m.dmgTaken>0?(m.dmgDealt/m.dmgTaken):0};
+      })
+      .sort(function(a,b){return b.avgDealt-a.avgDealt;});
+
+    if(dmgMapRows.length>=2){
+      var maxDealt=Math.max.apply(null,dmgMapRows.map(function(r){return r.avgDealt;}))||1;
+      var maxTaken=Math.max.apply(null,dmgMapRows.map(function(r){return r.avgTaken;}))||1;
+      var maxBar=Math.max(maxDealt,maxTaken);
+      html+=sectionHead('Damage by Map');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      dmgMapRows.forEach(function(row,i){
+        var dpct=Math.round((row.avgDealt/maxBar)*100);
+        var tpct=Math.round((row.avgTaken/maxBar)*100);
+        var rColor=row.ratio>=1?'var(--win)':'var(--loss)';
+        var isLast=i===dmgMapRows.length-1;
+        html+='<div style="padding:12px 16px;'+(isLast?'':'border-bottom:1px solid var(--border2)')+(row.ratio===Math.max.apply(null,dmgMapRows.map(function(r){return r.ratio;}))&&dmgMapRows.length>1?';background:rgba(0,230,118,0.03)':'')+(row.ratio===Math.min.apply(null,dmgMapRows.map(function(r){return r.ratio;}))&&dmgMapRows.length>1?';background:rgba(255,61,87,0.03)':'')+'">';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+        html+='<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+row.map+'</div>';
+        html+='<div style="display:flex;gap:16px;align-items:center">';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">DEALT</div><div style="font-size:13px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif">'+row.avgDealt.toLocaleString()+'</div></div>';
+        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">TAKEN</div><div style="font-size:13px;font-weight:700;color:var(--loss);font-family:Rajdhani,sans-serif">'+row.avgTaken.toLocaleString()+'</div></div>';
+        html+='<div style="text-align:right;min-width:40px"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">RATIO</div><div style="font-size:13px;font-weight:700;color:'+rColor+';font-family:Rajdhani,sans-serif">'+row.ratio.toFixed(2)+'</div></div>';
+        html+='</div></div>';
+        // Dealt bar
+        html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
+        html+='<div style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;width:36px;text-align:right;flex-shrink:0">dealt</div>';
+        html+='<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+dpct+'%;background:var(--win);border-radius:3px;transition:width 0.4s ease"></div></div>';
+        html+='</div>';
+        // Taken bar
+        html+='<div style="display:flex;align-items:center;gap:8px">';
+        html+='<div style="font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace;width:36px;text-align:right;flex-shrink:0">taken</div>';
+        html+='<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+tpct+'%;background:var(--loss);border-radius:3px;transition:width 0.4s ease"></div></div>';
+        html+='</div>';
+        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:6px">'+row.count+' games avg</div>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
   }
   html+='</div>'; // end bymap tab
 
@@ -4143,6 +4201,80 @@ function render(){
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
     insights.forEach(function(card){html+=card;});
     html=html.replace(/border-bottom:1px solid var\(--border\)(?=[^}]*<\/div><\/div><\/div><\/div>)/,'border-bottom:none');
+    html+='</div>';
+  })();
+
+  // Damage Trends
+  (function(){
+    var dmgSample=displayMatches.filter(function(m){
+      var s=m.duration?String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/):null;
+      var secs=s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;
+      return secs>=180&&m.damageDealt>300&&m.damageTaken>300&&(m.outcome===2||m.outcome===3);
+    }).slice(0,40).reverse(); // oldest→newest for trend direction
+    if(dmgSample.length<3)return;
+
+    var dealtVals=dmgSample.map(function(m){return m.damageDealt||0;});
+    var takenVals=dmgSample.map(function(m){return m.damageTaken||0;});
+    var avgDealt=Math.round(dealtVals.reduce(function(a,b){return a+b;},0)/dealtVals.length);
+    var avgTaken=Math.round(takenVals.reduce(function(a,b){return a+b;},0)/takenVals.length);
+    var maxVal=Math.max.apply(null,dealtVals.concat(takenVals))||1;
+
+    // Rolling 5-game averages
+    function roll5(arr){return arr.map(function(_,i){var sl=arr.slice(Math.max(0,i-4),i+1);return Math.round(sl.reduce(function(a,b){return a+b;},0)/sl.length);});}
+    var roll5Dealt=roll5(dealtVals);
+    var roll5Taken=roll5(takenVals);
+    var lastDealt=dealtVals[dealtVals.length-1];
+    var lastTaken=takenVals[takenVals.length-1];
+    var trendDealt=roll5Dealt[roll5Dealt.length-1]-roll5Dealt[Math.max(0,roll5Dealt.length-6)];
+    var trendTaken=roll5Taken[roll5Taken.length-1]-roll5Taken[Math.max(0,roll5Taken.length-6)];
+    var dmgRatioAvg=(avgTaken>0?avgDealt/avgTaken:0).toFixed(2);
+    var dmgRatioColor=parseFloat(dmgRatioAvg)>=1?'var(--win)':'var(--loss)';
+
+    html+=sectionHead('Damage Trends','last '+dmgSample.length+' games');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+
+    // Stat summary row
+    html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+    function dmgMini(label,val,color,sub){
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">'
+        +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">'+label+'</div>'
+        +'<div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+color+'">'+val+'</div>'
+        +(sub?'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px">'+sub+'</div>':'')
+        +'</div>';
+    }
+    var tDLabel=(trendDealt>=0?'↑ +':' ↓ ')+Math.abs(Math.round(trendDealt))+' trend';
+    var tTLabel=(trendTaken<=0?'↓ -':'↑ +')+Math.abs(Math.round(trendTaken))+' trend';
+    html+=dmgMini('Avg Dealt',avgDealt.toLocaleString(),'var(--win)',trendDealt>=0?'<span style="color:var(--win)">'+tDLabel+'</span>':'<span style="color:var(--loss)">'+tDLabel+'</span>');
+    html+=dmgMini('Avg Taken',avgTaken.toLocaleString(),'var(--loss)',trendTaken<=0?'<span style="color:var(--win)">'+tTLabel+'</span>':'<span style="color:var(--loss)">'+tTLabel+'</span>');
+    html+=dmgMini('Dmg Ratio',dmgRatioAvg,dmgRatioColor,'dealt / taken');
+    html+=dmgMini('Last Game',lastDealt.toLocaleString(),'var(--text)','vs '+lastTaken.toLocaleString()+' taken');
+    html+='</div>';
+
+    // Bar chart: dealt vs taken per game
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Per-Game Damage · <span style="color:var(--win)">■ Dealt</span>  <span style="color:var(--loss)">■ Taken</span></div>';
+    html+='<div style="display:flex;align-items:flex-end;gap:3px;height:72px;margin-bottom:8px">';
+    dmgSample.forEach(function(m,i){
+      var d=m.damageDealt||0,t=m.damageTaken||0;
+      var dh=Math.round((d/maxVal)*68),th=Math.round((t/maxVal)*68);
+      var isWin=m.outcome===2;
+      html+='<div style="display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:0" title="'+(m.mapName||'')+' · Dealt '+Math.round(d).toLocaleString()+' / Taken '+Math.round(t).toLocaleString()+'">'
+        +'<div style="width:100%;background:var(--win);height:'+dh+'px;border-radius:2px 2px 0 0;opacity:0.85"></div>'
+        +'<div style="width:100%;background:var(--loss);height:'+th+'px;border-radius:0 0 2px 2px;opacity:0.75"></div>'
+        +'</div>';
+    });
+    html+='</div>';
+
+    // Rolling 5-game avg line represented as dots
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">5-Game Rolling Avg</div>';
+    html+='<div style="display:flex;align-items:center;gap:3px;height:28px">';
+    roll5Dealt.forEach(function(v,i){
+      var pct=Math.round((v/maxVal)*100);
+      html+='<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px">'
+        +'<div style="font-size:8px;color:var(--win);font-family:Share Tech Mono,monospace;line-height:1">'+v.toLocaleString()+'</div>'
+        +'<div style="width:6px;height:6px;border-radius:50%;background:var(--win);opacity:'+( 0.4+0.6*(v/maxVal)).toFixed(2)+'"></div>'
+        +'</div>';
+    });
+    html+='</div>';
     html+='</div>';
   })();
 

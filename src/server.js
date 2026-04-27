@@ -5,6 +5,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 let _dbPool = null;
@@ -15,7 +16,6 @@ async function getDb() {
     try {
       await _dbPool.query(`CREATE TABLE IF NOT EXISTS search_log (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), gamertag TEXT NOT NULL, ip TEXT, user_agent TEXT, cached TEXT, success BOOLEAN, duration_ms INTEGER)`);
       await _dbPool.query(`CREATE TABLE IF NOT EXISTS tab_log (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), gamertag TEXT, ip TEXT, tab TEXT NOT NULL, seconds NUMERIC(8,2) NOT NULL)`);
-      await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       await _dbPool.query(`ALTER TABLE search_log ADD COLUMN IF NOT EXISTS user_agent TEXT`).catch(()=>{});
       await _dbPool.query(`ALTER TABLE search_log ADD COLUMN IF NOT EXISTS duration_ms INTEGER`).catch(()=>{});
       await _dbPool.query(`ALTER TABLE search_log ALTER COLUMN cached TYPE TEXT USING cached::text`).catch(()=>{});
@@ -26,34 +26,11 @@ async function getDb() {
 }
 getDb();
 
-async function loadXuidCache() {
-  try {
-    const db = await getDb();
-    if (!db) return;
-    const result = await db.query('SELECT xuid, gamertag FROM xuid_cache');
-    if (result.rows.length > 0) {
-      const gt = getXuidToGt();
-      result.rows.forEach(r => { if (!gt[r.xuid]) gt[r.xuid] = r.gamertag; });
-      console.log('[DB] Loaded', result.rows.length, 'cached xuids');
-    }
-  } catch(e) { console.error('[DB] loadXuidCache error:', e.message); }
-}
-loadXuidCache();
+// Load xuid cache from Postgres into halo.js in-memory map on startup
+loadXuidCache(getXuidToGt());
 
-setInterval(async () => {
-  try {
-    const db = await getDb();
-    if (!db) return;
-    const gt = getXuidToGt();
-    const entries = Object.entries(gt).filter(([,v]) => v && !v.startsWith('Spartan ')).slice(0, 500);
-    if (!entries.length) return;
-    for (let i = 0; i < entries.length; i += 100) {
-      const batch = entries.slice(i, i+100);
-      const vals = batch.map((_,j) => `($${j*2+1},$${j*2+2})`).join(',');
-      await db.query(`INSERT INTO xuid_cache (xuid,gamertag) VALUES ${vals} ON CONFLICT (xuid) DO UPDATE SET gamertag=EXCLUDED.gamertag,ts=NOW()`, batch.flatMap(([x,g])=>[x,g]));
-    }
-  } catch(e) { console.error('[DB] flushXuidCache error:', e.message); }
-}, 5 * 60 * 1000);
+// Flush new xuids to Postgres every 2 minutes
+setInterval(() => flushXuidCache(getXuidToGt()), 2 * 60 * 1000);
 
 async function logSearch(gamertag, userAgent, cached, success, durationMs) {
   const entry = { ts: new Date().toISOString(), gamertag, user_agent: userAgent||null, cached: String(cached), success: !!success, duration_ms: durationMs||null };
@@ -282,20 +259,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
     const result = await searchPromise;
     logSearch(gamertag, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
     res.json({ success: true, player: result });
-    (async () => {
-      try {
-        const db = await getDb();
-        if (!db) return;
-        const gt = getXuidToGt();
-        const entries = Object.entries(gt).filter(([,v]) => v && !v.startsWith('Spartan ')).slice(0,500);
-        if (!entries.length) return;
-        for (let i = 0; i < entries.length; i += 100) {
-          const batch = entries.slice(i, i+100);
-          const vals = batch.map((_,j) => `($${j*2+1},$${j*2+2})`).join(',');
-          await db.query(`INSERT INTO xuid_cache (xuid,gamertag) VALUES ${vals} ON CONFLICT (xuid) DO UPDATE SET gamertag=EXCLUDED.gamertag,ts=NOW()`, batch.flatMap(([x,g])=>[x,g]));
-        }
-      } catch(e) {}
-    })();
+    flushXuidCache(getXuidToGt()).catch(() => {});
   } catch(e) {
     console.error('[Search] Error for', gamertag, ':', e.message);
     if (e.message.includes('Could not resolve gamertag') || e.message.includes('404')) {
