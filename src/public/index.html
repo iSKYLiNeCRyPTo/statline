@@ -2358,9 +2358,39 @@ async function doSearch(gt){
     if(fullD.cached) _renderLoadSteps(2, null);
 
     if(fullD.success&&fullD.player){
-      // ── Step 3: Team data — brief pause while emblems/pics load ───────────
+      // ── Step 3: Team data — prefetch rival/nemesis gamerpics ─────────────
       _renderLoadSteps(2, null);
-      await new Promise(function(r){setTimeout(r,600);});
+      var _rivals=(fullD.player.rivals||[]).concat(fullD.player.nemesisList||[],fullD.player.victimsList||[]);
+      // Dedupe rivals
+      var _seenRiv={};
+      _rivals=_rivals.filter(function(r){if(!r.gamertag||_seenRiv[r.gamertag.toLowerCase()])return false;_seenRiv[r.gamertag.toLowerCase()]=true;return true;});
+      var _missingPics=_rivals.filter(function(r){return !r.gamerpicUrl&&r.gamertag&&!r.gamertag.startsWith('Spartan ');});
+      // Batch-fetch pics for rivals missing them
+      if(_missingPics.length>0){
+        try{
+          var _gts=_missingPics.map(function(r){return r.gamertag;}).slice(0,30).join(',');
+          var _prRes=await fetch('/api/rival-pics?gamertags='+encodeURIComponent(_gts));
+          var _prData=await _prRes.json();
+          // Inject fetched pics back into rivals
+          _rivals.forEach(function(r){
+            if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];
+          });
+          // Also inject into player data
+          ['rivals','nemesisList','victimsList'].forEach(function(key){
+            (fullD.player[key]||[]).forEach(function(r){
+              if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];
+            });
+          });
+        }catch(e){}
+      }
+      // Preload all rival images so they render instantly
+      var _picPromises=_rivals.filter(function(r){return r.gamerpicUrl;}).slice(0,30).map(function(r){
+        return new Promise(function(resolve){
+          var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;
+        });
+      });
+      await Promise.all(_picPromises);
+      await new Promise(function(r){setTimeout(r,200);});
       playerData=fullD.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
