@@ -356,12 +356,14 @@ async function fetchPlayerStats(gamertag) {
             if (custRes.ok) {
               const custData = await custRes.json();
               const emblemData = custData?.Appearance?.Emblem;
+              console.log('[Emblem] raw emblemData:', JSON.stringify(emblemData));
               const emblemJsonPath = emblemData?.EmblemPath;
               const configurationId = emblemData?.ConfigurationId;
               if (emblemJsonPath) {
                 const emblemId = emblemJsonPath.split('/').pop().replace(/\.json$/i, '');
                 const mapping = await getEmblemMapping();
                 const emblemEntry = mapping[emblemId];
+                console.log('[Emblem] emblemId:', emblemId, '| mapping hit:', !!emblemEntry, '| configId:', configurationId);
                 if (emblemEntry) {
                   const configKey = configurationId ? String(configurationId) : null;
                   const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
@@ -380,6 +382,7 @@ async function fetchPlayerStats(gamertag) {
                     else { const sw = emblemJsonPath.replace(/\.json$/i, '.png'); path = sw.startsWith('progression/') ? sw : `progression/${sw}`; }
                   }
                 }
+                console.log('[Emblem] resolved path:', path);
                 if (path) {
                   emblemPathCache[String(xuid)] = path;
                   getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
