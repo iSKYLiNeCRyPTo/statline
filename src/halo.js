@@ -771,10 +771,11 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
       for (const pl of team.players) {
         const oppGt = (pl.rawXuid && xuidToGt[pl.rawXuid]) || pl.gamertag;
         if (!oppGt || oppGt===myGt || oppGt.startsWith('Spartan ')) continue;
-        if (!rivalStats[oppGt]) rivalStats[oppGt] = { wins:0, losses:0, gamerpicUrl: pl.gamerpicUrl||null };
+        if (!rivalStats[oppGt]) rivalStats[oppGt] = { wins:0, losses:0, gamerpicUrl: pl.gamerpicUrl||null, xuid: pl.rawXuid||null };
         if (matchOutcome===2) rivalStats[oppGt].wins++;
         else if (matchOutcome===3) rivalStats[oppGt].losses++;
         if (pl.gamerpicUrl && !rivalStats[oppGt].gamerpicUrl) rivalStats[oppGt].gamerpicUrl = pl.gamerpicUrl;
+        if (pl.rawXuid && !rivalStats[oppGt].xuid) rivalStats[oppGt].xuid = pl.rawXuid;
       }
     }
   }
@@ -783,7 +784,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     .filter(([,s]) => s.wins+s.losses >= 1)
     .sort((a,b) => (b[1].wins+b[1].losses)-(a[1].wins+a[1].losses))
     .slice(0, 50)
-    .map(([gt,s]) => ({ gamertag:gt, wins:s.wins, losses:s.losses, total:s.wins+s.losses, gamerpicUrl:s.gamerpicUrl||null }));
+    .map(([gt,s]) => ({ gamertag:gt, wins:s.wins, losses:s.losses, total:s.wins+s.losses, gamerpicUrl:s.gamerpicUrl||null, xuid:s.xuid||null }));
 
   const nemesisList = [...rivals].filter(r=>r.losses>r.wins).sort((a,b)=>b.losses-a.losses||a.wins-b.wins).slice(0,15);
   const victimsList = [...rivals].filter(r=>r.wins>r.losses).sort((a,b)=>b.wins-a.wins||a.losses-b.losses).slice(0,15);
