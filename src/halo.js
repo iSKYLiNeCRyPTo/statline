@@ -440,9 +440,23 @@ async function fetchPlayerStats(gamertag) {
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
-      // Nameplate may already be cached from a prior resolve
+      // Nameplate may already be cached from a prior resolve this session
       const np = nameplatePathCache[String(xuid)];
-      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
+      if (np) {
+        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
+      } else {
+        // Emblem was cached from a previous session but nameplate wasn't — re-resolve in background
+        resolveEmblemForXuid(xuid).then(result => {
+          const np2 = nameplatePathCache[String(xuid)];
+          // nameplatePathCache is now populated as a side effect; next request will use it
+        }).catch(() => {});
+        // Also try to build nameplate path from emblem path directly (same filename, different folder)
+        if (cachedPath.startsWith('waypoint:images/emblems/')) {
+          const npPath = cachedPath.replace('waypoint:images/emblems/', 'waypoint:images/nameplates/');
+          nameplatePathCache[String(xuid)] = npPath;
+          nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(npPath)}&xuid=${xuid}`;
+        }
+      }
     } else if (!cachedPath) {
       const result = await resolveEmblemForXuid(xuid);
       gamerpicUrl = result?.gamerpicUrl || null;
