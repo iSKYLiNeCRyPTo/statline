@@ -1699,17 +1699,16 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var kd=m.deaths>0?m.kills/m.deaths:m.kills;
   var spk=m.kills>0&&m.shotsFired>0?m.shotsFired/m.kills:null;
 
-  // Get baseline — mode-specific for DPM (objective/pacing varies by mode)
-  // but SPK and accuracy use __overall__ — weapon mechanics don't change by mode
+  // Get baseline — for DPM only use Slayer baseline (objective modes vary too much)
+  // SPK and accuracy use __overall__ — weapon mechanics don't change by mode
   var mode=m.gameMode||'Unknown';
-  var blMode=modeBaselines[mode]||modeBaselines['__overall__'];
-  var blOverall=modeBaselines['__overall__']||blMode;
-  var bl=blMode; // used for DPM signals
-  if(!bl||bl.count<5) return null;
-  if(!blOverall||blOverall.count<5) blOverall=bl;
-
-  var dpmDealtRatio=bl.avgDpmDealt>0?dpmDealt/bl.avgDpmDealt:1;
-  var dpmTakenRatio=bl.avgDpmTaken>0?dpmTaken/bl.avgDpmTaken:1;
+  var _isObjMode=/oddball|ctf|capture|stronghold|stockpile|koth|king/i.test(mode);
+  var blOverall=modeBaselines['__overall__'];
+  if(!blOverall||blOverall.count<5) return null;
+  // For objective modes, skip DPM signals — use Slayer overall as baseline only for acc/SPK
+  var bl=_isObjMode?null:(modeBaselines[mode]||blOverall);
+  var dpmDealtRatio=(!_isObjMode&&bl&&bl.avgDpmDealt>0)?dpmDealt/bl.avgDpmDealt:1;
+  var dpmTakenRatio=(!_isObjMode&&bl&&bl.avgDpmTaken>0)?dpmTaken/bl.avgDpmTaken:1;
   // Accuracy and SPK always vs overall — weapon is the same regardless of mode
   var accDelta=acc!=null&&blOverall.avgAcc>0?acc-blOverall.avgAcc:null;
   var spkDelta=spk!=null&&blOverall.avgSpk>0?spk-blOverall.avgSpk:null;
@@ -1719,15 +1718,15 @@ function analyzeConnectionQuality(m, modeBaselines) {
 
   // ── GOOD CONNECTION signals ──────────────────────────────────────────
   // Accuracy well above your norm
-  if(accDelta!=null&&accDelta>=10&&kd>=1.5){
+  if(!_isObjMode&&accDelta!=null&&accDelta>=10&&kd>=1.5){
     signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
     score+=2;
-  } else if(accDelta!=null&&accDelta>=6&&kd>=1.8){
+  } else if(!_isObjMode&&accDelta!=null&&accDelta>=6&&kd>=1.8){
     signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg) — hitreg in your favour'});
     score+=1;
   }
   // DPM well above baseline with good K/D
-  if(dpmDealtRatio>1.35&&kd>=1.8){
+  if(!_isObjMode&&dpmDealtRatio>1.35&&kd>=1.8){
     signals.push({bad:false,msg:Math.round(dpmDealt)+' dmg/min vs your '+Math.round(bl.avgDpmDealt)+' avg (+'+Math.round((dpmDealtRatio-1)*100)+'%) — shots registering'});
     score+=1;
   }
@@ -1744,18 +1743,18 @@ function analyzeConnectionQuality(m, modeBaselines) {
 
   // ── POOR CONNECTION signals ──────────────────────────────────────────
   // Accuracy well below your norm — strongest signal
-  if(accDelta!=null&&accDelta<=-12){
+  if(!_isObjMode&&accDelta!=null&&accDelta<=-12){
     signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — shots not registering server-side'});
     score-=3;
-  } else if(accDelta!=null&&accDelta<=-8){
+  } else if(!_isObjMode&&accDelta!=null&&accDelta<=-8){
     signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — suspect hitreg'});
     score-=2;
   }
   // DPM tanked AND taking more damage — lag comp against you
-  if(dpmDealtRatio<0.6&&dpmTakenRatio>1.5){
+  if(!_isObjMode&&dpmDealtRatio<0.6&&dpmTakenRatio>1.5){
     signals.push({bad:true,msg:'Damage output '+Math.round((1-dpmDealtRatio)*100)+'% below your avg while taking '+Math.round((dpmTakenRatio-1)*100)+'% more — lag comp against you'});
     score-=3;
-  } else if(dpmDealtRatio<0.65){
+  } else if(!_isObjMode&&dpmDealtRatio<0.65){
     signals.push({bad:true,msg:Math.round(dpmDealt)+' dmg/min ('+Math.round((1-dpmDealtRatio)*100)+'% below your '+mode.replace('Ranked ','')+' avg) — shots not registering'});
     score-=2;
   }
