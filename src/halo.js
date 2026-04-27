@@ -163,12 +163,86 @@ async function getEmblemMapping() {
       emblemMapping = await res.json();
       emblemMappingFetchedAt = Date.now();
       console.log('[EmblemMapping] Loaded', Object.keys(emblemMapping).length, 'combos');
-      const sampleKey = Object.keys(emblemMapping)[0];
-      console.log('[EmblemMapping] sample:', sampleKey, JSON.stringify(emblemMapping[sampleKey]));
-      console.log('[EmblemMapping] has ecosystem-gua?', !!emblemMapping['104-001-ecosystem-gua-07506577']);
     }
   } catch(e) { console.log('[EmblemMapping] Failed:', e.message); }
   return emblemMapping || {};
+}
+
+// Resolve an emblem (and gamerpic) for a single xuid. Returns { gamerpicUrl, emblemPath }.
+// emblemPath is a ';'-separated list of candidates the proxy can try, or '__none__' / null.
+// Dedups in-flight requests via emblemInFlight so concurrent callers share one upstream call.
+async function resolveEmblemForXuid(xuid) {
+  if (emblemInFlight[String(xuid)]) return emblemInFlight[String(xuid)];
+  emblemInFlight[String(xuid)] = (async () => {
+    try {
+      try { await fetchClearanceToken(xuid); } catch(e) {}
+      const freshHeaders = getAuthHeaders();
+      const [custRes, profileRes] = await Promise.all([
+        fetch(`https://economy.svc.halowaypoint.com/hi/players/xuid(${xuid})/customization?view=public`, { headers: freshHeaders }),
+        fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers: freshHeaders })
+      ]);
+      let gp = null, path = null;
+      if (profileRes.ok) {
+        const pd = await profileRes.json();
+        gp = pd?.gamerpic?.medium || pd?.gamerpic?.large || null;
+        if (gp) {
+          xuidToGamerpic[String(xuid)] = gp;
+          getRedis().then(c => c && c.set('xuidToGamerpic', JSON.stringify(xuidToGamerpic))).catch(() => {});
+        }
+      }
+      if (custRes.ok) {
+        const custData = await custRes.json();
+        const emblemData = custData?.Appearance?.Emblem;
+        const emblemJsonPath = emblemData?.EmblemPath;
+        const configurationId = emblemData?.ConfigurationId;
+        if (emblemJsonPath) {
+          const emblemId = emblemJsonPath.split('/').pop().replace(/\.json$/i, '');
+          const mapping = await getEmblemMapping();
+          const emblemEntry = mapping[emblemId];
+          const candidates = [];
+          // 1) Mapping hit (most reliable)
+          if (emblemEntry) {
+            const configKey = configurationId ? String(configurationId) : null;
+            const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
+            if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
+          }
+          // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
+          if (configurationId !== undefined && configurationId !== null) {
+            const configStr = configurationId < 0 ? `n${Math.abs(configurationId)}` : String(configurationId);
+            const conv = `waypoint:images/emblems/${emblemId}_${configStr}.png`;
+            if (!candidates.includes(conv)) candidates.push(conv);
+          }
+          // 3) Images-branch fallback for emblems missing from mapping.json or Waypoint convention
+          try {
+            const defRes = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${emblemJsonPath}`, { headers: freshHeaders });
+            if (defRes.ok) {
+              const emblemDef = await defRes.json();
+              const dp = emblemDef?.CommonData?.DisplayPath;
+              const mediaUrlPath = dp?.Media?.MediaUrl?.Path || '';
+              const mediaFolderPath = dp?.Media?.FolderPath || dp?.FolderPath || '';
+              const mediaFileName = dp?.Media?.FileName || dp?.FileName || '';
+              let displayPath = '';
+              if (mediaUrlPath && mediaUrlPath.includes('/') && /\.png$/i.test(mediaUrlPath)) displayPath = mediaUrlPath;
+              else if (mediaFolderPath && mediaFileName) displayPath = `${mediaFolderPath}/${mediaFileName}`;
+              else { const sw = emblemJsonPath.replace(/\.json$/i, '.png'); displayPath = sw.startsWith('progression/') ? sw : `progression/${sw}`; }
+              if (displayPath) candidates.push(`images:${displayPath}`);
+            }
+          } catch(e) {}
+          path = candidates.length ? candidates.join(';') : null;
+          emblemPathCache[String(xuid)] = path || '__none__';
+          getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
+        }
+      }
+      return { gamerpicUrl: gp, emblemPath: path };
+    } finally { delete emblemInFlight[String(xuid)]; }
+  })();
+  return emblemInFlight[String(xuid)];
+}
+
+// Mark an emblem as unreachable so subsequent requests skip path resolution and fall to gamerpic.
+function markEmblemMissing(xuid) {
+  emblemPathCache[String(xuid)] = '__none__';
+  getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
 }
 
 const MODE_NAMES = {
@@ -342,89 +416,17 @@ async function fetchPlayerStats(gamertag) {
     let cachedPath = emblemPathCache[String(xuid)];
     // Migration: legacy cache entries are single-candidate (no ';images:' fallback). Treat as miss to re-resolve.
     if (cachedPath && cachedPath !== '__none__' && !cachedPath.includes('images:') && !cachedPath.includes(';')) {
-      console.log('[Emblem] legacy cache entry, re-resolving:', cachedPath);
       delete emblemPathCache[String(xuid)];
       cachedPath = undefined;
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
     } else if (!cachedPath) {
-      if (!emblemInFlight[String(xuid)]) {
-        emblemInFlight[String(xuid)] = (async () => {
-          try {
-            const [custRes, profileRes] = await Promise.all([
-              fetch(`https://economy.svc.halowaypoint.com/hi/players/xuid(${xuid})/customization?view=public`, { headers: freshHeaders }),
-              fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers: freshHeaders })
-            ]);
-            let gp = null, path = null;
-            if (profileRes.ok) {
-              const pd = await profileRes.json();
-              gp = pd?.gamerpic?.medium || pd?.gamerpic?.large || null;
-              if (gp) { xuidToGamerpic[String(xuid)] = gp; getRedis().then(c => c && c.set('xuidToGamerpic', JSON.stringify(xuidToGamerpic))).catch(() => {}); }
-            }
-            if (custRes.ok) {
-              const custData = await custRes.json();
-              const emblemData = custData?.Appearance?.Emblem;
-              console.log('[Emblem] raw emblemData:', JSON.stringify(emblemData));
-              const emblemJsonPath = emblemData?.EmblemPath;
-              const configurationId = emblemData?.ConfigurationId;
-              if (emblemJsonPath) {
-                const emblemId = emblemJsonPath.split('/').pop().replace(/\.json$/i, '');
-                const mapping = await getEmblemMapping();
-                const emblemEntry = mapping[emblemId];
-                console.log('[Emblem] emblemId:', emblemId, '| mapping hit:', !!emblemEntry, '| configId:', configurationId);
-                const candidates = [];
-                // 1) Mapping hit (most reliable)
-                if (emblemEntry) {
-                  const configKey = configurationId ? String(configurationId) : null;
-                  const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
-                  if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
-                }
-                // 2) Convention construct: images/emblems/<emblemId>_<configId>.png
-                //    Negative configIds are encoded with an 'n' prefix instead of '-'.
-                if (configurationId !== undefined && configurationId !== null) {
-                  const configStr = configurationId < 0 ? `n${Math.abs(configurationId)}` : String(configurationId);
-                  const conv = `waypoint:images/emblems/${emblemId}_${configStr}.png`;
-                  if (!candidates.includes(conv)) candidates.push(conv);
-                }
-                // 3) Images-branch fallback: use def file's DisplayPath against the 'Images' CMS branch.
-                //    This covers emblems that aren't in mapping.json AND aren't published under the Waypoint convention.
-                try {
-                  const defRes = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${emblemJsonPath}`, { headers: freshHeaders });
-                  if (defRes.ok) {
-                    const emblemDef = await defRes.json();
-                    const dp = emblemDef?.CommonData?.DisplayPath;
-                    console.log('[Emblem] DisplayPath dump:', JSON.stringify(dp));
-                    const mediaUrlPath = dp?.Media?.MediaUrl?.Path || '';
-                    const mediaFolderPath = dp?.Media?.FolderPath || dp?.FolderPath || '';
-                    const mediaFileName = dp?.Media?.FileName || dp?.FileName || '';
-                    let displayPath = '';
-                    if (mediaUrlPath && mediaUrlPath.includes('/') && /\.png$/i.test(mediaUrlPath)) displayPath = mediaUrlPath;
-                    else if (mediaFolderPath && mediaFileName) displayPath = `${mediaFolderPath}/${mediaFileName}`;
-                    else { const sw = emblemJsonPath.replace(/\.json$/i, '.png'); displayPath = sw.startsWith('progression/') ? sw : `progression/${sw}`; }
-                    if (displayPath) candidates.push(`images:${displayPath}`);
-                  } else {
-                    console.log('[Emblem] defRes not ok:', defRes.status);
-                  }
-                } catch(e) { console.log('[Emblem] defRes error:', e.message); }
-                path = candidates.length ? candidates.join(';') : null;
-                console.log('[Emblem] resolved candidates:', path);
-                if (path) {
-                  emblemPathCache[String(xuid)] = path;
-                  getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
-                } else {
-                  emblemPathCache[String(xuid)] = '__none__';
-                  getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
-                }
-              }
-            }
-            return { gamerpicUrl: gp, emblemPath: path };
-          } finally { delete emblemInFlight[String(xuid)]; }
-        })();
-      }
-      const result = await emblemInFlight[String(xuid)];
+      const result = await resolveEmblemForXuid(xuid);
       gamerpicUrl = result?.gamerpicUrl || null;
-      if (result?.emblemPath && result.emblemPath !== '__none__') emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
+      if (result?.emblemPath && result.emblemPath !== '__none__') {
+        emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
+      }
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
@@ -769,5 +771,6 @@ module.exports = {
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
   getXuidToGt: () => xuidToGt,
   resolveGamertags,
+  resolveEmblemForXuid, markEmblemMissing,
   getRedis,
 };
