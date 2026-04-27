@@ -635,6 +635,23 @@ app.get('/api/map-image', async (req, res) => {
   }
 });
 
+// ── Batch resolve gamerpics for rivals ───────────────────────────────────────
+app.get('/api/rival-pics', async (req, res) => {
+  const gamertags = (req.query.gamertags||'').split(',').map(g=>g.trim()).filter(Boolean).slice(0,30);
+  if(!gamertags.length) return res.json({});
+  const xuidToGt = getXuidToGt();
+  const xuidToGamerpic = getXuidToGamerpic();
+  // Build reverse map: gamertag.lower -> xuid
+  const gtToXuid = {};
+  Object.entries(xuidToGt).forEach(([xuid,gt])=>{ gtToXuid[gt.toLowerCase()]=xuid; });
+  const result = {};
+  gamertags.forEach(gt => {
+    const xuid = gtToXuid[gt.toLowerCase()];
+    if(xuid && xuidToGamerpic[xuid]) result[gt] = xuidToGamerpic[xuid];
+  });
+  res.json(result);
+});
+
 // ── Search progress SSE ──────────────────────────────────────────────────────
 app.get('/api/search/progress', (req, res) => {
   const key = (req.query.gamertag||'').toLowerCase();
