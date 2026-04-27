@@ -163,6 +163,9 @@ async function getEmblemMapping() {
       emblemMapping = await res.json();
       emblemMappingFetchedAt = Date.now();
       console.log('[EmblemMapping] Loaded', Object.keys(emblemMapping).length, 'combos');
+      const sampleKey = Object.keys(emblemMapping)[0];
+      console.log('[EmblemMapping] sample:', sampleKey, JSON.stringify(emblemMapping[sampleKey]));
+      console.log('[EmblemMapping] has ecosystem-gua?', !!emblemMapping['104-001-ecosystem-gua-07506577']);
     }
   } catch(e) { console.log('[EmblemMapping] Failed:', e.message); }
   return emblemMapping || {};
@@ -368,6 +371,13 @@ async function fetchPlayerStats(gamertag) {
                   const configKey = configurationId ? String(configurationId) : null;
                   const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
                   if (configMatch?.emblemCmsPath) path = 'waypoint:' + configMatch.emblemCmsPath;
+                }
+                // Mapping miss but we know the convention: images/emblems/<emblemId>_<configId>.png
+                // Negative configIds are encoded with an 'n' prefix instead of '-'.
+                if (!path && (configurationId !== undefined && configurationId !== null)) {
+                  const configStr = configurationId < 0 ? `n${Math.abs(configurationId)}` : String(configurationId);
+                  path = `waypoint:images/emblems/${emblemId}_${configStr}.png`;
+                  console.log('[Emblem] constructed waypoint path from convention:', path);
                 }
                 if (!path) {
                   const defRes = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${emblemJsonPath}`, { headers: freshHeaders });
