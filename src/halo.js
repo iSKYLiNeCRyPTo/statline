@@ -18,6 +18,10 @@ const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
 let emblemMappingFetchedAt = 0;
 
+// --- Gamertag resolution queue (single-runner, no concurrent API hammering) ---
+const _gtQueue = new Set();  // pending xuids waiting to be resolved
+let _gtRunning = false;      // is the resolver loop currently active
+
 // --- Auth ---
 let cachedClearance = null;
 let clearanceFetchedAt = 0;
@@ -120,85 +124,97 @@ function getMapImageUrl(assetId) {
   return assetId ? (mapImageCache[assetId] || null) : null;
 }
 
-async function resolveGamertags(xuids) {
-  const missing = xuids.filter(x => !xuidToGt[x]);
-  if (!missing.length) return;
-  console.log(`[GT] Resolving ${missing.length} unknown xuids`);
-  const headers = getAuthHeaders();
-  const BATCH_SIZE = 50;
-  const INTER_BATCH_DELAY = 2000; // 2s between batches
+// Enqueue xuids for resolution and start the runner if idle.
+// Callers should fire-and-forget: resolveGamertags([...xuids]).catch(()=>{})
+function resolveGamertags(xuids) {
+  for (const x of xuids) { if (!xuidToGt[x]) _gtQueue.add(x); }
+  if (!_gtRunning) _runGtResolver().catch(() => {});
+  return Promise.resolve(); // always returns immediately
+}
+
+async function _runGtResolver() {
+  if (_gtRunning) return;
+  _gtRunning = true;
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const BATCH_SIZE = 50;
+  const INTER_BATCH_DELAY = 3000; // 3s between batches — gentle on the API
 
-  function absorbUsers(users) {
-    for (const user of users) {
-      if (!user || typeof user !== 'object') continue;
-      const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
-      const gt = user.gamertag || user.Gamertag || '';
-      if (xuid && gt) xuidToGt[xuid] = gt;
-      const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
-      if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
-    }
-  }
+  try {
+    while (_gtQueue.size > 0) {
+      // Drain the queue into a local working list (re-filter already-resolved)
+      const todo = [..._gtQueue].filter(x => !xuidToGt[x]);
+      _gtQueue.clear();
+      if (!todo.length) break;
 
-  // Process in chunks with exponential backoff on 429
-  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
-    if (i > 0) await sleep(INTER_BATCH_DELAY);
-    const batch = missing.slice(i, i + BATCH_SIZE);
-    const batchNum = Math.floor(i/BATCH_SIZE) + 1;
-    const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
+      console.log(`[GT] Resolving ${todo.length} unknown xuids`);
+      const headers = getAuthHeaders();
 
-    let success = false;
-    let backoff = 5000;
-    for (let attempt = 1; attempt <= 4 && !success; attempt++) {
-      try {
-        const r = await fetch(url, { headers });
-        console.log(`[GT] Batch ${batchNum} attempt ${attempt}: ${r.status} (${batch.length} xuids)`);
-        if (r.ok) {
-          const data = await r.json();
-          const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
-          const resolved = new Set();
-          for (const user of users) {
-            if (!user || typeof user !== 'object') continue;
-            const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
-            const gt = user.gamertag || user.Gamertag || '';
-            if (xuid && gt) { xuidToGt[xuid] = gt; resolved.add(xuid); }
-            const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
-            if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
-          }
-          success = true;
-          // Retry individually any the batch missed (private/deleted accounts) — cap at 10
-          const stillMissing = batch.filter(x => !resolved.has(x));
-          if (stillMissing.length) console.log(`[GT] Batch ${batchNum} still missing: ${stillMissing.length}`);
-          for (const xuid of stillMissing.slice(0, 10)) {
-            try {
-              await sleep(300);
-              const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
-              if (r2.ok) {
-                const d2 = await r2.json();
-                const gt2 = d2.gamertag || d2.Gamertag || d2.modernGamertag || '';
-                if (gt2) xuidToGt[xuid] = gt2;
-                const gp2 = d2.gamerpic?.medium || d2.gamerpic?.large || null;
-                if (gp2 && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp2;
+      for (let i = 0; i < todo.length; i += BATCH_SIZE) {
+        if (i > 0) await sleep(INTER_BATCH_DELAY);
+        const batch = todo.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
+
+        let success = false;
+        let backoff = 8000; // start at 8s — gives API more breathing room
+        for (let attempt = 1; attempt <= 3 && !success; attempt++) {
+          try {
+            const r = await fetch(url, { headers });
+            console.log(`[GT] Batch ${batchNum} attempt ${attempt}: ${r.status} (${batch.length} xuids)`);
+            if (r.ok) {
+              const data = await r.json();
+              const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
+              const resolved = new Set();
+              for (const user of users) {
+                if (!user || typeof user !== 'object') continue;
+                const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
+                const gt = user.gamertag || user.Gamertag || '';
+                if (xuid && gt) { xuidToGt[xuid] = gt; resolved.add(xuid); }
+                const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
+                if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
               }
-            } catch(e) {}
+              success = true;
+              // Retry individually any the batch missed (private/deleted accounts) — cap at 5
+              const stillMissing = batch.filter(x => !resolved.has(x));
+              if (stillMissing.length) console.log(`[GT] Batch ${batchNum} still missing: ${stillMissing.length}`);
+              for (const xuid of stillMissing.slice(0, 5)) {
+                try {
+                  await sleep(500);
+                  const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
+                  if (r2.ok) {
+                    const d2 = await r2.json();
+                    const gt2 = d2.gamertag || d2.Gamertag || d2.modernGamertag || '';
+                    if (gt2) xuidToGt[xuid] = gt2;
+                    const gp2 = d2.gamerpic?.medium || d2.gamerpic?.large || null;
+                    if (gp2 && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp2;
+                  }
+                } catch(e) {}
+              }
+            } else if (r.status === 429) {
+              console.log(`[GT] Rate limited batch ${batchNum} — backing off ${backoff/1000}s (attempt ${attempt}/3)`);
+              await sleep(backoff);
+              backoff *= 2; // 8s → 16s → 32s
+            } else {
+              console.log(`[GT] Batch ${batchNum} unexpected status ${r.status} — skipping`);
+              break;
+            }
+          } catch(e) {
+            console.error(`[GT] Batch ${batchNum} error:`, e.message);
+            break;
           }
-        } else if (r.status === 429) {
-          console.log(`[GT] Rate limited batch ${batchNum} — backing off ${backoff/1000}s (attempt ${attempt}/4)`);
-          await sleep(backoff);
-          backoff *= 2; // exponential: 5s → 10s → 20s → give up
-        } else {
-          console.log(`[GT] Batch ${batchNum} unexpected status ${r.status} — skipping`);
-          break;
         }
-      } catch(e) {
-        console.error(`[GT] Batch ${batchNum} error:`, e.message);
-        break;
+        if (!success) console.log(`[GT] Batch ${batchNum} gave up after retries`);
       }
+
+      // Flush newly resolved xuids to Postgres
+      flushXuidCache(xuidToGt).catch(() => {});
+
+      // If new xuids arrived while we were processing, loop again
+      if (_gtQueue.size > 0) await sleep(2000);
     }
-    if (!success) console.log(`[GT] Batch ${batchNum} gave up after retries`);
+  } finally {
+    _gtRunning = false;
   }
-  // Immediately persist newly resolved xuids to Postgres
-  flushXuidCache(xuidToGt).catch(() => {});
 }
 
 async function getEmblemMapping() {

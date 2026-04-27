@@ -115,8 +115,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
 .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.hero-nameplate{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:0.44;border-radius:12px;pointer-events:none;z-index:0}
-.hero>*:not(.hero-nameplate){position:relative;z-index:1}
+.hero-nameplate{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:0.33;border-radius:12px;pointer-events:none}
 .hero-adornment{width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 .hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
 .hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
@@ -3749,6 +3748,66 @@ function render(){
       html+='</div>';
       html+='</div>';
 
+      // Damage dealt vs taken bar
+      if(e.dmgDealt>0&&e.dmgTaken>0&&e.dmgGames>=1){
+        var _games=e.wins+e.losses||1;
+        var _avgDealt=Math.round(e.dmgDealt/_games);
+        var _avgTaken=Math.round(e.dmgTaken/_games);
+        var _dmgRatio=e.dmgTaken>0?e.dmgDealt/e.dmgTaken:1;
+        var _dmgBarColor=_dmgRatio>=1.1?'var(--win)':_dmgRatio<=0.9?'var(--loss)':'var(--gold)';
+        var _dTotal=_avgDealt+_avgTaken||1;
+        var _dPct=Math.round((_avgDealt/_dTotal)*100);
+        var _tPct=100-_dPct;
+        html+='<div style="margin-bottom:12px">';
+        html+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">';
+        html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">AVG DAMAGE</span>';
+        html+='<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:'+_dmgBarColor+'">'
+          +'<span style="color:var(--win)">'+_avgDealt.toLocaleString()+'</span>'
+          +' <span style="color:var(--muted2)">dealt</span>'
+          +' &nbsp;·&nbsp; '
+          +'<span style="color:var(--loss)">'+_avgTaken.toLocaleString()+'</span>'
+          +' <span style="color:var(--muted2)">taken</span>'
+          +'</span>';
+        html+='</div>';
+        html+='<div style="height:5px;background:var(--surface3);border-radius:3px;overflow:hidden;display:flex">';
+        html+='<div style="width:'+_dPct+'%;background:var(--win);transition:width .4s"></div>';
+        html+='<div style="width:'+_tPct+'%;background:var(--loss);opacity:0.7;transition:width .4s"></div>';
+        html+='</div>';
+        html+='</div>';
+      }
+
+      // Damage: Wins vs Losses
+      if(e.winDmgGames>=2&&e.lossDmgGames>=2){
+        var _avgWinDmg=Math.round(e.winDmgDealt/e.winDmgGames);
+        var _avgLossDmg=Math.round(e.lossDmgDealt/e.lossDmgGames);
+        var _wlMax=Math.max(_avgWinDmg,_avgLossDmg)||1;
+        var _wPct=Math.round((_avgWinDmg/_wlMax)*100);
+        var _lPct=Math.round((_avgLossDmg/_wlMax)*100);
+        var _wlDiff=_avgWinDmg-_avgLossDmg;
+        var _wlInsight=_wlDiff<-150?'High damage loser — dealing more in losses. Fights going long, not converting.':(_wlDiff>150?'Damage rises with wins — you\'re controlling fights here.':'');
+        html+='<div style="margin-bottom:12px">';
+        html+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">';
+        html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">DAMAGE: WINS VS LOSSES</span>';
+        html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'
+          +((_wlDiff>=0?'<span style="color:var(--win)">+'+_wlDiff.toLocaleString()+'</span>':'<span style="color:var(--loss)">'+_wlDiff.toLocaleString()+'</span>')+' diff')
+          +'</span>';
+        html+='</div>';
+        html+='<div style="display:flex;flex-direction:column;gap:4px">';
+        html+='<div style="display:flex;align-items:center;gap:8px">'
+          +'<div style="width:12px;font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;flex-shrink:0">W</div>'
+          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+_wPct+'%;background:var(--win);border-radius:3px;opacity:0.85"></div></div>'
+          +'<div style="font-size:11px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif;min-width:52px;text-align:right">'+_avgWinDmg.toLocaleString()+'</div>'
+          +'</div>';
+        html+='<div style="display:flex;align-items:center;gap:8px">'
+          +'<div style="width:12px;font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;flex-shrink:0">L</div>'
+          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+_lPct+'%;background:var(--muted);border-radius:3px;opacity:0.7"></div></div>'
+          +'<div style="font-size:11px;font-weight:700;color:var(--muted);font-family:Rajdhani,sans-serif;min-width:52px;text-align:right">'+_avgLossDmg.toLocaleString()+'</div>'
+          +'</div>';
+        html+='</div>';
+        if(_wlInsight)html+='<div style="margin-top:5px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+_wlInsight+'</div>';
+        html+='</div>';
+      }
+
       // Recent form
       html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
       html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;white-space:nowrap">RECENT FORM</span>';
@@ -3926,53 +3985,6 @@ function render(){
       });
       html+='</div>';
     }
-    // ── DPM (Damage Per Minute) by Map ───────────────────────────────────────
-    var dpmRows=mapRows.filter(function(r){return r.totalSecs>0&&r.dmgDealt>0&&r.dmgGames>=2;})
-      .map(function(r){
-        var mins=r.totalSecs/60;
-        return {map:r.map,dpmDealt:Math.round(r.dmgDealt/mins),dpmTaken:Math.round(r.dmgTaken/mins),
-          games:r.dmgGames,ratio:r.dmgTaken>0?r.dmgDealt/r.dmgTaken:0};
-      }).sort(function(a,b){return b.dpmDealt-a.dpmDealt;});
-
-    if(dpmRows.length>=2){
-      var maxDpm=Math.max.apply(null,dpmRows.map(function(r){return Math.max(r.dpmDealt,r.dpmTaken);}));
-      html+=sectionHead('Damage Per Minute by Map');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-      html+='<div style="padding:10px 16px 6px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;display:flex;gap:16px">'
-        +'<span style="color:var(--win)">■ DPM Dealt</span><span style="color:var(--loss)">■ DPM Taken</span>'
-        +'</div>';
-      dpmRows.forEach(function(row,i){
-        var dp=Math.round((row.dpmDealt/maxDpm)*100);
-        var tp=Math.round((row.dpmTaken/maxDpm)*100);
-        var rColor=row.ratio>=1?'var(--win)':'var(--loss)';
-        var isBest=i===0;
-        var isWorst=i===dpmRows.length-1&&dpmRows.length>2;
-        html+='<div style="padding:10px 16px;'+(i<dpmRows.length-1?'border-bottom:1px solid var(--border2)':'')+'">';
-        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-        html+='<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'
-          +row.map
-          +(isBest?' <span style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace">↑ HIGHEST</span>':'')
-          +(isWorst?' <span style="font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace">↓ LOWEST</span>':'')
-          +'</div>';
-        html+='<div style="display:flex;gap:14px">';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">DPM</div>'
-          +'<div style="font-size:14px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif">'+row.dpmDealt.toLocaleString()+'</div></div>';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">TAKEN/M</div>'
-          +'<div style="font-size:14px;font-weight:700;color:var(--loss);font-family:Rajdhani,sans-serif">'+row.dpmTaken.toLocaleString()+'</div></div>';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">RATIO</div>'
-          +'<div style="font-size:14px;font-weight:700;color:'+rColor+';font-family:Rajdhani,sans-serif">'+row.ratio.toFixed(2)+'</div></div>';
-        html+='</div></div>';
-        html+='<div style="display:flex;flex-direction:column;gap:3px">';
-        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:36px;font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">dealt</div>'
-          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+dp+'%;background:var(--win);border-radius:3px"></div></div></div>';
-        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:36px;font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">taken</div>'
-          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+tp+'%;background:var(--loss);border-radius:3px"></div></div></div>';
-        html+='</div>';
-        html+='</div>';
-      });
-      html+='</div>';
-    }
-
     // ── Damage: Wins vs Losses ────────────────────────────────────────────────
     var wlRows=mapRows.filter(function(r){return r.winDmgGames>=2&&r.lossDmgGames>=2;})
       .map(function(r){
