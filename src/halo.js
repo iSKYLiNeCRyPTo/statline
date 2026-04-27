@@ -10,7 +10,7 @@ const xuidToGt = {};           // xuid -> gamertag
 const xuidToGamerpic = {};     // xuid -> gamerpic URL
 const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
-const emblemPathCache = {};     // xuid -> gamecms emblem image path
+const emblemPathCache = {};     // xuid -> gamecms image path
 const nameplatePathCache = {};  // xuid -> gamecms nameplate image path
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
@@ -205,13 +205,9 @@ async function resolveEmblemForXuid(xuid) {
           if (emblemEntry) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
-            console.log('[Emblem] configMatch:', JSON.stringify(configMatch));
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
-            // Grab nameplate from same mapping entry
             if (configMatch?.nameplateCmsPath) {
               nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
-            } else {
-              console.log('[Emblem] no nameplateCmsPath in configMatch');
             }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
@@ -241,7 +237,7 @@ async function resolveEmblemForXuid(xuid) {
           getRedis().then(c => c && c.set('emblemPathCache', JSON.stringify(emblemPathCache))).catch(() => {});
         }
       }
-      return { gamerpicUrl: gp, emblemPath: path, nameplatePath: nameplatePathCache[String(xuid)] || null };
+      return { gamerpicUrl: gp, emblemPath: path };
     } finally { delete emblemInFlight[String(xuid)]; }
   })();
   return emblemInFlight[String(xuid)];
@@ -363,12 +359,9 @@ async function fetchPlayerStats(gamertag) {
         const rankNum = cr.Rank ?? cr.CurrentRank ?? 0;
         const rankTier = cr.RankTier ?? cr.Tier ?? null;
         const rankGrade = cr.RankGrade ?? cr.Grade ?? null;
-        // Build the NameplateAdornment image path: career_rank/NameplateAdornment/{rank}_{Title_Case_Name}.png
-        // RankTitle e.g. "Master Sergeant" — comes from the API or we derive from tier/grade
         const rankTitle = cr.RankTitle ?? cr.Title ?? null;
         let adornmentUrl = null;
         if (rankNum && rankTitle && rankTier) {
-          // Convert to filename format: spaces → underscores, keep capitalisation
           const titlePart = rankTitle.replace(/\s+/g, '_');
           const tierPart = rankTier.charAt(0).toUpperCase() + rankTier.slice(1).toLowerCase();
           const gradePart = rankGrade != null ? `_${['I','II','III'][rankGrade] || rankGrade}` : '';
@@ -447,6 +440,7 @@ async function fetchPlayerStats(gamertag) {
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
+      // Nameplate may already be cached from a prior resolve
       const np = nameplatePathCache[String(xuid)];
       if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
     } else if (!cachedPath) {
@@ -455,9 +449,9 @@ async function fetchPlayerStats(gamertag) {
       if (result?.emblemPath && result.emblemPath !== '__none__') {
         emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
       }
-      if (result?.nameplatePath) {
-        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(result.nameplatePath)}&xuid=${xuid}`;
-      }
+      // resolveEmblemForXuid populates nameplatePathCache as a side effect
+      const np = nameplatePathCache[String(xuid)];
+      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
@@ -800,7 +794,6 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 module.exports = {
   fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
-  getNameplatePathCache: () => nameplatePathCache,
   getXuidToGt: () => xuidToGt,
   resolveGamertags,
   resolveEmblemForXuid, markEmblemMissing,
