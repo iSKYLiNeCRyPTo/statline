@@ -115,7 +115,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
 .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.hero-nameplate{position:absolute;inset:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0.18;border-radius:12px;pointer-events:none}
+.hero-nameplate{position:absolute;inset:0;background-size:auto 100%;background-position:right center;background-repeat:no-repeat;opacity:0.07;border-radius:12px;pointer-events:none}
 .hero-adornment{width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 .hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
 .hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
@@ -1401,26 +1401,8 @@ async function loadStats(){
 async function refreshStats(){
   var p=getAllPlayers()[selectedPlayer]||searchData;
   if(!p||!p.gamertag){toast('No player loaded','error');return;}
-  var btn=document.getElementById('mobileRefreshBtn');
-  if(btn)btn.disabled=true;
-  toast('Refreshing...','info',2000);
   matchHistoryData=null;
-  try{
-    var res=await fetch('/api/search?gamertag='+encodeURIComponent(p.gamertag)+'&force=1');
-    var d=await res.json();
-    if(d.success&&d.player){
-      playerData=d.player;
-      data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
-      searchData=playerData;searchMode=false;selectedPlayer=0;
-      render();
-      loadFullMatches(p.gamertag);
-      if(activeTab==='matches'){matchHistoryData=null;loadMatchHistory(1);}
-      toast('Stats refreshed','success');
-    } else {
-      toast(d.error||'Refresh failed','error');
-    }
-  }catch(e){toast('Refresh failed: '+e.message,'error');}
-  finally{if(btn)btn.disabled=false;}
+  await doSearch(p.gamertag, true, true);
 }
 function rivalAvatar(r){
   var init=(r.gamertag||'?')[0].toUpperCase();
@@ -2376,7 +2358,7 @@ function quickSearch(gt){
   document.getElementById('searchInput').value=gt;
   searchPlayer();
 }
-async function doSearch(gt, isRefresh){
+async function doSearch(gt, isRefresh, force){
   if(!gt||!gt.trim())return;
   gt=gt.trim();
   hideLanding();
@@ -2395,13 +2377,15 @@ async function doSearch(gt, isRefresh){
   ];
   function _renderLoadSteps(activeIdx,matchProgress){
     var _lsMobile=window.innerWidth<768;
-    var html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:'+(_lsMobile?'20px 16px':'24px')+';box-sizing:border-box">'
-      +'<div style="text-align:left;max-width:340px;width:100%">'
-      +'<div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px">'+gt+'</div>'
-      +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:20px;overflow:hidden">'
-      +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+(Math.round((activeIdx/4)*100))+'%;transition:width 0.4s ease"></div>'
+    var pct=Math.round((activeIdx/4)*100);
+
+    // Steps column (shared by both layouts)
+    var stepsHtml=''
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:1px">'+gt+'</div>'
+      +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:22px;overflow:hidden">'
+      +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
       +'</div>'
-      +'<div style="display:flex;flex-direction:column;gap:10px">';
+      +'<div style="display:flex;flex-direction:column;gap:12px">';
     _loadSteps.forEach(function(step,i){
       var done=i<activeIdx,active=i===activeIdx,label=step.label;
       if(active&&i===1&&matchProgress) label='Match history ('+matchProgress+'/100)';
@@ -2410,14 +2394,29 @@ async function doSearch(gt, isRefresh){
       var labelHtml=(active&&i===3)
         ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
         :label+(done?' ✓':'');
-      html+='<div style="display:flex;align-items:center;gap:10px">'
+      stepsHtml+='<div style="display:flex;align-items:center;gap:10px">'
         +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
         +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
         +'</div>';
     });
-    html+='</div>'
-      +'<div style="margin-top:28px">'+_renderAdSlot('banner')+'</div>'
-      +'</div></div>';
+    stepsHtml+='</div>';
+
+    var html;
+    if(_lsMobile){
+      // Mobile: single column, ad banner below steps
+      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:20px 16px;box-sizing:border-box">'
+        +'<div style="width:100%;max-width:360px">'
+        +stepsHtml
+        +'<div style="margin-top:28px">'+_renderAdSlot('banner')+'</div>'
+        +'</div></div>';
+    } else {
+      // Desktop: two columns — steps left, ad card right
+      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
+        +'<div style="display:flex;align-items:flex-start;gap:28px;max-width:720px;width:100%">'
+        +'<div style="flex:1;min-width:0">'+stepsHtml+'</div>'
+        +'<div style="width:280px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
+        +'</div></div>';
+    }
     document.getElementById('app').innerHTML=html;
   }
 
@@ -2502,7 +2501,7 @@ async function doSearch(gt, isRefresh){
 
   try{
     // ── Step 1: Service record ───────────────────────────────────────────────
-    var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1');
+    var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1'+(force?'&force=1':''));
     var statsD=await statsRes.json();
     if(!statsD.success||!statsD.player){
       var errMsg=statsD.error||'Player not found. Check the spelling and try again.';
@@ -2540,7 +2539,7 @@ async function doSearch(gt, isRefresh){
       },400);
     }
 
-    var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
+    var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+(force?'&force=1':''));
     var fullD=await fullRes.json();
     if(_progressPoll) clearInterval(_progressPoll);
     if(!isRefresh&&fullD.cached) _renderLoadSteps(2,null);
