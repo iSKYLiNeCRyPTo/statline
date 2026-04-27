@@ -445,17 +445,12 @@ async function fetchPlayerStats(gamertag) {
       if (np) {
         nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
       } else {
-        // Emblem was cached from a previous session but nameplate wasn't — re-resolve in background
-        resolveEmblemForXuid(xuid).then(result => {
+        // Emblem was cached but nameplate wasn't (fresh server start) — re-resolve now to get it
+        try {
+          await resolveEmblemForXuid(xuid);
           const np2 = nameplatePathCache[String(xuid)];
-          // nameplatePathCache is now populated as a side effect; next request will use it
-        }).catch(() => {});
-        // Also try to build nameplate path from emblem path directly (same filename, different folder)
-        if (cachedPath.startsWith('waypoint:images/emblems/')) {
-          const npPath = cachedPath.replace('waypoint:images/emblems/', 'waypoint:images/nameplates/');
-          nameplatePathCache[String(xuid)] = npPath;
-          nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(npPath)}&xuid=${xuid}`;
-        }
+          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}`;
+        } catch(e) {}
       }
     } else if (!cachedPath) {
       const result = await resolveEmblemForXuid(xuid);
