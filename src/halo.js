@@ -11,7 +11,6 @@ const xuidToGamerpic = {};     // xuid -> gamerpic URL
 const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
 const emblemPathCache = {};     // xuid -> gamecms image path
-const nameplatePathCache = {};  // xuid -> gamecms nameplate image path
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
 let emblemMappingFetchedAt = 0;
@@ -115,15 +114,18 @@ function getMapImageUrl(assetId) {
 async function resolveGamertags(xuids) {
   const missing = xuids.filter(x => !xuidToGt[x]);
   if (!missing.length) return;
+  console.log(`[GT] Resolving ${missing.length} unknown xuids`);
   try {
     const headers = getAuthHeaders();
     // Batch resolve up to 100 at once
     const batch = missing.slice(0, 100);
     const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
     const r = await fetch(url, { headers });
+    console.log(`[GT] Batch response: ${r.status}`);
     if (r.ok) {
       const data = await r.json();
       const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
+      console.log(`[GT] Batch returned ${users.length} users`);
       const resolved = new Set();
       for (const user of users) {
         if (!user || typeof user !== 'object') continue;
@@ -133,8 +135,9 @@ async function resolveGamertags(xuids) {
         const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
         if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
       }
-      // Retry any that the batch missed — fetch individually
       const stillMissing = batch.filter(x => !resolved.has(x));
+      console.log(`[GT] Still missing after batch: ${stillMissing.length}`);
+      // Retry any that the batch missed — fetch individually
       for (const xuid of stillMissing.slice(0, 20)) {
         try {
           const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
@@ -152,6 +155,9 @@ async function resolveGamertags(xuids) {
         c.set('xuidToGt', JSON.stringify(xuidToGt)).catch(() => {});
         c.set('xuidToGamerpic', JSON.stringify(xuidToGamerpic)).catch(() => {});
       });
+    } else {
+      const body = await r.text();
+      console.log(`[GT] Batch failed body:`, body.slice(0, 200));
     }
   } catch(e) { console.error('[GT] Resolve failed:', e.message); }
 }
@@ -206,9 +212,6 @@ async function resolveEmblemForXuid(xuid) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
-            if (configMatch?.nameplateCmsPath) {
-              nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
-            }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
           if (configurationId !== undefined && configurationId !== null) {
@@ -354,28 +357,13 @@ async function fetchPlayerStats(gamertag) {
     if (crRes.ok) {
       const crData = await crRes.json();
       const cr = crData?.RewardTracks?.[0]?.Result?.CurrentProgress || crData?.CurrentProgress || null;
-      console.log('[CareerRank] raw cr:', JSON.stringify(cr));
       if (cr) {
-        const rankNum = cr.Rank ?? cr.CurrentRank ?? 0;
-        const rankTier = cr.RankTier ?? cr.Tier ?? null;
-        const rankGrade = cr.RankGrade ?? cr.Grade ?? null;
-        const rankTitle = cr.RankTitle ?? cr.Title ?? null;
-        let adornmentUrl = null;
-        if (rankNum && rankTitle && rankTier) {
-          const titlePart = rankTitle.replace(/\s+/g, '_');
-          const tierPart = rankTier.charAt(0).toUpperCase() + rankTier.slice(1).toLowerCase();
-          const gradePart = rankGrade != null ? `_${['I','II','III'][rankGrade] || rankGrade}` : '';
-          const adornPath = `career_rank/NameplateAdornment/${rankNum}_${titlePart}_${tierPart}${gradePart}.png`;
-          console.log('[CareerRank] adornPath:', adornPath);
-          adornmentUrl = `/api/emblem-img?path=${encodeURIComponent('images:' + adornPath)}`;
-        }
         finalCareerRank = {
-          rank: rankNum,
+          rank: cr.Rank ?? cr.CurrentRank ?? 0,
           xp: cr.PartialProgress ?? cr.CurrentXP ?? null,
           xpToNext: cr.ProgressRequiredForNextRank ?? null,
-          tier: rankTier,
-          grade: rankGrade,
-          adornmentUrl,
+          tier: cr.RankTier ?? cr.Tier ?? null,
+          grade: cr.RankGrade ?? cr.Grade ?? null,
         };
       }
     }
@@ -429,8 +417,8 @@ async function fetchPlayerStats(gamertag) {
       });
   } catch(e) {}
 
-  // Emblem + gamerpic + nameplate
-  let emblemUrl = null, gamerpicUrl = null, nameplateUrl = null;
+  // Emblem + gamerpic
+  let emblemUrl = null, gamerpicUrl = null;
   try {
     let cachedPath = emblemPathCache[String(xuid)];
     // Migration: legacy cache entries are single-candidate (no ';images:' fallback). Treat as miss to re-resolve.
@@ -440,33 +428,18 @@ async function fetchPlayerStats(gamertag) {
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
-      // Nameplate may already be cached from a prior resolve this session
-      const np = nameplatePathCache[String(xuid)];
-      if (np) {
-        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
-      } else {
-        // Emblem was cached but nameplate wasn't (fresh server start) — re-resolve now to get it
-        try {
-          await resolveEmblemForXuid(xuid);
-          const np2 = nameplatePathCache[String(xuid)];
-          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}`;
-        } catch(e) {}
-      }
     } else if (!cachedPath) {
       const result = await resolveEmblemForXuid(xuid);
       gamerpicUrl = result?.gamerpicUrl || null;
       if (result?.emblemPath && result.emblemPath !== '__none__') {
         emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
       }
-      // resolveEmblemForXuid populates nameplatePathCache as a side effect
-      const np = nameplatePathCache[String(xuid)];
-      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}`;
     }
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
 
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl,
+    gamertag, xuid, emblemUrl, gamerpicUrl,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
@@ -780,11 +753,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
       for (const pl of team.players) {
         const oppGt = (pl.rawXuid && xuidToGt[pl.rawXuid]) || pl.gamertag;
         if (!oppGt || oppGt===myGt || oppGt.startsWith('Spartan ')) continue;
-        if (!rivalStats[oppGt]) rivalStats[oppGt] = { wins:0, losses:0, gamerpicUrl: pl.gamerpicUrl||null, xuid: pl.rawXuid||null };
+        if (!rivalStats[oppGt]) rivalStats[oppGt] = { wins:0, losses:0, gamerpicUrl: pl.gamerpicUrl||null };
         if (matchOutcome===2) rivalStats[oppGt].wins++;
         else if (matchOutcome===3) rivalStats[oppGt].losses++;
         if (pl.gamerpicUrl && !rivalStats[oppGt].gamerpicUrl) rivalStats[oppGt].gamerpicUrl = pl.gamerpicUrl;
-        if (pl.rawXuid && !rivalStats[oppGt].xuid) rivalStats[oppGt].xuid = pl.rawXuid;
       }
     }
   }
@@ -793,7 +765,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     .filter(([,s]) => s.wins+s.losses >= 1)
     .sort((a,b) => (b[1].wins+b[1].losses)-(a[1].wins+a[1].losses))
     .slice(0, 50)
-    .map(([gt,s]) => ({ gamertag:gt, wins:s.wins, losses:s.losses, total:s.wins+s.losses, gamerpicUrl:s.gamerpicUrl||null, xuid:s.xuid||null }));
+    .map(([gt,s]) => ({ gamertag:gt, wins:s.wins, losses:s.losses, total:s.wins+s.losses, gamerpicUrl:s.gamerpicUrl||null }));
 
   const nemesisList = [...rivals].filter(r=>r.losses>r.wins).sort((a,b)=>b.losses-a.losses||a.wins-b.wins).slice(0,15);
   const victimsList = [...rivals].filter(r=>r.wins>r.losses).sort((a,b)=>b.wins-a.wins||a.losses-b.losses).slice(0,15);
