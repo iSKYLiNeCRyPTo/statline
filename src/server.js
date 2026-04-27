@@ -686,7 +686,7 @@ app.get('/api/admin', (req, res) => {
   <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
   <h2>// recent searches</h2>
   <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
-  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
+  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
