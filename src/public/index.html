@@ -1690,8 +1690,13 @@ function analyzeConnectionQuality(m, modeBaselines) {
   // Subtract objective carry time — can't shoot while holding ball/flag
   var objHoldSecs=0;
   if(m.objStats&&m.objStats.timeAsCarrier) objHoldSecs=m.objStats.timeAsCarrier;
+  else if(m.timeAsCarrier) objHoldSecs=m.timeAsCarrier;
   var effectiveMins=Math.max((secs-objHoldSecs)/60,1);
-  if(objHoldSecs/secs>0.4) return null;
+  // If >40% of game carrying, skip hitreg — not enough shooting data
+  if(objHoldSecs>0&&objHoldSecs/secs>0.4) return null;
+  // For Oddball/CTF without carry data, skip hitreg entirely — too unreliable
+  var _isObjMode=m.gameMode&&/oddball|ctf|capture|stronghold|stockpile|koth|king/i.test(m.gameMode);
+  if(_isObjMode&&!objHoldSecs) return null;
   var dpmDealt=m.damageDealt/effectiveMins;
   var dpmTaken=m.damageTaken/effectiveMins;
   var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
@@ -2302,7 +2307,7 @@ async function doSearch(gt){
       var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
       var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
       html+='<div style="display:flex;align-items:center;gap:10px">'
-        +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent)':'')+';transition:all 0.3s"></div>'
+        +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
         +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+label+(done?' ✓':'')+'</div>'
         +'</div>';
     });
@@ -2310,14 +2315,24 @@ async function doSearch(gt){
     document.getElementById('app').innerHTML=html;
   }
   _renderLoadSteps(0, null);
+  // Poll progress endpoint while search runs
+  var _progressPoll = setInterval(function(){
+    fetch('/api/search/progress?gamertag='+encodeURIComponent(gt))
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(p){
+        if(!p) return;
+        if(p.step===1) _renderLoadSteps(0, null);
+        else if(p.step===2) _renderLoadSteps(1, p.valid>0?p.valid+'/100':null);
+        else if(p.step===3) _renderLoadSteps(2, null);
+      }).catch(function(){});
+  }, 400);
   try{
     var res=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
     var d=await res.json();
+    clearInterval(_progressPoll);
     if(d.success&&d.player){
-      _renderLoadSteps(1, null);
-      await new Promise(function(r){setTimeout(r,200);});
       _renderLoadSteps(2, null);
-      await new Promise(function(r){setTimeout(r,150);});
+      await new Promise(function(r){setTimeout(r,300);});
       playerData=d.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
@@ -2332,6 +2347,7 @@ async function doSearch(gt){
       document.getElementById('app').innerHTML='<div class="error-card">'+errMsg+'</div>';
     }
   } catch(e){
+    clearInterval(_progressPoll);
     document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';
   }
 }
