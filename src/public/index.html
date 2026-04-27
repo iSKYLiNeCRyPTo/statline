@@ -563,7 +563,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
           <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
         </div>
       </div>
-      <div id="landingStats" style="margin-top:28px;display:flex;gap:24px;justify-content:center;flex-wrap:wrap"></div>
+      <div id="landingStats" style="margin-top:28px;display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:center"></div>
       <p style="margin-top:20px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;line-height:1.8">fragr.live &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft &nbsp;·&nbsp; Stats sourced from the Halo Waypoint API<br>We collect anonymous usage data (gamertags searched, device type) to improve the service. No accounts, no cookies, no IP addresses stored.</p>
     </div>
   </div>
@@ -894,7 +894,10 @@ function renderMatchHistory(d,clientPage){
   var buckets={};
   _baseSource.forEach(function(m){
     var mode=m.gameMode||'Unknown';
-    var mins=getDurSecs(m)/60||1;
+    var _rawSecs=getDurSecs(m);
+    var _objHold=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
+    if(_objHold/_rawSecs>0.4) return; // skip if >40% carrying — distorts DPM baseline
+    var mins=Math.max((_rawSecs-_objHold)/60,1);
     [mode,'__overall__'].forEach(function(k){
       if(!buckets[k])buckets[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
       buckets[k].dpmDealt.push(m.damageDealt/mins);
@@ -1276,22 +1279,14 @@ function renderFavChips() {
 }
 async function loadStats(){
   await loadMedalMeta();
-  // Load landing page stats
-  fetch('/api/admin/searches?pass=' + (window._adminPass||''))
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .catch(function(){ return null; });
-  // Use public stats endpoint instead
-  fetch('/api/stats')
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if (!d) return;
-      var el = document.getElementById('landingStats');
-      if (!el) return;
-      el.innerHTML =
-        '<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">' + (d.totalSearches||0).toLocaleString() + '</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">SEARCHES</div></div>' +
-        '<div style="width:1px;background:var(--border);align-self:stretch"></div>' +
-        '<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">' + (d.uniquePlayers||0).toLocaleString() + '</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">PLAYERS TRACKED</div></div>';
-    }).catch(function(){});
+  fetch('/api/stats').then(function(r){return r.ok?r.json():null;}).then(function(d){
+    if(!d)return;
+    var el=document.getElementById('landingStats');
+    if(!el)return;
+    el.innerHTML='<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.totalSearches.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">SEARCHES</div></div>'
+      +'<div style="width:1px;height:40px;background:var(--border)"></div>'
+      +'<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.uniquePlayers.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">PLAYERS TRACKED</div></div>';
+  }).catch(function(){});
   // Check URL for player param
   var params=new URLSearchParams(window.location.search);
   var gt=params.get('player')||params.get('search');
@@ -1692,9 +1687,16 @@ function analyzeConnectionQuality(m, modeBaselines) {
   if(!m.damageTaken||m.damageTaken<300) return null;
   if(m.outcome!==2&&m.outcome!==3) return null;   // draws unreliable
 
+  // Subtract objective carry time — can't shoot while holding ball/flag
+  var objHoldSecs=0;
+  if(m.objStats&&m.objStats.timeAsCarrier) objHoldSecs=m.objStats.timeAsCarrier;
+  var effectiveMins=Math.max((secs-objHoldSecs)/60, 1);
+  // If >40% of game was spent holding objective, skip hitreg analysis — data is too noisy
+  if(objHoldSecs/secs>0.4) return null;
+
   // Use per-minute rates throughout to normalise for game length
-  var dpmDealt=m.damageDealt/mins;
-  var dpmTaken=m.damageTaken/mins;
+  var dpmDealt=m.damageDealt/effectiveMins;
+  var dpmTaken=m.damageTaken/effectiveMins;
   var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
   var kd=m.deaths>0?m.kills/m.deaths:m.kills;
   var spk=m.kills>0&&m.shotsFired>0?m.shotsFired/m.kills:null;
