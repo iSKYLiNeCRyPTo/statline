@@ -230,6 +230,19 @@ app.get('/api/search', rateLimit, async (req, res) => {
     }
   }
 
+  // statsOnly mode — return service record immediately, skip match fetch
+  const statsOnly = req.query.statsOnly === '1';
+  if (statsOnly) {
+    try {
+      _searchProgress[key] = { step: 1, valid: 0, total: 100, ts: Date.now() };
+      const playerStats = await fetchPlayerStats(gamertag);
+      _searchProgress[key] = { step: 2, valid: 0, total: 100, ts: Date.now() };
+      return res.json({ success: true, player: { ...playerStats, recentMatches: [], allMatches: [] }, statsOnly: true });
+    } catch(e) {
+      return res.status(404).json({ success: false, error: e.message });
+    }
+  }
+
   const searchPromise = (async () => {
     try {
       _searchProgress[key] = { step: 1, valid: 0, total: 100, ts: Date.now() };
