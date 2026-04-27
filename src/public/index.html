@@ -2315,39 +2315,52 @@ async function doSearch(gt){
     document.getElementById('app').innerHTML=html;
   }
   _renderLoadSteps(0, null);
-  // Poll progress endpoint while search runs
-  var _progressPoll = setInterval(function(){
-    fetch('/api/search/progress?gamertag='+encodeURIComponent(gt))
-      .then(function(r){return r.ok?r.json():null;})
-      .then(function(p){
-        if(!p) return;
-        if(p.step===1) _renderLoadSteps(0, null);
-        else if(p.step===2) _renderLoadSteps(1, p.valid>0?p.valid+'/100':null);
-        else if(p.step===3) _renderLoadSteps(2, null);
-      }).catch(function(){});
-  }, 400);
   try{
-    var res=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
-    var d=await res.json();
+    // ── Step 1: Service record (fast) ──────────────────────────────────────
+    var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1');
+    var statsD=await statsRes.json();
+    if(!statsD.success||!statsD.player){
+      var errMsg=statsD.error||'Player not found. Check the spelling and try again.';
+      document.getElementById('app').innerHTML='<div class="error-card">'+errMsg+'</div>';
+      return;
+    }
+    // Show service record immediately — render with empty matches
+    _renderLoadSteps(1, null);
+    playerData=statsD.player;
+    data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
+    searchData=playerData; searchMode=false; selectedPlayer=0;
+    activeTab='overview'; render();
+    var url=new URL(window.location);url.searchParams.set('player',gt);window.history.pushState({},'',url);
+    document.title=gt+' — fragr';
+    var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
+    updateFavBtn();
+
+    // ── Step 2: Match history — poll progress while full search runs ────────
+    _renderLoadSteps(1, '0/100');
+    var _progressPoll=setInterval(function(){
+      fetch('/api/search/progress?gamertag='+encodeURIComponent(gt))
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(p){
+          if(!p||p.step!==2) return;
+          _renderLoadSteps(1, p.valid>0?(p.valid+'/100'):null);
+        }).catch(function(){});
+    },400);
+
+    var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt));
+    var fullD=await fullRes.json();
     clearInterval(_progressPoll);
-    if(d.success&&d.player){
+
+    if(fullD.success&&fullD.player){
+      // ── Step 3: Team data — brief pause while emblems/pics load ───────────
       _renderLoadSteps(2, null);
-      await new Promise(function(r){setTimeout(r,300);});
-      playerData=d.player;
+      await new Promise(function(r){setTimeout(r,600);});
+      playerData=fullD.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
-      activeTab='overview'; render();
-      var url=new URL(window.location);url.searchParams.set('player',gt);window.history.pushState({},'',url);
-      document.title=gt+' — fragr';
+      render();
       loadFullMatches(gt);
-      var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
-      updateFavBtn();
-    } else {
-      var errMsg=d.error||'Player not found. Check the spelling and try again.';
-      document.getElementById('app').innerHTML='<div class="error-card">'+errMsg+'</div>';
     }
   } catch(e){
-    clearInterval(_progressPoll);
     document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';
   }
 }
