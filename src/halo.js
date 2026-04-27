@@ -782,8 +782,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     if (onProgress) onProgress(validNow, TARGET);
   } // end while
 
-  // Batch resolve gamertags
-  if (allUnknownXuids.size > 0) await resolveGamertags([...allUnknownXuids]);
+  // Batch resolve gamertags — fire in background so it doesn't block the response
+  if (allUnknownXuids.size > 0) resolveGamertags([...allUnknownXuids]).catch(() => {});
 
   // Backfill gamerpics on team players
   for (const result of results) {
