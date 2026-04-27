@@ -115,51 +115,71 @@ async function resolveGamertags(xuids) {
   const missing = xuids.filter(x => !xuidToGt[x]);
   if (!missing.length) return;
   console.log(`[GT] Resolving ${missing.length} unknown xuids`);
-  try {
-    const headers = getAuthHeaders();
-    // Batch resolve up to 100 at once
-    const batch = missing.slice(0, 100);
-    const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
-    const r = await fetch(url, { headers });
-    console.log(`[GT] Batch response: ${r.status}`);
-    if (r.ok) {
-      const data = await r.json();
-      const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
-      console.log(`[GT] Batch returned ${users.length} users`);
-      const resolved = new Set();
-      for (const user of users) {
-        if (!user || typeof user !== 'object') continue;
-        const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
-        const gt = user.gamertag || user.Gamertag || '';
-        if (xuid && gt) { xuidToGt[xuid] = gt; resolved.add(xuid); }
-        const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
-        if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
-      }
-      const stillMissing = batch.filter(x => !resolved.has(x));
-      console.log(`[GT] Still missing after batch: ${stillMissing.length}`);
-      // Retry any that the batch missed — fetch individually
-      for (const xuid of stillMissing.slice(0, 20)) {
+  const headers = getAuthHeaders();
+  const BATCH_SIZE = 100;
+  // Process in chunks with a delay between to avoid 429
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise(r => setTimeout(r, 1000)); // 1s pause between batches
+    const batch = missing.slice(i, i + BATCH_SIZE);
+    try {
+      const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
+      const r = await fetch(url, { headers });
+      console.log(`[GT] Batch ${i/BATCH_SIZE+1} response: ${r.status} (${batch.length} xuids)`);
+      if (r.ok) {
+        const data = await r.json();
+        const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
+        const resolved = new Set();
+        for (const user of users) {
+          if (!user || typeof user !== 'object') continue;
+          const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
+          const gt = user.gamertag || user.Gamertag || '';
+          if (xuid && gt) { xuidToGt[xuid] = gt; resolved.add(xuid); }
+          const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
+          if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
+        }
+        // Retry individually any the batch missed (usually private/deleted accounts)
+        const stillMissing = batch.filter(x => !resolved.has(x));
+        if (stillMissing.length) console.log(`[GT] Batch ${i/BATCH_SIZE+1} still missing: ${stillMissing.length}`);
+        for (const xuid of stillMissing.slice(0, 10)) {
+          try {
+            await new Promise(r => setTimeout(r, 200));
+            const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
+            if (r2.ok) {
+              const d2 = await r2.json();
+              const gt2 = d2.gamertag || d2.Gamertag || d2.modernGamertag || '';
+              if (gt2) xuidToGt[xuid] = gt2;
+              const gp2 = d2.gamerpic?.medium || d2.gamerpic?.large || null;
+              if (gp2 && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp2;
+            }
+          } catch(e) {}
+        }
+      } else if (r.status === 429) {
+        console.log(`[GT] Rate limited on batch ${i/BATCH_SIZE+1} — waiting 3s and retrying`);
+        await new Promise(r => setTimeout(r, 3000));
+        // Retry this batch once
         try {
-          const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
+          const r2 = await fetch(url, { headers });
           if (r2.ok) {
-            const d2 = await r2.json();
-            const gt2 = d2.gamertag || d2.Gamertag || d2.modernGamertag || '';
-            if (gt2) xuidToGt[xuid] = gt2;
-            const gp2 = d2.gamerpic?.medium || d2.gamerpic?.large || null;
-            if (gp2 && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp2;
+            const data2 = await r2.json();
+            const users2 = Array.isArray(data2) ? data2 : (data2.users || data2.Users || Object.values(data2));
+            for (const user of users2) {
+              if (!user || typeof user !== 'object') continue;
+              const xuid = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
+              const gt = user.gamertag || user.Gamertag || '';
+              if (xuid && gt) xuidToGt[xuid] = gt;
+              const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
+              if (xuid && gp && !xuidToGamerpic[xuid]) xuidToGamerpic[xuid] = gp;
+            }
           }
-        } catch(e) { /* individual retry failed — skip */ }
+        } catch(e) {}
       }
-      getRedis().then(c => {
-        if (!c) return;
-        c.set('xuidToGt', JSON.stringify(xuidToGt)).catch(() => {});
-        c.set('xuidToGamerpic', JSON.stringify(xuidToGamerpic)).catch(() => {});
-      });
-    } else {
-      const body = await r.text();
-      console.log(`[GT] Batch failed body:`, body.slice(0, 200));
-    }
-  } catch(e) { console.error('[GT] Resolve failed:', e.message); }
+    } catch(e) { console.error('[GT] Batch failed:', e.message); }
+  }
+  getRedis().then(c => {
+    if (!c) return;
+    c.set('xuidToGt', JSON.stringify(xuidToGt)).catch(() => {});
+    c.set('xuidToGamerpic', JSON.stringify(xuidToGamerpic)).catch(() => {});
+  });
 }
 
 async function getEmblemMapping() {
