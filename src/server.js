@@ -386,22 +386,22 @@ app.get('/api/emblem-img', async (req, res) => {
     try { await fetchClearanceToken(xuid || '2533274802953504'); } catch(e) {}
     const headers = getAuthHeaders();
     let candidates;
-    if (imgPath.startsWith('waypoint:')) {
-      candidates = [`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${imgPath.slice('waypoint:'.length)}`];
-    } else {
-      const parts = imgPath.split('/');
-      const withFile = parts.length > 1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+imgPath;
-      // Try also a Spartan-injected variant (some def DisplayPaths drop the Spartan segment)
-      const stripped = imgPath.replace(/^progression\//,'');
-      const withSpartan = stripped.replace(/^Inventory\/Emblems\//, 'Inventory/Spartan/Emblems/');
-      const withSpartanFile = `progression/file/${withSpartan}`;
-      candidates = [
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/${imgPath}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withSpartanFile}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/${withSpartan}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/emblems/${stripped.split('/').pop()}`,
-      ];
+    // imgPath may be a single path or ';'-separated list of candidates.
+    candidates = [];
+    for (const p of imgPath.split(';').filter(Boolean)) {
+      if (p.startsWith('waypoint:')) {
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${p.slice('waypoint:'.length)}`);
+      } else if (p.startsWith('images:')) {
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/${p.slice('images:'.length)}`);
+      } else {
+        const parts = p.split('/');
+        const withFile = parts.length > 1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+p;
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`);
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/${p}`);
+        // Also try the Images branch with the raw progression path
+        const stripped = p.replace(/^progression\//,'');
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/progression/${stripped}`);
+      }
     }
     for (const url of candidates) {
       try {
@@ -461,21 +461,21 @@ app.get('/api/emblem', async (req, res) => {
     await fetchClearanceToken(xuid);
     const headers = getAuthHeaders();
     let imgUrls;
-    if (imagePath.startsWith('waypoint:')) {
-      imgUrls = [`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${imagePath.slice('waypoint:'.length)}`];
-    } else {
-      const parts = imagePath.split('/');
-      const withFile = parts.length>1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+imagePath;
-      const stripped = imagePath.replace(/^progression\//,'');
-      const withSpartan = stripped.replace(/^Inventory\/Emblems\//, 'Inventory/Spartan/Emblems/');
-      const withSpartanFile = `progression/file/${withSpartan}`;
-      imgUrls = [
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/${imagePath}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/${withSpartanFile}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/${withSpartan}`,
-        `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/emblems/${stripped.split('/').pop()}`,
-      ];
+    // imagePath may be a single path or ';'-separated list of candidates.
+    imgUrls = [];
+    for (const p of imagePath.split(';').filter(Boolean)) {
+      if (p.startsWith('waypoint:')) {
+        imgUrls.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${p.slice('waypoint:'.length)}`);
+      } else if (p.startsWith('images:')) {
+        imgUrls.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/${p.slice('images:'.length)}`);
+      } else {
+        const parts = p.split('/');
+        const withFile = parts.length>1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+p;
+        imgUrls.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`);
+        imgUrls.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/${p}`);
+        const stripped = p.replace(/^progression\//,'');
+        imgUrls.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/progression/${stripped}`);
+      }
     }
     let imgRes = null;
     for (const url of imgUrls) {
