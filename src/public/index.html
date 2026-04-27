@@ -812,11 +812,13 @@ function loadMatchHistory(page){
   var _mhTimeout=setTimeout(function(){
     if(!matchHistoryLoading)return;
     matchHistoryLoading=false;
+    // Check if fullMatchCache has data we can use
+    var _fmc=fullMatchCache[gt]||null;
     var fb=getAllPlayers()[selectedPlayer];
-    var fbM=fb&&(fb.allMatches||fb.recentMatches)||[];
+    var fbM=(_fmc&&_fmc.length>0)?_fmc:(fb&&(fb.allMatches||fb.recentMatches)||[]);
     if(fbM.length>0){matchHistoryData={matches:fbM,page:1,totalPages:1,total:fbM.length,_gamertag:gt};renderMatchHistory(matchHistoryData);}
     else{container.innerHTML='<div class="error-card">Match history unavailable — try refreshing</div>';}
-  },8000);
+  },5000);
   var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=100';
   // If we already have matches in memory for this player, render them immediately
   // then update in the background from the API
@@ -1010,12 +1012,20 @@ function setTab(t){
   // Load match history when switching to that tab
   if(t==='matches'){
     var _curGt=(getAllPlayers()[selectedPlayer]||searchData||{}).gamertag||'';
-    if(matchHistoryData&&matchHistoryData.matches&&matchHistoryData.matches.length>0&&
-       matchHistoryData._gamertag&&matchHistoryData._gamertag.toLowerCase()===_curGt.toLowerCase()){
-      renderMatchHistory(matchHistoryData,matchHistoryData._clientPage||1);
-    } else {
-      matchHistoryPage=1;loadMatchHistory(1);
-    }
+    // Wait for container to be in DOM before loading
+    var _matchTabAttempts=0;
+    var _matchTabCheck=setInterval(function(){
+      var _mc=document.getElementById('matchHistoryContainer');
+      if(!_mc&&_matchTabAttempts++<20){return;}
+      clearInterval(_matchTabCheck);
+      if(!_mc)return;
+      if(matchHistoryData&&matchHistoryData.matches&&matchHistoryData.matches.length>0&&
+         matchHistoryData._gamertag&&matchHistoryData._gamertag.toLowerCase()===_curGt.toLowerCase()){
+        renderMatchHistory(matchHistoryData,matchHistoryData._clientPage||1);
+      } else {
+        matchHistoryPage=1;loadMatchHistory(1);
+      }
+    },50);
   }
   if(['bymap','charts','objectives','opponents'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
