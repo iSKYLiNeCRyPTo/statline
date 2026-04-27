@@ -115,7 +115,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
 .hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.hero-nameplate{position:absolute;inset:0;background-size:auto 100%;background-position:right center;background-repeat:no-repeat;opacity:0.35;border-radius:12px;pointer-events:none}
+.hero-nameplate{position:absolute;inset:0;background-size:cover;background-position:center center;background-repeat:no-repeat;opacity:0.44;border-radius:12px;pointer-events:none;z-index:0}
+.hero>*{position:relative;z-index:1}
 .hero-adornment{width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 .hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
 .hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
@@ -640,14 +641,13 @@ function _renderAdSlot(variant){
 
   // Image-based ad
   if(ad.active && ad.image){
-    // Portrait product images: use a fixed height that shows the subject well
-    // Card: taller on desktop, shorter on mobile. Banner: always short.
-    var imgH = isCard ? (isMobile ? '220px' : '320px') : (isMobile ? '90px' : '110px');
-    // First sentence of tagline only for banner (keeps it tight)
+    var imgH = isCard ? (isMobile ? 'auto' : '320px') : (isMobile ? '90px' : '110px');
+    var imgFlex = isCard && isMobile ? 'flex:1;min-height:200px;' : 'height:'+imgH+';';
     var taglineShort = ad.tagline.split(/[.!?]/)[0].trim() + '.';
-    return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2)">'
+    var outerFlex = isCard && isMobile ? 'display:flex;flex-direction:column;height:100%;' : '';
+    return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2);'+outerFlex+'">'
       +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:4px 0;background:var(--surface3);text-transform:uppercase">Sponsored</div>'
-      +'<div style="width:100%;height:'+imgH+';background:var(--surface3);display:flex;align-items:center;justify-content:center">'
+      +'<div style="width:100%;'+imgFlex+'background:var(--surface3);display:flex;align-items:center;justify-content:center">'
       +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:contain;display:block" alt="'+ad.brand+'"></div>'
       +'<div style="padding:'+(isCard?'12px 16px':'8px 12px')+'">'
       +'<div style="font-family:Rajdhani,sans-serif;font-size:'+(isCard?'13px':'11px')+';font-weight:700;color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px">'+ad.brand+'</div>'
@@ -2402,12 +2402,11 @@ async function doSearch(gt, isRefresh, force){
 
     var html;
     if(_lsMobile){
-      // Mobile: single column, ad banner below steps
-      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:20px 16px;box-sizing:border-box">'
-        +'<div style="width:100%;max-width:360px">'
-        +stepsHtml
-        +'<div style="margin-top:28px">'+_renderAdSlot('banner')+'</div>'
-        +'</div></div>';
+      // Mobile: steps pinned at top, ad card fills remaining screen
+      html='<div style="min-height:calc(100vh - 100px);display:flex;flex-direction:column;padding:24px 16px 16px;box-sizing:border-box">'
+        +'<div style="margin-bottom:24px">'+stepsHtml+'</div>'
+        +'<div style="flex:1;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
+        +'</div>';
     } else {
       // Desktop: two columns — steps left, ad card right
       html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
@@ -2477,12 +2476,11 @@ async function doSearch(gt, isRefresh, force){
 
     var html;
     if(isMobile){
-      // Mobile: single column, ad stacks below player info
-      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:flex-start;justify-content:center;padding:20px 16px;box-sizing:border-box">'
-        +'<div style="width:100%;max-width:480px">'
-        +playerSection
-        +'<div style="margin-top:20px">'+_renderAdSlot('card')+'</div>'
-        +'</div></div>';
+      // Mobile: player info at top, ad card fills remaining screen
+      html='<div style="min-height:calc(100vh - 100px);display:flex;flex-direction:column;padding:24px 16px 16px;box-sizing:border-box">'
+        +'<div style="margin-bottom:24px">'+playerSection+'</div>'
+        +'<div style="flex:1;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
+        +'</div>';
     } else {
       // Desktop: two-column — player left, ad right
       html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
