@@ -205,10 +205,13 @@ async function resolveEmblemForXuid(xuid) {
           if (emblemEntry) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
+            console.log('[Emblem] configMatch:', JSON.stringify(configMatch));
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
             // Grab nameplate from same mapping entry
             if (configMatch?.nameplateCmsPath) {
               nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
+            } else {
+              console.log('[Emblem] no nameplateCmsPath in configMatch');
             }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
@@ -355,6 +358,7 @@ async function fetchPlayerStats(gamertag) {
     if (crRes.ok) {
       const crData = await crRes.json();
       const cr = crData?.RewardTracks?.[0]?.Result?.CurrentProgress || crData?.CurrentProgress || null;
+      console.log('[CareerRank] raw cr:', JSON.stringify(cr));
       if (cr) {
         const rankNum = cr.Rank ?? cr.CurrentRank ?? 0;
         const rankTier = cr.RankTier ?? cr.Tier ?? null;
@@ -369,6 +373,7 @@ async function fetchPlayerStats(gamertag) {
           const tierPart = rankTier.charAt(0).toUpperCase() + rankTier.slice(1).toLowerCase();
           const gradePart = rankGrade != null ? `_${['I','II','III'][rankGrade] || rankGrade}` : '';
           const adornPath = `career_rank/NameplateAdornment/${rankNum}_${titlePart}_${tierPart}${gradePart}.png`;
+          console.log('[CareerRank] adornPath:', adornPath);
           adornmentUrl = `/api/emblem-img?path=${encodeURIComponent('images:' + adornPath)}`;
         }
         finalCareerRank = {
