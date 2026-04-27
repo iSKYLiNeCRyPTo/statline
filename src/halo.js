@@ -254,6 +254,25 @@ async function resolveEmblemForXuid(xuid) {
       }
       if (custRes.ok) {
         const custData = await custRes.json();
+        // Log full Appearance keys once so we can find the nameplate field
+        if (!resolveEmblemForXuid._loggedAppearance) {
+          resolveEmblemForXuid._loggedAppearance = true;
+          console.log('[Emblem] Appearance keys:', Object.keys(custData?.Appearance || {}));
+          console.log('[Emblem] Full Appearance:', JSON.stringify(custData?.Appearance, null, 2).slice(0, 2000));
+        }
+        // Try to read nameplate/backdrop directly from Appearance before falling back to emblem mapping
+        const appearance = custData?.Appearance || {};
+        const rawNpPath = appearance.NameplatePath || appearance.BackdropPath || appearance.SpartanBackdropPath
+          || appearance.BackgroundPath || appearance.BackgroundImagePath
+          || appearance.Nameplate?.NameplatePath || appearance.Backdrop?.BackdropPath || null;
+        if (rawNpPath && !nameplatePathCache[String(xuid)]) {
+          const npCms = rawNpPath.startsWith('waypoint:') ? rawNpPath
+            : rawNpPath.startsWith('progression/') ? `waypoint:${rawNpPath}`
+            : `waypoint:progression/${rawNpPath}`;
+          nameplatePathCache[String(xuid)] = npCms;
+          console.log(`[Emblem] Nameplate direct path for ${xuid}: ${npCms}`);
+          getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
+        }
         const emblemData = custData?.Appearance?.Emblem;
         const emblemJsonPath = emblemData?.EmblemPath;
         const configurationId = emblemData?.ConfigurationId;
@@ -552,9 +571,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
   const MAX_SCAN = 250; // give up after scanning this many raw matches
 
   const headers = getAuthHeaders();
-  const rivalStats = {};
+  const rivalStats = {};   // keyed by rawXuid — resolved to gamertag later
   const results = [];
-  const allUnknownXuids = new Set();
   const pendingTracking = [];
 
   let start = 0;
@@ -657,10 +675,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
         mapName = await resolveMapName(_mapAssetId, md.MatchInfo?.MapVariant?.VersionId, headers);
         mapImageUrl = getMapImageUrl(_mapAssetId);
 
-        for (const p of (md.Players||[])) {
-          const rx = String(p.PlayerId||'').replace('xuid(','').replace(')','');
-          if (rx && !xuidToGt[rx] && rx !== String(xuid)) allUnknownXuids.add(rx);
-        }
+        // (gamertag resolution handled after the loop — top rivals only)
 
         const teamMap = {};
         for (const player of (md.Players||[])) {
@@ -812,8 +827,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     if (onProgress) onProgress(validNow, TARGET);
   } // end while
 
-  // Batch resolve gamertags — fire in background so it doesn't block the response
-  if (allUnknownXuids.size > 0) resolveGamertags([...allUnknownXuids]).catch(() => {});
+  // (no bulk GT resolve here — we only resolve what we actually need below)
 
   // Backfill gamerpics on team players
   for (const result of results) {
@@ -825,33 +839,74 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     }
   }
 
-  // Build rivals from all fetched matches
-  const myGt = xuidToGt[String(xuid)] || gamertag;
-  for (const { matchId, matchOutcome, teamMap, xuid: mxuid } of pendingTracking) {
-    const myXuidStr = String(mxuid);
+  // Build rivals from all fetched matches — tracked by rawXuid (no GT needed yet)
+  const myXuidStr = String(xuid);
+  for (const { matchOutcome, teamMap } of pendingTracking) {
     let myTeamId = null;
     for (const [tid, team] of Object.entries(teamMap)) {
-      if (team.players.some(pl => pl.rawXuid===myXuidStr || pl.gamertag===myGt || pl.gamertag===('Spartan '+myXuidStr.slice(-4)))) { myTeamId=tid; break; }
+      if (team.players.some(pl => pl.rawXuid === myXuidStr)) { myTeamId = tid; break; }
     }
-    if (myTeamId === null) continue; // can't identify team — skip
+    if (myTeamId === null) continue;
     for (const [tid, team] of Object.entries(teamMap)) {
       if (String(tid) === String(myTeamId)) continue;
       for (const pl of team.players) {
-        const oppGt = (pl.rawXuid && xuidToGt[pl.rawXuid]) || pl.gamertag;
-        if (!oppGt || oppGt===myGt || oppGt.startsWith('Spartan ')) continue;
-        if (!rivalStats[oppGt]) rivalStats[oppGt] = { wins:0, losses:0, gamerpicUrl: pl.gamerpicUrl||null };
-        if (matchOutcome===2) rivalStats[oppGt].wins++;
-        else if (matchOutcome===3) rivalStats[oppGt].losses++;
-        if (pl.gamerpicUrl && !rivalStats[oppGt].gamerpicUrl) rivalStats[oppGt].gamerpicUrl = pl.gamerpicUrl;
+        const oppXuid = pl.rawXuid;
+        if (!oppXuid || oppXuid === myXuidStr) continue;
+        if (!rivalStats[oppXuid]) rivalStats[oppXuid] = { wins:0, losses:0, gamerpicUrl: pl.gamerpicUrl||null };
+        if (matchOutcome===2) rivalStats[oppXuid].wins++;
+        else if (matchOutcome===3) rivalStats[oppXuid].losses++;
+        if (pl.gamerpicUrl && !rivalStats[oppXuid].gamerpicUrl) rivalStats[oppXuid].gamerpicUrl = pl.gamerpicUrl;
       }
     }
   }
 
-  const rivals = Object.entries(rivalStats)
+  // Pick top 50 rival xuids, then resolve ONLY those gamertags (1–2 API calls max)
+  const topRivalXuids = Object.entries(rivalStats)
     .filter(([,s]) => s.wins+s.losses >= 1)
     .sort((a,b) => (b[1].wins+b[1].losses)-(a[1].wins+a[1].losses))
     .slice(0, 50)
-    .map(([gt,s]) => ({ gamertag:gt, wins:s.wins, losses:s.losses, total:s.wins+s.losses, gamerpicUrl:s.gamerpicUrl||null }));
+    .map(([x]) => x);
+
+  const unknownRivalXuids = topRivalXuids.filter(x => !xuidToGt[x]);
+  if (unknownRivalXuids.length > 0) {
+    console.log(`[Rivals] Resolving ${unknownRivalXuids.length} rival gamertags`);
+    try {
+      const rHeaders = getAuthHeaders();
+      // Profile API accepts up to 50 xuids per call
+      for (let i = 0; i < unknownRivalXuids.length; i += 50) {
+        if (i > 0) await new Promise(r => setTimeout(r, 1500));
+        const batch = unknownRivalXuids.slice(i, i + 50);
+        const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
+        const r = await fetch(url, { headers: rHeaders });
+        if (r.ok) {
+          const data = await r.json();
+          const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
+          for (const user of users) {
+            if (!user || typeof user !== 'object') continue;
+            const ux = String(user.xuid || user.Xuid || '').replace('xuid(','').replace(')','');
+            const gt = user.gamertag || user.Gamertag || '';
+            if (ux && gt) xuidToGt[ux] = gt;
+            const gp = user.gamerpic?.medium || user.gamerpic?.large || null;
+            if (ux && gp && !xuidToGamerpic[ux]) xuidToGamerpic[ux] = gp;
+          }
+        } else if (r.status === 429) {
+          console.log('[Rivals] Rate limited — skipping remaining rival GT resolution');
+          break;
+        }
+      }
+    } catch(e) { console.log('[Rivals] GT resolve error:', e.message); }
+  }
+
+  // Convert xuid-keyed rivalStats to gamertag-keyed rivals array
+  const rivals = topRivalXuids
+    .map(x => {
+      const gt = xuidToGt[x];
+      if (!gt) return null; // couldn't resolve — omit from rivals
+      const s = rivalStats[x];
+      return { gamertag: gt, wins: s.wins, losses: s.losses, total: s.wins+s.losses,
+               gamerpicUrl: s.gamerpicUrl || xuidToGamerpic[x] || null };
+    })
+    .filter(Boolean);
 
   const nemesisList = [...rivals].filter(r=>r.losses>r.wins).sort((a,b)=>b.losses-a.losses||a.wins-b.wins).slice(0,15);
   const victimsList = [...rivals].filter(r=>r.wins>r.losses).sort((a,b)=>b.wins-a.wins||a.losses-b.losses).slice(0,15);

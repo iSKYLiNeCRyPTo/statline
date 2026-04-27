@@ -2403,17 +2403,14 @@ async function doSearch(gt, isRefresh, force){
     {id:'s3',label:'Team data'},
     {id:'s4',label:'Analyzing data'}
   ];
+  var _loadPlayer=null; // populated after step 1 returns
   function _renderLoadSteps(activeIdx,matchProgress){
     var _lsMobile=window.innerWidth<768;
     var pct=Math.round((activeIdx/4)*100);
+    var p=_loadPlayer;
 
-    // Steps column (shared by both layouts)
-    var stepsHtml=''
-      +'<div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:1px">'+gt+'</div>'
-      +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:22px;overflow:hidden">'
-      +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
-      +'</div>'
-      +'<div style="display:flex;flex-direction:column;gap:12px">';
+    // Step dots
+    var dotsHtml='<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">';
     _loadSteps.forEach(function(step,i){
       var done=i<activeIdx,active=i===activeIdx,label=step.label;
       if(active&&i===1&&matchProgress) label='Match history ('+matchProgress+'/100)';
@@ -2422,25 +2419,77 @@ async function doSearch(gt, isRefresh, force){
       var labelHtml=(active&&i===3)
         ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
         :label+(done?' ✓':'');
-      stepsHtml+='<div style="display:flex;align-items:center;gap:10px">'
+      dotsHtml+='<div style="display:flex;align-items:center;gap:10px">'
         +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
         +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
         +'</div>';
     });
-    stepsHtml+='</div>';
+    dotsHtml+='</div>';
+
+    var leftHtml;
+    if(p){
+      // After step 1: show player card with nameplate, emblem, stats — same as refresh page
+      var emblemSize=_lsMobile?'48px':'60px';
+      var gtFontSize=_lsMobile?'clamp(20px,6vw,30px)':'34px';
+      var statFontSize=_lsMobile?'18px':'20px';
+      var initials=gt.replace(/\s+/g,'').slice(0,2).toUpperCase();
+      var topCsr2=null;
+      if(p.csr){var cv2=Object.values(p.csr);if(cv2.length)topCsr2=cv2.sort(function(a,b){return b.value-a.value;})[0];}
+      var _npStyle2=p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');background-size:cover;background-position:center;':'';
+      leftHtml=''
+        +'<div style="position:relative;border-radius:12px;overflow:hidden;padding:20px;background:var(--surface2);border:1px solid var(--border)">'
+        +(_npStyle2?'<div style="position:absolute;inset:0;'+_npStyle2+'opacity:0.44;border-radius:12px;pointer-events:none"></div>':'')
+        +'<div style="position:relative">'
+        // Progress bar
+        +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:18px;overflow:hidden">'
+        +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
+        +'</div>'
+        // Emblem + name
+        +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">'
+        +(p.emblemUrl
+          ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
+          :'<div style="width:'+emblemSize+';height:'+emblemSize+';background:var(--surface3);border:2px solid var(--border2);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--accent)">'+initials+'</div>')
+        +'<div style="min-width:0">'
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:'+gtFontSize+';font-weight:700;letter-spacing:2px;color:var(--text);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+gt+'</div>'
+        +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:4px;letter-spacing:1px">HALO INFINITE · RANKED</div>'
+        +'</div></div>'
+        // Stat boxes
+        +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">';
+      var statItems2=[
+        {val:p.stats?(p.stats.kd||'—'):'—',lbl:'K/D',color:'var(--text)'},
+        {val:topCsr2?(topCsr2.display||'—'):'—',lbl:'CSR',color:'var(--accent)'},
+        {val:p.stats&&p.stats.winRate?(p.stats.winRate+'%'):'—',lbl:'WIN RATE',color:'var(--text)'}
+      ];
+      statItems2.forEach(function(s){
+        leftHtml+='<div style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:10px 6px;text-align:center">'
+          +'<div style="font-family:Rajdhani,sans-serif;font-size:'+statFontSize+';font-weight:700;color:'+s.color+';line-height:1">'+s.val+'</div>'
+          +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:3px;letter-spacing:1px">'+s.lbl+'</div>'
+          +'</div>';
+      });
+      leftHtml+=''
+        +'</div>'
+        +dotsHtml
+        +'</div></div>'; // close position:relative + nameplate container
+    } else {
+      // Before step 1: plain gamertag + progress bar + dots
+      leftHtml=''
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:1px">'+gt+'</div>'
+        +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:22px;overflow:hidden">'
+        +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
+        +'</div>'
+        +dotsHtml;
+    }
 
     var html;
     if(_lsMobile){
-      // Mobile: steps pinned at top, ad card fills remaining screen — no scroll
       html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
-        +'<div style="margin-bottom:16px;flex-shrink:0">'+stepsHtml+'</div>'
+        +'<div style="margin-bottom:16px;flex-shrink:0">'+leftHtml+'</div>'
         +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
         +'</div>';
     } else {
-      // Desktop: two columns — steps left, ad card right
       html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
         +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
-        +'<div style="flex:1;min-width:0">'+stepsHtml+'</div>'
+        +'<div style="flex:1;min-width:0">'+leftHtml+'</div>'
         +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
         +'</div></div>';
     }
@@ -2460,8 +2509,12 @@ async function doSearch(gt, isRefresh, force){
     var gtFontSize = isMobile ? 'clamp(20px, 6vw, 30px)' : '34px';
     var statFontSize = isMobile ? '18px' : '20px';
 
-    // Player identity header
+    // Player identity header — wrapped in nameplate container
+    var _npStyle=p&&p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');background-size:cover;background-position:center;':'';
     var playerSection=''
+      +'<div style="position:relative;border-radius:12px;overflow:hidden;padding:20px;background:var(--surface2);border:1px solid var(--border);margin-bottom:18px">'
+      +(_npStyle?'<div style="position:absolute;inset:0;'+_npStyle+'opacity:0.33;border-radius:12px;pointer-events:none"></div>':'')
+      +'<div style="position:relative">'
       +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">'
       +(p&&p.emblemUrl
         ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
@@ -2501,7 +2554,9 @@ async function doSearch(gt, isRefresh, force){
     playerSection+='<div style="display:flex;align-items:center;gap:8px">'
       +'<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;box-shadow:0 0 6px var(--accent);flex-shrink:0"></div>'
       +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+statusLabel+'</div>'
-      +'</div>';
+      +'</div>'
+      +'</div>' // close position:relative inner
+      +'</div>'; // close nameplate container
 
     var html;
     if(isMobile){
@@ -2546,9 +2601,8 @@ async function doSearch(gt, isRefresh, force){
       // Refresh page: show player identity + stats while full fetch runs
       _renderRefreshPage(statsD.player,'loading');
     } else {
-      // Loading page: show step 1 done, render partial stats, then put loading back
-      _renderLoadSteps(1,null);
-      activeTab='overview'; render();
+      // Loading page: populate the card with step-1 data then keep showing progress
+      _loadPlayer=statsD.player;
       _renderLoadSteps(1,null);
     }
 
@@ -3937,96 +3991,6 @@ function render(){
       html+='</tbody></table></div>';
     }
 
-    // Damage by Map
-    var dmgMapRows=mapRows.filter(function(m){return m.dmgDealt>0&&m.dmgTaken>0&&m.count>=2;})
-      .map(function(m){
-        var games=m.wins+m.losses;
-        return {map:m.map,imageUrl:m.imageUrl,count:games,
-          avgDealt:games>0?Math.round(m.dmgDealt/games):0,
-          avgTaken:games>0?Math.round(m.dmgTaken/games):0,
-          ratio:m.dmgTaken>0?(m.dmgDealt/m.dmgTaken):0};
-      })
-      .sort(function(a,b){return b.avgDealt-a.avgDealt;});
-
-    if(dmgMapRows.length>=2){
-      var maxDealt=Math.max.apply(null,dmgMapRows.map(function(r){return r.avgDealt;}))||1;
-      var maxTaken=Math.max.apply(null,dmgMapRows.map(function(r){return r.avgTaken;}))||1;
-      var maxBar=Math.max(maxDealt,maxTaken);
-      html+=sectionHead('Damage by Map');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-      dmgMapRows.forEach(function(row,i){
-        var dpct=Math.round((row.avgDealt/maxBar)*100);
-        var tpct=Math.round((row.avgTaken/maxBar)*100);
-        var rColor=row.ratio>=1?'var(--win)':'var(--loss)';
-        var isLast=i===dmgMapRows.length-1;
-        html+='<div style="padding:12px 16px;'+(isLast?'':'border-bottom:1px solid var(--border2)')+(row.ratio===Math.max.apply(null,dmgMapRows.map(function(r){return r.ratio;}))&&dmgMapRows.length>1?';background:rgba(0,230,118,0.03)':'')+(row.ratio===Math.min.apply(null,dmgMapRows.map(function(r){return r.ratio;}))&&dmgMapRows.length>1?';background:rgba(255,61,87,0.03)':'')+'">';
-        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
-        html+='<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+row.map+'</div>';
-        html+='<div style="display:flex;gap:16px;align-items:center">';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">DEALT</div><div style="font-size:13px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif">'+row.avgDealt.toLocaleString()+'</div></div>';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">TAKEN</div><div style="font-size:13px;font-weight:700;color:var(--loss);font-family:Rajdhani,sans-serif">'+row.avgTaken.toLocaleString()+'</div></div>';
-        html+='<div style="text-align:right;min-width:40px"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">RATIO</div><div style="font-size:13px;font-weight:700;color:'+rColor+';font-family:Rajdhani,sans-serif">'+row.ratio.toFixed(2)+'</div></div>';
-        html+='</div></div>';
-        // Dealt bar
-        html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">';
-        html+='<div style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;width:36px;text-align:right;flex-shrink:0">dealt</div>';
-        html+='<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+dpct+'%;background:var(--win);border-radius:3px;transition:width 0.4s ease"></div></div>';
-        html+='</div>';
-        // Taken bar
-        html+='<div style="display:flex;align-items:center;gap:8px">';
-        html+='<div style="font-size:9px;color:var(--loss);font-family:Share Tech Mono,monospace;width:36px;text-align:right;flex-shrink:0">taken</div>';
-        html+='<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+tpct+'%;background:var(--loss);border-radius:3px;transition:width 0.4s ease"></div></div>';
-        html+='</div>';
-        html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:6px">'+row.count+' games avg</div>';
-        html+='</div>';
-      });
-      html+='</div>';
-    }
-    // ── Damage: Wins vs Losses ────────────────────────────────────────────────
-    var wlRows=mapRows.filter(function(r){return r.winDmgGames>=2&&r.lossDmgGames>=2;})
-      .map(function(r){
-        return {map:r.map,
-          avgWinDmg:Math.round(r.winDmgDealt/r.winDmgGames),
-          avgLossDmg:Math.round(r.lossDmgDealt/r.lossDmgGames),
-          winGames:r.winDmgGames,lossGames:r.lossDmgGames};
-      }).sort(function(a,b){return (b.avgWinDmg-b.avgLossDmg)-(a.avgWinDmg-a.avgLossDmg);});
-
-    if(wlRows.length>=2){
-      var wlMax=Math.max.apply(null,wlRows.map(function(r){return Math.max(r.avgWinDmg,r.avgLossDmg);}));
-      html+=sectionHead('Damage: Wins vs Losses','are you dealing damage or just losing fights?');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-      html+='<div style="padding:10px 16px 6px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;display:flex;gap:16px">'
-        +'<span style="color:var(--win)">■ Avg damage in wins</span><span style="color:var(--muted)">■ Avg damage in losses</span>'
-        +'</div>';
-      wlRows.forEach(function(row,i){
-        var wp=Math.round((row.avgWinDmg/wlMax)*100);
-        var lp=Math.round((row.avgLossDmg/wlMax)*100);
-        var diff=row.avgWinDmg-row.avgLossDmg;
-        var diffColor=diff>=0?'var(--win)':'var(--loss)';
-        var insight=diff<-200?'High damage loser — you\'re dealing more when you lose. Fights are going long.':diff>300?'Clean wins — lower damage needed to win here.':'';
-        html+='<div style="padding:10px 16px;'+(i<wlRows.length-1?'border-bottom:1px solid var(--border2)':'')+'">';
-        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-        html+='<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+row.map+'</div>';
-        html+='<div style="display:flex;gap:14px">';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">WIN AVG</div>'
-          +'<div style="font-size:14px;font-weight:700;color:var(--win);font-family:Rajdhani,sans-serif">'+row.avgWinDmg.toLocaleString()+'</div></div>';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">LOSS AVG</div>'
-          +'<div style="font-size:14px;font-weight:700;color:var(--muted);font-family:Rajdhani,sans-serif">'+row.avgLossDmg.toLocaleString()+'</div></div>';
-        html+='<div style="text-align:right"><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">DIFF</div>'
-          +'<div style="font-size:14px;font-weight:700;color:'+diffColor+';font-family:Rajdhani,sans-serif">'+(diff>=0?'+':'')+diff.toLocaleString()+'</div></div>';
-        html+='</div></div>';
-        html+='<div style="display:flex;flex-direction:column;gap:3px">';
-        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:32px;font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">W</div>'
-          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+wp+'%;background:var(--win);border-radius:3px;opacity:0.85"></div></div></div>';
-        html+='<div style="display:flex;align-items:center;gap:8px"><div style="width:32px;font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;text-align:right;flex-shrink:0">L</div>'
-          +'<div style="flex:1;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+lp+'%;background:var(--muted);border-radius:3px;opacity:0.7"></div></div></div>';
-        html+='</div>';
-        if(insight)html+='<div style="margin-top:6px;font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+insight+'</div>';
-        html+='</div>';
-      });
-      html+='</div>';
-    }
-
     // ── Damage Efficiency + Peak Game ─────────────────────────────────────────
     var effRows=mapRows.filter(function(r){return r.dmgGames>=2&&r.dmgDealt>0&&r.dmgTaken>0;})
       .map(function(r){
@@ -4448,14 +4412,27 @@ function render(){
     });
     html+='</div>';
 
-    // Rolling 5-game avg — just dealt, shown as a thin progress strip
-    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">5-Game Rolling Avg (Dealt)</div>';
-    html+='<div style="display:flex;align-items:flex-end;gap:2px;height:20px">';
+    // Rolling 5-game avg — dealt as a taller bar chart showing trend
     var r5max=Math.max.apply(null,roll5Dealt)||1;
-    roll5Dealt.forEach(function(v){
-      var h=Math.round((v/r5max)*18)+2;
-      html+='<div style="flex:1;min-width:0;height:'+h+'px;background:var(--accent);border-radius:1px;opacity:0.6" title="'+v.toLocaleString()+'"></div>';
+    var r5min=Math.min.apply(null,roll5Dealt)||0;
+    var r5range=r5max-r5min||1;
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">5-Game Rolling Avg (Dealt)</div>';
+    html+='<div style="position:relative">';
+    // Y-axis labels
+    html+='<div style="position:absolute;left:0;top:0;bottom:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none">';
+    html+='<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+Math.round(r5max/1000*10)/10+'k</div>';
+    html+='<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+Math.round(r5min/1000*10)/10+'k</div>';
+    html+='</div>';
+    html+='<div style="display:flex;align-items:flex-end;gap:2px;height:80px;padding-left:28px">';
+    roll5Dealt.forEach(function(v,i){
+      var hPct=Math.round(((v-r5min)/r5range)*70)+10; // 10–80px range
+      var isHigh=v===r5max, isLow=v===r5min;
+      var barColor=isHigh?'var(--win)':isLow?'var(--loss)':'var(--accent)';
+      html+='<div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;height:80px">';
+      html+='<div style="height:'+hPct+'px;background:'+barColor+';border-radius:2px 2px 0 0;opacity:0.75;transition:height 0.3s ease" title="'+v.toLocaleString()+'"></div>';
+      html+='</div>';
     });
+    html+='</div>';
     html+='</div>';
 
     html+='</div>';
