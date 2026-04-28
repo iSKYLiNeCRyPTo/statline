@@ -281,24 +281,28 @@ async function resolveEmblemForXuid(xuid) {
           // Fetch the JSON to extract the real image path.
           if (rawNpPath.endsWith('.json')) {
             try {
-              const npJsonUrl = `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${rawNpPath}`;
+              // Inventory/ paths use progression/file/, not Waypoint/file/
+              const npJsonUrl = `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${rawNpPath}`;
               const npJsonRes = await fetch(npJsonUrl, { headers: freshHeaders });
+              console.log(`[Emblem] Backdrop JSON fetch ${npJsonRes.status} for ${xuid}: ${npJsonUrl}`);
               if (npJsonRes.ok) {
                 const npJson = await npJsonRes.json();
                 // Try common field names for the actual image path
                 const imgPath = npJson.ImagePath || npJson.BackdropImagePath || npJson.Image?.Path
-                  || npJson.BackgroundImage || npJson.TexturePath || npJson.image || null;
+                  || npJson.BackgroundImage || npJson.TexturePath || npJson.image
+                  || npJson.CommonData?.DisplayPath?.Media?.MediaUrl?.Path || null;
                 if (imgPath) {
                   const npCms = imgPath.startsWith('waypoint:') ? imgPath
+                    : imgPath.startsWith('images/') ? `waypoint:${imgPath}`
                     : imgPath.startsWith('progression/') ? `waypoint:${imgPath}`
                     : `waypoint:progression/${imgPath}`;
                   nameplatePathCache[String(xuid)] = npCms;
                   console.log(`[Emblem] Nameplate image path for ${xuid}: ${npCms}`);
                   getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
                 } else {
-                  // Log the JSON so we can find the right field
+                  // Log the full JSON so we can find the right field
                   console.log(`[Emblem] Backdrop JSON keys for ${xuid}:`, Object.keys(npJson).slice(0, 20));
-                  console.log(`[Emblem] Backdrop JSON preview:`, JSON.stringify(npJson).slice(0, 500));
+                  console.log(`[Emblem] Backdrop JSON preview:`, JSON.stringify(npJson).slice(0, 800));
                 }
               }
             } catch(e) {
