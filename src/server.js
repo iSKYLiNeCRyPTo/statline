@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
+const _memFeedbackLog = [];
 let _dbPool = null;
 
 async function getDb() {
@@ -19,6 +20,7 @@ async function getDb() {
       await _dbPool.query(`ALTER TABLE search_log ADD COLUMN IF NOT EXISTS user_agent TEXT`).catch(()=>{});
       await _dbPool.query(`ALTER TABLE search_log ADD COLUMN IF NOT EXISTS duration_ms INTEGER`).catch(()=>{});
       await _dbPool.query(`ALTER TABLE search_log ALTER COLUMN cached TYPE TEXT USING cached::text`).catch(()=>{});
+      await _dbPool.query(`CREATE TABLE IF NOT EXISTS feedback_log (id SERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT NOW(), type TEXT NOT NULL, message TEXT NOT NULL, email TEXT, ip TEXT, user_agent TEXT)`);
       console.log('[DB] Tables ready');
     } catch(e) { console.error('[DB] Table create error:', e.message); }
   }
@@ -225,8 +227,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
       _searchProgress[key] = { step: 1, valid: 0, total: 100, ts: Date.now() };
       const playerStats = await fetchPlayerStats(gamertag);
       _searchProgress[key] = { step: 2, valid: 0, total: 100, ts: Date.now() };
-      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100, (valid, total) => {
-        _searchProgress[key] = { step: 2, valid, total, ts: Date.now() };
+      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100, (valid, scanned, total) => {
+        _searchProgress[key] = { step: 2, valid, scanned, total, ts: Date.now() };
       });
       _searchProgress[key] = { step: 3, valid: 100, total: 100, ts: Date.now() };
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
@@ -722,6 +724,37 @@ app.get('/api/admin/searches', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Feedback ──────────────────────────────────────────────────────────────────
+app.post('/api/feedback', express.json(), async (req, res) => {
+  const { type, message, email } = req.body || {};
+  if (!message || !message.trim()) return res.status(400).json({ error: 'message required' });
+  if (!['feedback','contact'].includes(type)) return res.status(400).json({ error: 'type must be feedback or contact' });
+  if (message.trim().length > 2000) return res.status(400).json({ error: 'message too long' });
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
+  const entry = { ts: new Date().toISOString(), type, message: message.trim(), email: email?.trim()||null, ip, user_agent: req.headers['user-agent']||null };
+  _memFeedbackLog.push(entry);
+  if (_memFeedbackLog.length > 500) _memFeedbackLog.shift();
+  try {
+    const db = await getDb();
+    if (db) await db.query('INSERT INTO feedback_log (type,message,email,ip,user_agent) VALUES ($1,$2,$3,$4,$5)', [entry.type, entry.message, entry.email, entry.ip, entry.user_agent]);
+  } catch(e) { console.error('[Feedback] DB error:', e.message); }
+  console.log(`[Feedback] type=${type} email=${email||'—'} msg="${message.trim().slice(0,80)}"`);
+  res.json({ success: true });
+});
+
+app.get('/api/admin/feedback', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
+  try {
+    const db = await getDb();
+    if (db) {
+      const r = await db.query('SELECT id,ts,type,message,email,ip FROM feedback_log ORDER BY ts DESC LIMIT 200');
+      return res.json(r.rows);
+    }
+    res.json(_memFeedbackLog.slice().reverse());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Admin: search log UI ──────────────────────────────────────────────────────
 app.get('/api/admin', (req, res) => {
   const pass = req.query.pass || '';
@@ -738,6 +771,8 @@ app.get('/api/admin', (req, res) => {
   <h2>// recent searches</h2>
   <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
   <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
+  <h2>// feedback &amp; contact</h2>
+  <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th><th>IP</th></tr></thead><tbody id="fbtbody"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
@@ -752,7 +787,17 @@ app.get('/api/admin', (req, res) => {
       renderRows(allRows);
     }).catch(function(e){document.getElementById('summary').innerHTML='<div style="color:#f44336">Error: '+e.message+'</div>';});
   }
-  loadData();setInterval(loadData,30000);
+  function loadFeedback(){
+    fetch('/api/admin/feedback?pass=${pass}').then(r=>r.json()).then(function(rows){
+      document.getElementById('fbtbody').innerHTML=rows.length?rows.map(function(f){
+        var typeColor=f.type==='contact'?'#ffc107':'#00d4ff';
+        var msg=f.message.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var ts=new Date(f.ts).toISOString().replace('T',' ').slice(0,19);
+        return'<tr><td class="muted">'+ts+'</td><td style="color:'+typeColor+'">'+f.type+'</td><td style="color:#4caf50">'+(f.email||'<span class="muted">—</span>')+'</td><td style="max-width:500px;white-space:pre-wrap;word-break:break-word">'+msg+'</td><td class="muted">'+(f.ip||'—')+'</td></tr>';
+      }).join(''):'<tr><td colspan="5" class="muted">No feedback yet</td></tr>';
+    }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="5" class="muted">Failed to load</td></tr>';});
+  }
+  loadData();loadFeedback();setInterval(loadData,30000);setInterval(loadFeedback,60000);
   function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(function(s){var cached=String(s.cached);var cs=cached==='cached'?'<span class="muted">cached</span>':cached==='inflight'?'<span style="color:#555">inflight</span>':cached==='error'?'<span class="loss">error</span>':'<span style="color:#888">fresh</span>';return'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+ua2device(s.user_agent)+'</td><td>'+cs+'</td><td class="muted">'+(s.duration_ms?s.duration_ms+'ms':'—')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>';}).join('');}
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(function(r){return r.gamertag.toLowerCase().includes(q);}):allRows);}
   </script></body></html>`);

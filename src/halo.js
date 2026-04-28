@@ -617,7 +617,7 @@ async function fetchPlayerStats(gamertag) {
 async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null) {
   const TARGET   = 100;  // desired valid (non-custom/PvE) matches
   const BATCH    = 20;  // matches to request per API call
-  const MAX_SCAN = 250; // give up after scanning this many raw matches
+  const MAX_SCAN = 500; // give up after scanning this many raw matches (raised from 250 — players with lots of social/PvE matches need more runway)
 
   const headers = getAuthHeaders();
   const rivalStats = {};   // keyed by rawXuid — resolved to gamertag later
@@ -630,7 +630,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
       `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${BATCH}&start=${start}`,
       { headers }
     );
-    if (!res.ok) break;
+    if (!res.ok) {
+      console.warn(`[MatchFetch] Match list fetch failed at start=${start}: HTTP ${res.status} — stopping early for ${gamertag}`);
+      break;
+    }
     const data = await res.json();
     const rawBatch = data.Results || [];
     if (!rawBatch.length) break; // no more history
@@ -872,9 +875,13 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     } // end for fetchedDetails
 
     const validNow = results.filter(r => !r.isCustom).length;
-    console.log(`[MatchFetch] scanned=${start} valid=${validNow}/${TARGET}`);
-    if (onProgress) onProgress(validNow, TARGET);
+    console.log(`[MatchFetch] scanned=${start} valid=${validNow}/${TARGET} for ${gamertag}`);
+    if (onProgress) onProgress(validNow, start, TARGET);
   } // end while
+  const finalValid = results.filter(r => !r.isCustom).length;
+  if (finalValid < TARGET) {
+    console.warn(`[MatchFetch] Completed with only ${finalValid}/${TARGET} ranked matches after scanning ${start} raw matches for ${gamertag}. Reason: ${start >= MAX_SCAN ? 'MAX_SCAN reached' : 'no more history'}`);
+  }
 
   // (no bulk GT resolve here — we only resolve what we actually need below)
 
