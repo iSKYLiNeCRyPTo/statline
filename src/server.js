@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache } = require('./db');
@@ -262,6 +262,16 @@ app.get('/api/search', rateLimit, async (req, res) => {
     logSearch(gamertag, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
     res.json({ success: true, player: result });
     flushXuidCache(getXuidToGt()).catch(() => {});
+    // Background: enrich matches with skill data (hits skill.svc — separate rate limit from halostats)
+    // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
+    const _bgMatches = result.allMatches || result.recentMatches || [];
+    if (_bgMatches.some(m => m.isRanked)) {
+      setTimeout(() => {
+        fetchAndApplySkillData(result.xuid, _bgMatches)
+          .then(() => saveToCache(gamertag, result))
+          .catch(e => console.warn('[SkillBG] Background skill fetch failed:', e.message));
+      }, 2000);
+    }
   } catch(e) {
     console.error('[Search] Error for', gamertag, ':', e.message);
     if (e.message.includes('Could not resolve gamertag') || e.message.includes('404')) {
@@ -766,13 +776,13 @@ app.get('/api/admin', (req, res) => {
   <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}.stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}.stat-lbl{font-size:10px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}</style></head>
   <body><h1>// fragr analytics</h1>
   <div class="summary" id="summary">Loading...</div>
+  <h2>// feedback &amp; contact</h2>
+  <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th><th>IP</th></tr></thead><tbody id="fbtbody"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table>
   <h2>// tab engagement</h2>
   <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
   <h2>// recent searches</h2>
   <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
   <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
-  <h2>// feedback &amp; contact</h2>
-  <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th><th>IP</th></tr></thead><tbody id="fbtbody"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}

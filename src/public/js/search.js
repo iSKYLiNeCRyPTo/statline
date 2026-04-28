@@ -286,6 +286,8 @@ async function doSearch(gt, isRefresh, force){
       searchData=playerData; searchMode=false; selectedPlayer=0;
       activeTab='overview'; render();
       loadFullMatches(gt);
+      // ~20s later the server has finished background skill enrichment — force-refresh to pick it up
+      setTimeout(function(){ if(isCurrent()) loadFullMatches(gt, true); }, 22000);
     }
   } catch(e){
     document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';

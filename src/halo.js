@@ -625,36 +625,43 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
   const pendingTracking = [];
 
   let start = 0;
+  let stopReason = 'done'; // tracks why the loop exited
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
   while (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN) {
-    const res = await fetch(
-      `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${BATCH}&start=${start}`,
-      { headers }
-    );
+    // Fetch match list with retry on 429
+    let res;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      res = await fetch(
+        `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${BATCH}&start=${start}`,
+        { headers }
+      );
+      if (res.status !== 429) break;
+      const backoff = attempt * 8000; // 8s, 16s, 24s
+      console.warn(`[MatchFetch] 429 on match list at start=${start} for ${gamertag} — retrying in ${backoff/1000}s (attempt ${attempt}/3)`);
+      await sleep(backoff);
+    }
     if (!res.ok) {
+      stopReason = `HTTP ${res.status}`;
       console.warn(`[MatchFetch] Match list fetch failed at start=${start}: HTTP ${res.status} — stopping early for ${gamertag}`);
       break;
     }
     const data = await res.json();
     const rawBatch = data.Results || [];
-    if (!rawBatch.length) break; // no more history
+    if (!rawBatch.length) { stopReason = 'no more history'; break; }
 
     const fetchedDetails = await fetchConcurrent(rawBatch, async (m) => {
       try {
         const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
         const md = r.ok ? await r.json() : null;
-        const isLikelyRanked = md && [1,2,3].includes(md.MatchInfo?.PlaylistExperience);
-        let skillData = null;
-        if (isLikelyRanked) {
-          try {
-            const sr = await fetch(`https://skill.svc.halowaypoint.com/hi/matches/${m.MatchId}/skill?players=xuid(${xuid})`, { headers });
-            if (sr.ok) skillData = await sr.json();
-          } catch(e) {}
-        }
-        return { m, md, skillData };
+        return { m, md, skillData: null };
       } catch(e) { return { m, md: null, skillData: null }; }
     }, 5);
 
     start += BATCH;
+    // Brief pause between batches to avoid bursting halostats rate limit
+    if (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN) {
+      await sleep(400);
+    }
 
     for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {
       if (results.filter(r => !r.isCustom).length >= TARGET) break;
@@ -880,7 +887,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
   } // end while
   const finalValid = results.filter(r => !r.isCustom).length;
   if (finalValid < TARGET) {
-    console.warn(`[MatchFetch] Completed with only ${finalValid}/${TARGET} ranked matches after scanning ${start} raw matches for ${gamertag}. Reason: ${start >= MAX_SCAN ? 'MAX_SCAN reached' : 'no more history'}`);
+    if (start >= MAX_SCAN) stopReason = 'MAX_SCAN reached';
+    console.warn(`[MatchFetch] Completed with only ${finalValid}/${TARGET} ranked matches after scanning ${start} raw matches for ${gamertag}. Reason: ${stopReason}`);
   }
 
   // (no bulk GT resolve here — we only resolve what we actually need below)
@@ -970,8 +978,48 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
   return { matches: results, rivals, nemesisList, victimsList };
 }
 
+// Fetch skill data (MMR, expected K/D) for ranked matches in the background.
+// Runs against skill.svc.halowaypoint.com — a separate domain from halostats,
+// so it doesn't contend with the match list / match stats rate limit bucket.
+// Mutates match objects in-place; call saveToCache after to persist.
+async function fetchAndApplySkillData(xuid, matches) {
+  const headers = getAuthHeaders();
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const ranked = matches.filter(m => m.isRanked && m.matchId && m.mmr == null);
+  if (!ranked.length) return;
+  console.log(`[SkillBG] Fetching skill data for ${ranked.length} ranked matches (xuid=${xuid})`);
+
+  const BATCH = 5;
+  for (let i = 0; i < ranked.length; i += BATCH) {
+    const batch = ranked.slice(i, i + BATCH);
+    await Promise.all(batch.map(async (match) => {
+      try {
+        const sr = await fetch(
+          `https://skill.svc.halowaypoint.com/hi/matches/${match.matchId}/skill?players=xuid(${xuid})`,
+          { headers }
+        );
+        if (!sr.ok) return;
+        const skillData = await sr.json();
+        const entry = (skillData.Value || [])[0];
+        if (!entry?.Result) return;
+        const rv = entry.Result;
+        match.mmr = rv.TeamMmr ? Math.round(rv.TeamMmr) : null;
+        const teamIds = Object.keys(rv.TeamMmrs || {});
+        const myTeamId = String(rv.TeamId);
+        const oppTeamId = teamIds.find(id => id !== myTeamId);
+        match.oppMmr = oppTeamId && rv.TeamMmrs[oppTeamId] ? Math.round(rv.TeamMmrs[oppTeamId]) : null;
+        const sp = rv.StatPerformances;
+        if (sp?.Kills) match.expectedKills = Math.round(sp.Kills.Expected * 10) / 10;
+        if (sp?.Deaths) match.expectedDeaths = Math.round(sp.Deaths.Expected * 10) / 10;
+      } catch(e) {}
+    }));
+    if (i + BATCH < ranked.length) await sleep(200);
+  }
+  console.log(`[SkillBG] Skill data applied to ${ranked.length} matches (xuid=${xuid})`);
+}
+
 module.exports = {
-  fetchPlayerStats, fetchMatchHistory, getAuthHeaders, fetchClearanceToken,
+  fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
   getNameplatePathCache: () => nameplatePathCache,
   getXuidToGt: () => xuidToGt,

@@ -63,10 +63,10 @@ function renderSearch(){
   // Render with search player injected
   render();
 }
-async function loadFullMatches(gamertag){
+async function loadFullMatches(gamertag, force){
   if(!gamertag) return;
   var cached=fullMatchCache[gamertag];
-  if(cached&&cached._fetchedAt&&Date.now()-cached._fetchedAt<300000) return;
+  if(!force&&cached&&cached._fetchedAt&&Date.now()-cached._fetchedAt<300000) return;
   var _showBanner=function(){
     if(document.getElementById('_fullMatchBanner')) return;
     var b=document.createElement('div');
