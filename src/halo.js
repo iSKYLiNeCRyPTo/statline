@@ -636,9 +636,15 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
         { headers }
       );
       if (res.status !== 429) break;
-      const backoff = attempt * 8000; // 8s, 16s, 24s
-      console.warn(`[MatchFetch] 429 on match list at start=${start} for ${gamertag} — retrying in ${backoff/1000}s (attempt ${attempt}/3)`);
-      await sleep(backoff);
+      // Respect Retry-After header if present; fall back to 3s / 5s / 8s
+      const retryAfterHdr = parseInt(res.headers.get('retry-after') || '0', 10);
+      const backoffSec = retryAfterHdr > 0 ? Math.min(retryAfterHdr, 30) : [3, 5, 8][attempt - 1];
+      console.warn(`[MatchFetch] 429 on match list at start=${start} for ${gamertag} — retrying in ${backoffSec}s (attempt ${attempt}/3)${retryAfterHdr > 0 ? ' [Retry-After header]' : ''}`);
+      const validNow = results.filter(r => !r.isCustom).length;
+      for (let sLeft = backoffSec; sLeft > 0; sLeft--) {
+        if (onProgress) onProgress(validNow, start, TARGET, { secondsLeft: sLeft, attempt, maxAttempts: 3 });
+        await sleep(1000);
+      }
     }
     if (!res.ok) {
       stopReason = `HTTP ${res.status}`;
@@ -655,7 +661,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
         const md = r.ok ? await r.json() : null;
         return { m, md, skillData: null };
       } catch(e) { return { m, md: null, skillData: null }; }
-    }, 5);
+    }, 4);
 
     start += BATCH;
     // Brief pause between batches to avoid bursting halostats rate limit

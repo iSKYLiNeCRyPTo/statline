@@ -5,7 +5,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -28,11 +28,15 @@ async function getDb() {
 }
 getDb();
 
-// Load xuid cache from Postgres into halo.js in-memory map on startup
+// Load xuid + emblem/nameplate caches from Postgres into halo.js in-memory maps on startup
 loadXuidCache(getXuidToGt());
+const { getEmblemPathCache, getNameplatePathCache } = require('./halo');
+loadEmblemCache(getEmblemPathCache(), getNameplatePathCache());
 
 // Flush new xuids to Postgres every 2 minutes
 setInterval(() => flushXuidCache(getXuidToGt()), 2 * 60 * 1000);
+// Flush new emblem/nameplate paths every 5 minutes
+setInterval(() => flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()), 5 * 60 * 1000);
 
 async function logSearch(gamertag, userAgent, cached, success, durationMs) {
   const entry = { ts: new Date().toISOString(), gamertag, user_agent: userAgent||null, cached: String(cached), success: !!success, duration_ms: durationMs||null };
@@ -227,8 +231,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
       _searchProgress[key] = { step: 1, valid: 0, total: 100, ts: Date.now() };
       const playerStats = await fetchPlayerStats(gamertag);
       _searchProgress[key] = { step: 2, valid: 0, total: 100, ts: Date.now() };
-      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100, (valid, scanned, total) => {
-        _searchProgress[key] = { step: 2, valid, scanned, total, ts: Date.now() };
+      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100, (valid, scanned, total, retrying) => {
+        _searchProgress[key] = { step: 2, valid, scanned, total, retrying: retrying || null, ts: Date.now() };
       });
       _searchProgress[key] = { step: 3, valid: 100, total: 100, ts: Date.now() };
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
@@ -262,6 +266,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
     logSearch(gamertag, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
     res.json({ success: true, player: result });
     flushXuidCache(getXuidToGt()).catch(() => {});
+    flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
     // Background: enrich matches with skill data (hits skill.svc — separate rate limit from halostats)
     // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
     const _bgMatches = result.allMatches || result.recentMatches || [];
@@ -787,13 +792,14 @@ app.get('/api/admin', (req, res) => {
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
   function fmtSec(s){if(!s)return'—';var n=parseFloat(s);return n>=60?(n/60).toFixed(1)+'m':n+'s';}
+  function fmtMins(m){if(!m)return'—';var n=parseFloat(m);if(n<60)return Math.round(n)+'m';var h=Math.floor(n/60),rm=Math.round(n%60);return h+'h '+(rm?rm+'m':'');}
   function loadData(){
     fetch('/api/admin/searches?pass=${pass}').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){
       allRows=d.searches||[];
       var dev=d.devices||{};
       document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div><div class="stat"><div class="stat-val">'+(dev.mobile||0)+'</div><div class="stat-lbl">MOBILE</div></div><div class="stat"><div class="stat-val">'+(dev.desktop||0)+'</div><div class="stat-lbl">DESKTOP</div></div>';
       var tabs=d.tabStats||[];var maxV=tabs.reduce(function(m,t){return Math.max(m,parseInt(t.visits)||0);},1);
-      document.getElementById('tabtbody').innerHTML=tabs.length?tabs.map(function(t){var pct=Math.round((parseInt(t.visits)/maxV)*100);return'<tr><td style="color:#00d4ff">'+t.tab+'</td><td>'+t.visits+'<div class="bar-wrap"><div class="bar" style="width:'+pct+'%"></div></div></td><td class="gold">'+fmtSec(t.avg_seconds)+'</td><td class="muted">'+t.total_minutes+'m</td></tr>';}).join(''):'<tr><td colspan="4" class="muted">No tab data yet</td></tr>';
+      document.getElementById('tabtbody').innerHTML=tabs.length?tabs.map(function(t){var pct=Math.round((parseInt(t.visits)/maxV)*100);return'<tr><td style="color:#00d4ff">'+t.tab+'</td><td>'+t.visits+'<div class="bar-wrap"><div class="bar" style="width:'+pct+'%"></div></div></td><td class="gold">'+fmtSec(t.avg_seconds)+'</td><td class="muted">'+fmtMins(t.total_minutes)+'</td></tr>';}).join(''):'<tr><td colspan="4" class="muted">No tab data yet</td></tr>';
       renderRows(allRows);
     }).catch(function(e){document.getElementById('summary').innerHTML='<div style="color:#f44336">Error: '+e.message+'</div>';});
   }

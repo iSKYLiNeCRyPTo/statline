@@ -14,13 +14,14 @@ async function doSearch(gt, isRefresh, force){
   var _loadSteps=[
     {id:'s1',label:'Service record'},
     {id:'s2',label:'Match history'},
-    {id:'s3',label:'Team data'},
-    {id:'s4',label:'Analyzing data'}
+    {id:'s3',label:'Skill data'},
+    {id:'s4',label:'Team data'},
+    {id:'s5',label:'Analyzing data'}
   ];
   var _loadPlayer=null; // populated after step 1 returns
   function _renderLoadSteps(activeIdx,matchProgress){
     var _lsMobile=window.innerWidth<768;
-    var pct=Math.round((activeIdx/4)*100);
+    var pct=Math.round((activeIdx/5)*100);
     var p=_loadPlayer;
 
     // Step dots
@@ -30,12 +31,14 @@ async function doSearch(gt, isRefresh, force){
       if(active&&i===1&&matchProgress) label='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
       var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
       var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
-      var labelHtml=(active&&i===3)
+      var labelHtml=(active&&i===4)
         ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+        :(active&&i===2)
+        ?'Skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
         :label+(done?' ✓':'');
       dotsHtml+='<div style="display:flex;align-items:center;gap:10px">'
         +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
-        +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
+        +'<div '+(active&&i===1?'id="_lc_step2lbl" ':'')+' style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
         +'</div>';
     });
     dotsHtml+='</div>';
@@ -54,7 +57,7 @@ async function doSearch(gt, isRefresh, force){
         +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border)">'
         // Progress bar (no nameplate behind this)
         +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:18px;overflow:hidden">'
-        +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
+        +'<div id="_lc_prog" style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
         +'</div>'
         // Identity row — nameplate only behind this section
         +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
@@ -167,6 +170,8 @@ async function doSearch(gt, isRefresh, force){
     // Status line
     var statusLabel=status==='analyzing'
       ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+      :status==='skilldata'
+      ?'Fetching skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
       :status==='loading'
       ?'Updating stats<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
       :'Connecting<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>';
@@ -233,6 +238,18 @@ async function doSearch(gt, isRefresh, force){
           .then(function(r){return r.ok?r.json():null;})
           .then(function(p){
             if(!isCurrent()||!p||p.step!==2) return;
+            // If the player card is already rendered, only update the match label
+            // in-place — avoids destroying the <img> elements on every poll tick
+            if(_loadPlayer&&document.getElementById('_lc_step2lbl')){
+              var lbl=document.getElementById('_lc_step2lbl');
+              if(p.retrying){
+                lbl.innerHTML='<span style="color:var(--warning,#f59e0b)">⏳ Rate limit — retrying in '+p.retrying.secondsLeft+'s</span>'
+                  +(p.retrying.attempt>1?' <span style="color:var(--muted2)">(attempt '+p.retrying.attempt+'/'+p.retrying.maxAttempts+')</span>':'');
+              } else if(p.valid>=5){
+                lbl.textContent='Match history · '+p.valid+' ranked'+(p.scanned?' / '+p.scanned+' scanned':'');
+              }
+              return;
+            }
             _renderLoadSteps(1,p.valid>=5?{valid:p.valid,scanned:p.scanned||0}:null);
           }).catch(function(){});
       },400);
@@ -242,11 +259,14 @@ async function doSearch(gt, isRefresh, force){
     var fullD=await fullRes.json();
     if(_progressPoll) clearInterval(_progressPoll);
     if(!isCurrent()) return; // newer search started while match history was fetching
-    if(!isRefresh&&fullD.cached) _renderLoadSteps(2,null);
+    // Cached result: match history + skill data already done — jump to team data step
+    if(!isRefresh&&fullD.cached) _renderLoadSteps(3,null);
 
     if(fullD.success&&fullD.player){
-      // ── Step 3: Preload rival/nemesis pics ───────────────────────────────
+      // ── Step 3: Skill data (background fetch in progress on server) ──────
       if(!isRefresh) _renderLoadSteps(2,null);
+
+      // ── Step 4: Preload rival/nemesis pics (team data) ───────────────────
       var _rivals=(fullD.player.rivals||[]).concat(fullD.player.nemesisList||[],fullD.player.victimsList||[]);
       var _seenRiv={};
       _rivals=_rivals.filter(function(r){if(!r.gamertag||_seenRiv[r.gamertag.toLowerCase()])return false;_seenRiv[r.gamertag.toLowerCase()]=true;return true;});
@@ -265,18 +285,21 @@ async function doSearch(gt, isRefresh, force){
       var _picPromises=_rivals.filter(function(r){return r.gamerpicUrl;}).slice(0,30).map(function(r){
         return new Promise(function(resolve){var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;});
       });
+      if(!isRefresh) _renderLoadSteps(3,null); // skill data ✓, team data active
       await Promise.all(_picPromises);
 
       if(isRefresh){
-        // ── Refresh: Analyzing overlay on top of the refresh page ────────────
+        // ── Refresh: Skill data → Analyzing overlay ───────────────────────
+        _renderRefreshPage(fullD.player,'skilldata');
+        await new Promise(function(r){setTimeout(r,900);});
         _renderRefreshPage(fullD.player,'analyzing');
         await new Promise(function(r){setTimeout(r,3500);});
       } else {
-        // ── Loading: Analyzing step (new search — 3.5s showcase) ─────────────
+        // ── Loading: Analyzing step (new search — 3.5s showcase) ─────────
         await new Promise(function(r){setTimeout(r,200);});
-        _renderLoadSteps(3,null);
+        _renderLoadSteps(4,null); // team data ✓, analyzing active
         await new Promise(function(r){setTimeout(r,3500);});
-        _renderLoadSteps(4,null);
+        _renderLoadSteps(5,null); // all done
         await new Promise(function(r){setTimeout(r,120);});
       }
 
@@ -286,8 +309,8 @@ async function doSearch(gt, isRefresh, force){
       searchData=playerData; searchMode=false; selectedPlayer=0;
       activeTab='overview'; render();
       loadFullMatches(gt);
-      // ~20s later the server has finished background skill enrichment — force-refresh to pick it up
-      setTimeout(function(){ if(isCurrent()) loadFullMatches(gt, true); }, 22000);
+      // ~22s later the server has finished background skill enrichment — force-refresh to pick it up
+      setTimeout(function(){ if(isCurrent()) loadFullMatches(gt, true, 'Fetching skill data…'); }, 22000);
     }
   } catch(e){
     document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';

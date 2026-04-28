@@ -63,7 +63,7 @@ function renderSearch(){
   // Render with search player injected
   render();
 }
-async function loadFullMatches(gamertag, force){
+async function loadFullMatches(gamertag, force, bannerLabel){
   if(!gamertag) return;
   var cached=fullMatchCache[gamertag];
   if(!force&&cached&&cached._fetchedAt&&Date.now()-cached._fetchedAt<300000) return;
@@ -72,7 +72,7 @@ async function loadFullMatches(gamertag, force){
     var b=document.createElement('div');
     b.id='_fullMatchBanner';
     b.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);z-index:500;display:flex;align-items:center;gap:8px;pointer-events:none';
-    b.innerHTML='<div style="width:8px;height:8px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>Loading full match history…';
+    b.innerHTML='<div style="width:8px;height:8px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>'+(bannerLabel||'Loading full match history…');
     document.body.appendChild(b);
   };
   var _hideBanner=function(){
