@@ -14,6 +14,7 @@ const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
 const emblemPathCache = {};     // xuid -> gamecms image path
 const nameplatePathCache = {};  // xuid -> gamecms nameplate image path
+const serviceTagCache = {};     // xuid -> service tag string (e.g. "HODL")
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
 let emblemMappingFetchedAt = 0;
@@ -267,16 +268,50 @@ async function resolveEmblemForXuid(xuid) {
         }
         // Try to read nameplate/backdrop directly from Appearance before falling back to emblem mapping
         const appearance = custData?.Appearance || {};
-        const rawNpPath = appearance.NameplatePath || appearance.BackdropPath || appearance.SpartanBackdropPath
+        // Cache service tag
+        if (appearance.ServiceTag && !serviceTagCache[String(xuid)]) {
+          serviceTagCache[String(xuid)] = appearance.ServiceTag;
+        }
+        const rawNpPath = appearance.BackdropImagePath   // confirmed field name from API
+          || appearance.NameplatePath || appearance.BackdropPath || appearance.SpartanBackdropPath
           || appearance.BackgroundPath || appearance.BackgroundImagePath
           || appearance.Nameplate?.NameplatePath || appearance.Backdrop?.BackdropPath || null;
         if (rawNpPath && !nameplatePathCache[String(xuid)]) {
-          const npCms = rawNpPath.startsWith('waypoint:') ? rawNpPath
-            : rawNpPath.startsWith('progression/') ? `waypoint:${rawNpPath}`
-            : `waypoint:progression/${rawNpPath}`;
-          nameplatePathCache[String(xuid)] = npCms;
-          console.log(`[Emblem] Nameplate direct path for ${xuid}: ${npCms}`);
-          getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
+          // BackdropImagePath points to a JSON manifest, not directly to an image.
+          // Fetch the JSON to extract the real image path.
+          if (rawNpPath.endsWith('.json')) {
+            try {
+              const npJsonUrl = `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${rawNpPath}`;
+              const npJsonRes = await fetch(npJsonUrl, { headers });
+              if (npJsonRes.ok) {
+                const npJson = await npJsonRes.json();
+                // Try common field names for the actual image path
+                const imgPath = npJson.ImagePath || npJson.BackdropImagePath || npJson.Image?.Path
+                  || npJson.BackgroundImage || npJson.TexturePath || npJson.image || null;
+                if (imgPath) {
+                  const npCms = imgPath.startsWith('waypoint:') ? imgPath
+                    : imgPath.startsWith('progression/') ? `waypoint:${imgPath}`
+                    : `waypoint:progression/${imgPath}`;
+                  nameplatePathCache[String(xuid)] = npCms;
+                  console.log(`[Emblem] Nameplate image path for ${xuid}: ${npCms}`);
+                  getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
+                } else {
+                  // Log the JSON so we can find the right field
+                  console.log(`[Emblem] Backdrop JSON keys for ${xuid}:`, Object.keys(npJson).slice(0, 20));
+                  console.log(`[Emblem] Backdrop JSON preview:`, JSON.stringify(npJson).slice(0, 500));
+                }
+              }
+            } catch(e) {
+              console.log(`[Emblem] Failed to fetch backdrop JSON for ${xuid}:`, e.message);
+            }
+          } else {
+            const npCms = rawNpPath.startsWith('waypoint:') ? rawNpPath
+              : rawNpPath.startsWith('progression/') ? `waypoint:${rawNpPath}`
+              : `waypoint:progression/${rawNpPath}`;
+            nameplatePathCache[String(xuid)] = npCms;
+            console.log(`[Emblem] Nameplate direct path for ${xuid}: ${npCms}`);
+            getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
+          }
         }
         const emblemData = custData?.Appearance?.Emblem;
         const emblemJsonPath = emblemData?.EmblemPath;
@@ -548,8 +583,10 @@ async function fetchPlayerStats(gamertag) {
     if (!gamerpicUrl && xuidToGamerpic[String(xuid)]) gamerpicUrl = xuidToGamerpic[String(xuid)];
   } catch(e) { console.log('[Emblem/Profile] failed for', gamertag, e.message); }
 
+  const serviceTag = serviceTagCache[String(xuid)] || null;
+
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl,
+    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl, serviceTag,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
@@ -924,6 +961,7 @@ module.exports = {
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
   getNameplatePathCache: () => nameplatePathCache,
   getXuidToGt: () => xuidToGt,
+  getServiceTagCache: () => serviceTagCache,
   resolveGamertags,
   resolveEmblemForXuid, markEmblemMissing,
   getRedis,
