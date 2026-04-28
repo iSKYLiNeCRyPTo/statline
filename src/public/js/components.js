@@ -14,18 +14,23 @@ function playerEmblem(p,size){
   return'<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center"><img src="'+src+'"'+xuidAttr+' style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent)">'+initials+'</span></div>';
 }
 
-// After render, retry emblem images that may have loaded a gamerpic before the server cached the path
+// After render, retry emblem images that loaded a gamerpic placeholder before the server had the path cached
 function scheduleEmblemRetry(){
   clearTimeout(window._emblemRetryTimer);
   window._emblemRetryTimer=setTimeout(function(){
     document.querySelectorAll('img[data-emblem-xuid]').forEach(function(img){
       var xuid=img.getAttribute('data-emblem-xuid');
       if(!xuid)return;
-      // Re-request the emblem endpoint with a cache-bust — server should have it cached now
+      // Already showing a proper emblem endpoint — don't downgrade to a gamerpic redirect
+      var curSrc=img.currentSrc||img.src||'';
+      if(curSrc.indexOf('/api/emblem-img')!==-1)return;
+      // Re-request the emblem endpoint — server should have the path cached by now
       var retryUrl='/api/emblem?xuid='+xuid+'&_r='+Date.now();
       var probe=new Image();
       probe.onload=function(){
-        // Only swap if this looks different (can't easily tell, so always upgrade)
+        // Only swap if still showing a non-emblem src (e.g. gamerpic) — re-check in case img changed
+        var nowSrc=img.currentSrc||img.src||'';
+        if(nowSrc.indexOf('/api/emblem-img')!==-1)return;
         img.src=retryUrl;
       };
       probe.src=retryUrl;

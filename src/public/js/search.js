@@ -263,6 +263,9 @@ async function doSearch(gt, isRefresh, force){
     if(!isRefresh&&fullD.cached) _renderLoadSteps(3,null);
 
     if(fullD.success&&fullD.player){
+      // Sync _loadPlayer with full data so the loading screen gets the correct emblemUrl/nameplateUrl
+      // even if the statsOnly call resolved them as null (economy.svc can be flaky on first hit)
+      if(!isRefresh) _loadPlayer=fullD.player;
       // ── Step 3: Skill data (background fetch in progress on server) ──────
       if(!isRefresh) _renderLoadSteps(2,null);
 
