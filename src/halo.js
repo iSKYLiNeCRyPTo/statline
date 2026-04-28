@@ -281,32 +281,34 @@ async function resolveEmblemForXuid(xuid) {
           // Fetch the JSON to extract the real image path.
           if (rawNpPath.endsWith('.json')) {
             try {
-              // Inventory/ paths use progression/file/, not Waypoint/file/
+              // Inventory/ paths use progression/file/ — same as emblem JSONs
               const npJsonUrl = `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${rawNpPath}`;
               const npJsonRes = await fetch(npJsonUrl, { headers: freshHeaders });
-              console.log(`[Emblem] Backdrop JSON fetch ${npJsonRes.status} for ${xuid}: ${npJsonUrl}`);
               if (npJsonRes.ok) {
                 const npJson = await npJsonRes.json();
-                // Try common field names for the actual image path
-                const imgPath = npJson.ImagePath || npJson.BackdropImagePath || npJson.Image?.Path
-                  || npJson.BackgroundImage || npJson.TexturePath || npJson.image
-                  || npJson.CommonData?.DisplayPath?.Media?.MediaUrl?.Path || null;
-                if (imgPath) {
-                  const npCms = imgPath.startsWith('waypoint:') ? imgPath
-                    : imgPath.startsWith('images/') ? `waypoint:${imgPath}`
-                    : imgPath.startsWith('progression/') ? `waypoint:${imgPath}`
-                    : `waypoint:progression/${imgPath}`;
+                // Same structure as emblem JSON: CommonData.DisplayPath.Media
+                const dp = npJson?.CommonData?.DisplayPath;
+                const mediaUrlPath = dp?.Media?.MediaUrl?.Path || '';
+                const mediaFolderPath = dp?.Media?.FolderPath || dp?.FolderPath || '';
+                const mediaFileName = dp?.Media?.FileName || dp?.FileName || '';
+                let displayPath = '';
+                if (mediaUrlPath && /\.(png|jpg|webp)$/i.test(mediaUrlPath)) displayPath = mediaUrlPath;
+                else if (mediaFolderPath && mediaFileName) displayPath = `${mediaFolderPath}/${mediaFileName}`;
+                if (displayPath) {
+                  const npCms = displayPath.startsWith('images/') ? `waypoint:${displayPath}`
+                    : displayPath.startsWith('progression/') ? `images:${displayPath}`
+                    : `images:progression/${displayPath}`;
                   nameplatePathCache[String(xuid)] = npCms;
-                  console.log(`[Emblem] Nameplate image path for ${xuid}: ${npCms}`);
+                  console.log(`[Emblem] Nameplate resolved for ${xuid}: ${npCms}`);
                   getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
                 } else {
-                  // Log the full JSON so we can find the right field
-                  console.log(`[Emblem] Backdrop JSON keys for ${xuid}:`, Object.keys(npJson).slice(0, 20));
-                  console.log(`[Emblem] Backdrop JSON preview:`, JSON.stringify(npJson).slice(0, 800));
+                  console.log(`[Emblem] Backdrop JSON no image path for ${xuid}:`, JSON.stringify(npJson).slice(0, 400));
                 }
+              } else {
+                console.log(`[Emblem] Backdrop JSON ${npJsonRes.status} for ${xuid}`);
               }
             } catch(e) {
-              console.log(`[Emblem] Failed to fetch backdrop JSON for ${xuid}:`, e.message);
+              console.log(`[Emblem] Backdrop JSON error for ${xuid}:`, e.message);
             }
           } else {
             const npCms = rawNpPath.startsWith('waypoint:') ? rawNpPath
