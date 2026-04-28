@@ -52,19 +52,14 @@ async function doSearch(gt, isRefresh, force){
       var initials=gt.replace(/\s+/g,'').slice(0,2).toUpperCase();
       var topCsr2=null;
       if(p.csr){var cv2=Object.values(p.csr);if(cv2.length)topCsr2=cv2.sort(function(a,b){return b.value-a.value;})[0];}
-      var _hasBg2=p.nameplateUrl||p.nameplatePlateUrl;
+      var _npStyle2=p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');':'';
       leftHtml=''
         +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border)">'
-        // Progress bar (no nameplate behind this)
         +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:18px;overflow:hidden">'
         +'<div id="_lc_prog" style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
         +'</div>'
-        // Identity row — backdrop + plate layered behind this section
         +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
-        +(_hasBg2
-          ?(p.nameplateUrl?'<div style="position:absolute;inset:0;background-image:url(\''+p.nameplateUrl+'\');background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
-          +(p.nameplatePlateUrl?'<div style="position:absolute;inset:0;background-image:url(\''+p.nameplatePlateUrl+'\');background-size:cover;background-position:center center;opacity:0.7;pointer-events:none"></div>':'')
-          :'')
+        +(_npStyle2?'<div style="position:absolute;inset:0;'+_npStyle2+'background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
         +'<div style="position:relative;display:flex;align-items:center;gap:12px;padding:12px 8px">'
         +(p.emblemUrl
           ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
@@ -131,16 +126,12 @@ async function doSearch(gt, isRefresh, force){
     var gtFontSize = isMobile ? 'clamp(20px, 6vw, 30px)' : '34px';
     var statFontSize = isMobile ? '18px' : '20px';
 
-    // Player identity header — backdrop + plate layered
-    var _hasBg=p&&(p.nameplateUrl||p.nameplatePlateUrl);
+    // Player identity header — wrapped in nameplate container
+    var _npStyle=p&&p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');':'';
     var playerSection=''
       +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border);margin-bottom:18px">'
-      // Identity row — backdrop + plate scoped to just this section
       +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
-      +(_hasBg
-        ?((p.nameplateUrl?'<div style="position:absolute;inset:0;background-image:url(\''+p.nameplateUrl+'\');background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
-         +(p.nameplatePlateUrl?'<div style="position:absolute;inset:0;background-image:url(\''+p.nameplatePlateUrl+'\');background-size:cover;background-position:center center;opacity:0.7;pointer-events:none"></div>':''))
-        :'')
+      +(_npStyle?'<div style="position:absolute;inset:0;'+_npStyle+'background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
       +'<div style="position:relative;display:flex;align-items:center;gap:12px;padding:12px 8px">'
       +(p&&p.emblemUrl
         ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'

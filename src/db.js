@@ -14,9 +14,7 @@ async function getDb() {
       _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
       try {
         await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-        await _dbPool.query(`CREATE TABLE IF NOT EXISTS emblem_cache (xuid TEXT PRIMARY KEY, emblem_path TEXT, nameplate_path TEXT, nameplate_plate_path TEXT, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-        // Add nameplate_plate_path column if upgrading from an older schema
-        await _dbPool.query(`ALTER TABLE emblem_cache ADD COLUMN IF NOT EXISTS nameplate_plate_path TEXT`);
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS emblem_cache (xuid TEXT PRIMARY KEY, emblem_path TEXT, nameplate_path TEXT, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
       } catch(e) { console.error('[DB] schema error:', e.message); }
       return _dbPool;
     })();
@@ -63,15 +61,14 @@ async function flushXuidCache(xuidToGt) {
 }
 
 // Load persisted emblem/nameplate paths into the in-memory caches
-async function loadEmblemCache(emblemPathCache, nameplatePathCache, nameplatePlateCache) {
+async function loadEmblemCache(emblemPathCache, nameplatePathCache) {
   try {
     const db = await getDb();
     if (!db) return;
-    const result = await db.query('SELECT xuid, emblem_path, nameplate_path, nameplate_plate_path FROM emblem_cache');
+    const result = await db.query('SELECT xuid, emblem_path, nameplate_path FROM emblem_cache');
     result.rows.forEach(r => {
       if (r.emblem_path && !emblemPathCache[r.xuid]) emblemPathCache[r.xuid] = r.emblem_path;
       if (r.nameplate_path && !nameplatePathCache[r.xuid]) nameplatePathCache[r.xuid] = r.nameplate_path;
-      if (r.nameplate_plate_path && nameplatePlateCache && !nameplatePlateCache[r.xuid]) nameplatePlateCache[r.xuid] = r.nameplate_plate_path;
     });
     if (result.rows.length) console.log(`[DB] Loaded ${result.rows.length} emblem/nameplate paths from Postgres`);
   } catch(e) { console.error('[DB] loadEmblemCache error:', e.message); }
@@ -80,21 +77,20 @@ async function loadEmblemCache(emblemPathCache, nameplatePathCache, nameplatePla
 const _dbPersistedEmblems = new Set();
 
 // Write only NEW or UPDATED emblem/nameplate paths to DB
-async function flushEmblemCache(emblemPathCache, nameplatePathCache, nameplatePlateCache) {
+async function flushEmblemCache(emblemPathCache, nameplatePathCache) {
   try {
     const db = await getDb();
     if (!db) return;
-    const np2 = nameplatePlateCache || {};
-    const xuids = new Set([...Object.keys(emblemPathCache), ...Object.keys(nameplatePathCache), ...Object.keys(np2)]);
-    const toFlush = [...xuids].filter(x => !_dbPersistedEmblems.has(x) && (emblemPathCache[x] || nameplatePathCache[x] || np2[x]));
+    const xuids = new Set([...Object.keys(emblemPathCache), ...Object.keys(nameplatePathCache)]);
+    const toFlush = [...xuids].filter(x => !_dbPersistedEmblems.has(x) && (emblemPathCache[x] || nameplatePathCache[x]));
     if (!toFlush.length) return;
     for (let i = 0; i < toFlush.length; i += 200) {
       const batch = toFlush.slice(i, i + 200);
-      const vals = batch.map((_, j) => `($${j*4+1},$${j*4+2},$${j*4+3},$${j*4+4})`).join(',');
+      const vals = batch.map((_, j) => `($${j*3+1},$${j*3+2},$${j*3+3})`).join(',');
       await db.query(
-        `INSERT INTO emblem_cache (xuid, emblem_path, nameplate_path, nameplate_plate_path) VALUES ${vals}
-         ON CONFLICT (xuid) DO UPDATE SET emblem_path=EXCLUDED.emblem_path, nameplate_path=EXCLUDED.nameplate_path, nameplate_plate_path=EXCLUDED.nameplate_plate_path, ts=NOW()`,
-        batch.flatMap(x => [x, emblemPathCache[x] || null, nameplatePathCache[x] || null, np2[x] || null])
+        `INSERT INTO emblem_cache (xuid, emblem_path, nameplate_path) VALUES ${vals}
+         ON CONFLICT (xuid) DO UPDATE SET emblem_path=EXCLUDED.emblem_path, nameplate_path=EXCLUDED.nameplate_path, ts=NOW()`,
+        batch.flatMap(x => [x, emblemPathCache[x] || null, nameplatePathCache[x] || null])
       );
       batch.forEach(x => _dbPersistedEmblems.add(x));
     }
