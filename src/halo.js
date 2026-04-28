@@ -127,6 +127,11 @@ function getMapImageUrl(assetId) {
 // Enqueue xuids for resolution and start the runner if idle.
 // Callers should fire-and-forget: resolveGamertags([...xuids]).catch(()=>{})
 function resolveGamertags(xuids) {
+  const newXuids = xuids.filter(x => !xuidToGt[x]);
+  if (newXuids.length > 0) {
+    const caller = new Error().stack.split('\n').slice(1,4).join(' | ');
+    console.log(`[GT] resolveGamertags called with ${newXuids.length} unknown xuids — caller: ${caller}`);
+  }
   for (const x of xuids) { if (!xuidToGt[x]) _gtQueue.add(x); }
   if (!_gtRunning) _runGtResolver().catch(() => {});
   return Promise.resolve(); // always returns immediately
