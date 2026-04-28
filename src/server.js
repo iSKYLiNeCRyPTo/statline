@@ -757,6 +757,34 @@ app.post('/api/feedback', express.json(), async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Admin: delete searches by gamertag ────────────────────────────────────────
+app.post('/api/admin/delete-searches', express.json(), async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
+  const { gamertags } = req.body || {};
+  if (!Array.isArray(gamertags) || !gamertags.length) return res.status(400).json({ error: 'gamertags array required' });
+  const lower = gamertags.map(g => g.toLowerCase());
+  // Remove from in-memory log
+  const before = _memSearchLog.length;
+  for (let i = _memSearchLog.length - 1; i >= 0; i--) {
+    if (lower.includes(_memSearchLog[i].gamertag.toLowerCase())) _memSearchLog.splice(i, 1);
+  }
+  // Remove from DB
+  let dbDeleted = 0;
+  try {
+    const db = await getDb();
+    if (db) {
+      const r = await db.query(
+        `DELETE FROM search_log WHERE LOWER(gamertag) = ANY($1::text[])`,
+        [lower]
+      );
+      dbDeleted = r.rowCount || 0;
+    }
+  } catch(e) { console.error('[Admin] delete-searches DB error:', e.message); }
+  console.log(`[Admin] Deleted searches for: ${gamertags.join(', ')} — mem: ${before - _memSearchLog.length}, db: ${dbDeleted}`);
+  res.json({ success: true, memRemoved: before - _memSearchLog.length, dbRemoved: dbDeleted });
+});
+
 app.get('/api/admin/feedback', async (req, res) => {
   const pass = req.query.pass || req.headers['x-admin-pass'];
   if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
@@ -778,7 +806,7 @@ app.get('/api/admin', (req, res) => {
     return res.send(`<!DOCTYPE html><html><body style="font-family:monospace;background:#0a0f1a;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><form method="get"><input name="pass" type="password" placeholder="Password" style="padding:8px;background:#1a2035;border:1px solid #333;color:#fff;border-radius:4px;margin-right:8px"><button type="submit" style="padding:8px 16px;background:#00d4ff;color:#000;border:none;border-radius:4px;cursor:pointer">Enter</button></form></body></html>`);
   }
   res.send(`<!DOCTYPE html><html><head><title>fragr // analytics</title>
-  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}.stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}.stat-lbl{font-size:10px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}</style></head>
+  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}.stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}.stat-lbl{font-size:10px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}.del-btn{background:transparent;border:none;color:#333;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:3px;transition:color 0.15s}.del-btn:hover{color:#f44336}</style></head>
   <body><h1>// fragr analytics</h1>
   <div class="summary" id="summary">Loading...</div>
   <h2>// feedback &amp; contact</h2>
@@ -787,14 +815,24 @@ app.get('/api/admin', (req, res) => {
   <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
   <h2>// recent searches</h2>
   <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
-  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th></tr></thead><tbody id="tbody"></tbody></table>
+  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th><th></th></tr></thead><tbody id="tbody"></tbody></table>
   <script>
   var allRows=[];
+  var PASS='${pass}';
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
   function fmtSec(s){if(!s)return'—';var n=parseFloat(s);return n>=60?(n/60).toFixed(1)+'m':n+'s';}
   function fmtMins(m){if(!m)return'—';var n=parseFloat(m);if(n<60)return Math.round(n)+'m';var h=Math.floor(n/60),rm=Math.round(n%60);return h+'h '+(rm?rm+'m':'');}
+  function deleteGamertag(gt){
+    if(!confirm('Delete ALL searches for "'+gt+'"?'))return;
+    fetch('/api/admin/delete-searches?pass='+PASS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gamertags:[gt]})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.success){allRows=allRows.filter(function(r){return r.gamertag.toLowerCase()!==gt.toLowerCase();});renderRows(allRows);}
+        else alert('Error: '+(d.error||'unknown'));
+      }).catch(function(e){alert('Error: '+e.message);});
+  }
   function loadData(){
-    fetch('/api/admin/searches?pass=${pass}').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){
+    fetch('/api/admin/searches?pass='+PASS).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){
       allRows=d.searches||[];
       var dev=d.devices||{};
       document.getElementById('summary').innerHTML='<div class="stat"><div class="stat-val">'+d.total+'</div><div class="stat-lbl">SEARCHES</div></div><div class="stat"><div class="stat-val">'+d.uniquePlayers+'</div><div class="stat-lbl">UNIQUE PLAYERS</div></div><div class="stat"><div class="stat-val">'+(d.top[0]?d.top[0].gt:'—')+'</div><div class="stat-lbl">MOST SEARCHED</div></div><div class="stat"><div class="stat-val">'+(dev.mobile||0)+'</div><div class="stat-lbl">MOBILE</div></div><div class="stat"><div class="stat-val">'+(dev.desktop||0)+'</div><div class="stat-lbl">DESKTOP</div></div>';
@@ -804,7 +842,7 @@ app.get('/api/admin', (req, res) => {
     }).catch(function(e){document.getElementById('summary').innerHTML='<div style="color:#f44336">Error: '+e.message+'</div>';});
   }
   function loadFeedback(){
-    fetch('/api/admin/feedback?pass=${pass}').then(r=>r.json()).then(function(rows){
+    fetch('/api/admin/feedback?pass='+PASS).then(r=>r.json()).then(function(rows){
       document.getElementById('fbtbody').innerHTML=rows.length?rows.map(function(f){
         var typeColor=f.type==='contact'?'#ffc107':'#00d4ff';
         var msg=f.message.replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -814,7 +852,7 @@ app.get('/api/admin', (req, res) => {
     }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="5" class="muted">Failed to load</td></tr>';});
   }
   loadData();loadFeedback();setInterval(loadData,30000);setInterval(loadFeedback,60000);
-  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(function(s){var cached=String(s.cached);var cs=cached==='cached'?'<span class="muted">cached</span>':cached==='inflight'?'<span style="color:#555">inflight</span>':cached==='error'?'<span class="loss">error</span>':'<span style="color:#888">fresh</span>';return'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+ua2device(s.user_agent)+'</td><td>'+cs+'</td><td class="muted">'+(s.duration_ms?s.duration_ms+'ms':'—')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td></tr>';}).join('');}
+  function renderRows(rows){document.getElementById('tbody').innerHTML=rows.map(function(s){var cached=String(s.cached);var cs=cached==='cached'?'<span class="muted">cached</span>':cached==='inflight'?'<span style="color:#555">inflight</span>':cached==='error'?'<span class="loss">error</span>':'<span style="color:#888">fresh</span>';var gt=s.gamertag.replace(/'/g,"\\'");return'<tr><td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td><td style="color:#00d4ff">'+s.gamertag+'</td><td class="muted">'+s.ip+'</td><td>'+ua2device(s.user_agent)+'</td><td>'+cs+'</td><td class="muted">'+(s.duration_ms?s.duration_ms+'ms':'—')+'</td><td>'+(s.success?'<span class="win">✓</span>':'<span class="loss">✗</span>')+'</td><td><button class="del-btn" onclick="deleteGamertag(\''+gt+'\')" title="Delete all searches for this gamertag">🗑</button></td></tr>';}).join('');}
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(function(r){return r.gamertag.toLowerCase().includes(q);}):allRows);}
   </script></body></html>`);
 });
