@@ -282,7 +282,7 @@ async function resolveEmblemForXuid(xuid) {
           if (rawNpPath.endsWith('.json')) {
             try {
               const npJsonUrl = `https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${rawNpPath}`;
-              const npJsonRes = await fetch(npJsonUrl, { headers });
+              const npJsonRes = await fetch(npJsonUrl, { headers: freshHeaders });
               if (npJsonRes.ok) {
                 const npJson = await npJsonRes.json();
                 // Try common field names for the actual image path
