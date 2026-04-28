@@ -361,7 +361,12 @@ app.get('/api/emblem-img', async (req, res) => {
       if (p.startsWith('waypoint:')) {
         candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/${p.slice('waypoint:'.length)}`);
       } else if (p.startsWith('images:')) {
-        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/${p.slice('images:'.length)}`);
+        const imgSuffix = p.slice('images:'.length);
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/${imgSuffix}`);
+        // Some paths have progression/Progression/ (double) — also try deduplicated and progression/file/
+        candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${imgSuffix}`);
+        const deduped = imgSuffix.replace(/^progression\/Progression\//i, 'progression/');
+        if (deduped !== imgSuffix) candidates.push(`https://gamecms-hacs.svc.halowaypoint.com/hi/Images/file/${deduped}`);
       } else {
         const parts = p.split('/');
         const withFile = parts.length > 1 ? parts[0]+'/file/'+parts.slice(1).join('/') : 'progression/file/'+p;

@@ -332,7 +332,8 @@ async function resolveEmblemForXuid(xuid) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
-            if (configMatch?.nameplateCmsPath) {
+            // Only use mapping nameplate if backdrop JSON didn't already resolve one
+            if (configMatch?.nameplateCmsPath && !nameplatePathCache[String(xuid)]) {
               nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
               getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
             }
