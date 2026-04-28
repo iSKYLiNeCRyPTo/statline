@@ -2435,17 +2435,17 @@ async function doSearch(gt, isRefresh, force){
       var initials=gt.replace(/\s+/g,'').slice(0,2).toUpperCase();
       var topCsr2=null;
       if(p.csr){var cv2=Object.values(p.csr);if(cv2.length)topCsr2=cv2.sort(function(a,b){return b.value-a.value;})[0];}
-      var _npStyle2=p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');background-size:cover;background-position:center;':'';
+      var _npStyle2=p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');':'';
       leftHtml=''
-        +'<div style="position:relative;border-radius:12px;overflow:hidden;padding:20px;background:var(--surface2);border:1px solid var(--border)">'
-        +(_npStyle2?'<div style="position:absolute;inset:0;'+_npStyle2+'opacity:0.44;border-radius:12px;pointer-events:none"></div>':'')
-        +'<div style="position:relative">'
-        // Progress bar
+        +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border)">'
+        // Progress bar (no nameplate behind this)
         +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:18px;overflow:hidden">'
         +'<div style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
         +'</div>'
-        // Emblem + name
-        +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">'
+        // Identity row — nameplate only behind this section
+        +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
+        +(_npStyle2?'<div style="position:absolute;inset:0;'+_npStyle2+'background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
+        +'<div style="position:relative;display:flex;align-items:center;gap:12px;padding:12px 8px">'
         +(p.emblemUrl
           ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
           :'<div style="width:'+emblemSize+';height:'+emblemSize+';background:var(--surface3);border:2px solid var(--border2);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--accent)">'+initials+'</div>')
@@ -2453,7 +2453,8 @@ async function doSearch(gt, isRefresh, force){
         +'<div style="font-family:Rajdhani,sans-serif;font-size:'+gtFontSize+';font-weight:700;letter-spacing:2px;color:var(--text);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+gt+'</div>'
         +(p&&p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);margin-top:3px;letter-spacing:1.5px">['+p.serviceTag+']</div>':'')
         +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px;letter-spacing:1px">HALO INFINITE · RANKED</div>'
-        +'</div></div>'
+        +'</div>'
+        +'</div></div>'  // close position:relative content + nameplate row
         // Stat boxes
         +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">';
       var statItems2=[
@@ -2470,7 +2471,7 @@ async function doSearch(gt, isRefresh, force){
       leftHtml+=''
         +'</div>'
         +dotsHtml
-        +'</div></div>'; // close position:relative + nameplate container
+        +'</div>'; // close outer card
     } else {
       // Before step 1: plain gamertag + progress bar + dots
       leftHtml=''
@@ -2511,12 +2512,13 @@ async function doSearch(gt, isRefresh, force){
     var statFontSize = isMobile ? '18px' : '20px';
 
     // Player identity header — wrapped in nameplate container
-    var _npStyle=p&&p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');background-size:cover;background-position:center;':'';
+    var _npStyle=p&&p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');':'';
     var playerSection=''
-      +'<div style="position:relative;border-radius:12px;overflow:hidden;padding:20px;background:var(--surface2);border:1px solid var(--border);margin-bottom:18px">'
-      +(_npStyle?'<div style="position:absolute;inset:0;'+_npStyle+'opacity:0.33;border-radius:12px;pointer-events:none"></div>':'')
-      +'<div style="position:relative">'
-      +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">'
+      +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border);margin-bottom:18px">'
+      // Identity row — nameplate scoped to just this section
+      +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
+      +(_npStyle?'<div style="position:absolute;inset:0;'+_npStyle+'background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
+      +'<div style="position:relative;display:flex;align-items:center;gap:12px;padding:12px 8px">'
       +(p&&p.emblemUrl
         ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
         :'<div style="width:'+emblemSize+';height:'+emblemSize+';background:var(--surface3);border:2px solid var(--border2);border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--accent)">'+initials+'</div>')
@@ -2524,7 +2526,8 @@ async function doSearch(gt, isRefresh, force){
       +'<div style="font-family:Rajdhani,sans-serif;font-size:'+gtFontSize+';font-weight:700;letter-spacing:2px;color:var(--text);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+gt+'</div>'
       +(p&&p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);margin-top:3px;letter-spacing:1.5px">['+p.serviceTag+']</div>':'')
       +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px;letter-spacing:1px">HALO INFINITE · RANKED</div>'
-      +'</div></div>';
+      +'</div>'
+      +'</div></div>'; // close content row + nameplate container
 
     // Stats grid
     if(p&&p.stats){
@@ -2557,8 +2560,7 @@ async function doSearch(gt, isRefresh, force){
       +'<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;box-shadow:0 0 6px var(--accent);flex-shrink:0"></div>'
       +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+statusLabel+'</div>'
       +'</div>'
-      +'</div>' // close position:relative inner
-      +'</div>'; // close nameplate container
+      +'</div>'; // close outer card
 
     var html;
     if(isMobile){
