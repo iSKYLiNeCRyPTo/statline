@@ -1,6 +1,8 @@
 const fetch = require('node-fetch');
 const { flushXuidCache } = require('./db');
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 // --- Redis (disabled — using in-memory cache only) ---
 // Uncomment and configure when Redis is working
 async function getRedis() {
