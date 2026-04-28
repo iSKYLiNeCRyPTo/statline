@@ -3,17 +3,23 @@ require('dotenv').config();
 const { Pool } = require('pg');
 
 let _dbPool = null;
+let _dbInitPromise = null; // shared across concurrent callers — prevents race on startup
 const _dbPersistedXuids = new Set();
 
 async function getDb() {
-  if (!_dbPool && process.env.DATABASE_URL) {
-    _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-    try {
-      await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-      await _dbPool.query(`CREATE TABLE IF NOT EXISTS emblem_cache (xuid TEXT PRIMARY KEY, emblem_path TEXT, nameplate_path TEXT, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-    } catch(e) { console.error('[DB] schema error:', e.message); }
+  if (_dbPool) return _dbPool;
+  if (!process.env.DATABASE_URL) return null;
+  if (!_dbInitPromise) {
+    _dbInitPromise = (async () => {
+      _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      try {
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS emblem_cache (xuid TEXT PRIMARY KEY, emblem_path TEXT, nameplate_path TEXT, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+      } catch(e) { console.error('[DB] schema error:', e.message); }
+      return _dbPool;
+    })();
   }
-  return _dbPool;
+  return _dbInitPromise;
 }
 
 // Load all persisted xuids into the provided in-memory map and mark them as persisted
