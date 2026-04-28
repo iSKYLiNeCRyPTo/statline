@@ -12,8 +12,9 @@ const xuidToGt = {};           // xuid -> gamertag
 const xuidToGamerpic = {};     // xuid -> gamerpic URL
 const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
-const emblemPathCache = {};     // xuid -> gamecms image path
-const nameplatePathCache = {};  // xuid -> gamecms nameplate image path
+const emblemPathCache = {};      // xuid -> gamecms emblem image path
+const nameplatePathCache = {};   // xuid -> gamecms backdrop image path (gray V-shape background scene)
+const nameplatePlateCache = {};  // xuid -> gamecms nameplate plate path (colored overlay plate, e.g. blue nameplate)
 const serviceTagCache = {};     // xuid -> service tag string (e.g. "HODL")
 const emblemInFlight = {};      // xuid -> promise (dedup)
 let emblemMapping = null;
@@ -42,20 +43,30 @@ async function fetchClearanceToken(xuid) {
   if (cachedClearance && Date.now() - clearanceFetchedAt < 3600000) return cachedClearance;
   if (clearanceInFlight) return clearanceInFlight;
   clearanceInFlight = (async () => {
-    try {
-      const res = await fetch(
-        `https://settings.svc.halowaypoint.com/oban/flight-configurations/titles/hi/audiences/RETAIL/players/xuid(${xuid})/active?sandbox=UNUSED&build=6.10022.18539`,
-        { headers: { 'x-343-authorization-spartan': process.env.SPARTAN_TOKEN || '', 'Accept': 'application/json' } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        cachedClearance = data.FlightConfigurationId || data.flightConfigurationId || null;
-        clearanceFetchedAt = Date.now();
-        console.log('[Clearance] OK:', cachedClearance ? 'set' : 'null');
-        getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const res = await fetch(
+          `https://settings.svc.halowaypoint.com/oban/flight-configurations/titles/hi/audiences/RETAIL/players/xuid(${xuid})/active?sandbox=UNUSED&build=6.10022.18539`,
+          { headers: { 'x-343-authorization-spartan': process.env.SPARTAN_TOKEN || '', 'Accept': 'application/json' } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          cachedClearance = data.FlightConfigurationId || data.flightConfigurationId || null;
+          clearanceFetchedAt = Date.now();
+          console.log('[Clearance] OK:', cachedClearance ? 'set' : 'null');
+          getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
+          break;
+        } else {
+          console.warn(`[Clearance] HTTP ${res.status} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+          if (attempt < MAX_ATTEMPTS) await sleep(1500);
+        }
+      } catch(e) {
+        console.error(`[Clearance] attempt ${attempt} error:`, e.message);
+        if (attempt < MAX_ATTEMPTS) await sleep(1500);
       }
-    } catch(e) { console.error('[Clearance]', e.message); }
-    finally { clearanceInFlight = null; }
+    }
+    clearanceInFlight = null;
     return cachedClearance;
   })();
   return clearanceInFlight;
@@ -66,8 +77,8 @@ async function loadCaches() {
   const c = await getRedis();
   if (!c) return;
   try {
-    const [gtRaw, gpRaw, emblemRaw, npRaw, clearRaw] = await Promise.all([
-      c.get('xuidToGt'), c.get('xuidToGamerpic'), c.get('emblemPathCache'), c.get('nameplatePathCache'), c.get('clearanceToken')
+    const [gtRaw, gpRaw, emblemRaw, npRaw, plRaw, clearRaw] = await Promise.all([
+      c.get('xuidToGt'), c.get('xuidToGamerpic'), c.get('emblemPathCache'), c.get('nameplatePathCache'), c.get('nameplatePlateCache'), c.get('clearanceToken')
     ]);
     if (gtRaw) Object.assign(xuidToGt, JSON.parse(gtRaw));
     if (gpRaw) Object.assign(xuidToGamerpic, JSON.parse(gpRaw));
@@ -83,6 +94,12 @@ async function loadCaches() {
         if (p && p !== '') nameplatePathCache[xuid] = p;
       }
     }
+    if (plRaw) {
+      const loaded = JSON.parse(plRaw) || {};
+      for (const [xuid, p] of Object.entries(loaded)) {
+        if (p && p !== '') nameplatePlateCache[xuid] = p;
+      }
+    }
     if (clearRaw) {
       const cl = JSON.parse(clearRaw);
       if (cl?.token && Date.now() - cl.fetchedAt < 3600000) {
@@ -91,7 +108,7 @@ async function loadCaches() {
         console.log('[Clearance] Loaded from Redis');
       }
     }
-    console.log(`[Cache] Loaded: ${Object.keys(xuidToGt).length} gamertags, ${Object.keys(emblemPathCache).length} emblems, ${Object.keys(nameplatePathCache).length} nameplates`);
+    console.log(`[Cache] Loaded: ${Object.keys(xuidToGt).length} gamertags, ${Object.keys(emblemPathCache).length} emblems, ${Object.keys(nameplatePathCache).length} backdrops, ${Object.keys(nameplatePlateCache).length} nameplate plates`);
   } catch(e) { console.error('[Cache] Load failed:', e.message); }
 }
 loadCaches();
@@ -286,20 +303,41 @@ async function resolveEmblemForXuid(xuid) {
               const npJsonRes = await fetch(npJsonUrl, { headers: freshHeaders });
               if (npJsonRes.ok) {
                 const npJson = await npJsonRes.json();
-                // Same structure as emblem JSON: CommonData.DisplayPath.Media
+                // Log full backdrop JSON structure once so we can identify nameplate vs backdrop fields
+                if (!resolveEmblemForXuid._loggedBackdropJson) {
+                  resolveEmblemForXuid._loggedBackdropJson = true;
+                  console.log('[Emblem] Full backdrop JSON:', JSON.stringify(npJson, null, 2).slice(0, 3000));
+                }
+                // The backdrop JSON has two distinct images:
+                // 1) CommonData.DisplayPath → the background/backdrop (gray V-shape)
+                // 2) Nameplate-specific field → the colored overlay plate (blue nameplate)
+                // Try nameplate overlay fields first, then fall back to backdrop
+                const npOverlay = npJson?.NameplateOverlayPath || npJson?.NameplatePath
+                  || npJson?.CommonData?.NameplateOverlayPath || npJson?.CommonData?.NameplatePath
+                  || npJson?.OverlayPath || npJson?.CommonData?.OverlayPath || null;
                 const dp = npJson?.CommonData?.DisplayPath;
                 const mediaUrlPath = dp?.Media?.MediaUrl?.Path || '';
                 const mediaFolderPath = dp?.Media?.FolderPath || dp?.FolderPath || '';
                 const mediaFileName = dp?.Media?.FileName || dp?.FileName || '';
-                let displayPath = '';
-                if (mediaUrlPath && /\.(png|jpg|webp)$/i.test(mediaUrlPath)) displayPath = mediaUrlPath;
-                else if (mediaFolderPath && mediaFileName) displayPath = `${mediaFolderPath}/${mediaFileName}`;
+                let backdropPath = '';
+                if (mediaUrlPath && /\.(png|jpg|webp)$/i.test(mediaUrlPath)) backdropPath = mediaUrlPath;
+                else if (mediaFolderPath && mediaFileName) backdropPath = `${mediaFolderPath}/${mediaFileName}`;
+                // Use overlay if available, otherwise use backdrop
+                const displayPath = npOverlay || backdropPath;
                 if (displayPath) {
                   const npCms = displayPath.startsWith('images/') ? `waypoint:${displayPath}`
                     : displayPath.startsWith('progression/') ? `images:${displayPath}`
                     : `images:progression/${displayPath}`;
                   nameplatePathCache[String(xuid)] = npCms;
-                  console.log(`[Emblem] Nameplate resolved for ${xuid}: ${npCms}`);
+                  // Also store the backdrop separately if we found both
+                  if (npOverlay && backdropPath) {
+                    const bdCms = backdropPath.startsWith('images/') ? `waypoint:${backdropPath}`
+                      : backdropPath.startsWith('progression/') ? `images:${backdropPath}`
+                      : `images:progression/${backdropPath}`;
+                    console.log(`[Emblem] Nameplate overlay for ${xuid}: ${npCms} | backdrop: ${bdCms}`);
+                  } else {
+                    console.log(`[Emblem] Nameplate resolved for ${xuid}: ${npCms} (${npOverlay ? 'overlay' : 'backdrop only'})`);
+                  }
                   getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
                 } else {
                   console.log(`[Emblem] Backdrop JSON no image path for ${xuid}:`, JSON.stringify(npJson).slice(0, 400));
@@ -332,10 +370,11 @@ async function resolveEmblemForXuid(xuid) {
             const configKey = configurationId ? String(configurationId) : null;
             const configMatch = (configKey && emblemEntry[configKey]) ? emblemEntry[configKey] : Object.values(emblemEntry)[0];
             if (configMatch?.emblemCmsPath) candidates.push('waypoint:' + configMatch.emblemCmsPath);
-            // Only use mapping nameplate if backdrop JSON didn't already resolve one
-            if (configMatch?.nameplateCmsPath && !nameplatePathCache[String(xuid)]) {
-              nameplatePathCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
-              getRedis().then(c => c && c.set('nameplatePathCache', JSON.stringify(nameplatePathCache))).catch(() => {});
+            // Nameplate plate (colored overlay, e.g. blue nameplate) — always store separately from the backdrop
+            if (configMatch?.nameplateCmsPath && !nameplatePlateCache[String(xuid)]) {
+              nameplatePlateCache[String(xuid)] = 'waypoint:' + configMatch.nameplateCmsPath;
+              console.log(`[Emblem] Nameplate plate for ${xuid}: waypoint:${configMatch.nameplateCmsPath}`);
+              getRedis().then(c => c && c.set('nameplatePlateCache', JSON.stringify(nameplatePlateCache))).catch(() => {});
             }
           }
           // 2) Convention construct: images/emblems/<emblemId>_<configId>.png (negative configIds use 'n' prefix)
@@ -542,8 +581,16 @@ async function fetchPlayerStats(gamertag) {
       });
   } catch(e) {}
 
-  // Emblem + gamerpic + nameplate
-  let emblemUrl = null, gamerpicUrl = null, nameplateUrl = null;
+  // Emblem + gamerpic + nameplate backdrop + nameplate plate
+  let emblemUrl = null, gamerpicUrl = null, nameplateUrl = null, nameplatePlateUrl = null;
+  function _buildNpUrls(xuid) {
+    const np = nameplatePathCache[String(xuid)];
+    const pl = nameplatePlateCache[String(xuid)];
+    return {
+      nameplateUrl: np ? `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate` : null,
+      nameplatePlateUrl: pl ? `/api/emblem-img?path=${encodeURIComponent(pl)}&xuid=${xuid}&type=nameplate` : null,
+    };
+  }
   try {
     let cachedPath = emblemPathCache[String(xuid)];
     // Migration: legacy cache entries are single-candidate (no ';images:' fallback). Treat as miss to re-resolve.
@@ -553,15 +600,14 @@ async function fetchPlayerStats(gamertag) {
     }
     if (cachedPath && cachedPath !== '__none__') {
       emblemUrl = `/api/emblem-img?path=${encodeURIComponent(cachedPath)}&xuid=${xuid}`;
-      const np = nameplatePathCache[String(xuid)];
-      if (np) {
-        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
+      const npUrls = _buildNpUrls(xuid);
+      if (npUrls.nameplateUrl || npUrls.nameplatePlateUrl) {
+        ({ nameplateUrl, nameplatePlateUrl } = npUrls);
       } else {
         // Emblem cached but nameplate not — re-resolve to get it (fresh server start)
         try {
           await resolveEmblemForXuid(xuid);
-          const np2 = nameplatePathCache[String(xuid)];
-          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}&type=nameplate`;
+          ({ nameplateUrl, nameplatePlateUrl } = _buildNpUrls(xuid));
         } catch(e) {}
       }
     } else if (!cachedPath) {
@@ -570,20 +616,17 @@ async function fetchPlayerStats(gamertag) {
       if (result?.emblemPath && result.emblemPath !== '__none__') {
         emblemUrl = `/api/emblem-img?path=${encodeURIComponent(result.emblemPath)}&xuid=${xuid}`;
       }
-      const np = nameplatePathCache[String(xuid)];
-      if (np) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
+      ({ nameplateUrl, nameplatePlateUrl } = _buildNpUrls(xuid));
     } else {
       // cachedPath === '__none__' (emblem image failed before) — emblem stays hidden but still
       // check nameplate independently: the config resolve may have cached it even if the image 404'd.
-      const np = nameplatePathCache[String(xuid)];
-      if (np) {
-        nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np)}&xuid=${xuid}&type=nameplate`;
+      const npUrls = _buildNpUrls(xuid);
+      if (npUrls.nameplateUrl || npUrls.nameplatePlateUrl) {
+        ({ nameplateUrl, nameplatePlateUrl } = npUrls);
       } else {
-        // No nameplate cached either — re-resolve to pick up the nameplate path
         try {
           await resolveEmblemForXuid(xuid);
-          const np2 = nameplatePathCache[String(xuid)];
-          if (np2) nameplateUrl = `/api/emblem-img?path=${encodeURIComponent(np2)}&xuid=${xuid}&type=nameplate`;
+          ({ nameplateUrl, nameplatePlateUrl } = _buildNpUrls(xuid));
         } catch(e) {}
       }
     }
@@ -593,7 +636,7 @@ async function fetchPlayerStats(gamertag) {
   const serviceTag = serviceTagCache[String(xuid)] || null;
 
   return {
-    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl, serviceTag,
+    gamertag, xuid, emblemUrl, gamerpicUrl, nameplateUrl, nameplatePlateUrl, serviceTag,
     csr: Object.keys(csrResults).length ? csrResults : null,
     careerRank: finalCareerRank,
     lastUpdated: new Date().toISOString(),
@@ -1028,6 +1071,7 @@ module.exports = {
   fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
   getNameplatePathCache: () => nameplatePathCache,
+  getNameplatePlateCache: () => nameplatePlateCache,
   getXuidToGt: () => xuidToGt,
   getServiceTagCache: () => serviceTagCache,
   resolveGamertags,

@@ -10,7 +10,8 @@ function playerEmblem(p,size){
   var src=p.emblemUrl||(p.xuid?'/api/emblem?xuid='+p.xuid:null)||p.gamerpicUrl||null;
   if(!src)return fallback;
   // data-emblem-xuid lets the retry pass upgrade gamerpics to emblems after server caches them
-  var xuidAttr=p.xuid?' data-emblem-xuid="'+p.xuid+'"':'';
+  // Only attach retry attr when we're NOT already using a resolved emblem path — prevents scheduleEmblemRetry from swapping a good emblem for a gamerpic
+  var xuidAttr=(!p.emblemUrl&&p.xuid)?' data-emblem-xuid="'+p.xuid+'"':'';
   return'<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center"><img src="'+src+'"'+xuidAttr+' style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display=&quot;none&quot;;this.nextSibling.style.display=&quot;flex&quot;"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;font-size:'+fs+'px;font-weight:700;color:var(--accent)">'+initials+'</span></div>';
 }
 

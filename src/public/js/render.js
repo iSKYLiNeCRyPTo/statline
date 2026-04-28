@@ -402,7 +402,11 @@ function render(){
   var html=fetchErrBanner||'';
   html+='<div class="tab-panel'+(activeTab==='overview'?' active':'')+'" data-tab="overview">';
   html+='<div class="hero">'
-    +(p.nameplateUrl?'<div class="hero-nameplate" style="background-image:url(\''+p.nameplateUrl+'\')"></div>':'')
+    // Nameplate: backdrop scene (gray V-shape) + plate overlay (colored nameplate) stacked
+  +(p.nameplateUrl||p.nameplatePlateUrl?'<div class="hero-nameplate">'
+    +(p.nameplateUrl?'<div class="hero-nameplate-backdrop" style="background-image:url(\''+p.nameplateUrl+'\')"></div>':'')
+    +(p.nameplatePlateUrl?'<div class="hero-nameplate-plate" style="background-image:url(\''+p.nameplatePlateUrl+'\')"></div>':'')
+    +'</div>':'')
     +'<div style="display:flex;align-items:flex-start;gap:14px;position:relative">'+playerEmblem(p,72)+'<div><div style="display:flex;align-items:center;gap:8px"><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><button id="heroFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="background:transparent;border:none;padding:2px;cursor:pointer;color:var(--muted);flex-shrink:0;line-height:1" onmouseover="this.style.color=\'#ffc107\'" onmouseout="updateFavBtn()"><svg id="heroFavIcon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>'+(p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1.5px;margin-top:2px;margin-bottom:2px">['+p.serviceTag+']</div>':'')+'<div class="hero-sub">Halo Infinite · '+s.matchesPlayed.toLocaleString()+' matches · '+s.wins+'W / '+s.losses+'L'+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+s.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+s.winRate+'%"></div></div></div></div></div>'
     +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;position:relative">'
     +(p.careerRank&&p.careerRank.adornmentUrl?'<img class="hero-adornment" src="'+p.careerRank.adornmentUrl+'" alt="Career Rank" onerror="this.style.display=\'none\'">':'')

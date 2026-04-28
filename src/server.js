@@ -30,13 +30,13 @@ getDb();
 
 // Load xuid + emblem/nameplate caches from Postgres into halo.js in-memory maps on startup
 loadXuidCache(getXuidToGt());
-const { getEmblemPathCache, getNameplatePathCache } = require('./halo');
-loadEmblemCache(getEmblemPathCache(), getNameplatePathCache());
+const { getEmblemPathCache, getNameplatePathCache, getNameplatePlateCache } = require('./halo');
+loadEmblemCache(getEmblemPathCache(), getNameplatePathCache(), getNameplatePlateCache());
 
 // Flush new xuids to Postgres every 2 minutes
 setInterval(() => flushXuidCache(getXuidToGt()), 2 * 60 * 1000);
 // Flush new emblem/nameplate paths every 5 minutes
-setInterval(() => flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()), 5 * 60 * 1000);
+setInterval(() => flushEmblemCache(getEmblemPathCache(), getNameplatePathCache(), getNameplatePlateCache()), 5 * 60 * 1000);
 
 async function logSearch(gamertag, userAgent, cached, success, durationMs) {
   const entry = { ts: new Date().toISOString(), gamertag, user_agent: userAgent||null, cached: String(cached), success: !!success, duration_ms: durationMs||null };
@@ -266,7 +266,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
     logSearch(gamertag, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
     res.json({ success: true, player: result });
     flushXuidCache(getXuidToGt()).catch(() => {});
-    flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
+    flushEmblemCache(getEmblemPathCache(), getNameplatePathCache(), getNameplatePlateCache()).catch(() => {});
     // Background: enrich matches with skill data (hits skill.svc — separate rate limit from halostats)
     // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
     const _bgMatches = result.allMatches || result.recentMatches || [];
