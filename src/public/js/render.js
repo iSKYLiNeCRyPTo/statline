@@ -1889,7 +1889,7 @@ function render(){
       [0.25,0.5,0.75,1].forEach(function(pct){
         var pts=[0,1,2,3,4].map(function(i){
           var a=_angle(i);var r=pct*R;
-          return +(CX+r*Math.cos(a)).toFixed(2)+','++(CY+r*Math.sin(a)).toFixed(2);
+          return (+(CX+r*Math.cos(a)).toFixed(2))+','+(+(CY+r*Math.sin(a)).toFixed(2));
         }).join(' ');
         gridSvg+='<polygon points="'+pts+'" fill="none" stroke="rgba(255,255,255,'+(pct===1?'0.08':'0.04')+')" stroke-width="'+(pct===1?'0.8':'0.5')+'"/>';
       });
