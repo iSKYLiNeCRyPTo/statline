@@ -456,12 +456,12 @@ function render(){
   // Build compact inline rank cards for hero middle slot (desktop only)
   // These are leaner than the full csr-card — just icon + tier name + CSR + mode
   function _compactRankCard(iconHtml,tierColor,tierBorder,tierBg,topLine,line2,line3){
-    return '<div style="background:'+tierBg+';border:1px solid '+tierBorder+'44;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;min-width:155px">'
-      +'<div style="width:38px;height:38px;border-radius:50%;border:2px solid '+tierBorder+';background:'+tierBg+';overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
+    return '<div style="background:'+tierBg+';border:1px solid '+tierBorder+'44;border-radius:10px;padding:12px 18px;display:flex;align-items:center;gap:12px;min-width:175px">'
+      +'<div style="width:48px;height:48px;border-radius:50%;border:2px solid '+tierBorder+';background:'+tierBg+';overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
       +'<div style="min-width:0">'
-      +'<div style="font-family:Rajdhani,sans-serif;font-size:16px;font-weight:700;color:'+tierColor+';line-height:1.1;white-space:nowrap">'+topLine+'</div>'
-      +(line2?'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;white-space:nowrap">'+line2+'</div>':'')
-      +(line3?'<div style="font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;white-space:nowrap">'+line3+'</div>':'')
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:'+tierColor+';line-height:1.1;white-space:nowrap">'+topLine+'</div>'
+      +(line2?'<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:3px;white-space:nowrap">'+line2+'</div>':'')
+      +(line3?'<div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace;white-space:nowrap">'+line3+'</div>':'')
       +'</div></div>';
   }
   var _heroRankCards='';
@@ -506,7 +506,7 @@ function render(){
     // Left: emblem + name/stats/win bar
     +'<div style="display:flex;align-items:flex-start;gap:14px;position:relative">'+playerEmblem(p,72)+'<div><div style="display:flex;align-items:center;gap:8px"><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><button id="heroFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="background:transparent;border:none;padding:2px;cursor:pointer;color:var(--muted);flex-shrink:0;line-height:1" onmouseover="this.style.color=\'#ffc107\'" onmouseout="updateFavBtn()"><svg id="heroFavIcon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>'+(p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1.5px;margin-top:2px;margin-bottom:2px">['+p.serviceTag+']</div>':'')+'<div class="hero-sub">Halo Infinite · '+s.matchesPlayed.toLocaleString()+' matches · '+s.wins+'W / '+s.losses+'L'+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+s.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+s.winRate+'%"></div></div></div></div></div>'
     // Middle: compact rank cards (desktop only, between name and K/D)
-    +(_hasHeroRank?'<div style="display:flex;flex-direction:column;gap:8px;align-self:center;flex-shrink:0">'+_heroRankCards+'</div>':'')
+    +(_hasHeroRank?'<div style="display:flex;flex-direction:row;gap:10px;align-self:center;flex-shrink:0;flex-wrap:wrap">'+_heroRankCards+'</div>':'')
     // Right: adornment + K/D
     +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;position:relative;flex-shrink:0">'
     +(p.careerRank&&p.careerRank.adornmentUrl?'<img class="hero-adornment" src="'+p.careerRank.adornmentUrl+'" alt="Career Rank" onerror="this.style.display=\'none\'">':'')
