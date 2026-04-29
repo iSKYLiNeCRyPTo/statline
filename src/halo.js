@@ -29,6 +29,8 @@ let _gtRunning = false;      // is the resolver loop currently active
 let cachedClearance = null;
 let clearanceFetchedAt = 0;
 let clearanceInFlight = null;
+let clearanceFailedAt = 0;      // timestamp of last all-attempts failure
+const CLEARANCE_FAIL_COOLDOWN = 5 * 60 * 1000; // 5 minutes before retrying after total failure
 
 function getAuthHeaders() {
   const h = {
@@ -42,9 +44,13 @@ function getAuthHeaders() {
 
 async function fetchClearanceToken(xuid) {
   if (cachedClearance && Date.now() - clearanceFetchedAt < 3600000) return cachedClearance;
+  // If all attempts failed recently, don't spam — wait for cooldown
+  if (!cachedClearance && clearanceFailedAt && Date.now() - clearanceFailedAt < CLEARANCE_FAIL_COOLDOWN) {
+    return null;
+  }
   if (clearanceInFlight) return clearanceInFlight;
   clearanceInFlight = (async () => {
-    const MAX_ATTEMPTS = 3;
+    const MAX_ATTEMPTS = 2; // reduced from 3 — failing fast is fine since we have a cooldown
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         const res = await fetch(
@@ -55,17 +61,22 @@ async function fetchClearanceToken(xuid) {
           const data = await res.json();
           cachedClearance = data.FlightConfigurationId || data.flightConfigurationId || null;
           clearanceFetchedAt = Date.now();
+          clearanceFailedAt = 0; // reset failure timestamp on success
           console.log('[Clearance] OK:', cachedClearance ? 'set' : 'null');
           getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
           break;
         } else {
           console.warn(`[Clearance] HTTP ${res.status} (attempt ${attempt}/${MAX_ATTEMPTS})`);
-          if (attempt < MAX_ATTEMPTS) await sleep(1500);
+          if (attempt < MAX_ATTEMPTS) await sleep(1000);
         }
       } catch(e) {
         console.error(`[Clearance] attempt ${attempt} error:`, e.message);
-        if (attempt < MAX_ATTEMPTS) await sleep(1500);
+        if (attempt < MAX_ATTEMPTS) await sleep(1000);
       }
+    }
+    if (!cachedClearance) {
+      clearanceFailedAt = Date.now();
+      console.warn(`[Clearance] All attempts failed — suppressing retries for ${CLEARANCE_FAIL_COOLDOWN/60000} min`);
     }
     clearanceInFlight = null;
     return cachedClearance;
@@ -1023,16 +1034,21 @@ async function fetchAndApplySkillData(xuid, matches) {
   const BATCH = 5;
   for (let i = 0; i < ranked.length; i += BATCH) {
     const batch = ranked.slice(i, i + BATCH);
+    let _skillOk = 0, _skillNoSp = 0, _skillErr = 0;
     await Promise.all(batch.map(async (match) => {
       try {
         const sr = await fetch(
           `https://skill.svc.halowaypoint.com/hi/matches/${match.matchId}/skill?players=xuid(${xuid})`,
           { headers }
         );
-        if (!sr.ok) return;
+        if (!sr.ok) {
+          console.warn(`[SkillBG] HTTP ${sr.status} for match ${match.matchId}`);
+          _skillErr++;
+          return;
+        }
         const skillData = await sr.json();
         const entry = (skillData.Value || [])[0];
-        if (!entry?.Result) return;
+        if (!entry?.Result) { _skillErr++; return; }
         const rv = entry.Result;
         match.mmr = rv.TeamMmr ? Math.round(rv.TeamMmr) : null;
         const teamIds = Object.keys(rv.TeamMmrs || {});
@@ -1040,8 +1056,14 @@ async function fetchAndApplySkillData(xuid, matches) {
         const oppTeamId = teamIds.find(id => id !== myTeamId);
         match.oppMmr = oppTeamId && rv.TeamMmrs[oppTeamId] ? Math.round(rv.TeamMmrs[oppTeamId]) : null;
         const sp = rv.StatPerformances;
-        if (sp?.Kills) match.expectedKills = Math.round(sp.Kills.Expected * 10) / 10;
-        if (sp?.Deaths) match.expectedDeaths = Math.round(sp.Deaths.Expected * 10) / 10;
+        if (sp?.Kills) {
+          match.expectedKills = Math.round(sp.Kills.Expected * 10) / 10;
+        }
+        if (sp?.Deaths) {
+          match.expectedDeaths = Math.round(sp.Deaths.Expected * 10) / 10;
+        }
+        if (!sp) _skillNoSp++;
+        else _skillOk++;
         // CSR delta from skill API RankRecap (primary reliable source)
         const rr = rv.RankRecap;
         if (rr?.PostMatchCsr?.Value != null && rr?.PreMatchCsr?.Value != null) {
@@ -1053,8 +1075,11 @@ async function fetchAndApplySkillData(xuid, matches) {
           match.csrAfter  = postTier === 'Onyx' ? 'Onyx ' + post.Value : postTier ? postTier + ' ' + (post.SubTier + 1) : null;
           match.csrBefore = preTier  === 'Onyx' ? 'Onyx ' + pre.Value  : preTier  ? preTier  + ' ' + (pre.SubTier  + 1) : null;
         }
-      } catch(e) {}
+      } catch(e) { _skillErr++; console.warn(`[SkillBG] Exception on match ${match.matchId}:`, e.message); }
     }));
+    if (_skillNoSp > 0 || _skillErr > 0) {
+      console.warn(`[SkillBG] Batch summary — ok:${_skillOk} noStatPerf:${_skillNoSp} err:${_skillErr}`);
+    }
     if (i + BATCH < ranked.length) await sleep(200);
   }
   console.log(`[SkillBG] Skill data applied to ${ranked.length} matches (xuid=${xuid})`);

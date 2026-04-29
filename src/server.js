@@ -745,13 +745,12 @@ app.post('/api/feedback', express.json(), async (req, res) => {
   if (!message || !message.trim()) return res.status(400).json({ error: 'message required' });
   if (!['feedback','contact'].includes(type)) return res.status(400).json({ error: 'type must be feedback or contact' });
   if (message.trim().length > 2000) return res.status(400).json({ error: 'message too long' });
-  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket?.remoteAddress || null;
-  const entry = { ts: new Date().toISOString(), type, message: message.trim(), email: email?.trim()||null, ip, user_agent: req.headers['user-agent']||null };
+  const entry = { ts: new Date().toISOString(), type, message: message.trim(), email: email?.trim()||null, user_agent: req.headers['user-agent']||null };
   _memFeedbackLog.push(entry);
   if (_memFeedbackLog.length > 500) _memFeedbackLog.shift();
   try {
     const db = await getDb();
-    if (db) await db.query('INSERT INTO feedback_log (type,message,email,ip,user_agent) VALUES ($1,$2,$3,$4,$5)', [entry.type, entry.message, entry.email, entry.ip, entry.user_agent]);
+    if (db) await db.query('INSERT INTO feedback_log (type,message,email,ip,user_agent) VALUES ($1,$2,$3,$4,$5)', [entry.type, entry.message, entry.email, null, entry.user_agent]);
   } catch(e) { console.error('[Feedback] DB error:', e.message); }
   console.log(`[Feedback] type=${type} email=${email||'—'} msg="${message.trim().slice(0,80)}"`);
   res.json({ success: true });
@@ -825,7 +824,7 @@ app.get('/api/admin/feedback', async (req, res) => {
   try {
     const db = await getDb();
     if (db) {
-      const r = await db.query('SELECT id,ts,type,message,email,ip FROM feedback_log ORDER BY ts DESC LIMIT 200');
+      const r = await db.query('SELECT id,ts,type,message,email FROM feedback_log ORDER BY ts DESC LIMIT 200');
       return res.json(r.rows);
     }
     res.json(_memFeedbackLog.slice().reverse());
@@ -852,7 +851,7 @@ app.get('/api/admin', (req, res) => {
   <h2>// active cache</h2>
   <div id="cache-panel" style="font-size:11px;color:#555;margin-bottom:16px">Loading...</div>
   <h2>// feedback &amp; contact</h2>
-  <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th><th>IP</th></tr></thead><tbody id="fbtbody"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table>
+  <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th></tr></thead><tbody id="fbtbody"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody></table>
   <h2>// tab engagement</h2>
   <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
   <h2>// recent searches</h2>
@@ -952,13 +951,23 @@ app.get('/api/admin', (req, res) => {
   }
   function loadFeedback(){
     fetch('/api/admin/feedback?pass=${pass}').then(function(r){return r.json();}).then(function(rows){
-      document.getElementById('fbtbody').innerHTML=rows.length?rows.map(function(f){
+      document.getElementById('fbtbody').innerHTML=rows.length?rows.map(function(f,i){
         var typeColor=f.type==='contact'?'#ffc107':'#00d4ff';
-        var msg=f.message.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var preview=f.message.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var short=preview.length>80?preview.slice(0,80)+'…':preview;
         var ts=new Date(f.ts).toISOString().replace('T',' ').slice(0,19);
-        return'<tr><td class="muted">'+ts+'</td><td style="color:'+typeColor+'">'+f.type+'</td><td style="color:#4caf50">'+(f.email||'<span class="muted">--</span>')+'</td><td style="max-width:500px;white-space:pre-wrap;word-break:break-word">'+msg+'</td><td class="muted">'+(f.ip||'--')+'</td></tr>';
-      }).join(''):'<tr><td colspan="5" class="muted">No feedback yet</td></tr>';
-    }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="5" class="muted">Failed to load</td></tr>';});
+        var pid='fb_'+i;
+        return'<tr style="cursor:pointer" onclick="var p=document.getElementById(\''+pid+'\');p.style.display=p.style.display===\'none\'?\'table-row\':\'none\'">'
+          +'<td class="muted" style="white-space:nowrap">'+ts+'</td>'
+          +'<td style="color:'+typeColor+'">'+f.type+'</td>'
+          +'<td style="color:#4caf50">'+(f.email||'<span class="muted">--</span>')+'</td>'
+          +'<td style="color:#ccc;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+short+'</td>'
+          +'</tr>'
+          +'<tr id="'+pid+'" style="display:none"><td colspan="4" style="padding:12px 16px;background:#07090f;border-bottom:1px solid #1a2035">'
+          +'<div style="font-size:12px;white-space:pre-wrap;word-break:break-word;color:#ccc;line-height:1.6">'+preview+'</div>'
+          +'</td></tr>';
+      }).join(''):'<tr><td colspan="4" class="muted">No feedback yet</td></tr>';
+    }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="4" class="muted">Failed to load</td></tr>';});
   }
   loadData();loadFeedback();loadCache();setInterval(loadData,30000);setInterval(loadFeedback,60000);setInterval(loadCache,15000);
   function renderRows(rows){

@@ -65,8 +65,8 @@ function toggleMatch(matchKey,idx,rawKeyArg){
   var _histMatches=(window.matchHistoryData&&window.matchHistoryData.matches)||[];
   var m=allM.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===rawKey;})
     ||_histMatches.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===rawKey;})
-    ||displayM[idx]||_histMatches[idx]||null;
-  if(!m)return;
+    ||null;
+  if(!m){expandedMatches[key]=false;if(arrow)arrow.textContent='▼';return;}
 
   // Use pre-computed baselines — prefer match-history-specific ones if available
   var baselines=window._matchHistoryBaselines||window._fragrBaselines||{};

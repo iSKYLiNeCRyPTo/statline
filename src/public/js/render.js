@@ -624,6 +624,88 @@ function render(){
     html+='</div>';
   })();
 
+  // ── ACTIVITY HEATMAP ─────────────────────────────────────────────────────────
+  (function(){
+    if(!allMatches.length) return;
+    // Build day → count map from all available matches
+    var dayMap={};
+    allMatches.forEach(function(m){
+      if(!m.startTime) return;
+      var d=new Date(m.startTime);
+      var key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+      dayMap[key]=(dayMap[key]||0)+1;
+    });
+    var keys=Object.keys(dayMap);
+    if(keys.length<3) return;
+    // Determine date range: oldest match to today, capped at 26 weeks
+    var now=new Date(); now.setHours(23,59,59,0);
+    var oldest=keys.reduce(function(mn,k){var p=k.split('-');var t=new Date(+p[0],+p[1]-1,+p[2]).getTime();return t<mn?t:mn;},Infinity);
+    var rangeStart=new Date(Math.max(oldest,now.getTime()-26*7*86400000));
+    // Align to Sunday
+    var startDate=new Date(rangeStart);
+    startDate.setDate(startDate.getDate()-startDate.getDay());
+    // Build weeks array
+    var weeks=[]; var cur=new Date(startDate);
+    while(cur<=now){
+      var week=[];
+      for(var _d=0;_d<7;_d++){
+        var dd=new Date(cur); dd.setDate(dd.getDate()+_d);
+        if(dd>now){week.push(null);}
+        else{var k2=dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate();week.push({date:new Date(dd),count:dayMap[k2]||0});}
+      }
+      weeks.push(week); cur.setDate(cur.getDate()+7);
+    }
+    var totalGames=Object.values(dayMap).reduce(function(a,v){return a+v;},0);
+    var activeDays=keys.length;
+    // Best day
+    var bestDayKey=keys.reduce(function(bk,k){return(dayMap[k]||0)>(dayMap[bk]||0)?k:bk;},keys[0]);
+    var bestDayCount=dayMap[bestDayKey]||0;
+    // Longest streak
+    var sortedTs=keys.map(function(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime();}).sort(function(a,b){return a-b;});
+    var bestStreak=1,curSt=1;
+    for(var si=1;si<sortedTs.length;si++){if(sortedTs[si]-sortedTs[si-1]===86400000)curSt++;else curSt=1;if(curSt>bestStreak)bestStreak=curSt;}
+    // SVG dimensions
+    var cellSz=11,cellGap=2,step=cellSz+cellGap,leftPad=22,topPad=16;
+    var svgW=leftPad+weeks.length*step+4, svgH=topPad+7*step+4;
+    // Color scale
+    function heatColor(n){if(!n)return'style="fill:var(--surface3)"';if(n===1)return'style="fill:rgba(56,138,221,0.28)"';if(n<=3)return'style="fill:rgba(56,138,221,0.52)"';if(n<=5)return'style="fill:rgba(56,138,221,0.76)"';return'style="fill:rgba(56,138,221,0.95)"';}
+    var svgBody='';
+    var DAY_LBLS=['S','M','T','W','T','F','S'];
+    // Day labels
+    [1,3,5].forEach(function(di){svgBody+='<text x="'+(leftPad-3)+'" y="'+(topPad+di*step+cellSz*0.75)+'" text-anchor="end" font-family="Share Tech Mono,monospace" font-size="7" style="fill:rgba(133,183,235,0.45)">'+DAY_LBLS[di]+'</text>';});
+    // Month labels
+    var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var lastMo=-1;
+    weeks.forEach(function(wk,wi){var first=wk.find(function(c){return c;});if(first){var mo=first.date.getMonth();if(mo!==lastMo){lastMo=mo;svgBody+='<text x="'+(leftPad+wi*step)+'" y="'+(topPad-4)+'" font-family="Share Tech Mono,monospace" font-size="7" style="fill:rgba(133,183,235,0.45)">'+MONTHS[mo]+'</text>';}}});
+    // Cells
+    weeks.forEach(function(wk,wi){
+      wk.forEach(function(cell,di){
+        if(!cell) return;
+        var x=leftPad+wi*step, y=topPad+di*step;
+        var tip=cell.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(cell.count?' · '+cell.count+' game'+(cell.count!==1?'s':''):'');
+        svgBody+='<rect x="'+x+'" y="'+y+'" width="'+cellSz+'" height="'+cellSz+'" rx="2" '+heatColor(cell.count)+'><title>'+tip+'</title></rect>';
+      });
+    });
+    var spanMonths=Math.round((now.getTime()-startDate.getTime())/(30*86400000));
+    html+=sectionHead('Activity Heatmap',spanMonths+' months of data');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+    html+='<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px">';
+    html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+totalGames+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">GAMES LOGGED</div></div>';
+    html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+activeDays+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">ACTIVE DAYS</div></div>';
+    if(bestStreak>1)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">'+bestStreak+'<span style="font-size:12px;color:var(--muted2)"> days</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">BEST STREAK</div></div>';
+    if(bestDayCount>=4)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--loss)">'+bestDayCount+'<span style="font-size:12px;color:var(--muted2)"> games</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">MOST IN A DAY</div></div>';
+    html+='</div>';
+    html+='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">';
+    html+='<svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">'+svgBody+'</svg>';
+    html+='</div>';
+    html+='<div style="display:flex;align-items:center;gap:5px;margin-top:10px">';
+    html+='<span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">Less</span>';
+    ['var(--surface3)','rgba(56,138,221,0.28)','rgba(56,138,221,0.52)','rgba(56,138,221,0.76)','rgba(56,138,221,0.95)'].forEach(function(c){html+='<div style="width:10px;height:10px;background:'+c+';border-radius:2px"></div>';});
+    html+='<span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">More</span>';
+    html+='</div>';
+    html+='</div>';
+  })();
+
   // Tabs handled by sidebar nav
   if(s.topMedals&&s.topMedals.length){html+=sectionHead('Top Medals')+'<div class="medals-grid">';s.topMedals.forEach(function(m){html+=medalImg(m);});html+='</div>';}
 
@@ -1055,6 +1137,168 @@ function render(){
   // PERFORMANCE TAB
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
   var _cc=window._themeChartColors||['#378ADD','#85B7EB'];
+
+  // ── PLAYSTYLE FINGERPRINT + CONSISTENCY SCORE ─────────────────────────────────
+  (function(){
+    function _fpSecs(m){var s=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;}
+    var validMs=allMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_fpSecs(m)>=180&&m.kills!=null;});
+    if(validMs.length<10) return;
+
+    var totalK=validMs.reduce(function(a,m){return a+(m.kills||0);},0);
+    var totalD=validMs.reduce(function(a,m){return a+(m.deaths||0);},0);
+    var totalA=validMs.reduce(function(a,m){return a+(m.assists||0);},0);
+
+    // 1. Aggression: K/D — 0.5→0, 2.5→100
+    var kd=totalD>0?totalK/totalD:Math.min(totalK,2.5);
+    var aggrScore=Math.round(Math.min(100,Math.max(0,(kd-0.5)/2.0*100)));
+
+    // 2. Support: assists/(kills+assists) — 0→0, 40%→100
+    var assistPct=(totalK+totalA)>0?totalA/(totalK+totalA):0;
+    var supportScore=Math.round(Math.min(100,assistPct/0.40*100));
+
+    // 3. Consistency: inverse KDA std dev — low variance = high score
+    var kdas=validMs.map(function(m){return m.deaths>0?(m.kills+(m.assists||0)*0.3)/m.deaths:(m.kills+(m.assists||0)*0.3);});
+    var kdaMean=kdas.reduce(function(a,v){return a+v;},0)/kdas.length;
+    var kdaStdDev=Math.sqrt(kdas.reduce(function(a,v){return a+Math.pow(v-kdaMean,2);},0)/kdas.length);
+    var consScore=Math.round(Math.max(0,Math.min(100,(1-kdaStdDev/1.6)*100)));
+    var consLabel=consScore>=80?'Laser-focused':consScore>=60?'Steady':consScore>=40?'Streaky':'Coin flip';
+    var consColor=consScore>=80?'var(--win)':consScore>=60?'var(--accent)':consScore>=40?'var(--gold)':'var(--loss)';
+
+    // 4. Carry: % of games above personal median kill count
+    var sortedK=validMs.map(function(m){return m.kills||0;}).sort(function(a,b){return a-b;});
+    var medK=sortedK[Math.floor(sortedK.length/2)];
+    var carryPct=validMs.filter(function(m){return(m.kills||0)>medK;}).length/validMs.length;
+    var carryScore=Math.round(Math.min(100,carryPct/0.65*100));
+
+    // 5. Objective: objective stat contribution, or win-rate proxy
+    var objMs=validMs.filter(function(m){return m.objStats;});
+    var objScore;
+    if(objMs.length>=5){
+      var objTotal=0,objMax=objMs.length*7;
+      objMs.forEach(function(m){
+        var o=m.objStats;
+        objTotal+=(o.flagCaptures||0)*4+(o.flagGrabs||0)*0.5+(o.captures||0)*2+(o.secures||0)*0.5
+          +Math.min((o.timeAsCarrier||0)/60,3)+(o.seedsDeposited||0)*0.3+(o.flagReturns||0)*0.5;
+      });
+      objScore=Math.round(Math.min(100,objTotal/objMax*100));
+    } else {
+      objScore=Math.round(validMs.filter(function(m){return m.outcome===2;}).length/validMs.length*100);
+    }
+
+    var axes=[
+      {label:'AGGRESSION',score:aggrScore},
+      {label:'CONSISTENCY',score:consScore},
+      {label:'CARRY',score:carryScore},
+      {label:'SUPPORT',score:supportScore},
+      {label:'OBJECTIVE',score:objScore}
+    ];
+
+    // Determine archetype from highest axis
+    var sorted=axes.slice().sort(function(a,b){return b.score-a.score;});
+    var spread=sorted[0].score-sorted[sorted.length-1].score;
+    var archetypes={
+      'AGGRESSION':{name:'The Slayer',desc:'Elimination-first. You prioritise kills over everything and win gunfights at a high rate.'},
+      'CONSISTENCY':{name:'The Machine',desc:'Reliable every single game. No huge spikes, no collapses — you just show up.'},
+      'CARRY':{name:'The Carry',desc:'Your best games are dominant. You raise your ceiling higher than most.'},
+      'SUPPORT':{name:'The Enabler',desc:'You set teammates up, share damage, and make the team function better as a unit.'},
+      'OBJECTIVE':{name:'The Obj Player',desc:'You win games through smart objective play rather than raw gunfighting.'}
+    };
+    var archetype=spread<18?{name:'The All-Rounder',desc:'Balanced across all dimensions — no glaring weakness, no dominant signature. Versatile and adaptable.'}:(archetypes[sorted[0].label]||{name:'Balanced',desc:''});
+
+    // SVG radar chart
+    var cx=115,cy=115,maxR=78;
+    var nAx=5;
+    function fpAng(i){return i*2*Math.PI/nAx-Math.PI/2;}
+    function fpPt(i,frac){var a=fpAng(i);return{x:+(cx+Math.cos(a)*maxR*frac).toFixed(1),y:+(cy+Math.sin(a)*maxR*frac).toFixed(1)};}
+
+    var svgInner='';
+    // Grid rings
+    [0.25,0.5,0.75,1].forEach(function(f){
+      var pp=[];for(var i=0;i<nAx;i++){var p=fpPt(i,f);pp.push(p.x+','+p.y);}
+      svgInner+='<polygon points="'+pp.join(' ')+'" fill="none" stroke="rgba(255,255,255,0.055)" stroke-width="1"/>';
+    });
+    // Ring percent labels (25/50/75)
+    [0.25,0.5,0.75].forEach(function(f){
+      svgInner+='<text x="'+(cx+1)+'" y="'+(cy-maxR*f-3)+'" font-family="Share Tech Mono,monospace" font-size="6" style="fill:rgba(133,183,235,0.25)" text-anchor="middle">'+Math.round(f*100)+'</text>';
+    });
+    // Spokes
+    for(var _si=0;_si<nAx;_si++){var _ep=fpPt(_si,1);svgInner+='<line x1="'+cx+'" y1="'+cy+'" x2="'+_ep.x+'" y2="'+_ep.y+'" stroke="rgba(255,255,255,0.055)" stroke-width="1"/>';}
+    // Player polygon
+    var poly=axes.map(function(ax,i){var p=fpPt(i,Math.max(0.04,ax.score/100));return p.x+','+p.y;}).join(' ');
+    svgInner+='<polygon points="'+poly+'" style="fill:rgba(56,138,221,0.14);stroke:rgba(56,138,221,0.82);stroke-width:1.5;stroke-linejoin:round"/>';
+    // Vertex dots
+    axes.forEach(function(ax,i){var p=fpPt(i,Math.max(0.04,ax.score/100));svgInner+='<circle cx="'+p.x+'" cy="'+p.y+'" r="3" style="fill:#378ADD;stroke:#0b1929;stroke-width:1.5"/>';});
+    // Axis labels + score
+    var lblR=maxR+22;
+    axes.forEach(function(ax,i){
+      var a=fpAng(i);
+      var lx=+(cx+Math.cos(a)*lblR).toFixed(1);
+      var ly=+(cy+Math.sin(a)*lblR).toFixed(1);
+      var ta=Math.abs(Math.cos(a))<0.18?'middle':Math.cos(a)>0?'start':'end';
+      svgInner+='<text x="'+lx+'" y="'+(ly-5)+'" text-anchor="'+ta+'" font-family="Share Tech Mono,monospace" font-size="7.5" style="fill:rgba(133,183,235,0.6)" letter-spacing="0.5">'+ax.label+'</text>';
+      svgInner+='<text x="'+lx+'" y="'+(ly+9)+'" text-anchor="'+ta+'" font-family="Rajdhani,sans-serif" font-size="14" font-weight="700" style="fill:rgba(230,241,251,0.92)">'+ax.score+'</text>';
+    });
+    var radarSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 230" width="230" height="230" style="flex-shrink:0;display:block">'+svgInner+'</svg>';
+
+    html+=sectionHead('Playstyle Fingerprint',validMs.length+' games analysed');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:16px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
+    html+=radarSvg;
+    html+='<div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:0">';
+    html+='<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text);line-height:1.1;margin-bottom:6px">'+archetype.name+'</div>';
+    html+='<div style="font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:18px">'+archetype.desc+'</div>';
+    axes.forEach(function(ax){
+      var barCol=ax.score>=72?'var(--win)':ax.score>=44?'var(--accent)':'var(--muted)';
+      html+='<div style="margin-bottom:9px">';
+      html+='<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+      html+='<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">'+ax.label+'</span>';
+      html+='<span style="font-size:10px;font-family:Rajdhani,sans-serif;font-weight:700;color:'+barCol+'">'+ax.score+'</span>';
+      html+='</div>';
+      html+='<div style="height:4px;background:var(--surface3);border-radius:2px;overflow:hidden"><div style="height:100%;width:'+ax.score+'%;background:'+barCol+';border-radius:2px"></div></div>';
+      html+='</div>';
+    });
+    html+='</div>';
+    html+='</div>';
+
+    // ── CONSISTENCY SCORE — dedicated card ──────────────────────────────────────
+    // Mini sparkline of KDA per game (last 30 games)
+    var sparkSample=validMs.slice(0,30).reverse();
+    var sparkMax=Math.max.apply(null,sparkSample.map(function(m){return m.deaths>0?(m.kills+(m.assists||0)*0.3)/m.deaths:(m.kills+(m.assists||0)*0.3);}));
+    sparkMax=Math.max(sparkMax,1);
+    var sparkW=Math.min(sparkSample.length*10,300),sparkH=40;
+    var sparkBars=sparkSample.map(function(m,i){
+      var v=m.deaths>0?(m.kills+(m.assists||0)*0.3)/m.deaths:(m.kills+(m.assists||0)*0.3);
+      var h=Math.max(2,Math.round((v/sparkMax)*sparkH));
+      var c=m.outcome===2?'rgba(76,175,130,0.75)':'rgba(224,80,80,0.65)';
+      return '<rect x="'+(i*10)+'" y="'+(sparkH-h)+'" width="8" height="'+h+'" rx="1" style="fill:'+c+'"/>';
+    }).join('');
+    // Avg KDA line
+    var avgKdaY=Math.round((1-kdaMean/sparkMax)*sparkH);
+    avgKdaY=Math.max(1,Math.min(sparkH-1,avgKdaY));
+    var sparkSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+sparkW+' '+sparkH+'" width="'+sparkW+'" height="'+sparkH+'" style="display:block;border-radius:3px;overflow:hidden">'+sparkBars+'<line x1="0" y1="'+avgKdaY+'" x2="'+sparkW+'" y2="'+avgKdaY+'" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,2"/></svg>';
+
+    html+=sectionHead('Consistency Score','KDA variance across '+validMs.length+' games');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:24px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
+    // Big score
+    html+='<div style="flex-shrink:0">';
+    html+='<div style="font-size:64px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+consColor+';line-height:1">'+consScore+'</div>';
+    html+='<div style="font-size:11px;font-family:Rajdhani,sans-serif;font-weight:700;color:'+consColor+';letter-spacing:1px;margin-top:2px">'+consLabel.toUpperCase()+'</div>';
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:4px">out of 100</div>';
+    html+='</div>';
+    html+='<div style="flex:1;min-width:180px">';
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:8px">KDA PER GAME · last '+sparkSample.length+' games <span style="color:var(--muted2);font-size:8px">— dashed line = avg '+kdaMean.toFixed(2)+'</span></div>';
+    html+=sparkSvg;
+    html+='<div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">';
+    html+='<div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+kdaMean.toFixed(2)+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.5px">AVG KDA</div></div>';
+    html+='<div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">±'+kdaStdDev.toFixed(2)+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.5px">STD DEV</div></div>';
+    var consInsight=consScore>=80?'Your KDA barely wavers game to game — opponents and teammates alike can predict exactly what they\'re getting.'
+      :consScore>=60?'Solid consistency with minor session-to-session swings. You perform close to your ceiling most nights.'
+      :consScore>=40?'Performance varies noticeably by session. On good days you can dominate; on bad days the numbers drop sharply. Work on floor, not ceiling.'
+      :'High variance — your best games are impressive but your floor is low. Pinpoint what changes between your peak and trough sessions.';
+    html+='</div>';
+    html+='<div style="margin-top:12px;padding:10px 14px;border-left:3px solid '+consColor+';background:var(--surface2);border-radius:0 4px 4px 0;font-size:11px;color:var(--text);line-height:1.6">'+consInsight+'</div>';
+    html+='</div>';
+    html+='</div>';
+  })();
 
   // Kill breakdown
   (function(){
