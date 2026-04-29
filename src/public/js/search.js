@@ -299,28 +299,45 @@ async function doSearch(gt, isRefresh, force){
         setTimeout(function(){if(!_swDone){_swCheck();_swId=setInterval(_swCheck,2000);}},3000);
       }):Promise.resolve();
 
-      // ── Step 4: Preload rival/nemesis pics (runs in parallel with skill wait) ──
+      // ── Step 4: Preload rival/nemesis pics (non-blocking background task) ──
       var _rivals=(fullD.player.rivals||[]).concat(fullD.player.nemesisList||[],fullD.player.victimsList||[]);
       var _seenRiv={};
       _rivals=_rivals.filter(function(r){if(!r.gamertag||_seenRiv[r.gamertag.toLowerCase()])return false;_seenRiv[r.gamertag.toLowerCase()]=true;return true;});
       var _missingPics=_rivals.filter(function(r){return !r.gamerpicUrl&&r.gamertag&&!r.gamertag.startsWith('Spartan ');});
+      // Fire rival-pics in the background — never awaited so it never stalls loading steps
       if(_missingPics.length>0){
-        try{
-          var _gts=_missingPics.map(function(r){return r.gamertag;}).slice(0,30).join(',');
-          var _prRes=await fetch('/api/rival-pics?gamertags='+encodeURIComponent(_gts));
-          var _prData=await _prRes.json();
-          _rivals.forEach(function(r){if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];});
-          ['rivals','nemesisList','victimsList'].forEach(function(key){
-            (fullD.player[key]||[]).forEach(function(r){if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];});
-          });
-        }catch(e){}
+        fetch('/api/rival-pics?gamertags='+encodeURIComponent(_missingPics.map(function(r){return r.gamertag;}).slice(0,30).join(',')))
+          .then(function(r){return r.ok?r.json():{};})
+          .then(function(_prData){
+            _rivals.forEach(function(r){if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];});
+            ['rivals','nemesisList','victimsList'].forEach(function(key){
+              (fullD.player[key]||[]).forEach(function(r){if(!r.gamerpicUrl&&_prData[r.gamertag])r.gamerpicUrl=_prData[r.gamertag];});
+            });
+          }).catch(function(){});
       }
       var _picPromises=_rivals.filter(function(r){return r.gamerpicUrl;}).slice(0,30).map(function(r){
         return new Promise(function(resolve){var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;});
       });
       if(!isRefresh) _renderLoadSteps(3,null); // team data step active
-      // Wait for BOTH image preloads AND skill enrichment before proceeding
+      // Wait for skill enrichment + any already-available image preloads
       await Promise.all(_picPromises.concat([_skillWaitP]));
+
+      // ── Pre-populate fullMatchCache with enriched data before first render ──
+      // Skill is now ready — fetch /api/matches so expectedKills/Deaths and insights
+      // are present on the very first render() call (avoids a blank-then-populate flash).
+      // Only needed on fresh (non-cached, non-refresh) searches — cached players already
+      // have enriched data in fullD.player.
+      if(!isRefresh&&!fullD.cached){
+        try{
+          var _mRes=await fetch('/api/matches?gamertag='+encodeURIComponent(gt)+'&perPage=100');
+          if(!isCurrent()) return;
+          var _mData=await _mRes.json();
+          if(_mData.matches&&_mData.matches.length>0){
+            _mData.matches._fetchedAt=Date.now();
+            fullMatchCache[gt]=_mData.matches;
+          }
+        }catch(e){}
+      }
 
       if(isRefresh){
         // ── Refresh: Skill data → Analyzing overlay ───────────────────────

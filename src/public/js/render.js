@@ -356,8 +356,9 @@ function render(){
     (myTeam.players||[]).forEach(function(pl){
       if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
       var _mk=pl.gamertag.toLowerCase();
-      if(!_mateMap[_mk]) _mateMap[_mk]={gamertag:pl.gamertag,games:0,wins:0,losses:0,gamerpicUrl:pl.gamerpicUrl||null};
+      if(!_mateMap[_mk]) _mateMap[_mk]={gamertag:pl.gamertag,games:0,wins:0,losses:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null};
       if(pl.gamerpicUrl&&!_mateMap[_mk].gamerpicUrl)_mateMap[_mk].gamerpicUrl=pl.gamerpicUrl;
+      if(pl.rawXuid&&!_mateMap[_mk].xuid)_mateMap[_mk].xuid=pl.rawXuid;
       _mateMap[_mk].games++;
       if(m.outcome===2)_mateMap[_mk].wins++;
       else if(m.outcome===3)_mateMap[_mk].losses++;
@@ -1912,17 +1913,17 @@ function render(){
       var rPts=rivalArr.map(function(v,i){return _ptStr(v,i);}).join(' ');
       return '<svg viewBox="0 0 120 128" width="120" height="128" style="display:block;margin:0 auto">'
         +gridSvg+spokesSvg
-        // Overall fill
-        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.18)" stroke="rgba(56,138,221,0.6)" stroke-width="1.5" stroke-linejoin="round"/>'
-        // Rival fill
-        +'<polygon points="'+rPts+'" fill="'+accent+'22" stroke="'+accent+'" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="none" opacity="0.9"/>'
+        // Overall polygon (blue, drawn first — sits underneath)
+        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.28)" stroke="rgba(56,138,221,0.75)" stroke-width="1.5" stroke-linejoin="round"/>'
+        // Rival polygon (accent, drawn on top — semi-transparent so overall shows through)
+        +'<polygon points="'+rPts+'" fill="'+accent+'44" stroke="'+accent+'" stroke-width="1.5" stroke-linejoin="round" opacity="0.85"/>'
         // Dots at each rival axis tip
         +rivalArr.map(function(v,i){var p=_pt(v,i);return'<circle cx="'+p.x+'" cy="'+p.y+'" r="2" fill="'+accent+'" opacity="0.9"/>';}).join('')
-        // Legend
-        +'<rect x="4" y="118" width="7" height="4" rx="1" fill="rgba(56,138,221,0.7)"/>'
+        // Colour legend
+        +'<rect x="4" y="118" width="7" height="4" rx="1" fill="rgba(56,138,221,0.75)"/>'
         +'<text x="13" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">Overall</text>'
-        +'<rect x="46" y="118" width="7" height="4" rx="1" fill="'+accent+'"/>'
-        +'<text x="55" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">vs Rival</text>'
+        +'<rect x="50" y="118" width="7" height="4" rx="1" fill="'+accent+'"/>'
+        +'<text x="59" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">vs Rival</text>'
         +labelSvg
         +'</svg>';
     }
@@ -2010,6 +2011,14 @@ function render(){
         +'</div>'
         // Fingerprint radar — the main comparison graphic
         +_radar
+        // Axis legend
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 8px;margin:6px 2px 0;padding:5px 6px;background:var(--surface2);border-radius:5px">'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">ATK</span> kills/game</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">EFF</span> K/D ratio</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">AST</span> assists/game</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">DEF</span> survivability</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);grid-column:1/-1"><span style="color:rgba(255,255,255,0.55)">WIN</span> win rate</div>'
+        +'</div>'
         // W/L split bar
         +'<div style="display:flex;align-items:center;gap:5px;margin-top:10px;margin-bottom:3px">'
         +'<div style="font-family:Rajdhani,sans-serif;font-size:17px;font-weight:700;color:var(--win);line-height:1;min-width:24px">'+r.wins+'W</div>'
