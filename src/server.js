@@ -206,7 +206,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
     const _ranked = _allM.filter(m => m.isRanked && m.matchId);
     const _withSkill = _ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
     if (_ranked.length > 0 && _withSkill < _ranked.length * 0.5) {
-      setTimeout(() => fetchAndApplySkillData(cached.xuid, cached.gamertag || gamertag, _allM), 1000);
+      setTimeout(() => fetchAndApplySkillData(cached.xuid, _allM)
+        .then(() => saveToCache(gamertag, cached))
+        .catch(e => console.warn('[SkillBG/cached] skill fetch failed:', e.message)), 1000);
     }
     logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
     return res.json({ success: true, player: cached, cached: true });

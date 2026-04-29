@@ -4,6 +4,7 @@ async function doSearch(gt, isRefresh, force){
   var myToken = ++_searchToken; // claim this search slot
   function isCurrent(){ return _searchToken === myToken; } // false = newer search started, bail
   hideLanding();
+  expandedMatches={}; // clear any open match cards from the previous search
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display=window.innerWidth>=768?'flex':'none';
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
@@ -325,6 +326,14 @@ async function doSearch(gt, isRefresh, force){
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
       activeTab='overview'; render();
+      // Sync tab button highlight to overview — render() only sets panel active classes,
+      // tab bar buttons are only updated by switchTab(), so we sync them here manually.
+      (function(){
+        var _syncTab='overview';
+        document.querySelectorAll('.dtab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
+        document.querySelectorAll('.sidebar-nav-item').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
+        document.querySelectorAll('.mobile-tab[data-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
+      })();
       // Use canonical gamertag as cache key so render() can find it by p.gamertag
       loadFullMatches(_canonicalGt);
       // Poll skill status post-render and force-refresh as soon as enrichment is ready.
