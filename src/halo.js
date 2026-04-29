@@ -32,6 +32,10 @@ let clearanceInFlight = null;
 let clearanceFailedAt = 0;      // timestamp of last all-attempts failure
 const CLEARANCE_FAIL_COOLDOWN = 5 * 60 * 1000; // 5 minutes before retrying after total failure
 
+// Match IDs that the skill API permanently 404s — skip on all future fetches
+const _deadSkillMatchIds = new Set();
+const DEAD_SKILL_MAX = 2000; // cap to prevent unbounded growth
+
 function getAuthHeaders() {
   const h = {
     'x-343-authorization-spartan': process.env.SPARTAN_TOKEN || '',
@@ -1027,7 +1031,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 async function fetchAndApplySkillData(xuid, matches) {
   const headers = getAuthHeaders();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const ranked = matches.filter(m => m.isRanked && m.matchId && (m.mmr == null || m.csrDelta == null));
+  const ranked = matches.filter(m => m.isRanked && m.matchId && (m.mmr == null || m.csrDelta == null) && !_deadSkillMatchIds.has(m.matchId));
   if (!ranked.length) return;
   console.log(`[SkillBG] Fetching skill data for ${ranked.length} ranked matches (xuid=${xuid})`);
 
@@ -1042,7 +1046,12 @@ async function fetchAndApplySkillData(xuid, matches) {
           { headers }
         );
         if (!sr.ok) {
-          console.warn(`[SkillBG] HTTP ${sr.status} for match ${match.matchId}`);
+          if (sr.status === 404) {
+            // Permanently dead match — cache so all future fetches skip it
+            if (_deadSkillMatchIds.size < DEAD_SKILL_MAX) _deadSkillMatchIds.add(match.matchId);
+          } else {
+            console.warn(`[SkillBG] HTTP ${sr.status} for match ${match.matchId}`);
+          }
           _skillErr++;
           return;
         }
@@ -1077,7 +1086,7 @@ async function fetchAndApplySkillData(xuid, matches) {
         }
       } catch(e) { _skillErr++; console.warn(`[SkillBG] Exception on match ${match.matchId}:`, e.message); }
     }));
-    if (_skillNoSp > 0 || _skillErr > 0) {
+    if (_skillNoSp > 0) {
       console.warn(`[SkillBG] Batch summary — ok:${_skillOk} noStatPerf:${_skillNoSp} err:${_skillErr}`);
     }
     if (i + BATCH < ranked.length) await sleep(200);
