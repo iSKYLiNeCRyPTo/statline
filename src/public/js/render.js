@@ -2074,7 +2074,7 @@ function render(){
       html+='</div>';
     }
 
-    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:12px;margin-bottom:24px';
+    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:12px;margin-bottom:24px';
 
     // ── NEMESES ─────────────────────────────────────────────────────────────
     if(nemeses.length){
