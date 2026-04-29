@@ -656,7 +656,7 @@ async function fetchPlayerStats(gamertag) {
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
 async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null) {
   const TARGET   = 100;  // desired valid (non-custom/PvE) matches
-  const BATCH    = 20;  // matches to request per API call
+  const BATCH    = 25;  // matches per API call (API max is 25)
   const MAX_SCAN = 500; // give up after scanning this many raw matches (raised from 250 — players with lots of social/PvE matches need more runway)
 
   const headers = getAuthHeaders();
@@ -701,12 +701,12 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
         const md = r.ok ? await r.json() : null;
         return { m, md, skillData: null };
       } catch(e) { return { m, md: null, skillData: null }; }
-    }, 4);
+    }, 6);
 
     start += BATCH;
     // Brief pause between batches to avoid bursting halostats rate limit
     if (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN) {
-      await sleep(400);
+      await sleep(200);
     }
 
     for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {

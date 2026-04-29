@@ -312,10 +312,10 @@ async function doSearch(gt, isRefresh, force){
         _renderRefreshPage(fullD.player,'analyzing');
         await new Promise(function(r){setTimeout(r,3500);});
       } else {
-        // ── Loading: Analyzing step (new search — 3.5s showcase) ─────────
-        await new Promise(function(r){setTimeout(r,200);});
+        // ── Loading: Analyzing step (new search) ─────────────────────────
+        await new Promise(function(r){setTimeout(r,100);});
         _renderLoadSteps(4,null); // team data ✓, analyzing active
-        await new Promise(function(r){setTimeout(r,3500);});
+        await new Promise(function(r){setTimeout(r,1500);});
         _renderLoadSteps(5,null); // all done
         await new Promise(function(r){setTimeout(r,120);});
       }
