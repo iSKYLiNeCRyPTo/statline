@@ -1929,9 +1929,9 @@ function render(){
       return '<svg viewBox="0 0 120 128" width="120" height="128" style="display:block;margin:0 auto">'
         +gridSvg+spokesSvg
         // Rival polygon drawn first (sits underneath — shows your stats vs this rival)
-        +'<polygon points="'+rPts+'" fill="'+accent+'33" stroke="'+accent+'" stroke-width="1.2" stroke-linejoin="round" opacity="0.8"/>'
+        +'<polygon points="'+rPts+'" fill="'+accent+'" fill-opacity="0.45" stroke="'+accent+'" stroke-width="1.2" stroke-linejoin="round"/>'
         // Overall polygon drawn on top (semi-transparent so rival shows through where it extends further)
-        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.38)" stroke="rgba(56,138,221,0.85)" stroke-width="1.5" stroke-linejoin="round"/>'
+        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.55)" stroke="rgba(56,138,221,0.9)" stroke-width="1.5" stroke-linejoin="round"/>'
         // Dots at each rival axis tip
         +rivalArr.map(function(v,i){var p=_pt(v,i);return'<circle cx="'+p.x+'" cy="'+p.y+'" r="2" fill="'+accent+'" opacity="0.9"/>';}).join('')
         // Colour legend
@@ -2074,7 +2074,7 @@ function render(){
       html+='</div>';
     }
 
-    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(192px,1fr));gap:12px;margin-bottom:24px';
+    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(245px,1fr));gap:12px;margin-bottom:24px';
 
     // ── NEMESES ─────────────────────────────────────────────────────────────
     if(nemeses.length){

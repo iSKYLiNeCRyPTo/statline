@@ -317,7 +317,7 @@ app.get('/api/skill-status', async (req, res) => {
   } catch(e) { res.json({ ready: false, pct: 0 }); }
 });
 
-// Match history (returns up to 100 cached matches, paginated)
+// Match history (paginated; perPage capped at 2000 so loadFullMatches can pull the whole set)
 app.get('/api/matches', async (req, res) => {
   try {
     const { gamertag, page = 1, perPage = 100 } = req.query;
@@ -327,7 +327,7 @@ app.get('/api/matches', async (req, res) => {
     const ranked = req.query.ranked === '1';
     const all = source.filter(m => !ranked || m.isRanked);
     const pg = parseInt(page) || 1;
-    const pp = Math.min(parseInt(perPage) || 100, 100);
+    const pp = Math.min(parseInt(perPage) || 100, 2000);
     const totalPages = Math.max(1, Math.ceil(all.length / pp));
     const matches = all.slice((pg-1)*pp, (pg-1)*pp+pp);
     res.json({ matches, page: pg, perPage: pp, totalPages, total: all.length });
