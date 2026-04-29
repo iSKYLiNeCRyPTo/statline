@@ -1016,7 +1016,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 async function fetchAndApplySkillData(xuid, matches) {
   const headers = getAuthHeaders();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const ranked = matches.filter(m => m.isRanked && m.matchId && m.mmr == null);
+  const ranked = matches.filter(m => m.isRanked && m.matchId && (m.mmr == null || m.csrDelta == null));
   if (!ranked.length) return;
   console.log(`[SkillBG] Fetching skill data for ${ranked.length} ranked matches (xuid=${xuid})`);
 
@@ -1042,6 +1042,17 @@ async function fetchAndApplySkillData(xuid, matches) {
         const sp = rv.StatPerformances;
         if (sp?.Kills) match.expectedKills = Math.round(sp.Kills.Expected * 10) / 10;
         if (sp?.Deaths) match.expectedDeaths = Math.round(sp.Deaths.Expected * 10) / 10;
+        // CSR delta from skill API RankRecap (primary reliable source)
+        const rr = rv.RankRecap;
+        if (rr?.PostMatchCsr?.Value != null && rr?.PreMatchCsr?.Value != null) {
+          match.csrDelta = rr.PostMatchCsr.Value - rr.PreMatchCsr.Value;
+          const tn = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
+          const post = rr.PostMatchCsr, pre = rr.PreMatchCsr;
+          const postTier = tn[post.Tier ?? -1] || '';
+          const preTier  = tn[pre.Tier  ?? -1] || '';
+          match.csrAfter  = postTier === 'Onyx' ? 'Onyx ' + post.Value : postTier ? postTier + ' ' + (post.SubTier + 1) : null;
+          match.csrBefore = preTier  === 'Onyx' ? 'Onyx ' + pre.Value  : preTier  ? preTier  + ' ' + (pre.SubTier  + 1) : null;
+        }
       } catch(e) {}
     }));
     if (i + BATCH < ranked.length) await sleep(200);
