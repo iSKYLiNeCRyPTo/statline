@@ -114,8 +114,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .refresh-btn:disabled{opacity:0.4;cursor:not-allowed}
 .share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
 .share-btn:hover{border-color:var(--accent);color:var(--accent)}
-.hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
-.hero-nameplate{position:absolute;inset:0;background-size:56%;background-position:76% center;background-repeat:no-repeat;opacity:0.55;border-radius:12px;pointer-events:none}
+.hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.hero-nameplate{position:absolute;inset:0;background-size:56%;background-position:76% center;background-repeat:no-repeat;opacity:0.18;border-radius:12px;pointer-events:none}
 .hero-adornment{width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 .hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
 .hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
@@ -408,8 +408,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   #playerBtns .player-btn{font-size:9px;padding:3px 8px}
 
   /* ── Playstyle Fingerprint + Consistency Score ── */
-  /* On mobile these flex cards already wrap; just ensure the SVG doesn't overflow */
-  .fingerprint-card svg,.consistency-card svg{max-width:100%;height:auto}
+  /* On mobile force SVG to fill full card width so the pentagon uses all available space */
+  .fingerprint-card svg{width:100% !important;height:auto !important}
+  .consistency-card svg{max-width:100%;height:auto}
   /* Big consistency score number — shrink slightly so it doesn't crowd */
   .cons-score-num{font-size:48px !important}
 }

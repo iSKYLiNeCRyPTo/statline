@@ -59,7 +59,7 @@ async function doSearch(gt, isRefresh, force){
         +'<div id="_lc_prog" style="height:100%;background:var(--accent);border-radius:2px;width:'+pct+'%;transition:width 0.4s ease"></div>'
         +'</div>'
         +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
-        +(_npStyle2?'<div style="position:absolute;inset:0;'+_npStyle2+'background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
+        +(_npStyle2?'<div style="position:absolute;inset:0;'+_npStyle2+'background-size:cover;background-position:center center;opacity:0.18;pointer-events:none"></div>':'')
         +'<div style="position:relative;display:flex;align-items:center;gap:12px;padding:12px 8px">'
         +(p.emblemUrl
           ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
@@ -97,20 +97,26 @@ async function doSearch(gt, isRefresh, force){
         +dotsHtml;
     }
 
-    var html;
-    if(_lsMobile){
-      html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
-        +'<div style="margin-bottom:16px;flex-shrink:0">'+leftHtml+'</div>'
-        +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
-        +'</div>';
+    // If the layout skeleton already exists, only swap the player section — leave the ad untouched
+    var _existingPS=document.getElementById('_lc_playersect');
+    if(_existingPS){
+      _existingPS.innerHTML=leftHtml;
     } else {
-      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
-        +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
-        +'<div style="flex:1;min-width:0">'+leftHtml+'</div>'
-        +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
-        +'</div></div>';
+      var html;
+      if(_lsMobile){
+        html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
+          +'<div id="_lc_playersect" style="margin-bottom:16px;flex-shrink:0">'+leftHtml+'</div>'
+          +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
+          +'</div>';
+      } else {
+        html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
+          +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
+          +'<div id="_lc_playersect" style="flex:1;min-width:0">'+leftHtml+'</div>'
+          +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
+          +'</div></div>';
+      }
+      document.getElementById('app').innerHTML=html;
     }
-    document.getElementById('app').innerHTML=html;
   }
 
   // ── Refresh page (page reload with existing player) ──────────────────────
@@ -131,7 +137,7 @@ async function doSearch(gt, isRefresh, force){
     var playerSection=''
       +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border);margin-bottom:18px">'
       +'<div style="position:relative;border-radius:8px;overflow:hidden;margin-bottom:18px">'
-      +(_npStyle?'<div style="position:absolute;inset:0;'+_npStyle+'background-size:cover;background-position:center center;opacity:0.5;pointer-events:none"></div>':'')
+      +(_npStyle?'<div style="position:absolute;inset:0;'+_npStyle+'background-size:cover;background-position:center center;opacity:0.18;pointer-events:none"></div>':'')
       +'<div style="position:relative;display:flex;align-items:center;gap:12px;padding:12px 8px">'
       +(p&&p.emblemUrl
         ?'<img src="'+p.emblemUrl+'" style="width:'+emblemSize+';height:'+emblemSize+';object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))" alt="">'
@@ -178,22 +184,28 @@ async function doSearch(gt, isRefresh, force){
       +'</div>'
       +'</div>'; // close outer card
 
-    var html;
-    if(isMobile){
-      // Mobile: player info at top, ad card fills remaining screen — no scroll
-      html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
-        +'<div style="margin-bottom:16px;flex-shrink:0">'+playerSection+'</div>'
-        +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
-        +'</div>';
+    // If the layout skeleton already exists, only swap the player section — leave the ad untouched
+    var _existingPS2=document.getElementById('_lc_playersect');
+    if(_existingPS2){
+      _existingPS2.innerHTML=playerSection;
     } else {
-      // Desktop: two-column — player left, ad right
-      html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
-        +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
-        +'<div style="flex:1;min-width:0">'+playerSection+'</div>'
-        +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
-        +'</div></div>';
+      var html;
+      if(isMobile){
+        // Mobile: player info at top, ad card fills remaining screen — no scroll
+        html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
+          +'<div id="_lc_playersect" style="margin-bottom:16px;flex-shrink:0">'+playerSection+'</div>'
+          +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
+          +'</div>';
+      } else {
+        // Desktop: two-column — player left, ad right
+        html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
+          +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
+          +'<div id="_lc_playersect" style="flex:1;min-width:0">'+playerSection+'</div>'
+          +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
+          +'</div></div>';
+      }
+      document.getElementById('app').innerHTML=html;
     }
-    document.getElementById('app').innerHTML=html;
   }
 
   // ── Initial render ───────────────────────────────────────────────────────
@@ -309,8 +321,35 @@ async function doSearch(gt, isRefresh, force){
       searchData=playerData; searchMode=false; selectedPlayer=0;
       activeTab='overview'; render();
       loadFullMatches(gt);
-      // ~22s later the server has finished background skill enrichment — force-refresh to pick it up
-      setTimeout(function(){ if(isCurrent()) loadFullMatches(gt, true, 'Fetching skill data…'); }, 22000);
+      // Poll /api/skill-status until background enrichment is ≥95% done, then force-refresh
+      // This is more reliable than a fixed 22s timer — enrichment speed varies with API load
+      var _skillPollId=null,_skillPollN=0;
+      function _stopSkillPoll(){if(_skillPollId){clearInterval(_skillPollId);_skillPollId=null;}}
+      function _doSkillPoll(){
+        if(!isCurrent()){_stopSkillPoll();return;}
+        if(++_skillPollN>12){_stopSkillPoll();return;} // give up after ~85s (12 × 7s + 1st at 14s)
+        fetch('/api/skill-status?gamertag='+encodeURIComponent(gt))
+          .then(function(r){return r.ok?r.json():null;})
+          .then(function(s){
+            if(!s||!isCurrent())return;
+            if(s.ready||s.pct>=95){
+              _stopSkillPoll();
+              loadFullMatches(gt,true,'Syncing skill data…');
+            }
+          }).catch(function(){});
+      }
+      // First check at 14s — fast machines finish well under 22s
+      // If not ready, re-check every 7s up to ~85s total
+      setTimeout(function(){
+        if(!isCurrent())return;
+        // Skip polling if full skill data already loaded (e.g. cached player)
+        var _cc=fullMatchCache[gt]||[];
+        var _rk=_cc.filter(function(m){return m.isRanked;});
+        var _sk=_rk.filter(function(m){return m.expectedKills!=null;}).length;
+        if(_rk.length>0&&_sk>=_rk.length*0.95){return;} // already complete
+        _skillPollId=setInterval(_doSkillPoll,7000);
+        _doSkillPoll(); // immediate first poll at t=14s
+      },14000);
     }
   } catch(e){
     document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';

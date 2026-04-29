@@ -289,6 +289,22 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 });
 
+// Skill enrichment status — tells the client how much of the background skill fetch is done
+app.get('/api/skill-status', async (req, res) => {
+  try {
+    const { gamertag } = req.query;
+    if (!gamertag) return res.json({ ready: false, pct: 0 });
+    const cached = await getFromCache(gamertag);
+    if (!cached) return res.json({ ready: false, pct: 0 });
+    const matches = cached.allMatches || cached.recentMatches || [];
+    const ranked = matches.filter(m => m.isRanked && m.matchId);
+    if (!ranked.length) return res.json({ ready: true, pct: 100 }); // nothing to enrich
+    const withSkill = ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
+    const pct = Math.round(withSkill / ranked.length * 100);
+    res.json({ ready: pct >= 95, pct, withSkill, total: ranked.length });
+  } catch(e) { res.json({ ready: false, pct: 0 }); }
+});
+
 // Match history (returns up to 100 cached matches, paginated)
 app.get('/api/matches', async (req, res) => {
   try {

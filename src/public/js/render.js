@@ -400,6 +400,34 @@ function render(){
     window._fragrGds=_gdsR;
   })();
   var html=fetchErrBanner||'';
+  // Pre-compute rank cards so we can inject them inside the hero on desktop
+  var _isDesktop=window.innerWidth>=768;
+  var careerCardHtml='';
+  if(p.careerRank){
+    var cr=p.careerRank;
+    var crParts=cr.name.match(/^(.+?)\s+(Bronze|Silver|Gold|Platinum|Diamond|Onyx)\s+(Grade \d+)$/i);
+    var crRank=crParts?crParts[1]:cr.name;
+    var crTier=crParts?crParts[2]:'';
+    var crGrade=crParts?crParts[3]:'';
+    var crStyle=CSR_STYLES[crTier]||{bg:'rgba(175,169,236,0.12)',border:'#AFA9EC',text:'#AFA9EC'};
+    var rankPct=cr.xpToNext!=null&&cr.xp!=null?Math.round((cr.xp/(cr.xp+cr.xpToNext))*100):Math.round((cr.rank/272)*100);
+    careerCardHtml='<div class="csr-card" style="border-color:'+crStyle.border+'33;background:'+crStyle.bg+'">'
+      +'<div class="csr-icon" style="background:'+crStyle.bg+';border:2px solid '+crStyle.border+';color:'+crStyle.text+'">'
+      +careerIcon(crTier,crRank,crStyle,cr.rank)
+      +'</div>'
+      +'<div class="csr-info">'
+      +'<div class="csr-tier" style="color:'+crStyle.text+'">'+crRank+'</div>'
+      +'<div class="csr-detail" style="color:'+crStyle.text+'">'+(crTier?crTier+' ':'')+crGrade+' · Rank '+cr.rank+'/272</div>'
+      +'<div class="csr-bar-wrap"><div class="csr-bar-fill" style="width:'+rankPct+'%;background:'+crStyle.border+'"></div></div>'
+      +'<div class="csr-bar-labels"><span style="color:'+crStyle.text+'">Career Rank</span><span>'+rankPct+'%</span><span style="color:var(--muted)">to Hero</span></div>'
+      +(cr.xpToNext!=null?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">+'+cr.xpToNext.toLocaleString()+' XP to next grade</div>':cr.xp?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+cr.xp.toLocaleString()+' XP earned</div>':'')
+      +'</div></div>';
+  }
+  var csrHtml=renderCsrCards(p.csr,matches);
+  // On desktop: rank cards sit inside the hero card as a full-width bottom row
+  var _rankInHero=_isDesktop&&(careerCardHtml||csrHtml)
+    ?'<div style="width:100%;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.07);display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">'+careerCardHtml+csrHtml+'</div>'
+    :'';
   html+='<div class="tab-panel'+(activeTab==='overview'?' active':'')+'" data-tab="overview">';
   html+='<div class="hero">'
     +(p.nameplateUrl?'<div class="hero-nameplate" style="background-image:url(\''+p.nameplateUrl+'\')"></div>':'')
@@ -408,6 +436,7 @@ function render(){
     +(p.careerRank&&p.careerRank.adornmentUrl?'<img class="hero-adornment" src="'+p.careerRank.adornmentUrl+'" alt="Career Rank" onerror="this.style.display=\'none\'">':'')
     +'<div><div class="hero-kd-val">'+s.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div>'
     +'</div>'
+    +_rankInHero
     +'</div>';
   // Stat row — moved up directly below hero
   var _formCount=window.innerWidth<768?14:10;
@@ -426,39 +455,12 @@ function render(){
     +statCard('Assists',s.assists.toLocaleString(),'','')
     +statCard('KDA',s.kda,'accent','')
     +statCard('Accuracy',s.accuracy!==null?s.accuracy+'%':'N/A','','')
-    +statCard('Total Medals',s.totalMedals.toLocaleString(),'gold','')
+    +'<div class="stat-card" style="cursor:pointer;transition:border-color 0.15s" onmouseenter="this.style.borderColor=\'var(--gold)\'" onmouseleave="this.style.borderColor=\'\'" onclick="document.getElementById(\'_medals_modal\').style.display=\'flex\'" title="Click to view all medals"><div class="stat-label">Total Medals</div><div class="stat-value" style="color:var(--gold)">'+s.totalMedals.toLocaleString()+'</div><div class="stat-sub">view all ↗</div></div>'
     +'<div class="stat-card"><div class="stat-label">Damage Ratio</div><div class="stat-value" style="color:'+dmgRatioColor+'">'+dmgRatio+'</div><div class="stat-sub">dealt / taken</div></div>'
     +'<div class="stat-card"><div class="stat-label">Current Form</div><div class="stat-value" style="font-size:22px">'+(streakChar==='W'?'<span style="color:var(--win)">'+streak+'W</span>':streakChar==='L'?'<span style="color:var(--loss)">'+streak+'L</span>':'<span style="color:var(--muted)">'+streak+'D</span>')+'</div><div class="streak-dots">'+streakDots+'</div></div>'
     +'</div>';
-  // Career rank card + CSR cards in same row
-  var careerCardHtml='';
-  if(p.careerRank){
-    var cr=p.careerRank;
-    // Parse name into parts: "Staff Sergeant Onyx Grade 1"
-    var crParts=cr.name.match(/^(.+?)\s+(Bronze|Silver|Gold|Platinum|Diamond|Onyx)\s+(Grade \d+)$/i);
-    var crRank=crParts?crParts[1]:cr.name;
-    var crTier=crParts?crParts[2]:'';
-    var crGrade=crParts?crParts[3]:'';
-    var crStyle=CSR_STYLES[crTier]||{bg:'rgba(175,169,236,0.12)',border:'#AFA9EC',text:'#AFA9EC'};
-    // XP progress — PartialProgress out of some total per grade
-    // Each grade requires different XP but we can show partial progress as a bar
-    // We don't have total per grade but can show the rank number as progress through 272
-    // Progress within current grade (xp earned / total needed)
-    var rankPct=cr.xpToNext!=null&&cr.xp!=null?Math.round((cr.xp/(cr.xp+cr.xpToNext))*100):Math.round((cr.rank/272)*100);
-    careerCardHtml='<div class="csr-card" style="border-color:'+crStyle.border+'33;background:'+crStyle.bg+'">'
-      +'<div class="csr-icon" style="background:'+crStyle.bg+';border:2px solid '+crStyle.border+';color:'+crStyle.text+'">'
-      +careerIcon(crTier,crRank,crStyle,cr.rank)
-      +'</div>'
-      +'<div class="csr-info">'
-      +'<div class="csr-tier" style="color:'+crStyle.text+'">'+crRank+'</div>'
-      +'<div class="csr-detail" style="color:'+crStyle.text+'">'+(crTier?crTier+' ':'')+crGrade+' · Rank '+cr.rank+'/272</div>'
-      +'<div class="csr-bar-wrap"><div class="csr-bar-fill" style="width:'+rankPct+'%;background:'+crStyle.border+'"></div></div>'
-      +'<div class="csr-bar-labels"><span style="color:'+crStyle.text+'">Career Rank</span><span>'+rankPct+'%</span><span style="color:var(--muted)">to Hero</span></div>'
-      +(cr.xpToNext!=null?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">+'+cr.xpToNext.toLocaleString()+' XP to next grade</div>':cr.xp?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+cr.xp.toLocaleString()+' XP earned</div>':'')
-      +'</div></div>';
-  }
-  var csrHtml=renderCsrCards(p.csr,matches);
-  if(careerCardHtml||csrHtml)html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
+  // Career rank cards: desktop shows inside hero, mobile shows standalone below stats
+  if(!_isDesktop&&(careerCardHtml||csrHtml))html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
 
   // Daily session — count today's matches from recent match history
   var todayStr=new Date().toDateString();
@@ -611,14 +613,20 @@ function render(){
       if(isBest)csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,193,7,0.13);color:var(--gold)">best day</span>';
 
       var drawBit=draws?'<span style="color:#555;font-size:11px;margin-left:3px">'+draws+'D</span>':'';
-      html+='<div style="display:flex;align-items:center;gap:14px;padding:13px 18px;background:var(--surface2);border-radius:8px;border:1px solid '+(isToday?'var(--accent2)':'var(--border)')+';flex-wrap:wrap">'
-        +'<div style="min-width:95px;font-size:13px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+'">'+d.label+'</div>'
-        +'<div style="font-size:11px;color:var(--muted);min-width:52px;white-space:nowrap">'+d.games+' game'+(d.games!==1?'s':'')+'</div>'
-        +'<div style="display:flex;align-items:center;flex-wrap:nowrap">'+wlDots+'</div>'
-        +'<div style="font-size:14px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+d.wins+'W</span><span style="color:var(--muted2);margin:0 3px">/</span><span style="color:var(--loss)">'+d.losses+'L</span>'+drawBit+'</div>'
-        +'<div style="font-size:14px;font-family:Share Tech Mono,monospace;color:'+kdColor+';white-space:nowrap">'+kdStr+' K/D</div>'
+      html+='<div style="padding:11px 16px;background:var(--surface2);border-radius:8px;border:1px solid '+(isToday?'var(--accent2)':'var(--border)')+'">'
+        // Row 1: date · game count · spacer · W/L/D · K/D · best game
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+        +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+';white-space:nowrap;min-width:82px">'+d.label+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);white-space:nowrap">'+d.games+' game'+(d.games!==1?'s':'')+'</div>'
+        +'<div style="flex:1"></div>'
+        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+d.wins+'W</span><span style="color:var(--muted2);margin:0 3px">/</span><span style="color:var(--loss)">'+d.losses+'L</span>'+drawBit+'</div>'
+        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+kdColor+';white-space:nowrap">'+kdStr+' K/D</div>'
+        +(d.bestGame?'<div style="font-size:11px;color:var(--muted);white-space:nowrap">best <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span></div>':'')
+        +'</div>'
+        // Row 2: outcome dots
+        +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:'+(csrBits?'6':'0')+'px">'+wlDots+'</div>'
+        // Row 3: CSR pills (only if present)
         +(csrBits?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+csrBits+'</div>':'')
-        +(d.bestGame?'<div style="margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap">best <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span> &middot; '+(d.bestGame.mapName||'')+'</div>':'')
         +'</div>';
     });
     html+='</div>';
@@ -709,8 +717,21 @@ function render(){
   })();
   html+='</div>'; // end heatmap hidden wrapper
 
-  // Tabs handled by sidebar nav
-  if(s.topMedals&&s.topMedals.length){html+=sectionHead('Top Medals')+'<div class="medals-grid">';s.topMedals.forEach(function(m){html+=medalImg(m);});html+='</div>';}
+  // Medals modal — opened by clicking the Total Medals stat card
+  (function(){
+    if(!s.topMedals||!s.topMedals.length)return;
+    var _sorted=s.topMedals.slice().sort(function(a,b){return(b.count||0)-(a.count||0);});
+    var _inner='';
+    _sorted.forEach(function(m){_inner+=medalImg(m);});
+    html+='<div id="_medals_modal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,0.82);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.style.display=\'none\'">'
+      +'<div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;max-width:720px;width:100%;max-height:82vh;overflow-y:auto;position:relative">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--gold)">Medals &middot; '+s.totalMedals.toLocaleString()+' earned</div>'
+      +'<button onclick="document.getElementById(\'_medals_modal\').style.display=\'none\'" style="background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;line-height:1.4">close ✕</button>'
+      +'</div>'
+      +'<div class="medals-grid">'+_inner+'</div>'
+      +'</div></div>';
+  })();
 
   // Last 10 matches on overview — skip if in search mode (they have their own matches shown)
   if(displayMatches.length>0){
@@ -1144,7 +1165,7 @@ function render(){
   // ── PLAYSTYLE FINGERPRINT + CONSISTENCY SCORE ─────────────────────────────────
   (function(){
     function _fpSecs(m){var s=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;}
-    var validMs=allMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_fpSecs(m)>=180&&m.kills!=null;});
+    var validMs=allMatches.filter(function(m){return m.kills!=null&&_fpSecs(m)>=180;});
     if(validMs.length<10) return;
 
     var totalK=validMs.reduce(function(a,m){return a+(m.kills||0);},0);
@@ -1283,16 +1304,19 @@ function render(){
     html+='</div>';
 
     // ── CONSISTENCY SCORE — dedicated card ──────────────────────────────────────
-    // Mini sparkline of KDA per game (last 30 games)
-    var sparkSample=validMs.slice(0,30).reverse();
+    // Sparkline: all validMs up to 100 games, oldest→newest left→right
+    var sparkSample=validMs.slice(0,Math.min(validMs.length,100)).reverse();
     var sparkMax=Math.max.apply(null,sparkSample.map(function(m){return m.deaths>0?(m.kills+(m.assists||0)*0.3)/m.deaths:(m.kills+(m.assists||0)*0.3);}));
     sparkMax=Math.max(sparkMax,1);
-    var sparkW=Math.min(sparkSample.length*10,300),sparkH=40;
+    // Auto-size bars: narrow when many games
+    var _bw=sparkSample.length<=30?8:sparkSample.length<=60?5:3;
+    var _bg=1; // gap between bars
+    var sparkW=sparkSample.length*(_bw+_bg),sparkH=40;
     var sparkBars=sparkSample.map(function(m,i){
       var v=m.deaths>0?(m.kills+(m.assists||0)*0.3)/m.deaths:(m.kills+(m.assists||0)*0.3);
       var h=Math.max(2,Math.round((v/sparkMax)*sparkH));
-      var c=m.outcome===2?'rgba(76,175,130,0.75)':'rgba(224,80,80,0.65)';
-      return '<rect x="'+(i*10)+'" y="'+(sparkH-h)+'" width="8" height="'+h+'" rx="1" style="fill:'+c+'"/>';
+      var c=m.outcome===2?'rgba(76,175,130,0.75)':m.outcome===3?'rgba(224,80,80,0.65)':'rgba(100,140,180,0.55)';
+      return '<rect x="'+(i*(_bw+_bg))+'" y="'+(sparkH-h)+'" width="'+_bw+'" height="'+h+'" rx="1" style="fill:'+c+'"/>';
     }).join('');
     // Avg KDA line
     var avgKdaY=Math.round((1-kdaMean/sparkMax)*sparkH);
@@ -1308,7 +1332,7 @@ function render(){
     html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:4px">out of 100</div>';
     html+='</div>';
     html+='<div style="flex:1;min-width:180px">';
-    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:8px">KDA PER GAME · last '+sparkSample.length+' games <span style="color:var(--muted2);font-size:8px">— dashed line = avg '+kdaMean.toFixed(2)+'</span></div>';
+    html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:8px">KDA PER GAME · '+sparkSample.length+' games <span style="color:var(--muted2);font-size:8px">— dashed line = avg '+kdaMean.toFixed(2)+'</span></div>';
     html+=sparkSvg;
     html+='<div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">';
     html+='<div><div style="font-size:16px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+kdaMean.toFixed(2)+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.5px">AVG KDA</div></div>';
