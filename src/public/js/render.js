@@ -369,7 +369,7 @@ function render(){
       (t.players||[]).forEach(function(pl){
         if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
         var _rKey=pl.gamertag.toLowerCase();
-        if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,draws:0,total:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null,theirKills:0,theirDeaths:0,encounters:[],maps:{},myKills:0,myDeaths:0,myAssists:0};
+        if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,draws:0,total:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null,theirKills:0,theirDeaths:0,encounters:[],maps:{},myKills:0,myDeaths:0,myDmgDealt:0,myDmgTaken:0,myAccSum:0,myAccGames:0,myHeadshots:0};
         if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
         if(pl.rawXuid&&!_rivalMap[_rKey].xuid)_rivalMap[_rKey].xuid=pl.rawXuid;
         _rivalMap[_rKey].total++;
@@ -381,7 +381,10 @@ function render(){
         // Track MY stats in games where this rival appeared — powers the fingerprint overlay
         _rivalMap[_rKey].myKills+=(m.kills||0);
         _rivalMap[_rKey].myDeaths+=(m.deaths||0);
-        _rivalMap[_rKey].myAssists+=(m.assists||0);
+        _rivalMap[_rKey].myDmgDealt+=(m.damageDealt||0);
+        _rivalMap[_rKey].myDmgTaken+=(m.damageTaken||0);
+        if(m.accuracy!=null){_rivalMap[_rKey].myAccSum+=parseFloat(m.accuracy);_rivalMap[_rKey].myAccGames++;}
+        if(m.weaponStats)_rivalMap[_rKey].myHeadshots+=(m.weaponStats.headshots||0);
         if(m.mapName){
           if(!_rivalMap[_rKey].maps[m.mapName])_rivalMap[_rKey].maps[m.mapName]={w:0,l:0,total:0};
           _rivalMap[_rKey].maps[m.mapName].total++;
@@ -1833,10 +1836,17 @@ function render(){
     var n=_am.length||1;
     var k=_am.reduce(function(s,m){return s+(m.kills||0);},0)/n;
     var d=_am.reduce(function(s,m){return s+(m.deaths||0);},0)/n;
-    var a=_am.reduce(function(s,m){return s+(m.assists||0);},0)/n;
     var w=_am.filter(function(m){return m.outcome===2;}).length/n*100;
-    var kd=d>0?k/d:k;
-    return {kpg:k,kd:kd,apg:a,dpg:d,wr:w};
+    // Damage ratio: dealt/taken — >1 means you're winning fights on average
+    var _dmgM=_am.filter(function(m){return m.damageDealt>0&&m.damageTaken>0;});
+    var dmgRatio=_dmgM.length?_dmgM.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgM.length:1;
+    // Accuracy: average shot accuracy across matches where it's recorded
+    var _accM=_am.filter(function(m){return m.accuracy!=null;});
+    var acc=_accM.length?_accM.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/_accM.length:50;
+    // Headshot finish rate: headshots / kills (only matches where kills > 0)
+    var _hsM=_am.filter(function(m){return m.kills>0&&m.weaponStats;});
+    var hsPct=_hsM.length?_hsM.reduce(function(s,m){return s+(m.weaponStats.headshots||0)/m.kills*100;},0)/_hsM.length:0;
+    return {kpg:k,dpg:d,dmgRatio:dmgRatio,acc:acc,hsPct:hsPct};
   })();
 
   // OPPONENTS TAB
@@ -1859,23 +1869,28 @@ function render(){
     // ── Fingerprint radar: normalize a raw stat to 0-100 ────────────────────
     function _nfp(val,max){return Math.max(0,Math.min(100,Math.round((val/max)*100)));}
 
-    // Convert baseline object → [atk,eff,ast,def,win] 0-100 array
-    function _fpArr(kpg,kd,apg,dpg,wr){
+    // Convert stats → [frag,surv,dmg,aim,hs] 0-100 array
+    // FRAG: kills/game (ceiling 18)
+    // SURV: inverse deaths/game (ceiling 14 deaths = 0, 0 deaths = 100)
+    // DMG:  damage dealt/taken ratio (ceiling 2.0 = dominant)
+    // AIM:  shot accuracy % (ceiling 70%)
+    // HS:   headshot finish rate % (ceiling 80%)
+    function _fpArr(kpg,dpg,dmgRatio,acc,hsPct){
       return [
-        _nfp(kpg,18),          // ATK: kills/game,    18 = elite ceiling
-        _nfp(kd,2.5),          // EFF: K/D ratio,    2.5 = elite ceiling
-        _nfp(apg,7),           // AST: assists/game,   7 = elite ceiling
-        100-_nfp(dpg,14),      // DEF: survivability (inverse deaths/game)
-        Math.round(wr)         // WIN: win rate 0-100
+        _nfp(kpg,18),              // FRAG
+        100-_nfp(dpg,14),          // SURV (inverted)
+        _nfp(dmgRatio,2.0),        // DMG
+        _nfp(acc,70),              // AIM
+        _nfp(hsPct,80)             // HS
       ];
     }
 
     // ── Mini pentagon radar SVG ──────────────────────────────────────────────
-    // overallArr / rivalArr: [atk,eff,ast,def,win] each 0-100
+    // overallArr / rivalArr: [frag,surv,dmg,aim,hs] each 0-100
     // accent: color for the vs-rival polygon
     function _miniRadar(overallArr,rivalArr,accent){
       var CX=60,CY=62,R=42;
-      var axes=['ATK','EFF','AST','DEF','WIN'];
+      var axes=['FRAG','SURV','DMG','AIM','HS'];
       var N=5;
       // Axis angles: start at top (-90°), clockwise
       function _angle(i){return -Math.PI/2+i*(2*Math.PI/N);}
@@ -1977,13 +1992,15 @@ function render(){
 
       // Build fingerprint arrays
       var _b=_fpBaseline;
-      var _oArr=_fpArr(_b.kpg,_b.kd,_b.apg,_b.dpg,_b.wr);
-      // Rival-game stats: my performance in games this rival appeared
+      var _oArr=_fpArr(_b.kpg,_b.dpg,_b.dmgRatio,_b.acc,_b.hsPct);
+      // Rival-game stats: my performance in games where this rival appeared
       var _rN=r.total||1;
-      var _rKpg=r.myKills/_rN, _rDpg=r.myDeaths/_rN, _rApg=r.myAssists/_rN;
-      var _rKd=_rDpg>0?_rKpg/_rDpg:_rKpg;
-      var _rWr=wr; // already computed above
-      var _rArr=_fpArr(_rKpg,_rKd,_rApg,_rDpg,_rWr);
+      var _rKpg=r.myKills/_rN;
+      var _rDpg=r.myDeaths/_rN;
+      var _rDmgRatio=r.myDmgTaken>0?r.myDmgDealt/r.myDmgTaken:1;
+      var _rAcc=r.myAccGames>0?r.myAccSum/r.myAccGames:_b.acc;
+      var _rHsPct=r.myKills>0?r.myHeadshots/r.myKills*100:_b.hsPct;
+      var _rArr=_fpArr(_rKpg,_rDpg,_rDmgRatio,_rAcc,_rHsPct);
       var _radar=_miniRadar(_oArr,_rArr,accent);
 
       // W/L split bar proportions
@@ -2013,11 +2030,11 @@ function render(){
         +_radar
         // Axis legend
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 8px;margin:6px 2px 0;padding:5px 6px;background:var(--surface2);border-radius:5px">'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">ATK</span> kills/game</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">EFF</span> K/D ratio</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">AST</span> assists/game</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">DEF</span> survivability</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);grid-column:1/-1"><span style="color:rgba(255,255,255,0.55)">WIN</span> win rate</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">FRAG</span> kills/game</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">SURV</span> deaths (inv)</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">DMG</span> dmg dealt/taken</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">AIM</span> accuracy</div>'
+        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);grid-column:1/-1"><span style="color:rgba(255,255,255,0.55)">HS</span> headshot finish rate</div>'
         +'</div>'
         // W/L split bar
         +'<div style="display:flex;align-items:center;gap:5px;margin-top:10px;margin-bottom:3px">'

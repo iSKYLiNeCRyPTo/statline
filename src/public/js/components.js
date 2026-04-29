@@ -59,9 +59,10 @@ function toggleMatch(matchKey,idx,rawKeyArg){
   var p=getAllPlayers()[selectedPlayer]||(data.players||[])[0];
   if(!p)return;
   function _gds(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
-  var allM=p.allMatches||p.recentMatches||[];
-  var displayM=(p.recentMatches||[]);
-  // Find match — check player matches and matchHistoryData (paginated API results)
+  // Prefer fullMatchCache (enriched with expectedKills/Deaths) over raw p.allMatches
+  var _cachedM=fullMatchCache[p.gamertag]||[];
+  var allM=_cachedM.length?_cachedM:(p.allMatches||p.recentMatches||[]);
+  // Find match — check enriched cache, then matchHistoryData (paginated)
   var _histMatches=(window.matchHistoryData&&window.matchHistoryData.matches)||[];
   var m=allM.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===rawKey;})
     ||_histMatches.find(function(x){return x.matchId&&x.matchId.replace(/[^a-zA-Z0-9]/g,'_')===rawKey;})
