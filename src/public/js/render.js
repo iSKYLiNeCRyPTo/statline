@@ -368,7 +368,7 @@ function render(){
       (t.players||[]).forEach(function(pl){
         if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
         var _rKey=pl.gamertag.toLowerCase();
-        if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,draws:0,total:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null,theirKills:0,theirDeaths:0,encounters:[],maps:{}};
+        if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,draws:0,total:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null,theirKills:0,theirDeaths:0,encounters:[],maps:{},myKills:0,myDeaths:0,myAssists:0};
         if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
         if(pl.rawXuid&&!_rivalMap[_rKey].xuid)_rivalMap[_rKey].xuid=pl.rawXuid;
         _rivalMap[_rKey].total++;
@@ -377,6 +377,10 @@ function render(){
         else{_rivalMap[_rKey].draws++;_rivalMap[_rKey].encounters.unshift(0);}
         _rivalMap[_rKey].theirKills+=(pl.kills||0);
         _rivalMap[_rKey].theirDeaths+=(pl.deaths||0);
+        // Track MY stats in games where this rival appeared — powers the fingerprint overlay
+        _rivalMap[_rKey].myKills+=(m.kills||0);
+        _rivalMap[_rKey].myDeaths+=(m.deaths||0);
+        _rivalMap[_rKey].myAssists+=(m.assists||0);
         if(m.mapName){
           if(!_rivalMap[_rKey].maps[m.mapName])_rivalMap[_rKey].maps[m.mapName]={w:0,l:0,total:0};
           _rivalMap[_rKey].maps[m.mapName].total++;
@@ -447,20 +451,67 @@ function render(){
       +(cr.xpToNext!=null?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">+'+cr.xpToNext.toLocaleString()+' XP to next grade</div>':cr.xp?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+cr.xp.toLocaleString()+' XP earned</div>':'')
       +'</div></div>';
   }
-  var csrHtml=renderCsrCards(p.csr,matches);
-  // On desktop: rank cards sit inside the hero card as a full-width bottom row
-  var _rankInHero=_isDesktop&&(careerCardHtml||csrHtml)
-    ?'<div style="width:100%;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.07);display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">'+careerCardHtml+csrHtml+'</div>'
-    :'';
+  var csrHtml=renderCsrCards(p.csr,matches); // used for mobile csr-row below
+
+  // Build compact inline rank cards for hero middle slot (desktop only)
+  // These are leaner than the full csr-card — just icon + tier name + CSR + mode
+  function _compactRankCard(iconHtml,tierColor,tierBorder,tierBg,topLine,line2,line3){
+    return '<div style="background:'+tierBg+';border:1px solid '+tierBorder+'44;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;min-width:155px">'
+      +'<div style="width:38px;height:38px;border-radius:50%;border:2px solid '+tierBorder+';background:'+tierBg+';overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
+      +'<div style="min-width:0">'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:16px;font-weight:700;color:'+tierColor+';line-height:1.1;white-space:nowrap">'+topLine+'</div>'
+      +(line2?'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;white-space:nowrap">'+line2+'</div>':'')
+      +(line3?'<div style="font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;white-space:nowrap">'+line3+'</div>':'')
+      +'</div></div>';
+  }
+  var _heroRankCards='';
+  if(_isDesktop){
+    // Career rank card
+    if(p.careerRank){
+      var _cr=p.careerRank;
+      var _crParts=_cr.name.match(/^(.+?)\s+(Bronze|Silver|Gold|Platinum|Diamond|Onyx)\s+(Grade \d+)$/i);
+      var _crRank=_crParts?_crParts[1]:_cr.name;
+      var _crTier=_crParts?_crParts[2]:'';
+      var _crGrade=_crParts?_crParts[3]:'';
+      var _crStyle=CSR_STYLES[_crTier]||{bg:'rgba(175,169,236,0.12)',border:'#AFA9EC',text:'#AFA9EC'};
+      _heroRankCards+=_compactRankCard(
+        careerIcon(_crTier,_crRank,_crStyle,_cr.rank),
+        _crStyle.text,_crStyle.border,_crStyle.bg,
+        _crRank,
+        (_crTier?_crTier+' ':'')+_crGrade,
+        'Rank '+_cr.rank+'/272'
+      );
+    }
+    // CSR playlist cards
+    if(p.csr){
+      Object.entries(p.csr).forEach(function(e){
+        var label=e[0],c=e[1];
+        if(!c||!c.tier)return;
+        var _cs=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)'};
+        _heroRankCards+=_compactRankCard(
+          csrIcon(c.tier,_cs.border,_cs.bg),
+          _cs.text,_cs.border,_cs.bg,
+          c.display,
+          'CSR '+c.value+(c.seasonMax?' · Peak '+c.seasonMax:''),
+          label
+        );
+      });
+    }
+  }
+  var _hasHeroRank=_heroRankCards.length>0;
+
   html+='<div class="tab-panel'+(activeTab==='overview'?' active':'')+'" data-tab="overview">';
   html+='<div class="hero">'
     +(p.nameplateUrl?'<div class="hero-nameplate" style="background-image:url(\''+p.nameplateUrl+'\')"></div>':'')
+    // Left: emblem + name/stats/win bar
     +'<div style="display:flex;align-items:flex-start;gap:14px;position:relative">'+playerEmblem(p,72)+'<div><div style="display:flex;align-items:center;gap:8px"><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><button id="heroFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="background:transparent;border:none;padding:2px;cursor:pointer;color:var(--muted);flex-shrink:0;line-height:1" onmouseover="this.style.color=\'#ffc107\'" onmouseout="updateFavBtn()"><svg id="heroFavIcon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>'+(p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1.5px;margin-top:2px;margin-bottom:2px">['+p.serviceTag+']</div>':'')+'<div class="hero-sub">Halo Infinite · '+s.matchesPlayed.toLocaleString()+' matches · '+s.wins+'W / '+s.losses+'L'+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+s.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+s.winRate+'%"></div></div></div></div></div>'
-    +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;position:relative">'
+    // Middle: compact rank cards (desktop only, between name and K/D)
+    +(_hasHeroRank?'<div style="display:flex;flex-direction:column;gap:8px;align-self:center;flex-shrink:0">'+_heroRankCards+'</div>':'')
+    // Right: adornment + K/D
+    +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;position:relative;flex-shrink:0">'
     +(p.careerRank&&p.careerRank.adornmentUrl?'<img class="hero-adornment" src="'+p.careerRank.adornmentUrl+'" alt="Career Rank" onerror="this.style.display=\'none\'">':'')
     +'<div><div class="hero-kd-val">'+s.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div>'
     +'</div>'
-    +_rankInHero
     +'</div>';
   // Stat row — moved up directly below hero
   var _formCount=window.innerWidth<768?14:10;
@@ -636,16 +687,16 @@ function render(){
       if(d.slayerCsr!=null){var sc=d.slayerCsr>=0?'+'+d.slayerCsr:String(d.slayerCsr);csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+(d.slayerCsr>=0?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(d.slayerCsr>=0?'var(--win)':'var(--loss)')+'">Slayer '+sc+'</span>';}
       if(isBest)csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,193,7,0.13);color:var(--gold)">best day</span>';
 
-      var drawBit=draws?'<span style="color:#555;font-size:11px;margin-left:3px">'+draws+'D</span>':'';
+      var drawBit=draws?'<span style="color:var(--muted2);font-size:11px;margin-left:4px">'+draws+'D</span>':'';
       html+='<div style="padding:11px 16px;background:var(--surface2);border-radius:8px;border:1px solid '+(isToday?'var(--accent2)':'var(--border)')+'">'
         // Row 1: date · game count · spacer · W/L/D · K/D · best game
-        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
-        +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+';white-space:nowrap;min-width:82px">'+d.label+'</div>'
-        +'<div style="font-size:11px;color:var(--muted);white-space:nowrap">'+d.games+' game'+(d.games!==1?'s':'')+'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;min-width:0;overflow:hidden">'
+        +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+';white-space:nowrap;min-width:72px">'+d.label+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);white-space:nowrap">'+d.games+'g</div>'
         +'<div style="flex:1"></div>'
-        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+d.wins+'W</span><span style="color:var(--muted2);margin:0 3px">/</span><span style="color:var(--loss)">'+d.losses+'L</span>'+drawBit+'</div>'
-        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+kdColor+';white-space:nowrap">'+kdStr+' K/D</div>'
-        +(d.bestGame?'<div style="font-size:11px;color:var(--muted);white-space:nowrap">best <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span></div>':'')
+        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;white-space:nowrap;flex-shrink:0"><span style="color:var(--win)">'+d.wins+'W</span><span style="color:var(--muted2);margin:0 2px">/</span><span style="color:var(--loss)">'+d.losses+'L</span>'+drawBit+'</div>'
+        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+kdColor+';white-space:nowrap;flex-shrink:0">'+kdStr+' K/D</div>'
+        +(d.bestGame?'<div style="font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0">best <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span></div>':'')
         +'</div>'
         // Row 2: outcome dots
         +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:'+(csrBits?'6':'0')+'px">'+wlDots+'</div>'
@@ -742,15 +793,17 @@ function render(){
   html+='</div>'; // end heatmap hidden wrapper
 
   // Medals modal — opened by clicking the Total Medals stat card
+  // Uses allMedals (all earned medals) sorted by count descending
   (function(){
-    if(!s.topMedals||!s.topMedals.length)return;
-    var _sorted=s.topMedals.slice().sort(function(a,b){return(b.count||0)-(a.count||0);});
+    var _src=s.allMedals&&s.allMedals.length?s.allMedals:(s.topMedals||[]);
+    if(!_src.length)return;
+    var _sorted=_src.slice().sort(function(a,b){return(b.count||0)-(a.count||0);});
     var _inner='';
     _sorted.forEach(function(m){_inner+=medalImg(m);});
     html+='<div id="_medals_modal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,0.82);align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.style.display=\'none\'">'
       +'<div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:24px;max-width:720px;width:100%;max-height:82vh;overflow-y:auto;position:relative">'
       +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">'
-      +'<div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--gold)">Medals &middot; '+s.totalMedals.toLocaleString()+' earned</div>'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:20px;font-weight:700;color:var(--gold)">Medals &middot; '+s.totalMedals.toLocaleString()+' earned &middot; <span style="font-size:14px;color:var(--muted)">'+_sorted.length+' types</span></div>'
       +'<button onclick="document.getElementById(\'_medals_modal\').style.display=\'none\'" style="background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:13px;padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;line-height:1.4">close ✕</button>'
       +'</div>'
       +'<div class="medals-grid">'+_inner+'</div>'
@@ -1769,13 +1822,21 @@ function render(){
   html+=renderCsrFromMatches(allMatches,'Ranked Arena',_cc[0]);
   html+=renderCsrFromMatches(allMatches,'Ranked Slayer',_cc[1]);
   html+=renderCsrEfficiency(allMatches);
-  html+='</div>'; // end performance tab
-
-  // OBJECTIVES TAB
-  html+='<div class="tab-panel'+(activeTab==='objectives'?' active':'')+'" data-tab="objectives">';
+  // Objective stats live in Stats tab (Objectives tab removed; synergy removed in favour of Rivals tab)
   html+=renderObjectiveStats(matches);
-  html+=renderDuoSynergy(data.duoSynergy,p.gamertag);
-  html+='</div>'; // end objectives tab
+  html+='</div>'; // end stats tab
+
+  // Overall baseline for fingerprint radar — computed from all available matches
+  var _fpBaseline=(function(){
+    var _am=allMatches.filter(function(m){return m.kills!=null&&m.deaths!=null;});
+    var n=_am.length||1;
+    var k=_am.reduce(function(s,m){return s+(m.kills||0);},0)/n;
+    var d=_am.reduce(function(s,m){return s+(m.deaths||0);},0)/n;
+    var a=_am.reduce(function(s,m){return s+(m.assists||0);},0)/n;
+    var w=_am.filter(function(m){return m.outcome===2;}).length/n*100;
+    var kd=d>0?k/d:k;
+    return {kpg:k,kd:kd,apg:a,dpg:d,wr:w};
+  })();
 
   // OPPONENTS TAB
   html+='<div class="tab-panel'+(activeTab==='opponents'?' active':'')+'" data-tab="opponents">';
@@ -1789,9 +1850,81 @@ function render(){
     // ── Helper: encounter dots ───────────────────────────────────────────────
     function _encDots(encounters){
       return encounters.slice(0,8).map(function(o){
-        var c=o===2?'var(--win)':o===3?'var(--loss)':'#444';
-        return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+c+';flex-shrink:0"></span>';
+        var c=o===2?'var(--win)':o===3?'var(--loss)':'rgba(255,255,255,0.18)';
+        return '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+c+';flex-shrink:0"></span>';
       }).join('');
+    }
+
+    // ── Fingerprint radar: normalize a raw stat to 0-100 ────────────────────
+    function _nfp(val,max){return Math.max(0,Math.min(100,Math.round((val/max)*100)));}
+
+    // Convert baseline object → [atk,eff,ast,def,win] 0-100 array
+    function _fpArr(kpg,kd,apg,dpg,wr){
+      return [
+        _nfp(kpg,18),          // ATK: kills/game,    18 = elite ceiling
+        _nfp(kd,2.5),          // EFF: K/D ratio,    2.5 = elite ceiling
+        _nfp(apg,7),           // AST: assists/game,   7 = elite ceiling
+        100-_nfp(dpg,14),      // DEF: survivability (inverse deaths/game)
+        Math.round(wr)         // WIN: win rate 0-100
+      ];
+    }
+
+    // ── Mini pentagon radar SVG ──────────────────────────────────────────────
+    // overallArr / rivalArr: [atk,eff,ast,def,win] each 0-100
+    // accent: color for the vs-rival polygon
+    function _miniRadar(overallArr,rivalArr,accent){
+      var CX=60,CY=62,R=42;
+      var axes=['ATK','EFF','AST','DEF','WIN'];
+      var N=5;
+      // Axis angles: start at top (-90°), clockwise
+      function _angle(i){return -Math.PI/2+i*(2*Math.PI/N);}
+      function _pt(val,i){
+        var r=val/100*R;
+        var a=_angle(i);
+        return {x:+(CX+r*Math.cos(a)).toFixed(2),y:+(CY+r*Math.sin(a)).toFixed(2)};
+      }
+      function _ptStr(val,i){var p=_pt(val,i);return p.x+','+p.y;}
+      // Grid lines
+      var gridSvg='';
+      [0.25,0.5,0.75,1].forEach(function(pct){
+        var pts=[0,1,2,3,4].map(function(i){
+          var a=_angle(i);var r=pct*R;
+          return +(CX+r*Math.cos(a)).toFixed(2)+','++(CY+r*Math.sin(a)).toFixed(2);
+        }).join(' ');
+        gridSvg+='<polygon points="'+pts+'" fill="none" stroke="rgba(255,255,255,'+(pct===1?'0.08':'0.04')+')" stroke-width="'+(pct===1?'0.8':'0.5')+'"/>';
+      });
+      // Axis spokes
+      var spokesSvg=[0,1,2,3,4].map(function(i){
+        var a=_angle(i);
+        var x2=+(CX+R*Math.cos(a)).toFixed(2),y2=+(CY+R*Math.sin(a)).toFixed(2);
+        return '<line x1="'+CX+'" y1="'+CY+'" x2="'+x2+'" y2="'+y2+'" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>';
+      }).join('');
+      // Axis labels
+      var labelSvg=[0,1,2,3,4].map(function(i){
+        var a=_angle(i);var lr=R+9;
+        var lx=+(CX+lr*Math.cos(a)).toFixed(1),ly=+(CY+lr*Math.sin(a)).toFixed(1);
+        var anchor=Math.cos(a)>0.3?'start':Math.cos(a)<-0.3?'end':'middle';
+        return '<text x="'+lx+'" y="'+ly+'" font-size="6.5" fill="rgba(255,255,255,0.35)" font-family="monospace" text-anchor="'+anchor+'" dominant-baseline="middle">'+axes[i]+'</text>';
+      }).join('');
+      // Overall polygon (blue)
+      var oPts=overallArr.map(function(v,i){return _ptStr(v,i);}).join(' ');
+      // Rival polygon (accent)
+      var rPts=rivalArr.map(function(v,i){return _ptStr(v,i);}).join(' ');
+      return '<svg viewBox="0 0 120 128" width="120" height="128" style="display:block;margin:0 auto">'
+        +gridSvg+spokesSvg
+        // Overall fill
+        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.18)" stroke="rgba(56,138,221,0.6)" stroke-width="1.5" stroke-linejoin="round"/>'
+        // Rival fill
+        +'<polygon points="'+rPts+'" fill="'+accent+'22" stroke="'+accent+'" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="none" opacity="0.9"/>'
+        // Dots at each rival axis tip
+        +rivalArr.map(function(v,i){var p=_pt(v,i);return'<circle cx="'+p.x+'" cy="'+p.y+'" r="2" fill="'+accent+'" opacity="0.9"/>';}).join('')
+        // Legend
+        +'<rect x="4" y="118" width="7" height="4" rx="1" fill="rgba(56,138,221,0.7)"/>'
+        +'<text x="13" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">Overall</text>'
+        +'<rect x="46" y="118" width="7" height="4" rx="1" fill="'+accent+'"/>'
+        +'<text x="55" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">vs Rival</text>'
+        +labelSvg
+        +'</svg>';
     }
 
     // ── Helper: their K/D vs you ─────────────────────────────────────────────
@@ -1828,49 +1961,68 @@ function render(){
       return null;
     }
 
-    // ── Helper: render a rival row ──────────────────────────────────────────
-    function _rivalRow(r,accent){
+    // ── Helper: render a rival card (square grid item) ──────────────────────
+    function _rivalCard(r,accent){
       var _rFav=isFavorite(r.gamertag);
       var _gt=r.gamertag.replace(/'/g,"\\'");
       var _gtQ=r.gamertag.replace(/"/g,'&quot;');
       var wr=r.total>0?Math.round(r.wins/r.total*100):0;
       var wrColor=wr>=60?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
-      var kd=_theirKd(r);
-      var kdColor=kd!=null?(parseFloat(kd)>1.2?'var(--loss)':parseFloat(kd)<0.9?'var(--win)':'var(--muted)'):'var(--muted)';
-      var tm=_topMap(r);
       var dom=_domLabel(r);
       var streak=_streak(r.encounters||[]);
       var _starSvg=_rFav
-        ?'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
-        :'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-      return '<div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.12s" onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'" onclick="quickSearch(\''+_gt+'\')">'
-        +rivalAvatar(r)
-        // Name + tags
+        ?'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+        :'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
+      // Build fingerprint arrays
+      var _b=_fpBaseline;
+      var _oArr=_fpArr(_b.kpg,_b.kd,_b.apg,_b.dpg,_b.wr);
+      // Rival-game stats: my performance in games this rival appeared
+      var _rN=r.total||1;
+      var _rKpg=r.myKills/_rN, _rDpg=r.myDeaths/_rN, _rApg=r.myAssists/_rN;
+      var _rKd=_rDpg>0?_rKpg/_rDpg:_rKpg;
+      var _rWr=wr; // already computed above
+      var _rArr=_fpArr(_rKpg,_rKd,_rApg,_rDpg,_rWr);
+      var _radar=_miniRadar(_oArr,_rArr,accent);
+
+      // W/L split bar proportions
+      var _winPct=r.total>0?Math.round(r.wins/r.total*100):50;
+      var _lossPct=r.total>0?Math.round(r.losses/r.total*100):50;
+      var _drawPct=Math.max(0,100-_winPct-_lossPct);
+
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color 0.15s,background 0.15s;display:flex;flex-direction:column" '
+        +'onmouseenter="this.style.borderColor=\''+accent+'\';this.style.background=\'var(--surface2)\'" '
+        +'onmouseleave="this.style.borderColor=\'\';this.style.background=\'var(--surface)\'" '
+        +'onclick="quickSearch(\''+_gt+'\')">'
+        // Header: avatar + name row
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+        +rivalAvatar(r,36)
         +'<div style="min-width:0;flex:1">'
-        +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-        +'<span style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">'+r.gamertag+'</span>'
-        +(dom?'<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(0,0,0,0.3);color:'+dom.color+';font-family:Share Tech Mono,monospace;letter-spacing:.5px;white-space:nowrap">'+dom.text+'</span>':'')
-        +(streak&&streak.count>=3?'<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(0,0,0,0.3);color:'+(streak.outcome===2?'var(--win)':'var(--loss)')+';font-family:Share Tech Mono,monospace;white-space:nowrap">'+(streak.outcome===2?'▲':'▼')+streak.count+' streak</span>':'')
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+r.gamertag+'</div>'
+        +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px">'
+        +(dom?'<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:'+accent+'20;color:'+dom.color+';font-family:Share Tech Mono,monospace">'+dom.text+'</span>':'')
+        +(streak&&streak.count>=3?'<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(0,0,0,0.25);color:'+(streak.outcome===2?'var(--win)':'var(--loss)')+';font-family:Share Tech Mono,monospace">'+(streak.outcome===2?'▲':'▼')+streak.count+'</span>':'')
         +'</div>'
+        +'</div>'
+        +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+_gtQ+'" '
+        +'style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.28')+';padding:2px;line-height:1;flex-shrink:0" '
+        +'title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+_starSvg+'</span>'
+        +'</div>'
+        // Fingerprint radar — the main comparison graphic
+        +_radar
+        // W/L split bar
+        +'<div style="display:flex;align-items:center;gap:5px;margin-top:10px;margin-bottom:3px">'
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:17px;font-weight:700;color:var(--win);line-height:1;min-width:24px">'+r.wins+'W</div>'
+        +'<div style="flex:1;height:5px;border-radius:3px;overflow:hidden;display:flex;background:var(--surface3)">'
+        +'<div style="width:'+_winPct+'%;background:var(--win)"></div>'
+        +(_drawPct?'<div style="width:'+_drawPct+'%;background:rgba(255,255,255,0.18)"></div>':'')
+        +'<div style="width:'+_lossPct+'%;background:var(--loss)"></div>'
+        +'</div>'
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:17px;font-weight:700;color:var(--loss);line-height:1;min-width:24px;text-align:right">'+r.losses+'L</div>'
+        +'</div>'
+        +'<div style="font-size:8px;color:'+wrColor+';font-family:Share Tech Mono,monospace;margin-bottom:8px">'+wr+'% wr · '+r.total+' games</div>'
         // Encounter dots
-        +'<div style="display:flex;align-items:center;gap:3px;margin-top:5px">'+_encDots(r.encounters||[])+'<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-left:3px">'+r.total+'g</span></div>'
-        +'</div>'
-        // W/L + win rate bar
-        +'<div style="min-width:72px;text-align:center">'
-        +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+r.wins+'W</span><span style="color:var(--muted2);margin:0 2px">/</span><span style="color:var(--loss)">'+r.losses+'L</span></div>'
-        +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px;transition:width 0.3s"></div></div>'
-        +'<div style="font-size:9px;color:'+wrColor+';font-family:Share Tech Mono,monospace;margin-top:2px">'+wr+'% wr</div>'
-        +'</div>'
-        // Their K/D vs you
-        +(kd!=null
-          ?'<div style="min-width:54px;text-align:center;display:none" class="rivals-wide-col"><div style="font-family:Rajdhani,sans-serif;font-size:16px;font-weight:700;color:'+kdColor+'">'+kd+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">their K/D</div></div>'
-          :'<div style="min-width:54px" class="rivals-wide-col"></div>')
-        // Top map
-        +(tm
-          ?'<div style="min-width:90px;text-align:right;display:none" class="rivals-wide-col"><div style="font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tm.name+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+tm.total+'g · '+tm.wr+'% wr</div></div>'
-          :'<div style="min-width:90px" class="rivals-wide-col"></div>')
-        // Fav star
-        +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+_gtQ+'" style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.3')+';flex-shrink:0;padding:4px" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+_starSvg+'</span>'
+        +'<div style="display:flex;gap:3px;flex-wrap:wrap">'+_encDots(r.encounters||[])+'</div>'
         +'</div>';
     }
 
@@ -1896,56 +2048,64 @@ function render(){
       html+='</div>';
     }
 
+    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:24px';
+
     // ── NEMESES ─────────────────────────────────────────────────────────────
     if(nemeses.length){
       html+=sectionHead('Nemeses','opponents who get the better of you');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-      nemeses.forEach(function(r){html+=_rivalRow(r,'var(--loss)');});
+      html+='<div style="'+_cardGrid+'">';
+      nemeses.forEach(function(r){html+=_rivalCard(r,'var(--loss)');});
       html+='</div>';
     }
 
     // ── VICTIMS ─────────────────────────────────────────────────────────────
     if(victims.length){
       html+=sectionHead('Victims','opponents you consistently beat');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-      victims.forEach(function(r){html+=_rivalRow(r,'var(--win)');});
+      html+='<div style="'+_cardGrid+'">';
+      victims.forEach(function(r){html+=_rivalCard(r,'var(--win)');});
       html+='</div>';
     }
 
-    // ── FREQUENT OPPONENTS (all ≥3 games, not yet listed) ───────────────────
+    // ── FREQUENT ENCOUNTERS (≥3 games, not already listed) ──────────────────
     var _listedGts={};
     nemeses.forEach(function(r){_listedGts[r.gamertag.toLowerCase()]=true;});
     victims.forEach(function(r){_listedGts[r.gamertag.toLowerCase()]=true;});
     var _freqExtra=_freqAll.filter(function(r){return !_listedGts[r.gamertag.toLowerCase()];});
     if(_freqExtra.length){
       html+=sectionHead('Frequent Encounters','met 3+ times · roughly even record');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
-      _freqExtra.slice(0,10).forEach(function(r){html+=_rivalRow(r,'var(--accent)');});
+      html+='<div style="'+_cardGrid+'">';
+      _freqExtra.slice(0,12).forEach(function(r){html+=_rivalCard(r,'var(--accent)');});
       html+='</div>';
     }
 
     // ── FREQUENT TEAMMATES ──────────────────────────────────────────────────
     if(_topMates.length){
       html+=sectionHead('Frequent Teammates','players on your side most often');
-      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      html+='<div style="'+_cardGrid+'">';
       _topMates.forEach(function(r){
         var _rFav=isFavorite(r.gamertag);
+        var _gtQ=r.gamertag.replace(/"/g,'&quot;');
         var wr=r.games>0?Math.round(r.wins/r.games*100):0;
         var wrColor=wr>=60?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
+        var _winPct=r.games>0?Math.round(r.wins/r.games*100):50;
         var _starSvg=_rFav
-          ?'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
-          :'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-        html+='<div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.12s" onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'" onclick="quickSearch(\''+r.gamertag.replace(/'/g,"\\'")+'\')">'+rivalAvatar(r)
-          +'<div style="flex:1;min-width:0">'
-          +'<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text)">'+r.gamertag+'</div>'
-          +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px">'+r.games+' games together</div>'
+          ?'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+          :'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+        html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color 0.15s,background 0.15s;display:flex;flex-direction:column" '
+          +'onmouseenter="this.style.borderColor=\'var(--accent)\';this.style.background=\'var(--surface2)\'" '
+          +'onmouseleave="this.style.borderColor=\'\';this.style.background=\'var(--surface)\'" '
+          +'onclick="quickSearch(\''+r.gamertag.replace(/'/g,"\\'")+'\')"> '
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
+          +rivalAvatar(r,44)
+          +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+_gtQ+'" style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.28')+';padding:2px;line-height:1">'+_starSvg+'</span>'
           +'</div>'
-          +'<div style="min-width:72px;text-align:center">'
-          +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+r.wins+'W</span><span style="color:var(--muted2);margin:0 2px">/</span><span style="color:var(--loss)">'+r.losses+'L</span></div>'
-          +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px"></div></div>'
-          +'<div style="font-size:9px;color:'+wrColor+';font-family:Share Tech Mono,monospace;margin-top:2px">'+wr+'% wr together</div>'
+          +'<div style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px">'+r.gamertag+'</div>'
+          +'<div style="font-size:9px;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px">'+r.games+' games together</div>'
+          // Win bar
+          +'<div style="height:5px;border-radius:3px;overflow:hidden;background:var(--surface3);margin-bottom:5px">'
+          +'<div style="height:100%;width:'+_winPct+'%;background:var(--win)"></div>'
           +'</div>'
-          +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.3')+';flex-shrink:0;padding:4px">'+_starSvg+'</span>'
+          +'<div style="font-size:9px;color:'+wrColor+';font-family:Share Tech Mono,monospace">'+wr+'% win rate together · '+r.wins+'W/'+r.losses+'L</div>'
           +'</div>';
       });
       html+='</div>';

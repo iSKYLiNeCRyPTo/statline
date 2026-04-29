@@ -1,11 +1,12 @@
-function rivalAvatar(r){
+function rivalAvatar(r,size){
   var init=(r.gamertag||'?')[0].toUpperCase();
   var src=r.xuid?'/api/emblem?xuid='+r.xuid:(r.gamerpicUrl||null);
+  var _sz=size?'width:'+size+'px;height:'+size+'px;border-radius:6px;':'';
   if(src){
-    return '<img class="rival-avatar" src="'+src+'" onerror="this.onerror=null;this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" loading="lazy">'
-          +'<span class="rival-avatar-placeholder" style="display:none">'+init+'</span>';
+    return '<img class="rival-avatar" style="'+_sz+'" src="'+src+'" onerror="this.onerror=null;this.style.display=\'none\';this.nextSibling.style.display=\'flex\'" loading="lazy">'
+          +'<span class="rival-avatar-placeholder" style="display:none;'+_sz+'font-size:'+(size?Math.round(size*0.36):10)+'px">'+init+'</span>';
   }
-  return '<span class="rival-avatar-placeholder">'+init+'</span>';
+  return '<span class="rival-avatar-placeholder" style="'+_sz+'font-size:'+(size?Math.round(size*0.36):10)+'px">'+init+'</span>';
 }
 function timeAgo(iso){if(!iso)return'';var diff=Date.now()-new Date(iso).getTime(),m=Math.floor(diff/60000),h=Math.floor(m/60),d=Math.floor(h/24);if(d>0)return d+'d ago';if(h>0)return h+'h ago';if(m>0)return m+'m ago';return'just now';}
 function formatDur(iso){if(!iso)return'';var p=iso.match(/PT(?:(\d+)M)?(?:([\d.]+)S)?/);if(!p)return'';return(parseInt(p[1]||0))+'m '+Math.floor(parseFloat(p[2]||0))+'s';}

@@ -93,7 +93,7 @@ async function loadFullMatches(gamertag, force, bannerLabel){
           resolveMatchGamertags(card);
         });
       }, 0);
-      if(activeTab==='objectives') setTimeout(resolveSynergyGamertags, 200);
+      if(activeTab==='charts') setTimeout(resolveSynergyGamertags, 200);
       if(activeTab==='matches'&&matchHistoryData&&matchHistoryData._gamertag===gamertag){
         var _upd={matches:d.matches,page:1,totalPages:Math.max(1,Math.ceil(d.matches.length/25)),total:d.matches.length,_gamertag:gamertag};
         matchHistoryData=_upd;

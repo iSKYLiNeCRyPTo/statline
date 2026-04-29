@@ -89,7 +89,7 @@ function toggleMatch(matchKey,idx,rawKeyArg){
 
 
 async function resolveSynergyGamertags() {
-  var panel = document.querySelector('.tab-panel[data-tab="objectives"]');
+  var panel = document.querySelector('.tab-panel[data-tab="charts"]');
   if (!panel) return;
   var skeletons = panel.querySelectorAll('.syn-gt-skeleton[data-syn-xuid]');
   var xuids = [];

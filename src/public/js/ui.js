@@ -253,6 +253,8 @@ function flushTabTime(newTab) {
 window.addEventListener('beforeunload', function(){ flushTabTime('__exit__'); });
 
 function setTab(t){
+  // Objectives tab was merged into Stats — redirect any stored/legacy references
+  if(t==='objectives') t='charts';
   // Clear expanded match state for the tab we're leaving so cards render cleanly on return
   var _prevTab=activeTab;
   flushTabTime(t);
@@ -274,7 +276,7 @@ function setTab(t){
     p.classList.toggle('active', p.dataset.tab===t);
   });
   // Update topbar title
-  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',objectives:'// OBJECTIVES',opponents:'// RIVALS'};
+  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS'};
   var el=document.getElementById('topbarTitle');
   if(el)el.textContent=titles[t]||'// '+t.toUpperCase();
   // Close sidebar on mobile
@@ -297,11 +299,11 @@ function setTab(t){
       }
     },50);
   }
-  if(['bymap','charts','objectives','opponents'].indexOf(t)>-1){
+  if(['bymap','charts','opponents'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
-  if(t==='objectives') setTimeout(resolveSynergyGamertags, 150);
+  if(t==='charts') setTimeout(resolveSynergyGamertags, 150);
   // Update desktop tab active state
   document.querySelectorAll('.dtab').forEach(function(b){
     b.classList.toggle('active', b.dataset.tab===t);
@@ -333,7 +335,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='1')setTab('overview');
   if(e.key==='2')setTab('history');
   if(e.key==='3')setTab('charts');
-  if(e.key==='4')setTab('objectives');
+  if(e.key==='4')setTab('opponents');
   if(e.key==='/')setTimeout(function(){document.getElementById('searchInput')&&document.getElementById('searchInput').focus();},0);
 });
 

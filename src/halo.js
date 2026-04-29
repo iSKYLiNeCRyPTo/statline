@@ -574,7 +574,7 @@ async function fetchPlayerStats(gamertag) {
   try {
     const rawMedals = statsData.Medals || statsData.CoreStats?.Medals || [];
     const medalMeta = global._medalMeta || {};
-    allMedalsSlim = rawMedals.map(m => ({ nameId: m.NameId, count: m.Count })).slice(0, 20);
+    allMedalsSlim = rawMedals.filter(m => m.Count > 0).map(m => ({ nameId: m.NameId, count: m.Count }));
     topMedals = rawMedals
       .filter(m => m.Count > 0)
       .sort((a, b) => b.Count - a.Count)
