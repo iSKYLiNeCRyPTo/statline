@@ -344,31 +344,55 @@ function render(){
   var allMatches=_rawMatches;
   var displayMatches=_rawMatches; // same 25 matches
   var filtered=displayMatches;
-  // Compute nemeses/victims from current match data
+  // Compute nemeses/victims/teammates from current match data
   var nemeses, victims;
   var _rivalMap={};
+  var _mateMap={};
   _rawMatches.forEach(function(m){
     if(!m.teams) return;
     var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===p.gamertag.toLowerCase();});});
     if(!myTeam) return;
+    // Teammates — players on my side
+    (myTeam.players||[]).forEach(function(pl){
+      if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
+      var _mk=pl.gamertag.toLowerCase();
+      if(!_mateMap[_mk]) _mateMap[_mk]={gamertag:pl.gamertag,games:0,wins:0,losses:0,gamerpicUrl:pl.gamerpicUrl||null};
+      if(pl.gamerpicUrl&&!_mateMap[_mk].gamerpicUrl)_mateMap[_mk].gamerpicUrl=pl.gamerpicUrl;
+      _mateMap[_mk].games++;
+      if(m.outcome===2)_mateMap[_mk].wins++;
+      else if(m.outcome===3)_mateMap[_mk].losses++;
+    });
+    // Opponents
     m.teams.forEach(function(t){
       if(t===myTeam) return;
       (t.players||[]).forEach(function(pl){
         if(!pl.gamertag||pl.gamertag.toLowerCase()===p.gamertag.toLowerCase()||pl.gamertag.startsWith('Spartan ')) return;
         var _rKey=pl.gamertag.toLowerCase();
-          if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,total:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null};
-          if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
-          if(pl.rawXuid&&!_rivalMap[_rKey].xuid)_rivalMap[_rKey].xuid=pl.rawXuid;
-          _rivalMap[_rKey].total++;
-          if(m.outcome===2) _rivalMap[_rKey].wins++;
-          else if(m.outcome===3) _rivalMap[_rKey].losses++;
+        if(!_rivalMap[_rKey]) _rivalMap[_rKey]={gamertag:pl.gamertag,wins:0,losses:0,draws:0,total:0,gamerpicUrl:pl.gamerpicUrl||null,xuid:pl.rawXuid||null,theirKills:0,theirDeaths:0,encounters:[],maps:{}};
+        if(pl.gamerpicUrl&&!_rivalMap[_rKey].gamerpicUrl)_rivalMap[_rKey].gamerpicUrl=pl.gamerpicUrl;
+        if(pl.rawXuid&&!_rivalMap[_rKey].xuid)_rivalMap[_rKey].xuid=pl.rawXuid;
+        _rivalMap[_rKey].total++;
+        if(m.outcome===2){_rivalMap[_rKey].wins++;_rivalMap[_rKey].encounters.unshift(2);}
+        else if(m.outcome===3){_rivalMap[_rKey].losses++;_rivalMap[_rKey].encounters.unshift(3);}
+        else{_rivalMap[_rKey].draws++;_rivalMap[_rKey].encounters.unshift(0);}
+        _rivalMap[_rKey].theirKills+=(pl.kills||0);
+        _rivalMap[_rKey].theirDeaths+=(pl.deaths||0);
+        if(m.mapName){
+          if(!_rivalMap[_rKey].maps[m.mapName])_rivalMap[_rKey].maps[m.mapName]={w:0,l:0,total:0};
+          _rivalMap[_rKey].maps[m.mapName].total++;
+          if(m.outcome===2)_rivalMap[_rKey].maps[m.mapName].w++;
+          else if(m.outcome===3)_rivalMap[_rKey].maps[m.mapName].l++;
+        }
       });
     });
   });
   var _rivals=Object.values(_rivalMap).filter(function(r){return r.total>=1;});
   var _sorted=_rivals.sort(function(a,b){return b.total-a.total;});
-  nemeses=_sorted.filter(function(r){return r.losses>=r.wins;}).slice(0,10);
-  victims=_sorted.filter(function(r){return r.wins>r.losses;}).slice(0,10);
+  // Require ≥2 encounters to count as nemesis/victim — avoids 1-game noise
+  nemeses=_sorted.filter(function(r){return r.losses>r.wins&&r.total>=2;}).sort(function(a,b){return(b.losses-b.wins)-(a.losses-a.wins)||(b.total-a.total);}).slice(0,10);
+  victims=_sorted.filter(function(r){return r.wins>r.losses&&r.total>=2;}).sort(function(a,b){return(b.wins-b.losses)-(a.wins-a.losses)||(b.total-a.total);}).slice(0,10);
+  var _topMates=Object.values(_mateMap).filter(function(r){return r.games>=2;}).sort(function(a,b){return b.games-a.games;}).slice(0,8);
+  var _freqAll=_sorted.filter(function(r){return r.total>=3;}).slice(0,20);
 
   // Compute mode baselines — use allMatches with strict quality filters, trimmed mean
   (function(){
@@ -1755,9 +1779,179 @@ function render(){
 
   // OPPONENTS TAB
   html+='<div class="tab-panel'+(activeTab==='opponents'?' active':'')+'" data-tab="opponents">';
-  html+=sectionHead('Rival History');
-  if(nemeses.length||victims.length){html+='<div class="rivals-grid"><div><div class="rivals-col-label nemesis"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> Nemeses</div>';nemeses.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch(\''+r.gamertag.replace(/\'/g,"\\\'")+'\')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span></div></div>';});html+='</div><div><div class="rivals-col-label victim"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="11" r="5"/><path d="M9 17v2M15 17v2M7 11a5 5 0 0 1 10 0v2H7v-2z"/></svg> Victims</div>';victims.forEach(function(r){var _rFav=isFavorite(r.gamertag);html+='<div class="rival-row" onclick="quickSearch(\''+r.gamertag.replace(/\'/g,"\\\'")+'\')" style="cursor:pointer">'+rivalAvatar(r)+'<div class="rival-name">'+r.gamertag+'</div><div class="rival-record"><span class="rival-w">W'+(r.wins||0)+'</span><span class="rival-l">L'+(r.losses||0)+'</span><span class="rival-total">'+r.total+'g</span><span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="margin-left:6px;cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.35')+'" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+(_rFav?'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>':'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\"/></svg>')+'</span></div></div>';});html+='</div></div>';}
-  else{html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="empty-state-msg">No opponent history yet</div><div class="empty-state-sub">Builds with each Refresh</div></div>';}
+  (function(){
+    var _allOpp=Object.values(_rivalMap);
+    if(!_allOpp.length){
+      html+='<div class="empty-state"><div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="empty-state-msg">No opponent history yet</div><div class="empty-state-sub">Builds with each Refresh</div></div>';
+      return;
+    }
+
+    // ── Helper: encounter dots ───────────────────────────────────────────────
+    function _encDots(encounters){
+      return encounters.slice(0,8).map(function(o){
+        var c=o===2?'var(--win)':o===3?'var(--loss)':'#444';
+        return '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+c+';flex-shrink:0"></span>';
+      }).join('');
+    }
+
+    // ── Helper: their K/D vs you ─────────────────────────────────────────────
+    function _theirKd(r){
+      if(!r.theirDeaths&&!r.theirKills) return null;
+      return r.theirDeaths>0?(r.theirKills/r.theirDeaths).toFixed(2):r.theirKills.toString();
+    }
+
+    // ── Helper: top map ──────────────────────────────────────────────────────
+    function _topMap(r){
+      var maps=Object.entries(r.maps||{});
+      if(!maps.length) return null;
+      maps.sort(function(a,b){return b[1].total-a[1].total;});
+      var m=maps[0];
+      var wr=m[1].total>0?Math.round(m[1].w/m[1].total*100):0;
+      return {name:m[0],total:m[1].total,wr:wr};
+    }
+
+    // ── Helper: hot streak ───────────────────────────────────────────────────
+    function _streak(encounters){
+      if(!encounters.length) return null;
+      var first=encounters[0],count=0;
+      for(var i=0;i<encounters.length;i++){if(encounters[i]===first)count++;else break;}
+      if(count<2) return null;
+      return {outcome:first,count:count};
+    }
+
+    // ── Helper: dominance label ──────────────────────────────────────────────
+    function _domLabel(r){
+      var wr=r.total>0?r.wins/r.total:0.5;
+      if(r.total>=5&&wr>=0.8) return {text:'Dominated',color:'var(--win)'};
+      if(r.total>=5&&wr<=0.2) return {text:'Kryptonite',color:'var(--loss)'};
+      if(Math.abs(r.wins-r.losses)<=1&&r.total>=4) return {text:'Rival',color:'var(--gold)'};
+      return null;
+    }
+
+    // ── Helper: render a rival row ──────────────────────────────────────────
+    function _rivalRow(r,accent){
+      var _rFav=isFavorite(r.gamertag);
+      var _gt=r.gamertag.replace(/'/g,"\\'");
+      var _gtQ=r.gamertag.replace(/"/g,'&quot;');
+      var wr=r.total>0?Math.round(r.wins/r.total*100):0;
+      var wrColor=wr>=60?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
+      var kd=_theirKd(r);
+      var kdColor=kd!=null?(parseFloat(kd)>1.2?'var(--loss)':parseFloat(kd)<0.9?'var(--win)':'var(--muted)'):'var(--muted)';
+      var tm=_topMap(r);
+      var dom=_domLabel(r);
+      var streak=_streak(r.encounters||[]);
+      var _starSvg=_rFav
+        ?'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+        :'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+      return '<div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.12s" onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'" onclick="quickSearch(\''+_gt+'\')">'
+        +rivalAvatar(r)
+        // Name + tags
+        +'<div style="min-width:0;flex:1">'
+        +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+        +'<span style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">'+r.gamertag+'</span>'
+        +(dom?'<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(0,0,0,0.3);color:'+dom.color+';font-family:Share Tech Mono,monospace;letter-spacing:.5px;white-space:nowrap">'+dom.text+'</span>':'')
+        +(streak&&streak.count>=3?'<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(0,0,0,0.3);color:'+(streak.outcome===2?'var(--win)':'var(--loss)')+';font-family:Share Tech Mono,monospace;white-space:nowrap">'+(streak.outcome===2?'▲':'▼')+streak.count+' streak</span>':'')
+        +'</div>'
+        // Encounter dots
+        +'<div style="display:flex;align-items:center;gap:3px;margin-top:5px">'+_encDots(r.encounters||[])+'<span style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-left:3px">'+r.total+'g</span></div>'
+        +'</div>'
+        // W/L + win rate bar
+        +'<div style="min-width:72px;text-align:center">'
+        +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+r.wins+'W</span><span style="color:var(--muted2);margin:0 2px">/</span><span style="color:var(--loss)">'+r.losses+'L</span></div>'
+        +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px;transition:width 0.3s"></div></div>'
+        +'<div style="font-size:9px;color:'+wrColor+';font-family:Share Tech Mono,monospace;margin-top:2px">'+wr+'% wr</div>'
+        +'</div>'
+        // Their K/D vs you
+        +(kd!=null
+          ?'<div style="min-width:54px;text-align:center;display:none" class="rivals-wide-col"><div style="font-family:Rajdhani,sans-serif;font-size:16px;font-weight:700;color:'+kdColor+'">'+kd+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">their K/D</div></div>'
+          :'<div style="min-width:54px" class="rivals-wide-col"></div>')
+        // Top map
+        +(tm
+          ?'<div style="min-width:90px;text-align:right;display:none" class="rivals-wide-col"><div style="font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+tm.name+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace">'+tm.total+'g · '+tm.wr+'% wr</div></div>'
+          :'<div style="min-width:90px" class="rivals-wide-col"></div>')
+        // Fav star
+        +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+_gtQ+'" style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.3')+';flex-shrink:0;padding:4px" title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+_starSvg+'</span>'
+        +'</div>';
+    }
+
+    // ── SUMMARY HERO CARDS ──────────────────────────────────────────────────
+    var archNemesis=nemeses[0]||null;
+    var topVictim=victims[0]||null;
+    var mostPlayed=_sorted[0]||null;
+    if(archNemesis||topVictim||mostPlayed){
+      html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">';
+      function _heroCard(r,accent,label,icon,statLine){
+        if(!r) return '';
+        return '<div style="background:'+accent+'08;border:1px solid '+accent+'33;border-radius:8px;padding:14px 16px;display:flex;gap:12px;align-items:center;cursor:pointer" onclick="quickSearch(\''+r.gamertag.replace(/'/g,"\\'")+'\')">'+rivalAvatar(r)
+          +'<div style="min-width:0"><div style="font-size:9px;color:'+accent+';font-family:Share Tech Mono,monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">'+icon+' '+label+'</div>'
+          +'<div style="font-family:Rajdhani,sans-serif;font-size:17px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+r.gamertag+'</div>'
+          +'<div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace;margin-top:1px">'+statLine+'</div>'
+          +'</div></div>';
+      }
+      if(archNemesis) html+=_heroCard(archNemesis,'var(--loss)','Arch-Nemesis','▼',archNemesis.losses+'L '+archNemesis.wins+'W · '+archNemesis.total+' encounters');
+      if(topVictim) html+=_heroCard(topVictim,'var(--win)','Top Victim','▲',topVictim.wins+'W '+topVictim.losses+'L · '+topVictim.total+' encounters');
+      if(mostPlayed&&(!archNemesis||mostPlayed.gamertag!==archNemesis.gamertag)&&(!topVictim||mostPlayed.gamertag!==topVictim.gamertag)){
+        html+=_heroCard(mostPlayed,'var(--accent)','Most Played','⚔',mostPlayed.total+' encounters · '+Math.round(mostPlayed.wins/mostPlayed.total*100)+'% wr');
+      }
+      html+='</div>';
+    }
+
+    // ── NEMESES ─────────────────────────────────────────────────────────────
+    if(nemeses.length){
+      html+=sectionHead('Nemeses','opponents who get the better of you');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      nemeses.forEach(function(r){html+=_rivalRow(r,'var(--loss)');});
+      html+='</div>';
+    }
+
+    // ── VICTIMS ─────────────────────────────────────────────────────────────
+    if(victims.length){
+      html+=sectionHead('Victims','opponents you consistently beat');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      victims.forEach(function(r){html+=_rivalRow(r,'var(--win)');});
+      html+='</div>';
+    }
+
+    // ── FREQUENT OPPONENTS (all ≥3 games, not yet listed) ───────────────────
+    var _listedGts={};
+    nemeses.forEach(function(r){_listedGts[r.gamertag.toLowerCase()]=true;});
+    victims.forEach(function(r){_listedGts[r.gamertag.toLowerCase()]=true;});
+    var _freqExtra=_freqAll.filter(function(r){return !_listedGts[r.gamertag.toLowerCase()];});
+    if(_freqExtra.length){
+      html+=sectionHead('Frequent Encounters','met 3+ times · roughly even record');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      _freqExtra.slice(0,10).forEach(function(r){html+=_rivalRow(r,'var(--accent)');});
+      html+='</div>';
+    }
+
+    // ── FREQUENT TEAMMATES ──────────────────────────────────────────────────
+    if(_topMates.length){
+      html+=sectionHead('Frequent Teammates','players on your side most often');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+      _topMates.forEach(function(r){
+        var _rFav=isFavorite(r.gamertag);
+        var wr=r.games>0?Math.round(r.wins/r.games*100):0;
+        var wrColor=wr>=60?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
+        var _starSvg=_rFav
+          ?'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+          :'<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+        html+='<div style="display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.12s" onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'" onclick="quickSearch(\''+r.gamertag.replace(/'/g,"\\'")+'\')">'+rivalAvatar(r)
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text)">'+r.gamertag+'</div>'
+          +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px">'+r.games+' games together</div>'
+          +'</div>'
+          +'<div style="min-width:72px;text-align:center">'
+          +'<div style="font-size:12px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+r.wins+'W</span><span style="color:var(--muted2);margin:0 2px">/</span><span style="color:var(--loss)">'+r.losses+'L</span></div>'
+          +'<div style="height:3px;background:var(--surface3);border-radius:2px;margin-top:5px;overflow:hidden"><div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px"></div></div>'
+          +'<div style="font-size:9px;color:'+wrColor+';font-family:Share Tech Mono,monospace;margin-top:2px">'+wr+'% wr together</div>'
+          +'</div>'
+          +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+r.gamertag.replace(/"/g,'&quot;')+'" style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.3')+';flex-shrink:0;padding:4px">'+_starSvg+'</span>'
+          +'</div>';
+      });
+      html+='</div>';
+    }
+
+  })();
   html+='</div>'; // end opponents tab
 
 
