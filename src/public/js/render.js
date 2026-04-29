@@ -457,8 +457,8 @@ function render(){
   // Build compact inline rank cards for hero middle slot (desktop only)
   // These are leaner than the full csr-card — just icon + tier name + CSR + mode
   function _compactRankCard(iconHtml,tierColor,tierBorder,tierBg,topLine,line2,line3){
-    return '<div style="background:'+tierBg+';border:1px solid '+tierBorder+'44;border-radius:10px;padding:16px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0">'
-      +'<div style="width:65px;height:65px;border-radius:50%;border:2px solid '+tierBorder+';background:'+tierBg+';overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
+    return '<div style="background:var(--surface2);border:1px solid '+tierBorder+';border-radius:10px;padding:16px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0">'
+      +'<div style="width:65px;height:65px;border-radius:50%;border:2px solid '+tierBorder+';background:var(--surface);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
       +'<div style="min-width:0">'
       +'<div style="font-family:Rajdhani,sans-serif;font-size:24px;font-weight:700;color:'+tierColor+';line-height:1.1;white-space:nowrap">'+topLine+'</div>'
       +(line2?'<div style="font-size:13px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:3px;white-space:nowrap">'+line2+'</div>':'')
