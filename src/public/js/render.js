@@ -625,6 +625,8 @@ function render(){
   })();
 
   // ── ACTIVITY HEATMAP ─────────────────────────────────────────────────────────
+  // Hidden — not enough historical data to fill the grid meaningfully yet
+  html+='<div style="display:none">';
   (function(){
     if(!allMatches.length) return;
     // Build day → count map from all available matches
@@ -705,6 +707,7 @@ function render(){
     html+='</div>';
     html+='</div>';
   })();
+  html+='</div>'; // end heatmap hidden wrapper
 
   // Tabs handled by sidebar nav
   if(s.topMedals&&s.topMedals.length){html+=sectionHead('Top Medals')+'<div class="medals-grid">';s.topMedals.forEach(function(m){html+=medalImg(m);});html+='</div>';}
@@ -1206,7 +1209,7 @@ function render(){
     var archetype=spread<18?{name:'The All-Rounder',desc:'Balanced across all dimensions — no glaring weakness, no dominant signature. Versatile and adaptable.'}:(archetypes[sorted[0].label]||{name:'Balanced',desc:''});
 
     // SVG radar chart
-    var cx=115,cy=115,maxR=78;
+    var cx=140,cy=115,maxR=75;
     var nAx=5;
     function fpAng(i){return i*2*Math.PI/nAx-Math.PI/2;}
     function fpPt(i,frac){var a=fpAng(i);return{x:+(cx+Math.cos(a)*maxR*frac).toFixed(1),y:+(cy+Math.sin(a)*maxR*frac).toFixed(1)};}
@@ -1229,16 +1232,16 @@ function render(){
     // Vertex dots
     axes.forEach(function(ax,i){var p=fpPt(i,Math.max(0.04,ax.score/100));svgInner+='<circle cx="'+p.x+'" cy="'+p.y+'" r="3" style="fill:#378ADD;stroke:#0b1929;stroke-width:1.5"/>';});
     // Axis labels + score
-    var lblR=maxR+22;
+    var lblR=maxR+26;
     axes.forEach(function(ax,i){
       var a=fpAng(i);
       var lx=+(cx+Math.cos(a)*lblR).toFixed(1);
       var ly=+(cy+Math.sin(a)*lblR).toFixed(1);
       var ta=Math.abs(Math.cos(a))<0.18?'middle':Math.cos(a)>0?'start':'end';
-      svgInner+='<text x="'+lx+'" y="'+(ly-5)+'" text-anchor="'+ta+'" font-family="Share Tech Mono,monospace" font-size="7.5" style="fill:rgba(133,183,235,0.6)" letter-spacing="0.5">'+ax.label+'</text>';
+      svgInner+='<text x="'+lx+'" y="'+(ly-5)+'" text-anchor="'+ta+'" font-family="Share Tech Mono,monospace" font-size="7" style="fill:rgba(133,183,235,0.65)" letter-spacing="0.5">'+ax.label+'</text>';
       svgInner+='<text x="'+lx+'" y="'+(ly+9)+'" text-anchor="'+ta+'" font-family="Rajdhani,sans-serif" font-size="14" font-weight="700" style="fill:rgba(230,241,251,0.92)">'+ax.score+'</text>';
     });
-    var radarSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 230" width="230" height="230" style="flex-shrink:0;display:block">'+svgInner+'</svg>';
+    var radarSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 284 230" width="284" height="230" style="flex-shrink:0;display:block">'+svgInner+'</svg>';
 
     html+=sectionHead('Playstyle Fingerprint',validMs.length+' games analysed');
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:16px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
