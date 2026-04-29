@@ -457,12 +457,12 @@ function render(){
   // Build compact inline rank cards for hero middle slot (desktop only)
   // These are leaner than the full csr-card — just icon + tier name + CSR + mode
   function _compactRankCard(iconHtml,tierColor,tierBorder,tierBg,topLine,line2,line3){
-    return '<div style="background:'+tierBg+';border:1px solid '+tierBorder+'44;border-radius:10px;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-shrink:0">'
-      +'<div style="width:48px;height:48px;border-radius:50%;border:2px solid '+tierBorder+';background:'+tierBg+';overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
+    return '<div style="background:'+tierBg+';border:1px solid '+tierBorder+'44;border-radius:10px;padding:16px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0">'
+      +'<div style="width:65px;height:65px;border-radius:50%;border:2px solid '+tierBorder+';background:'+tierBg+';overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+iconHtml+'</div>'
       +'<div style="min-width:0">'
-      +'<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:'+tierColor+';line-height:1.1;white-space:nowrap">'+topLine+'</div>'
-      +(line2?'<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:3px;white-space:nowrap">'+line2+'</div>':'')
-      +(line3?'<div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace;white-space:nowrap">'+line3+'</div>':'')
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:24px;font-weight:700;color:'+tierColor+';line-height:1.1;white-space:nowrap">'+topLine+'</div>'
+      +(line2?'<div style="font-size:13px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:3px;white-space:nowrap">'+line2+'</div>':'')
+      +(line3?'<div style="font-size:13px;color:var(--muted);font-family:Share Tech Mono,monospace;white-space:nowrap">'+line3+'</div>':'')
       +'</div></div>';
   }
   var _heroRankCards='';
@@ -1913,10 +1913,10 @@ function render(){
       var rPts=rivalArr.map(function(v,i){return _ptStr(v,i);}).join(' ');
       return '<svg viewBox="0 0 120 128" width="120" height="128" style="display:block;margin:0 auto">'
         +gridSvg+spokesSvg
-        // Overall polygon (blue, drawn first — sits underneath)
-        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.28)" stroke="rgba(56,138,221,0.75)" stroke-width="1.5" stroke-linejoin="round"/>'
-        // Rival polygon (accent, drawn on top — semi-transparent so overall shows through)
-        +'<polygon points="'+rPts+'" fill="'+accent+'44" stroke="'+accent+'" stroke-width="1.5" stroke-linejoin="round" opacity="0.85"/>'
+        // Rival polygon drawn first (sits underneath — shows your stats vs this rival)
+        +'<polygon points="'+rPts+'" fill="'+accent+'33" stroke="'+accent+'" stroke-width="1.2" stroke-linejoin="round" opacity="0.8"/>'
+        // Overall polygon drawn on top (semi-transparent so rival shows through where it extends further)
+        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.22)" stroke="rgba(56,138,221,0.8)" stroke-width="1.5" stroke-linejoin="round"/>'
         // Dots at each rival axis tip
         +rivalArr.map(function(v,i){var p=_pt(v,i);return'<circle cx="'+p.x+'" cy="'+p.y+'" r="2" fill="'+accent+'" opacity="0.9"/>';}).join('')
         // Colour legend

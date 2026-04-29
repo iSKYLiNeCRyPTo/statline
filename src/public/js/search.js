@@ -275,36 +275,18 @@ async function doSearch(gt, isRefresh, force){
       // Sync _loadPlayer with full data so the loading screen gets the correct emblemUrl/nameplateUrl
       // even if the statsOnly call resolved them as null (economy.svc can be flaky on first hit)
       if(!isRefresh) _loadPlayer=fullD.player;
-      // ── Step 3: Skill data — actually wait for enrichment to complete ────
+      // ── Steps 2–3: Skill data + rival pics (both non-blocking) ─────────────
+      // Skill enrichment runs in the background on the server (5–25s).
+      // We do NOT block the loading screen on it — page renders fast, skill data
+      // appears via a post-render force-refresh once enrichment is done.
       if(!isRefresh) _renderLoadSteps(2,null);
+      var _canonicalGt=fullD.player.gamertag||gt; // use server's canonical casing for cache keys
 
-      // Poll /api/skill-status during the "Skill data" loading step.
-      // fetchAndApplySkillData runs in the background on the server (batches of 5,
-      // ~200ms apart) and can take 5-25s. We wait up to 22s so expectedKills/Deaths
-      // and per-match insights are already present when the page first renders.
-      // For cached players fullD.cached is set and skill data is already in cache — skip.
-      var _skillWaitP=(!isRefresh&&!fullD.cached)?new Promise(function(resolve){
-        var _sw=0,_swId=null,_swDone=false;
-        function _swCheck(){
-          if(_swDone||!isCurrent()){_swDone=true;if(_swId)clearInterval(_swId);resolve();return;}
-          if(++_sw>11){_swDone=true;if(_swId)clearInterval(_swId);resolve();return;} // 22s max (11×2s)
-          fetch('/api/skill-status?gamertag='+encodeURIComponent(gt))
-            .then(function(r){return r.ok?r.json():null;})
-            .then(function(s){
-              if(_swDone)return;
-              if(s&&(s.ready||s.pct>=95||!s.total)){_swDone=true;if(_swId)clearInterval(_swId);resolve();}
-            }).catch(function(){});
-        }
-        // First check after 3s (server needs a moment to start the background job)
-        setTimeout(function(){if(!_swDone){_swCheck();_swId=setInterval(_swCheck,2000);}},3000);
-      }):Promise.resolve();
-
-      // ── Step 4: Preload rival/nemesis pics (non-blocking background task) ──
+      // Preload rival/nemesis pics — fire in background, never awaited
       var _rivals=(fullD.player.rivals||[]).concat(fullD.player.nemesisList||[],fullD.player.victimsList||[]);
       var _seenRiv={};
       _rivals=_rivals.filter(function(r){if(!r.gamertag||_seenRiv[r.gamertag.toLowerCase()])return false;_seenRiv[r.gamertag.toLowerCase()]=true;return true;});
       var _missingPics=_rivals.filter(function(r){return !r.gamerpicUrl&&r.gamertag&&!r.gamertag.startsWith('Spartan ');});
-      // Fire rival-pics in the background — never awaited so it never stalls loading steps
       if(_missingPics.length>0){
         fetch('/api/rival-pics?gamertags='+encodeURIComponent(_missingPics.map(function(r){return r.gamertag;}).slice(0,30).join(',')))
           .then(function(r){return r.ok?r.json():{};})
@@ -315,29 +297,13 @@ async function doSearch(gt, isRefresh, force){
             });
           }).catch(function(){});
       }
+      // Preload images that are already available (doesn't include missing ones — they load later)
       var _picPromises=_rivals.filter(function(r){return r.gamerpicUrl;}).slice(0,30).map(function(r){
         return new Promise(function(resolve){var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;});
       });
       if(!isRefresh) _renderLoadSteps(3,null); // team data step active
-      // Wait for skill enrichment + any already-available image preloads
-      await Promise.all(_picPromises.concat([_skillWaitP]));
-
-      // ── Pre-populate fullMatchCache with enriched data before first render ──
-      // Skill is now ready — fetch /api/matches so expectedKills/Deaths and insights
-      // are present on the very first render() call (avoids a blank-then-populate flash).
-      // Only needed on fresh (non-cached, non-refresh) searches — cached players already
-      // have enriched data in fullD.player.
-      if(!isRefresh&&!fullD.cached){
-        try{
-          var _mRes=await fetch('/api/matches?gamertag='+encodeURIComponent(gt)+'&perPage=100');
-          if(!isCurrent()) return;
-          var _mData=await _mRes.json();
-          if(_mData.matches&&_mData.matches.length>0){
-            _mData.matches._fetchedAt=Date.now();
-            fullMatchCache[gt]=_mData.matches;
-          }
-        }catch(e){}
-      }
+      // Only wait for image preloads — skill wait no longer blocks loading
+      await Promise.all(_picPromises);
 
       if(isRefresh){
         // ── Refresh: Skill data → Analyzing overlay ───────────────────────
@@ -359,35 +325,37 @@ async function doSearch(gt, isRefresh, force){
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
       activeTab='overview'; render();
-      loadFullMatches(gt);
-      // Poll /api/skill-status until background enrichment is ≥95% done, then force-refresh
-      // This is more reliable than a fixed 22s timer — enrichment speed varies with API load
-      var _skillPollId=null,_skillPollN=0;
-      function _stopSkillPoll(){if(_skillPollId){clearInterval(_skillPollId);_skillPollId=null;}}
-      function _doSkillPoll(){
-        if(!isCurrent()){_stopSkillPoll();return;}
-        if(++_skillPollN>12){_stopSkillPoll();return;} // give up after ~85s (12 × 7s + 1st at 14s)
-        fetch('/api/skill-status?gamertag='+encodeURIComponent(gt))
-          .then(function(r){return r.ok?r.json():null;})
-          .then(function(s){
-            if(!s||!isCurrent())return;
-            if(s.ready||s.pct>=95){
-              _stopSkillPoll();
-              loadFullMatches(gt,true,'Syncing skill data…');
-            }
-          }).catch(function(){});
+      // Use canonical gamertag as cache key so render() can find it by p.gamertag
+      loadFullMatches(_canonicalGt);
+      // Poll skill status post-render and force-refresh as soon as enrichment is ready.
+      // Checks every 3s for the first 30s, then gives up.
+      if(!fullD.cached){
+        var _skillPollId=null,_skillPollN=0;
+        function _stopSkillPoll(){if(_skillPollId){clearInterval(_skillPollId);_skillPollId=null;}}
+        function _doSkillPoll(){
+          if(!isCurrent()){_stopSkillPoll();return;}
+          if(++_skillPollN>10){_stopSkillPoll();return;} // give up after ~30s
+          fetch('/api/skill-status?gamertag='+encodeURIComponent(_canonicalGt))
+            .then(function(r){return r.ok?r.json():null;})
+            .then(function(s){
+              if(!s||!isCurrent())return;
+              if(s.ready||s.pct>=95||!s.total){
+                _stopSkillPoll();
+                loadFullMatches(_canonicalGt,true,'Syncing skill data…');
+              }
+            }).catch(function(){});
+        }
+        // Start immediately — enrichment usually finishes within 5–15s
+        setTimeout(function(){
+          if(!isCurrent())return;
+          var _cc=fullMatchCache[_canonicalGt]||[];
+          var _rk=_cc.filter(function(m){return m.isRanked;});
+          var _sk=_rk.filter(function(m){return m.expectedKills!=null;}).length;
+          if(_rk.length>0&&_sk>=_rk.length*0.95){return;} // already complete — skip
+          _skillPollId=setInterval(_doSkillPoll,3000);
+          _doSkillPoll();
+        },3000);
       }
-      // Safety-net: if the in-loading skill wait timed out (rare, very slow API days),
-      // keep polling post-render. Start at 5s — skill data is usually ready or close.
-      setTimeout(function(){
-        if(!isCurrent())return;
-        var _cc=fullMatchCache[gt]||[];
-        var _rk=_cc.filter(function(m){return m.isRanked;});
-        var _sk=_rk.filter(function(m){return m.expectedKills!=null;}).length;
-        if(_rk.length>0&&_sk>=_rk.length*0.95){return;} // already complete — skip
-        _skillPollId=setInterval(_doSkillPoll,7000);
-        _doSkillPoll();
-      },5000);
     }
   } catch(e){
     document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';
