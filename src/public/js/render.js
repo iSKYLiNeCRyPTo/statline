@@ -566,7 +566,7 @@ function render(){
     });
 
     html+=sectionHead('Daily Recap');
-    html+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px">';
+    html+='<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">';
     dayStats.forEach(function(d,i){
       var isToday=d.ds===todayDs;
       var isBest=i===bestDayIdx&&!isToday;
@@ -575,25 +575,29 @@ function render(){
       var kdColor=d.kd>=1.2?'var(--win)':d.kd>=0.8?'var(--gold)':'var(--loss)';
       var kdStr=d.dth>0?d.kd.toFixed(2):(d.k>0?String(d.k):'--');
 
-      // W/L dot string
-      var wlDots=d.matches.slice(0,12).map(function(m){
-        var c=m.outcome===2?'#4caf50':m.outcome===3?'#f44336':'#555';
-        return'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+c+';margin:0 1px;vertical-align:middle"></span>';
+      // W/L/D dot string — green=win, red=loss, gray=draw
+      var draws=d.matches.filter(function(m){return m.outcome!==2&&m.outcome!==3;}).length;
+      var wlDots=d.matches.slice(0,14).map(function(m){
+        var c=m.outcome===2?'var(--win)':m.outcome===3?'var(--loss)':'#444';
+        var size=m.outcome===2||m.outcome===3?'9px':'7px'; // draws slightly smaller
+        return'<span style="display:inline-block;width:'+size+';height:'+size+';border-radius:50%;background:'+c+';margin:0 1.5px;vertical-align:middle;flex-shrink:0"></span>';
       }).join('');
 
+      // CSR pills
       var csrBits='';
-      if(d.arenaCsr!=null){var ac=d.arenaCsr>=0?'+'+d.arenaCsr:String(d.arenaCsr);csrBits+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:'+(d.arenaCsr>=0?'rgba(76,175,80,0.12)':'rgba(244,67,54,0.12)')+';color:'+(d.arenaCsr>=0?'var(--win)':'var(--loss)')+';margin-left:6px">Arena '+ac+' CSR</span>';}
-      if(d.slayerCsr!=null){var sc=d.slayerCsr>=0?'+'+d.slayerCsr:String(d.slayerCsr);csrBits+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:'+(d.slayerCsr>=0?'rgba(76,175,80,0.12)':'rgba(244,67,54,0.12)')+';color:'+(d.slayerCsr>=0?'var(--win)':'var(--loss)')+';margin-left:6px">Slayer '+sc+' CSR</span>';}
-      if(isBest)csrBits+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,193,7,0.12);color:var(--gold);margin-left:6px">best day</span>';
+      if(d.arenaCsr!=null){var ac=d.arenaCsr>=0?'+'+d.arenaCsr:String(d.arenaCsr);csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+(d.arenaCsr>=0?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(d.arenaCsr>=0?'var(--win)':'var(--loss)')+'">Arena '+ac+'</span>';}
+      if(d.slayerCsr!=null){var sc=d.slayerCsr>=0?'+'+d.slayerCsr:String(d.slayerCsr);csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+(d.slayerCsr>=0?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(d.slayerCsr>=0?'var(--win)':'var(--loss)')+'">Slayer '+sc+'</span>';}
+      if(isBest)csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,193,7,0.13);color:var(--gold)">best day</span>';
 
-      html+='<div style="display:flex;align-items:center;gap:12px;padding:9px 14px;background:var(--surface2);border-radius:8px;border:1px solid '+(isToday?'var(--accent2)':'var(--border)')+';flex-wrap:wrap">'
-        +'<div style="min-width:90px;font-size:12px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+'">'+d.label+'</div>'
-        +'<div style="font-size:11px;color:var(--muted);min-width:44px">'+d.games+' game'+(d.games!==1?'s':'')+'</div>'
-        +'<div>'+wlDots+'</div>'
-        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+wrColor+';min-width:36px">'+d.wins+'W'+d.losses+'L</div>'
-        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+kdColor+';min-width:50px">'+kdStr+' K/D</div>'
-        +csrBits
-        +(d.bestGame?'<div style="margin-left:auto;font-size:10px;color:var(--muted)">best: <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span> · '+(d.bestGame.mapName||'')+'</div>':'')
+      var drawBit=draws?'<span style="color:#555;font-size:11px;margin-left:3px">'+draws+'D</span>':'';
+      html+='<div style="display:flex;align-items:center;gap:14px;padding:13px 18px;background:var(--surface2);border-radius:8px;border:1px solid '+(isToday?'var(--accent2)':'var(--border)')+';flex-wrap:wrap">'
+        +'<div style="min-width:95px;font-size:13px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+'">'+d.label+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);min-width:52px;white-space:nowrap">'+d.games+' game'+(d.games!==1?'s':'')+'</div>'
+        +'<div style="display:flex;align-items:center;flex-wrap:nowrap">'+wlDots+'</div>'
+        +'<div style="font-size:14px;font-family:Share Tech Mono,monospace;white-space:nowrap"><span style="color:var(--win)">'+d.wins+'W</span><span style="color:var(--muted2);margin:0 3px">/</span><span style="color:var(--loss)">'+d.losses+'L</span>'+drawBit+'</div>'
+        +'<div style="font-size:14px;font-family:Share Tech Mono,monospace;color:'+kdColor+';white-space:nowrap">'+kdStr+' K/D</div>'
+        +(csrBits?'<div style="display:flex;gap:6px;flex-wrap:wrap">'+csrBits+'</div>':'')
+        +(d.bestGame?'<div style="margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap">best <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span> &middot; '+(d.bestGame.mapName||'')+'</div>':'')
         +'</div>';
     });
     html+='</div>';
