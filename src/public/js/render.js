@@ -509,6 +509,96 @@ function render(){
     if(fatigueMsg)html+='<div style="margin-top:8px;padding:6px 10px;border-left:3px solid '+fatigueColor+';font-size:11px;font-family:Share Tech Mono,monospace;color:'+fatigueColor+';background:var(--surface2);border-radius:0 4px 4px 0">'+fatigueMsg+'</div>';
     html+='</div>';
   }
+
+  // ── Daily Recap (last 14 days) ────────────────────────────────────────────
+  (function(){
+    function _parseSecs(dur){if(!dur||dur==='PT0S')return 0;var mm=String(dur).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+    // Group matches by local date string
+    var dayMap={};
+    allMatches.forEach(function(m){
+      if(!m.startTime)return;
+      var ds=new Date(m.startTime).toDateString();
+      if(!dayMap[ds])dayMap[ds]={ds:ds,date:new Date(m.startTime),matches:[]};
+      dayMap[ds].matches.push(m);
+    });
+    // Sort days newest first, keep up to 14
+    var days=Object.values(dayMap).sort(function(a,b){return b.date-a.date;}).slice(0,14);
+    // Need at least 2 days of data to show the section
+    if(days.length<2)return;
+
+    var todayDs=new Date().toDateString();
+    var yesterDs=new Date(Date.now()-86400000).toDateString();
+    function dayLabel(d){
+      if(d.ds===todayDs)return'Today';
+      if(d.ds===yesterDs)return'Yesterday';
+      return d.date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+    }
+
+    // Compute stats per day
+    var dayStats=days.map(function(d){
+      var ms=d.matches;
+      var valid=ms.filter(function(m){return(m.outcome===2||m.outcome===3)&&_parseSecs(m.duration)>=180;});
+      var wins=ms.filter(function(m){return m.outcome===2;}).length;
+      var losses=ms.filter(function(m){return m.outcome===3;}).length;
+      var k=valid.reduce(function(a,m){return a+(m.kills||0);},0);
+      var dth=valid.reduce(function(a,m){return a+(m.deaths||0);},0);
+      var kd=dth>0?(k/dth):k;
+      var arenaMs=ms.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&m.gameMode.indexOf('Arena')>-1;});
+      var slayerMs=ms.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&/^Ranked Slayer$/i.test(m.gameMode.trim());});
+      var arenaCsr=arenaMs.reduce(function(a,m){return a+m.csrDelta;},0);
+      var slayerCsr=slayerMs.reduce(function(a,m){return a+m.csrDelta;},0);
+      var bestKda=0;var bestGame=null;
+      ms.forEach(function(m){var v=parseFloat(m.kda||0);if(v>bestKda){bestKda=v;bestGame=m;}});
+      var dmgDealt=valid.reduce(function(a,m){return a+(m.damageDealt||0);},0);
+      var dmgTaken=valid.reduce(function(a,m){return a+(m.damageTaken||0);},0);
+      return{label:dayLabel(d),ds:d.ds,games:ms.length,wins:wins,losses:losses,k:k,dth:dth,kd:kd,
+        arenaCsr:arenaMs.length?arenaCsr:null,slayerCsr:slayerMs.length?slayerCsr:null,
+        bestKda:bestKda,bestGame:bestGame,dmgDealt:dmgDealt,dmgTaken:dmgTaken};
+    });
+
+    // Find best day by net CSR (or KDA if no CSR data)
+    var hasCsr=dayStats.some(function(d){return d.arenaCsr!=null||d.slayerCsr!=null;});
+    var bestDayIdx=0;
+    dayStats.forEach(function(d,i){
+      var score=hasCsr?(d.arenaCsr||0)+(d.slayerCsr||0):d.kd;
+      var best=hasCsr?(dayStats[bestDayIdx].arenaCsr||0)+(dayStats[bestDayIdx].slayerCsr||0):dayStats[bestDayIdx].kd;
+      if(score>best)bestDayIdx=i;
+    });
+
+    html+=sectionHead('Daily Recap');
+    html+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px">';
+    dayStats.forEach(function(d,i){
+      var isToday=d.ds===todayDs;
+      var isBest=i===bestDayIdx&&!isToday;
+      var wr=d.games>0?Math.round(d.wins/d.games*100):0;
+      var wrColor=wr>=60?'var(--win)':wr>=40?'var(--gold)':'var(--loss)';
+      var kdColor=d.kd>=1.2?'var(--win)':d.kd>=0.8?'var(--gold)':'var(--loss)';
+      var kdStr=d.dth>0?d.kd.toFixed(2):(d.k>0?String(d.k):'--');
+
+      // W/L dot string
+      var wlDots=d.matches.slice(0,12).map(function(m){
+        var c=m.outcome===2?'#4caf50':m.outcome===3?'#f44336':'#555';
+        return'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+c+';margin:0 1px;vertical-align:middle"></span>';
+      }).join('');
+
+      var csrBits='';
+      if(d.arenaCsr!=null){var ac=d.arenaCsr>=0?'+'+d.arenaCsr:String(d.arenaCsr);csrBits+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:'+(d.arenaCsr>=0?'rgba(76,175,80,0.12)':'rgba(244,67,54,0.12)')+';color:'+(d.arenaCsr>=0?'var(--win)':'var(--loss)')+';margin-left:6px">Arena '+ac+' CSR</span>';}
+      if(d.slayerCsr!=null){var sc=d.slayerCsr>=0?'+'+d.slayerCsr:String(d.slayerCsr);csrBits+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:'+(d.slayerCsr>=0?'rgba(76,175,80,0.12)':'rgba(244,67,54,0.12)')+';color:'+(d.slayerCsr>=0?'var(--win)':'var(--loss)')+';margin-left:6px">Slayer '+sc+' CSR</span>';}
+      if(isBest)csrBits+='<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(255,193,7,0.12);color:var(--gold);margin-left:6px">best day</span>';
+
+      html+='<div style="display:flex;align-items:center;gap:12px;padding:9px 14px;background:var(--surface2);border-radius:8px;border:1px solid '+(isToday?'var(--accent2)':'var(--border)')+';flex-wrap:wrap">'
+        +'<div style="min-width:90px;font-size:12px;font-family:Share Tech Mono,monospace;color:'+(isToday?'var(--accent)':'var(--text)')+'">'+d.label+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);min-width:44px">'+d.games+' game'+(d.games!==1?'s':'')+'</div>'
+        +'<div>'+wlDots+'</div>'
+        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+wrColor+';min-width:36px">'+d.wins+'W'+d.losses+'L</div>'
+        +'<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:'+kdColor+';min-width:50px">'+kdStr+' K/D</div>'
+        +csrBits
+        +(d.bestGame?'<div style="margin-left:auto;font-size:10px;color:var(--muted)">best: <span style="color:var(--text)">'+d.bestKda.toFixed(1)+' KDA</span> · '+(d.bestGame.mapName||'')+'</div>':'')
+        +'</div>';
+    });
+    html+='</div>';
+  })();
+
   // Win streak from recent matches
   var streak=0,streakChar='';
   for(var si=0;si<matches.length;si++){

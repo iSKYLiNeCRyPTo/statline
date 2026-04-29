@@ -757,6 +757,40 @@ app.post('/api/feedback', express.json(), async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Admin: cache status ───────────────────────────────────────────────────────
+app.get('/api/admin/cache-status', (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
+  const entries = Object.entries(searchCache).map(([k, v]) => ({
+    gamertag: v.data?.gamertag || k,
+    cachedAt: new Date(v.fetchedAt).toISOString(),
+    ageMinutes: Math.round((Date.now() - v.fetchedAt) / 60000),
+    matchCount: (v.data?.allMatches || v.data?.recentMatches || []).length,
+    rankedCount: (v.data?.allMatches || v.data?.recentMatches || []).filter(m => m.isRanked).length,
+    hasCsrDelta: (v.data?.allMatches || v.data?.recentMatches || []).some(m => m.csrDelta != null),
+  }));
+  res.json({ count: entries.length, entries });
+});
+
+// ── Admin: clear player cache ─────────────────────────────────────────────────
+app.post('/api/admin/clear-cache', express.json(), (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
+  const { gamertag } = req.body || {};
+  if (gamertag) {
+    const key = gamertag.toLowerCase().trim();
+    const had = !!searchCache[key];
+    delete searchCache[key];
+    console.log(`[Admin] Cleared cache for: ${gamertag}`);
+    return res.json({ success: true, cleared: had ? 1 : 0, gamertag });
+  } else {
+    const count = Object.keys(searchCache).length;
+    for (const k of Object.keys(searchCache)) delete searchCache[k];
+    console.log(`[Admin] Cleared all cache (${count} entries)`);
+    return res.json({ success: true, cleared: count });
+  }
+});
+
 // ── Admin: delete searches by gamertag ────────────────────────────────────────
 app.post('/api/admin/delete-searches', express.json(), async (req, res) => {
   const pass = req.query.pass || req.headers['x-admin-pass'];
@@ -806,22 +840,93 @@ app.get('/api/admin', (req, res) => {
     return res.send(`<!DOCTYPE html><html><body style="font-family:monospace;background:#0a0f1a;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><form method="get"><input name="pass" type="password" placeholder="Password" style="padding:8px;background:#1a2035;border:1px solid #333;color:#fff;border-radius:4px;margin-right:8px"><button type="submit" style="padding:8px 16px;background:#00d4ff;color:#000;border:none;border-radius:4px;cursor:pointer">Enter</button></form></body></html>`);
   }
   res.send(`<!DOCTYPE html><html><head><title>fragr // analytics</title>
-  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}.stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}.stat-lbl{font-size:10px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}.del-btn{background:transparent;border:none;color:#333;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:3px;transition:color 0.15s}.del-btn:hover{color:#f44336}</style></head>
+  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}.stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}.stat-lbl{font-size:10px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}.del-btn{background:transparent;border:none;color:#333;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:3px;transition:color 0.15s}.del-btn:hover{color:#f44336}.action-btn{background:#0d1425;border:1px solid #1a2035;color:#00d4ff;cursor:pointer;font-size:11px;padding:4px 10px;border-radius:4px;font-family:inherit;transition:all 0.15s}.action-btn:hover{background:#1a2035;border-color:#00d4ff}.action-btn.danger{color:#f44336;border-color:#1a2035}.action-btn.danger:hover{background:#1a0d0d;border-color:#f44336}.action-btn.warn{color:#ffc107;border-color:#1a2035}.action-btn.warn:hover{background:#1a1500;border-color:#ffc107}.action-row{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.token-ok{color:#4caf50}.token-err{color:#f44336}</style></head>
   <body><h1>// fragr analytics</h1>
+  <div class="action-row">
+    <button class="action-btn warn" onclick="checkToken()">check token</button>
+    <button class="action-btn danger" onclick="clearAllCache()">clear all cache</button>
+    <button class="action-btn" onclick="loadCache()">refresh cache view</button>
+    <span id="token-status" style="font-size:11px;color:#555"></span>
+  </div>
   <div class="summary" id="summary">Loading...</div>
+  <h2>// active cache</h2>
+  <div id="cache-panel" style="font-size:11px;color:#555;margin-bottom:16px">Loading...</div>
   <h2>// feedback &amp; contact</h2>
   <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th><th>IP</th></tr></thead><tbody id="fbtbody"><tr><td colspan="5" class="muted">Loading...</td></tr></tbody></table>
   <h2>// tab engagement</h2>
   <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
   <h2>// recent searches</h2>
-  <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
+  <div class="action-row" style="margin-bottom:8px">
+    <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()" style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:200px">
+    <button class="action-btn" onclick="refreshPlayer()">force refresh player</button>
+  </div>
   <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th><th></th></tr></thead><tbody id="tbody"></tbody></table>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
-  function fmtSec(s){if(!s)return'—';var n=parseFloat(s);return n>=60?(n/60).toFixed(1)+'m':n+'s';}
-  function fmtMins(m){if(!m)return'—';var n=parseFloat(m);if(n<60)return Math.round(n)+'m';var h=Math.floor(n/60),rm=Math.round(n%60);return h+'h '+(rm?rm+'m':'');}
+  function fmtSec(s){if(!s)return'--';var n=parseFloat(s);return n>=60?(n/60).toFixed(1)+'m':n+'s';}
+  function fmtMins(m){if(!m)return'--';var n=parseFloat(m);if(n<60)return Math.round(n)+'m';var h=Math.floor(n/60),rm=Math.round(n%60);return h+'h '+(rm?rm+'m':'');}
+
+  function checkToken(){
+    document.getElementById('token-status').textContent='checking...';
+    fetch('/api/token-status').then(function(r){return r.json();}).then(function(d){
+      var el=document.getElementById('token-status');
+      if(d.hasToken&&d.hasRefreshToken){el.className='token-ok';el.textContent='token ok ('+d.tokenPreview+') + refresh token ok';}
+      else if(d.hasToken){el.className='token-ok';el.textContent='token ok ('+d.tokenPreview+') -- no refresh token';}
+      else{el.className='token-err';el.textContent='NO TOKEN SET';}
+    }).catch(function(){var el=document.getElementById('token-status');el.className='token-err';el.textContent='check failed';});
+  }
+
+  function clearAllCache(){
+    if(!confirm('Clear ALL cached player data? All next searches will be fresh fetches.'))return;
+    fetch('/api/admin/clear-cache?pass=${pass}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})
+      .then(function(r){return r.json();})
+      .then(function(d){alert('Cleared '+d.cleared+' cached entries.');loadCache();})
+      .catch(function(e){alert('Error: '+e.message);});
+  }
+
+  function clearPlayerCache(gt){
+    fetch('/api/admin/clear-cache?pass=${pass}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gamertag:gt})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.success){loadCache();}
+        else alert('Error clearing cache');
+      }).catch(function(e){alert('Error: '+e.message);});
+  }
+
+  function refreshPlayer(){
+    var q=document.getElementById('filter').value.trim()||prompt('Gamertag to force-refresh:');
+    if(!q)return;
+    clearPlayerCache(q);
+    setTimeout(function(){
+      window.open('/?player='+encodeURIComponent(q),'_blank');
+    },300);
+  }
+
+  function loadCache(){
+    fetch('/api/admin/cache-status?pass=${pass}').then(function(r){return r.json();}).then(function(d){
+      var el=document.getElementById('cache-panel');
+      if(!d.count){el.innerHTML='<span class="muted">no cached players</span>';return;}
+      el.innerHTML='<table style="font-size:11px;width:auto;margin-bottom:0"><thead><tr><th>GAMERTAG</th><th>AGE</th><th>MATCHES</th><th>RANKED</th><th>CSR DELTA</th><th></th></tr></thead><tbody>'
+        +d.entries.map(function(e){
+          var age=e.ageMinutes<1?'&lt;1m':(e.ageMinutes+'m');
+          var csrMark=e.hasCsrDelta?'<span class="win">yes</span>':'<span class="loss">no</span>';
+          var safeGt=(e.gamertag||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+          return'<tr>'
+            +'<td style="color:#00d4ff">'+e.gamertag+'</td>'
+            +'<td class="muted">'+age+'</td>'
+            +'<td>'+e.matchCount+'</td>'
+            +'<td>'+e.rankedCount+'</td>'
+            +'<td>'+csrMark+'</td>'
+            +'<td><button class="action-btn danger" data-clr="'+safeGt+'" style="font-size:10px;padding:2px 7px">clear</button></td>'
+            +'</tr>';
+        }).join('')+'</tbody></table>';
+    }).catch(function(){document.getElementById('cache-panel').innerHTML='<span class="muted">failed to load cache</span>';});
+  }
+
   document.addEventListener('click',function(e){
+    var clrBtn=e.target.closest('[data-clr]');
+    if(clrBtn){clearPlayerCache(clrBtn.getAttribute('data-clr'));return;}
     var btn=e.target.closest('.del-btn');
     if(!btn)return;
     var gt=btn.getAttribute('data-gt');
@@ -833,6 +938,7 @@ app.get('/api/admin', (req, res) => {
         else alert('Error: '+(d.error||'unknown'));
       }).catch(function(e){alert('Error: '+e.message);});
   });
+
   function loadData(){
     fetch('/api/admin/searches?pass=${pass}').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){
       allRows=d.searches||[];
@@ -854,7 +960,7 @@ app.get('/api/admin', (req, res) => {
       }).join(''):'<tr><td colspan="5" class="muted">No feedback yet</td></tr>';
     }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="5" class="muted">Failed to load</td></tr>';});
   }
-  loadData();loadFeedback();setInterval(loadData,30000);setInterval(loadFeedback,60000);
+  loadData();loadFeedback();loadCache();setInterval(loadData,30000);setInterval(loadFeedback,60000);setInterval(loadCache,15000);
   function renderRows(rows){
     document.getElementById('tbody').innerHTML=rows.map(function(s){
       var cached=String(s.cached);
@@ -874,7 +980,7 @@ app.get('/api/admin', (req, res) => {
     }).join('');
   }
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(function(r){return r.gamertag.toLowerCase().includes(q);}):allRows);}
-  </script></body></html>`);
+</script></body></html>`);
 });
 
 app.use(express.static(path.join(__dirname, 'public')));

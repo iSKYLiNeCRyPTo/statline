@@ -185,7 +185,7 @@ function renderTeamSynergy(duo,gamertag){
   function pct(arr,fn){return arr.length?Math.round(arr.filter(fn).length/arr.length*100):null;}
 
   var teammates=Object.entries(tmMap)
-    .filter(function(e){return e[1].games>=2;})
+    .filter(function(e){return e[1].games>=4;})
     .sort(function(a,b){return b[1].games-a[1].games;})
     .slice(0,10)
     .map(function(e){return[e[1].displayName||e[0],e[1]];});  // use display name
