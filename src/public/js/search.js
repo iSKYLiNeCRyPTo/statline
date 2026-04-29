@@ -310,12 +310,12 @@ async function doSearch(gt, isRefresh, force){
         _renderRefreshPage(fullD.player,'skilldata');
         await new Promise(function(r){setTimeout(r,900);});
         _renderRefreshPage(fullD.player,'analyzing');
-        await new Promise(function(r){setTimeout(r,3500);});
+        await new Promise(function(r){setTimeout(r,5000);});
       } else {
         // ── Loading: Analyzing step (new search) ─────────────────────────
         await new Promise(function(r){setTimeout(r,100);});
         _renderLoadSteps(4,null); // team data ✓, analyzing active
-        await new Promise(function(r){setTimeout(r,1500);});
+        await new Promise(function(r){setTimeout(r,5000);});
         _renderLoadSteps(5,null); // all done
         await new Promise(function(r){setTimeout(r,120);});
       }
@@ -329,7 +329,8 @@ async function doSearch(gt, isRefresh, force){
       loadFullMatches(_canonicalGt);
       // Poll skill status post-render and force-refresh as soon as enrichment is ready.
       // Checks every 3s for the first 30s, then gives up.
-      if(!fullD.cached){
+      // Always run (even for cached results) — the early-exit check inside handles already-enriched players.
+      {
         var _skillPollId=null,_skillPollN=0;
         function _stopSkillPoll(){if(_skillPollId){clearInterval(_skillPollId);_skillPollId=null;}}
         function _doSkillPoll(){

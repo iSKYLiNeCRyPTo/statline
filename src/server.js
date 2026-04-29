@@ -200,7 +200,17 @@ app.get('/api/search', rateLimit, async (req, res) => {
   // Check cache (skip if force refresh requested)
   const forceRefresh = req.query.force === '1';
   const cached = await getFromCache(gamertag);
-  if (cached && !forceRefresh) { logSearch(gamertag, req.headers['user-agent'], 'cached', true, null); return res.json({ success: true, player: cached, cached: true }); }
+  if (cached && !forceRefresh) {
+    // Re-trigger skill enrichment in background if the cached data is missing skill pills
+    const _allM = cached.allMatches || cached.recentMatches || [];
+    const _ranked = _allM.filter(m => m.isRanked && m.matchId);
+    const _withSkill = _ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
+    if (_ranked.length > 0 && _withSkill < _ranked.length * 0.5) {
+      setTimeout(() => fetchAndApplySkillData(cached.xuid, cached.gamertag || gamertag, _allM), 1000);
+    }
+    logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
+    return res.json({ success: true, player: cached, cached: true });
+  }
 
   // Deduplicate concurrent searches
   const key = gamertag.toLowerCase().trim();

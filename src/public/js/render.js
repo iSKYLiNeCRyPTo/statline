@@ -1931,7 +1931,7 @@ function render(){
         // Rival polygon drawn first (sits underneath — shows your stats vs this rival)
         +'<polygon points="'+rPts+'" fill="'+accent+'33" stroke="'+accent+'" stroke-width="1.2" stroke-linejoin="round" opacity="0.8"/>'
         // Overall polygon drawn on top (semi-transparent so rival shows through where it extends further)
-        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.22)" stroke="rgba(56,138,221,0.8)" stroke-width="1.5" stroke-linejoin="round"/>'
+        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.38)" stroke="rgba(56,138,221,0.85)" stroke-width="1.5" stroke-linejoin="round"/>'
         // Dots at each rival axis tip
         +rivalArr.map(function(v,i){var p=_pt(v,i);return'<circle cx="'+p.x+'" cy="'+p.y+'" r="2" fill="'+accent+'" opacity="0.9"/>';}).join('')
         // Colour legend
@@ -2074,7 +2074,7 @@ function render(){
       html+='</div>';
     }
 
-    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:24px';
+    var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(192px,1fr));gap:12px;margin-bottom:24px';
 
     // ── NEMESES ─────────────────────────────────────────────────────────────
     if(nemeses.length){
@@ -2100,7 +2100,7 @@ function render(){
     if(_freqExtra.length){
       html+=sectionHead('Frequent Encounters','met 3+ times · roughly even record');
       html+='<div style="'+_cardGrid+'">';
-      _freqExtra.slice(0,12).forEach(function(r){html+=_rivalCard(r,'var(--accent)');});
+      _freqExtra.slice(0,12).forEach(function(r){html+=_rivalCard(r,'var(--gold)');});
       html+='</div>';
     }
 
