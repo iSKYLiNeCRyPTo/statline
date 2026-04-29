@@ -551,9 +551,9 @@ function render(){
       ms.forEach(function(m){var v=parseFloat(m.kda||0);if(v>bestKda){bestKda=v;bestGame=m;}});
       var dmgDealt=valid.reduce(function(a,m){return a+(m.damageDealt||0);},0);
       var dmgTaken=valid.reduce(function(a,m){return a+(m.damageTaken||0);},0);
-      return{label:dayLabel(d),ds:d.ds,games:ms.length,wins:wins,losses:losses,k:k,dth:dth,kd:kd,
+      return{label:dayLabel(d),ds:d.ds,matches:ms,games:ms.length,wins:wins,losses:losses,k:k,dth:dth,kd:kd,
         arenaCsr:arenaMs.length?arenaCsr:null,slayerCsr:slayerMs.length?slayerCsr:null,
-        bestKda:bestKda,bestGame:bestGame,dmgDealt:dmgDealt,dmgTaken:dmgTaken};
+        bestKda:bestKda,bestGame:bestGame};
     });
 
     // Find best day by net CSR (or KDA if no CSR data)
