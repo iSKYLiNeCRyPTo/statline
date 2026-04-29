@@ -1196,17 +1196,37 @@ function render(){
       {label:'OBJECTIVE',score:objScore}
     ];
 
-    // Determine archetype from highest axis
-    var sorted=axes.slice().sort(function(a,b){return b.score-a.score;});
-    var spread=sorted[0].score-sorted[sorted.length-1].score;
-    var archetypes={
-      'AGGRESSION':{name:'The Slayer',desc:'Elimination-first. You prioritise kills over everything and win gunfights at a high rate.'},
-      'CONSISTENCY':{name:'The Machine',desc:'Reliable every single game. No huge spikes, no collapses — you just show up.'},
-      'CARRY':{name:'The Carry',desc:'Your best games are dominant. You raise your ceiling higher than most.'},
-      'SUPPORT':{name:'The Enabler',desc:'You set teammates up, share damage, and make the team function better as a unit.'},
-      'OBJECTIVE':{name:'The Obj Player',desc:'You win games through smart objective play rather than raw gunfighting.'}
-    };
-    var archetype=spread<18?{name:'The All-Rounder',desc:'Balanced across all dimensions — no glaring weakness, no dominant signature. Versatile and adaptable.'}:(archetypes[sorted[0].label]||{name:'Balanced',desc:''});
+    // Determine archetype via Euclidean distance against canonical 5D profile vectors
+    // Vector order matches axes: [Aggression, Consistency, Carry, Support, Objective]
+    var spread=Math.max.apply(null,axes.map(function(a){return a.score;}))-Math.min.apply(null,axes.map(function(a){return a.score;}));
+    var archetypeProfiles=[
+      // name, desc, [Aggr, Cons, Carry, Supp, Obj]
+      {name:'The Slayer',     desc:'Elimination-first. You live for the gunfight and carry through raw mechanical skill. The kill feed is your scoreboard.',                                    v:[85,50,78,22,28]},
+      {name:'The Duelist',    desc:'A reliable gunfighter who shows up every game. You win engagements consistently and rarely have an off night.',                                            v:[80,82,58,28,25]},
+      {name:'The Carry',      desc:'Your best games are dominant. When you\'re hot the whole lobby knows it — your ceiling is higher than most.',                                              v:[48,45,90,28,38]},
+      {name:'The Machine',    desc:'Reliable every single game. No huge spikes, no collapses — you just show up and perform to your ceiling night after night.',                              v:[42,90,50,55,45]},
+      {name:'The Enabler',    desc:'You set teammates up, share damage, and make the team function better as a unit. Your impact doesn\'t always show in the kill feed — but it\'s there.',  v:[30,58,40,85,52]},
+      {name:'The Obj Player', desc:'You win games through smart objective play rather than raw gunfighting. Caps and secures win matches — you know it.',                                     v:[25,52,35,45,88]},
+      {name:'The Foundation', desc:'Pure team player — high support AND objectives with barely any fighting. You don\'t need kills to control a game and you prove it every match.',          v:[12,65,48,87,85]},
+      {name:'The Linchpin',   desc:'The glue of any team. Near-maxed support with serious carry numbers but minimal gunfighting — you enable teammates and still deliver in big moments.',    v:[18,70,78,94,42]},
+      {name:'The Playmaker',  desc:'Versatile and effective. You carry when needed, support when asked, and flex into objectives. The type every team wants and not enough have.',            v:[52,55,75,74,52]},
+      {name:'The Rock',       desc:'Dependable, selfless, and always there. Consistent support with very low variance — your team knows exactly what they\'re getting.',                      v:[30,85,42,78,48]},
+      {name:'The Anchor',     desc:'Your floor is high and your ceiling is higher. You carry in big moments and deliver in the clutch, game after game.',                                     v:[48,80,80,42,38]},
+      {name:'The Fighter',    desc:'You contest objectives aggressively and use gunfighting to control the map. Where the fight is, you are.',                                                v:[70,48,48,32,78]},
+      {name:'The Brawler',    desc:'You fight hard and share the work — aggressive and impactful but never at your team\'s expense. A rare combination.',                                    v:[72,52,58,68,38]},
+    ];
+    var playerVec=axes.map(function(ax){return ax.score;});
+    var archetype;
+    if(spread<18){
+      archetype={name:'The All-Rounder',desc:'Balanced across all dimensions — no glaring weakness, no dominant signature. Versatile and adaptable to any team need.'};
+    } else {
+      var bestDist=Infinity,bestProfile=archetypeProfiles[0];
+      archetypeProfiles.forEach(function(p){
+        var d=p.v.reduce(function(sum,pv,i){return sum+Math.pow(pv-playerVec[i],2);},0);
+        if(d<bestDist){bestDist=d;bestProfile=p;}
+      });
+      archetype=bestProfile;
+    }
 
     // SVG radar chart
     var cx=140,cy=115,maxR=75;
@@ -1241,12 +1261,12 @@ function render(){
       svgInner+='<text x="'+lx+'" y="'+(ly-5)+'" text-anchor="'+ta+'" font-family="Share Tech Mono,monospace" font-size="7" style="fill:rgba(133,183,235,0.65)" letter-spacing="0.5">'+ax.label+'</text>';
       svgInner+='<text x="'+lx+'" y="'+(ly+9)+'" text-anchor="'+ta+'" font-family="Rajdhani,sans-serif" font-size="14" font-weight="700" style="fill:rgba(230,241,251,0.92)">'+ax.score+'</text>';
     });
-    var radarSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 284 230" width="284" height="230" style="flex-shrink:0;display:block">'+svgInner+'</svg>';
+    var radarSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 284 230" width="284" height="230" style="flex-shrink:0;display:block;max-width:100%;height:auto">'+svgInner+'</svg>';
 
     html+=sectionHead('Playstyle Fingerprint',validMs.length+' games analysed');
-    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:16px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
+    html+='<div class="fingerprint-card" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:16px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;overflow:hidden">';
     html+=radarSvg;
-    html+='<div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:0">';
+    html+='<div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:0">';
     html+='<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text);line-height:1.1;margin-bottom:6px">'+archetype.name+'</div>';
     html+='<div style="font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:18px">'+archetype.desc+'</div>';
     axes.forEach(function(ax){
@@ -1277,13 +1297,13 @@ function render(){
     // Avg KDA line
     var avgKdaY=Math.round((1-kdaMean/sparkMax)*sparkH);
     avgKdaY=Math.max(1,Math.min(sparkH-1,avgKdaY));
-    var sparkSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+sparkW+' '+sparkH+'" width="'+sparkW+'" height="'+sparkH+'" style="display:block;border-radius:3px;overflow:hidden">'+sparkBars+'<line x1="0" y1="'+avgKdaY+'" x2="'+sparkW+'" y2="'+avgKdaY+'" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,2"/></svg>';
+    var sparkSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+sparkW+' '+sparkH+'" width="'+sparkW+'" height="'+sparkH+'" style="display:block;border-radius:3px;overflow:hidden;max-width:100%;height:auto">'+sparkBars+'<line x1="0" y1="'+avgKdaY+'" x2="'+sparkW+'" y2="'+avgKdaY+'" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,2"/></svg>';
 
     html+=sectionHead('Consistency Score','KDA variance across '+validMs.length+' games');
-    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:24px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
+    html+='<div class="consistency-card" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:24px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
     // Big score
     html+='<div style="flex-shrink:0">';
-    html+='<div style="font-size:64px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+consColor+';line-height:1">'+consScore+'</div>';
+    html+='<div class="cons-score-num" style="font-size:64px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+consColor+';line-height:1">'+consScore+'</div>';
     html+='<div style="font-size:11px;font-family:Rajdhani,sans-serif;font-weight:700;color:'+consColor+';letter-spacing:1px;margin-top:2px">'+consLabel.toUpperCase()+'</div>';
     html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:4px">out of 100</div>';
     html+='</div>';
@@ -1720,6 +1740,12 @@ function render(){
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
   scheduleEmblemRetry();
+  // Resolve gamertags for any match cards that were already expanded (e.g. persisted across re-renders)
+  setTimeout(function(){
+    document.querySelectorAll('.match-card.expanded').forEach(function(card){
+      resolveMatchGamertags(card);
+    });
+  }, 0);
 }
 loadStats();
 

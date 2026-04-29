@@ -406,6 +406,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .sidebar-logo svg{width:100%;height:auto}
   header .last-updated{display:none}
   #playerBtns .player-btn{font-size:9px;padding:3px 8px}
+
+  /* ── Playstyle Fingerprint + Consistency Score ── */
+  /* On mobile these flex cards already wrap; just ensure the SVG doesn't overflow */
+  .fingerprint-card svg,.consistency-card svg{max-width:100%;height:auto}
+  /* Big consistency score number — shrink slightly so it doesn't crowd */
+  .cons-score-num{font-size:48px !important}
 }
 </style>
 </head>

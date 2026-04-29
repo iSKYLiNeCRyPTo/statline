@@ -410,10 +410,10 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
   }
   var cq=analyzeConnectionQuality(m,modeBaselines||{});
   var cqBadge=cq?'<span class="cq-badge-desktop" style="font-size:10px;color:'+cq.verdict.color+';font-family:Share Tech Mono,monospace;margin-left:4px;white-space:nowrap">'+cq.verdict.label+'</span>':'';
-  var detail=isOpen?renderMatchDetail(m,m,modeBaselines,durSecs||0):'';
+  var detail=isOpen?'<div class="match-detail-panel">'+renderMatchDetail(m,m,modeBaselines,durSecs||0)+'</div>':'';
   // Build as DOM element so no quoting issues, then capture outerHTML AFTER all setup
   var el=document.createElement('div');
-  el.className='match-card '+oc;
+  el.className='match-card '+oc+(isOpen?' expanded':'');
   el.id='match_'+_mkey;
   el.setAttribute('data-mkey',_mkey);
   el.setAttribute('data-rawkey',_rawKey);

@@ -713,7 +713,7 @@ app.get('/api/admin/searches', async (req, res) => {
     const db = await getDb();
     let searches = [], tabStats = [];
     if (db) {
-      const r = await db.query('SELECT ts,gamertag,ip,user_agent,cached,success,duration_ms FROM search_log ORDER BY ts DESC LIMIT 500');
+      const r = await db.query('SELECT ts,gamertag,user_agent,cached,success,duration_ms FROM search_log ORDER BY ts DESC LIMIT 500');
       searches = r.rows;
       const tr = await db.query(`SELECT tab,COUNT(*) as visits,ROUND(AVG(seconds),1) as avg_seconds,ROUND(SUM(seconds)/60,1) as total_minutes FROM tab_log GROUP BY tab ORDER BY visits DESC`).catch(()=>({rows:[]}));
       tabStats = tr.rows;
@@ -839,7 +839,8 @@ app.get('/api/admin', (req, res) => {
     return res.send(`<!DOCTYPE html><html><body style="font-family:monospace;background:#0a0f1a;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><form method="get"><input name="pass" type="password" placeholder="Password" style="padding:8px;background:#1a2035;border:1px solid #333;color:#fff;border-radius:4px;margin-right:8px"><button type="submit" style="padding:8px 16px;background:#00d4ff;color:#000;border:none;border-radius:4px;cursor:pointer">Enter</button></form></body></html>`);
   }
   res.send(`<!DOCTYPE html><html><head><title>fragr // analytics</title>
-  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:20px}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:12px 18px;border-radius:6px;border:1px solid #1a2035;min-width:100px}.stat-val{font-size:28px;font-weight:700;color:#00d4ff;line-height:1}.stat-lbl{font-size:10px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:200px}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:100px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}.del-btn{background:transparent;border:none;color:#333;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:3px;transition:color 0.15s}.del-btn:hover{color:#f44336}.action-btn{background:#0d1425;border:1px solid #1a2035;color:#00d4ff;cursor:pointer;font-size:11px;padding:4px 10px;border-radius:4px;font-family:inherit;transition:all 0.15s}.action-btn:hover{background:#1a2035;border-color:#00d4ff}.action-btn.danger{color:#f44336;border-color:#1a2035}.action-btn.danger:hover{background:#1a0d0d;border-color:#f44336}.action-btn.warn{color:#ffc107;border-color:#1a2035}.action-btn.warn:hover{background:#1a1500;border-color:#ffc107}.action-row{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.token-ok{color:#4caf50}.token-err{color:#f44336}</style></head>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>body{font-family:Share Tech Mono,monospace;background:#0a0f1a;color:#ccc;margin:0;padding:16px;box-sizing:border-box}h1,h2{color:#00d4ff;letter-spacing:2px;text-transform:uppercase}h1{font-size:16px;margin-bottom:20px}h2{font-size:11px;margin:24px 0 10px}.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:24px}table{width:100%;border-collapse:collapse;font-size:12px;min-width:500px}th{text-align:left;color:#666;padding:6px 10px;border-bottom:1px solid #1a2035;font-size:10px;letter-spacing:1px}td{padding:6px 10px;border-bottom:1px solid #111}tr:hover td{background:#0d1425}.win{color:#4caf50}.loss{color:#f44336}.muted{color:#555}.gold{color:#ffc107}.summary{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}.stat{background:#0d1425;padding:10px 14px;border-radius:6px;border:1px solid #1a2035;min-width:80px}.stat-val{font-size:24px;font-weight:700;color:#00d4ff;line-height:1;word-break:break-all}.stat-lbl{font-size:9px;color:#555;margin-top:4px}#filter{background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;margin-bottom:12px;width:100%;max-width:220px;box-sizing:border-box}.bar-wrap{background:#0d1425;border-radius:3px;height:6px;width:60px;display:inline-block;vertical-align:middle;margin-left:8px}.bar{background:#00d4ff;height:6px;border-radius:3px}.ua-pill{font-size:9px;padding:2px 6px;border-radius:10px;background:#1a2035;color:#888}.del-btn{background:transparent;border:none;color:#333;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:3px;transition:color 0.15s}.del-btn:hover{color:#f44336}.action-btn{background:#0d1425;border:1px solid #1a2035;color:#00d4ff;cursor:pointer;font-size:11px;padding:4px 10px;border-radius:4px;font-family:inherit;transition:all 0.15s}.action-btn:hover{background:#1a2035;border-color:#00d4ff}.action-btn.danger{color:#f44336;border-color:#1a2035}.action-btn.danger:hover{background:#1a0d0d;border-color:#f44336}.action-btn.warn{color:#ffc107;border-color:#1a2035}.action-btn.warn:hover{background:#1a1500;border-color:#ffc107}.action-row{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}.token-ok{color:#4caf50}.token-err{color:#f44336}</style></head>
   <body><h1>// fragr analytics</h1>
   <div class="action-row">
     <button class="action-btn warn" onclick="checkToken()">check token</button>
@@ -851,15 +852,15 @@ app.get('/api/admin', (req, res) => {
   <h2>// active cache</h2>
   <div id="cache-panel" style="font-size:11px;color:#555;margin-bottom:16px">Loading...</div>
   <h2>// feedback &amp; contact</h2>
-  <table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th></tr></thead><tbody id="fbtbody"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody></table>
+  <div class="table-wrap"><table><thead><tr><th>TIME</th><th>TYPE</th><th>EMAIL</th><th>MESSAGE</th></tr></thead><tbody id="fbtbody"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody></table></div>
   <h2>// tab engagement</h2>
-  <table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table>
+  <div class="table-wrap"><table><thead><tr><th>TAB</th><th>VISITS</th><th>AVG TIME</th><th>TOTAL TIME</th></tr></thead><tbody id="tabtbody"></tbody></table></div>
   <h2>// recent searches</h2>
   <div class="action-row" style="margin-bottom:8px">
-    <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()" style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:200px">
+    <input id="filter" placeholder="Filter gamertag..." oninput="filterRows()">
     <button class="action-btn" onclick="refreshPlayer()">force refresh player</button>
   </div>
-  <table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>IP</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th><th></th></tr></thead><tbody id="tbody"></tbody></table>
+  <div class="table-wrap"><table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th><th></th></tr></thead><tbody id="tbody"></tbody></table></div>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
@@ -926,6 +927,8 @@ app.get('/api/admin', (req, res) => {
   document.addEventListener('click',function(e){
     var clrBtn=e.target.closest('[data-clr]');
     if(clrBtn){clearPlayerCache(clrBtn.getAttribute('data-clr'));return;}
+    var fbRow=e.target.closest('.fb-row');
+    if(fbRow){var pid=fbRow.getAttribute('data-fb-target');if(pid){var p=document.getElementById(pid);if(p)p.style.display=p.style.display==='none'?'table-row':'none';}return;}
     var btn=e.target.closest('.del-btn');
     if(!btn)return;
     var gt=btn.getAttribute('data-gt');
@@ -957,7 +960,7 @@ app.get('/api/admin', (req, res) => {
         var short=preview.length>80?preview.slice(0,80)+'…':preview;
         var ts=new Date(f.ts).toISOString().replace('T',' ').slice(0,19);
         var pid='fb_'+i;
-        return'<tr style="cursor:pointer" onclick="var p=document.getElementById(\''+pid+'\');p.style.display=p.style.display===\'none\'?\'table-row\':\'none\'">'
+        return'<tr class="fb-row" data-fb-target="'+pid+'" style="cursor:pointer">'
           +'<td class="muted" style="white-space:nowrap">'+ts+'</td>'
           +'<td style="color:'+typeColor+'">'+f.type+'</td>'
           +'<td style="color:#4caf50">'+(f.email||'<span class="muted">--</span>')+'</td>'
@@ -979,7 +982,6 @@ app.get('/api/admin', (req, res) => {
       return'<tr>'
         +'<td class="muted">'+new Date(s.ts).toISOString().replace('T',' ').slice(0,19)+'</td>'
         +'<td style="color:#00d4ff">'+gt+'</td>'
-        +'<td class="muted">'+(s.ip||'')+'</td>'
         +'<td>'+ua2device(s.user_agent)+'</td>'
         +'<td>'+cs+'</td>'
         +'<td class="muted">'+(s.duration_ms?s.duration_ms+'ms':'--')+'</td>'

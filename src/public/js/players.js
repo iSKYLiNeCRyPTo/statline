@@ -87,6 +87,12 @@ async function loadFullMatches(gamertag, force, bannerLabel){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
       render(); // re-render with full match data including hitreg and insights
+      // Resolve gamertags for any match cards that were already open before the re-render
+      setTimeout(function(){
+        document.querySelectorAll('.match-card.expanded').forEach(function(card){
+          resolveMatchGamertags(card);
+        });
+      }, 0);
       if(activeTab==='objectives') setTimeout(resolveSynergyGamertags, 200);
       if(activeTab==='matches'&&matchHistoryData&&matchHistoryData._gamertag===gamertag){
         var _upd={matches:d.matches,page:1,totalPages:Math.max(1,Math.ceil(d.matches.length/25)),total:d.matches.length,_gamertag:gamertag};
