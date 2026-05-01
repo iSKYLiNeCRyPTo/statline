@@ -50,9 +50,23 @@ function careerIcon(tier,rank,style,crRankNum){
   return csrIcon(tier||'Bronze',style.border,style.bg);
 }
 function csrIcon(tier,border,bg){var t=tier.toLowerCase();var src=CSR_EMBLEMS[t];if(!src)return'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>';return'<img src="'+src+'" alt="'+tier+'" style="width:100%;height:100%;object-fit:contain">';}
-function renderCsrCards(csr,matches){if(!csr)return'';return Object.entries(csr).map(function(e){var label=e[0],c=e[1];if(!c||!c.tier)return'';var s=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)',icon:''};
-  var isSlayer=label.indexOf('Slayer')>-1;
-  return'<div class="csr-card" style="border-color:'+s.border+'33;background:'+s.bg+'"><div class="csr-icon" style="background:'+s.bg+';border:2px solid '+s.border+';color:'+s.text+'">'+csrIcon(c.tier,s.border,s.bg)+'</div><div class="csr-info"><div class="csr-tier" style="color:'+s.text+'">'+c.display+'</div><div class="csr-detail">CSR '+c.value+' · '+label+'</div><div class="csr-bar-wrap"><div class="csr-bar-fill" style="width:'+(c.pct||0)+'%;background:'+s.border+'"></div></div><div class="csr-bar-labels"><span>'+(c.tier==='Onyx'?'Onyx':c.tier+' '+(c.subTier||1))+'</span><span>'+(c.pct||0)+'%</span><span>'+(c.nextLabel||'')+'</span></div>'+(c.seasonMax?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">Season peak: <span style="color:var(--gold)">'+c.seasonMax+'</span>'+(c.allTimeMax&&c.allTimeMax!==c.seasonMax?'<br>All-time: <span style="color:var(--accent)">'+c.allTimeMax+'</span>':'')+'</div>':'')+'</div></div>';}).join('');}
+function renderCsrCards(csr,matches){
+  if(!csr)return'';
+  // Ranked Arena always renders first — it is the primary competitive metric.
+  var _order=['Ranked Arena','Ranked Slayer','Ranked Legacy'];
+  var entries=Object.entries(csr).filter(function(e){return e[1]&&e[1].tier;});
+  entries.sort(function(a,b){
+    var ai=_order.indexOf(a[0]),bi=_order.indexOf(b[0]);
+    if(ai===-1&&bi===-1)return 0;if(ai===-1)return 1;if(bi===-1)return-1;return ai-bi;
+  });
+  return entries.map(function(e){
+    var label=e[0],c=e[1];
+    var s=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)',icon:''};
+    var isArena=label==='Ranked Arena';
+    var detailLabel=label+(isArena?' · primary':'');
+    return'<div class="csr-card" style="border-color:'+s.border+'33;background:'+s.bg+'"><div class="csr-icon" style="background:'+s.bg+';border:2px solid '+s.border+';color:'+s.text+'">'+csrIcon(c.tier,s.border,s.bg)+'</div><div class="csr-info"><div class="csr-tier" style="color:'+s.text+'">'+c.display+'</div><div class="csr-detail">CSR '+c.value+' · '+detailLabel+'</div><div class="csr-bar-wrap"><div class="csr-bar-fill" style="width:'+(c.pct||0)+'%;background:'+s.border+'"></div></div><div class="csr-bar-labels"><span>'+(c.tier==='Onyx'?'Onyx':c.tier+' '+(c.subTier||1))+'</span><span>'+(c.pct||0)+'%</span><span>'+(c.nextLabel||'')+'</span></div>'+(c.seasonMax?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">Season peak: <span style="color:var(--gold)">'+c.seasonMax+'</span>'+(c.allTimeMax&&c.allTimeMax!==c.seasonMax?'<br>All-time: <span style="color:var(--accent)">'+c.allTimeMax+'</span>':'')+'</div>':'')+'</div></div>';
+  }).join('');
+}
 function renderConnectionDetail(cq){
   if(!cq||!cq.signals.length)return'';
   return'<div style="margin:10px 0;padding:10px 14px;background:var(--surface2);border-radius:6px;border-left:3px solid '+cq.verdict.color+'">'

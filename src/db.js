@@ -125,7 +125,9 @@ async function savePlayerSnapshot(player) {
     if (!db) return;
 
     const csr = player.csr || {};
-    const PREFERRED = ['ranked_arena', 'ranked_slayer', 'ranked_legacy', 'ranked_slayer_2'];
+    // Keys must match the display names from halo.js csrResults (NOT snake_case).
+    // Ranked Arena is the authoritative competitive metric — always preferred.
+    const PREFERRED = ['Ranked Arena', 'Ranked Slayer', 'Ranked Legacy'];
     let primaryPlaylist = null, csrTier = null, csrSubtier = null, csrValue = null;
 
     for (const pl of PREFERRED) {

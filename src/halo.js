@@ -735,24 +735,14 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 
         const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
-        // Ranked Legacy playlist IDs (populated once discovered from logs)
+        // Ranked Legacy playlist IDs — fill in once discovered via /api/discover-playlists
         const RANKED_LEGACY_IDS = [];
         const matchPlaylistId = md.MatchInfo?.Playlist?.AssetId;
         const isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         const isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
         const isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
         isRanked = isRankedArena || isRankedSlayer || isRankedLegacy;
-        // Skip entirely if not a tracked ranked playlist
         if (!isRanked) {
-          // Discovery log: capture any unrecognized playlist so we can add it
-          if (matchPlaylistId && matchPlaylistId !== md.MatchInfo?.Playlist?.AssetId) {
-            // (placeholder — see log below)
-          }
-          if (matchPlaylistId) {
-            const plName = md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || '(no name)';
-            const exp = md.MatchInfo?.PlaylistExperience || '';
-            console.log(`[PlaylistDiscover] Filtered playlist: ${matchPlaylistId} name="${plName}" exp="${exp}" lifecycle=${lifecycleMode}`);
-          }
           results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'Filtered', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
           continue;
         }
@@ -1112,6 +1102,56 @@ async function fetchAndApplySkillData(xuid, matches) {
   console.log(`[SkillBG] Skill data applied to ${ranked.length} matches (xuid=${xuid})`);
 }
 
+// Standalone playlist discovery — fetches the player's 25 most recent matches and
+// returns every unique playlist ID + name found. Runs completely outside the TARGET
+// filter so it always sees recent matches regardless of how many ranked ones exist.
+async function discoverPlaylists(xuid, gamertag) {
+  await fetchClearanceToken(xuid);
+  const headers = getAuthHeaders();
+
+  const listRes = await fetch(
+    `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=25&start=0`,
+    { headers }
+  );
+  if (!listRes.ok) throw new Error(`Match list failed: ${listRes.status}`);
+  const data = await listRes.json();
+  const matches = data.Results || [];
+
+  const seen = new Map(); // playlistId -> { name, exp, lifecycle, matchId, count }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    try {
+      if (i > 0 && i % 6 === 0) await sleep(300); // gentle rate limiting
+      const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
+      if (!r.ok) continue;
+      const md = await r.json();
+      const playlistId = md.MatchInfo?.Playlist?.AssetId;
+      if (!playlistId) continue;
+      if (seen.has(playlistId)) {
+        seen.get(playlistId).count++;
+      } else {
+        seen.set(playlistId, {
+          id: playlistId,
+          name: md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || '(no name in API)',
+          exp: md.MatchInfo?.PlaylistExperience || '',
+          lifecycle: md.MatchInfo?.LifecycleMode,
+          matchId: m.MatchId,
+          count: 1,
+        });
+      }
+    } catch(e) { /* skip individual match errors */ }
+  }
+
+  const playlists = [...seen.values()].sort((a, b) => b.count - a.count);
+  console.log(`[PlaylistDiscover] Results for ${gamertag} (${xuid}):`);
+  playlists.forEach(p => {
+    console.log(`  ${p.id}  "${p.name}"  exp="${p.exp}"  lifecycle=${p.lifecycle}  (${p.count} of last 25 matches)`);
+  });
+  return playlists;
+}
+
 module.exports = {
   fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
@@ -1121,4 +1161,5 @@ module.exports = {
   resolveGamertags,
   resolveEmblemForXuid, markEmblemMissing,
   getRedis,
+  discoverPlaylists,
 };

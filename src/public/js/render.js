@@ -331,8 +331,10 @@ function renderCsrEfficiency(matches){
   // MMR analysis
   var cmWithMmr=cm.filter(function(m){return m.mmr&&m.oppMmr;});
   var p=(getAllPlayers()[selectedPlayer]||{});
+  // Ranked Arena is the primary competitive metric. Slayer/Legacy are secondary.
   var arenaCsr=p.csr&&p.csr['Ranked Arena']?p.csr['Ranked Arena'].value:null;
   var slayerCsr=p.csr&&p.csr['Ranked Slayer']?p.csr['Ranked Slayer'].value:null;
+  var legacyCsrVal=p.csr&&p.csr['Ranked Legacy']?p.csr['Ranked Legacy'].value:null;
 
   // ── CSR SETTLEMENT DETECTION ─────────────────────────────────────────────
   // Signs you are CSR-settled (system has high confidence in your rank):
@@ -346,9 +348,10 @@ function renderCsrEfficiency(matches){
   var gainLossGap=avgLoss-avgGain; // positive = losing more than gaining
   if(gainLossGap>=1.5) settlementSignals.push('asymmetric');
 
-  // Detect lobby MMR vs your CSR
+  // Detect lobby MMR vs your CSR — Arena is the reference, Slayer/Legacy secondary
   var arenaMatches=cmWithMmr.filter(function(m){return m.gameMode&&m.gameMode.indexOf('Arena')>-1;});
   var slayerMatches=cmWithMmr.filter(function(m){return m.gameMode&&/^Ranked Slayer$/i.test(m.gameMode.trim());});
+  var legacyMatches=cmWithMmr.filter(function(m){return m.gameMode&&m.gameMode.indexOf('Legacy')>-1;});
 
   function analysisForPlaylist(plMatches, label, currentCsr){
     if(!plMatches.length) return null;
@@ -390,9 +393,10 @@ function renderCsrEfficiency(matches){
 
   var arenaAnalysis=analysisForPlaylist(arenaMatches,'Ranked Arena',arenaCsr);
   var slayerAnalysis=analysisForPlaylist(slayerMatches,'Ranked Slayer',slayerCsr);
+  var legacyAnalysis=analysisForPlaylist(legacyMatches,'Ranked Legacy',legacyCsrVal);
 
-  // Determine settlement state from primary playlist
-  var primaryAnalysis=arenaAnalysis||slayerAnalysis;
+  // Ranked Arena is the primary analysis — Slayer and Legacy are fallbacks only
+  var primaryAnalysis=arenaAnalysis||slayerAnalysis||legacyAnalysis;
   if(primaryAnalysis){
     var mmrGap=primaryAnalysis.mmrVsCsr;
     // MMR below CSR = system pushing you down = settled/over-placed
@@ -442,8 +446,8 @@ function renderCsrEfficiency(matches){
     html+='</div>';
   }
 
-  // Per-playlist MMR breakdown
-  [arenaAnalysis,slayerAnalysis].forEach(function(pa){
+  // Per-playlist MMR breakdown — Arena first, then secondaries
+  [arenaAnalysis,slayerAnalysis,legacyAnalysis].forEach(function(pa){
     if(!pa||pa.count<3) return;
     html+='<div style="margin-bottom:14px">';
     html+='<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">'+pa.label+' ('+pa.count+' games)</div>';
@@ -701,18 +705,27 @@ function render(){
         'Rank '+_cr.rank+'/272'
       );
     }
-    // CSR playlist cards
+    // CSR playlist cards — Ranked Arena always first as the primary competitive metric
     if(p.csr){
-      Object.entries(p.csr).forEach(function(e){
+      var _csrOrder=['Ranked Arena','Ranked Slayer','Ranked Legacy'];
+      var _csrEntries=Object.entries(p.csr).filter(function(e){return e[1]&&e[1].tier;});
+      _csrEntries.sort(function(a,b){
+        var ai=_csrOrder.indexOf(a[0]);var bi=_csrOrder.indexOf(b[0]);
+        if(ai===-1&&bi===-1)return 0;
+        if(ai===-1)return 1;if(bi===-1)return -1;
+        return ai-bi;
+      });
+      _csrEntries.forEach(function(e){
         var label=e[0],c=e[1];
-        if(!c||!c.tier)return;
         var _cs=CSR_STYLES[c.tier]||{bg:'var(--surface2)',border:'var(--border)',text:'var(--text)'};
+        // Ranked Arena gets a subtle "primary" label to signal it's the main metric
+        var _labelSuffix=label==='Ranked Arena'?' · primary':'';
         _heroRankCards+=_compactRankCard(
           csrIcon(c.tier,_cs.border,_cs.bg),
           _cs.text,_cs.border,_cs.bg,
           c.display,
           'CSR '+c.value+(c.seasonMax?' · Peak '+c.seasonMax:''),
-          label
+          label+_labelSuffix
         );
       });
     }

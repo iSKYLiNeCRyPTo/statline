@@ -96,13 +96,31 @@
     var next  = data.nextRank;
     var rank  = data.rank;
     var player = data.player || {};
+    var playlist = data.playlist || '';
+    var isArena = data.isArena;
+    var allPlaylists = data.allPlaylists || [];
 
     var h = '';
     // Header
     h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
     h += '<div>';
     h += '<div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted2);font-family:Share Tech Mono,monospace">Rank Benchmark</div>';
-    h += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--accent);margin-top:2px">' + rank.display + ' · ' + peers.count + ' players tracked</div>';
+    h += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--accent);margin-top:2px">';
+    h += rank.display + ' · ' + peers.count + ' players tracked';
+    h += '</div>';
+    // Always show which playlist the benchmark is based on
+    h += '<div style="margin-top:4px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
+    h += 'benchmarking vs <span style="color:' + (isArena ? 'var(--accent)' : 'var(--gold)') + '">' + playlist + '</span> peers';
+    h += '</div>';
+    // If not Arena, show what their Arena rank actually is so context is clear
+    if (!isArena) {
+      var arenaEntry = allPlaylists.find(function(p) { return p.label === 'Ranked Arena'; });
+      if (arenaEntry) {
+        h += '<div style="margin-top:2px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--gold)">';
+        h += '⚠ Ranked Arena (' + arenaEntry.display + ') is the primary competitive metric';
+        h += '</div>';
+      }
+    }
     h += '</div>';
     if (next) {
       h += '<div style="text-align:right">';

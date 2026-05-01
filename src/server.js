@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank } = require('./db');
@@ -364,13 +364,17 @@ app.get('/api/rank-comparison', async (req, res) => {
     if (!player) return res.json({ available: false, reason: 'not_cached' });
 
     const csr = player.csr || {};
-    const PREFERRED = ['ranked_arena', 'ranked_slayer', 'ranked_slayer_2'];
+    // Ranked Arena is the authoritative competitive metric — always prefer it.
+    // Keys match the display names produced by halo.js csrResults (NOT snake_case).
+    const PREFERRED = ['Ranked Arena', 'Ranked Slayer', 'Ranked Legacy'];
     let pl = playlist || null;
+    // If a specific playlist was requested, validate it; otherwise pick by preference.
     if (!pl || !csr[pl] || !csr[pl].tier) {
       pl = PREFERRED.find(k => csr[k] && csr[k].tier) || Object.keys(csr).find(k => csr[k] && csr[k].tier);
     }
     if (!pl || !csr[pl] || !csr[pl].tier) return res.json({ available: false, reason: 'no_csr' });
 
+    const isArena = pl === 'Ranked Arena';
     const { tier, subTier = 0 } = csr[pl];
     const s = player.stats || {};
     const playerStats = {
@@ -387,6 +391,11 @@ app.get('/api/rank-comparison', async (req, res) => {
     res.json({
       available: true,
       playlist: pl,
+      isArena,
+      // Surface all CSR ranks so the client can display a note when not using Arena
+      allPlaylists: Object.entries(csr)
+        .filter(([, c]) => c && c.tier)
+        .map(([label, c]) => ({ label, display: c.display, value: c.value })),
       rank: { tier, subTier, display: csr[pl].display || (tier === 'Onyx' ? 'Onyx' : `${tier} ${subTier}`) },
       player: playerStats,
       peers: {
@@ -401,6 +410,23 @@ app.get('/api/rank-comparison', async (req, res) => {
   } catch(e) {
     console.error('[rank-comparison]', e.message);
     res.json({ available: false, reason: 'error' });
+  }
+});
+
+// Playlist discovery — fetches the player's 25 most recent matches and returns
+// every unique playlist ID + name. Use this to find the Ranked Legacy playlist ID.
+// Hit: GET /api/discover-playlists?gamertag=<gt>
+app.get('/api/discover-playlists', async (req, res) => {
+  try {
+    const { gamertag } = req.query;
+    if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
+    const cached = await getFromCache(gamertag);
+    if (!cached?.xuid) return res.status(404).json({ error: 'Player not in cache — search them first' });
+    const playlists = await discoverPlaylists(cached.xuid, gamertag);
+    res.json({ gamertag, playlists });
+  } catch(e) {
+    console.error('[discover-playlists]', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
