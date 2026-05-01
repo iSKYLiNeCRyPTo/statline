@@ -1334,7 +1334,10 @@ function render(){
 
       // Row 2 — accuracy, CSR, headshot rate, damage ratio
       html+='<div class="mapexp-stats-row">';
-      html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=50?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<40?'var(--loss)':'var(--text)');
+      var _proAccRef = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy) ? proStats.accuracy : null;
+      var _accGreenThr = _proAccRef ? Math.round(_proAccRef * 0.83) : 50;
+      var _accRedThr   = _proAccRef ? Math.round(_proAccRef * 0.67) : 40;
+      html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=_accGreenThr?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<_accRedThr?'var(--loss)':'var(--text)');
       html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
       html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
       html+='<div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px;margin-bottom:4px">RECORD</div><div style="font-size:30px;font-weight:700;font-family:Rajdhani,sans-serif;line-height:1"><span style="color:var(--win)">'+e.wins+'W</span><span style="color:var(--muted)"> / </span><span style="color:var(--loss)">'+e.losses+'L</span></div></div>';
@@ -1998,13 +2001,18 @@ function render(){
     if(_aimGames.length>=8){
       var _acc=_aimGames.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_aimGames.length;
       var _hs=_aimGames.reduce(function(s,m){return s+(m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:0);},0)/_aimGames.length;
+      // Calibrate "solid" and "low" accuracy thresholds to pro data when available
+      var _proAccCtx = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy) ? proStats : null;
+      var _solidAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.75) : 45;
+      var _lowAccThr   = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.67) : 40;
+      var _proAccSuffix = _proAccCtx ? ' (pro avg: '+_proAccCtx.accuracy.toFixed(1)+'%)' : '';
       // High body accuracy but low headshots — shots landing body but not tracking to head → sens too high
-      if(_acc>=45&&_hs<35){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Lowering Look Sensitivity','Accuracy ('+_acc.toFixed(1)+'%) is solid but only '+_hs.toFixed(0)+'% of kills are headshot finishes — most Bandit kills should end with the headshot. You may be drifting to body level on the final shot. Try holding chin height through the whole burst so the finishing shot naturally lands on the head. If you feel like you\'re consistently overshooting past the head, try dropping sensitivity by 1.','var(--accent)'));
+      if(_acc>=_solidAccThr&&_hs<35){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Lowering Look Sensitivity','Accuracy ('+_acc.toFixed(1)+'%'+_proAccSuffix+') is solid but only '+_hs.toFixed(0)+'% of kills are headshot finishes — most Bandit kills should end with the headshot. You may be drifting to body level on the final shot. Try holding chin height through the whole burst so the finishing shot naturally lands on the head. If you feel like you\'re consistently overshooting past the head, try dropping sensitivity by 1.','var(--accent)'));
       }
       // Low accuracy overall but higher headshot % — only landing when almost stationary → sens too low / deadzone masking input
-      else if(_acc<40&&_hs>=40){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Raising Look Sensitivity','Low accuracy ('+_acc.toFixed(1)+'%) but solid headshot rate ('+_hs.toFixed(0)+'%) — you\'re precise when still but missing when targets strafe. With the Bandit this usually means sensitivity is too low to track lateral movement. Try raising look sensitivity by 1 or reducing your outer deadzone to improve strafe-tracking.','var(--accent)'));
+      else if(_acc<_lowAccThr&&_hs>=40){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Raising Look Sensitivity','Low accuracy ('+_acc.toFixed(1)+'%'+_proAccSuffix+') but solid headshot rate ('+_hs.toFixed(0)+'%) — you\'re precise when still but missing when targets strafe. With the Bandit this usually means sensitivity is too low to track lateral movement. Try raising look sensitivity by 1 or reducing your outer deadzone to improve strafe-tracking.','var(--accent)'));
       }
     }
 
@@ -2012,8 +2020,10 @@ function render(){
     var _meleeHeavy=_aimGames.filter(function(m){return m.weaponStats&&m.kills>0&&m.weaponStats.melee/m.kills>0.25&&_durSecs(m)>=180;});
     if(_meleeHeavy.length>=5){
       var _meleeAcc=_meleeHeavy.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_meleeHeavy.length;
-      if(_meleeAcc<38){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Check Your Inner Deadzone','In close-range fights you finish with melee '+Math.round(_meleeHeavy.length/_aimGames.length*100)+'% of the time, but your accuracy in those games is only '+_meleeAcc.toFixed(1)+'%. A large inner deadzone can cause sluggish micro-adjustments at close range — try reducing it by 5-10% in Halo\'s controller settings.','var(--gold)'));
+      // Deadzone threshold: 63% of pro average (or 38% fallback) — accuracy this far below pro in close-range games suggests deadzone issue
+      var _deadzoneAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.63) : 38;
+      if(_meleeAcc<_deadzoneAccThr){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Check Your Inner Deadzone','In close-range fights you finish with melee '+Math.round(_meleeHeavy.length/_aimGames.length*100)+'% of the time, but your accuracy in those games is only '+_meleeAcc.toFixed(1)+'%'+(_proAccCtx?' (pro avg: '+_proAccCtx.accuracy.toFixed(1)+'%)':'')+'. A large inner deadzone can cause sluggish micro-adjustments at close range — try reducing it by 5-10% in Halo\'s controller settings.','var(--gold)'));
       }
     }
 

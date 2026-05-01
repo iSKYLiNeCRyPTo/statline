@@ -325,15 +325,32 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var accDelta=acc!=null&&blOverall.avgAcc>0?acc-blOverall.avgAcc:null;
   var spkDelta=spk!=null&&blOverall.avgSpk>0?spk-blOverall.avgSpk:null;
 
+  // ── Pro-calibrated thresholds ────────────────────────────────────────
+  // When pro stats are available, scale thresholds by rank.
+  // Rank multiplier: Onyx=1.5×, Diamond=2×, Platinum=2.5×, Gold=3×, Silver/Bronze=3.5×
+  // Falls back to hardcoded values if no pros are tracked yet.
+  var _tier=(typeof playerData!=='undefined'&&playerData&&playerData.csr)
+    ? (function(){var _plPref=['Ranked Arena','Ranked Slayer','Ranked Legacy'];for(var _i=0;_i<_plPref.length;_i++){if(playerData.csr[_plPref[_i]]&&playerData.csr[_plPref[_i]].tier)return playerData.csr[_plPref[_i]].tier;}return null;})()
+    : null;
+  var _rankMult = {Onyx:1.5,Diamond:2,Platinum:2.5,Gold:3,Silver:3.5,Bronze:3.5}[_tier]||2.5;
+  var _proAcc = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy_sd!=null) ? proStats : null;
+  // Acceptable accuracy deviation = pro SD × rank multiplier
+  var _accBandMild   = _proAcc ? _proAcc.accuracy_sd * _rankMult        : 8;   // "Off Baseline" threshold
+  var _accBandStrong = _proAcc ? _proAcc.accuracy_sd * _rankMult * 1.5  : 12;  // "Poor Session" threshold
+  var _accGoodMild   = _proAcc ? _proAcc.accuracy_sd * _rankMult        : 6;   // "Good" threshold
+  var _accGoodStrong = _proAcc ? _proAcc.accuracy_sd * _rankMult * 1.5  : 10;  // "Great" threshold
+  // Pro accuracy reference note for signal messages
+  var _proAccNote = _proAcc ? ' (pro acceptable: ≥'+(proStats.accuracy - _accBandMild).toFixed(1)+'%)' : '';
+
   var signals=[];
   var score=0;
 
   // ── GOOD CONNECTION signals ──────────────────────────────────────────
   // Accuracy well above your norm
-  if(!_isObjMode&&accDelta!=null&&accDelta>=10&&kd>=1.5){
+  if(!_isObjMode&&accDelta!=null&&accDelta>=_accGoodStrong&&kd>=1.5){
     signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
     score+=2;
-  } else if(!_isObjMode&&accDelta!=null&&accDelta>=6&&kd>=1.8){
+  } else if(!_isObjMode&&accDelta!=null&&accDelta>=_accGoodMild&&kd>=1.8){
     signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg) — shots landing above your baseline'});
     score+=1;
   }
@@ -355,11 +372,11 @@ function analyzeConnectionQuality(m, modeBaselines) {
 
   // ── POOR CONNECTION signals ──────────────────────────────────────────
   // Accuracy well below your norm — strongest signal
-  if(!_isObjMode&&accDelta!=null&&accDelta<=-12){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — well below your baseline'});
+  if(!_isObjMode&&accDelta!=null&&accDelta<=-_accBandStrong){
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — well below your baseline'+_proAccNote});
     score-=3;
-  } else if(!_isObjMode&&accDelta!=null&&accDelta<=-8){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — off your baseline'});
+  } else if(!_isObjMode&&accDelta!=null&&accDelta<=-_accBandMild){
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — off your baseline'+_proAccNote});
     score-=2;
   }
   // DPM tanked AND taking more damage — lag comp against you

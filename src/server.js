@@ -1089,7 +1089,7 @@ app.delete('/api/admin/pro-players', express.json(), async (req, res) => {
   catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-/ ── Admin: search log UI ──────────────────────────────────────────────────────
+// ── Admin: search log UI ──────────────────────────────────────────────────────
 app.get('/api/admin', (req, res) => {
   const pass = req.query.pass || '';
   const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
