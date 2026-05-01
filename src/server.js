@@ -371,13 +371,18 @@ app.get('/api/skill-status', async (req, res) => {
 
 // Rank comparison — returns peer stats and next-rank targets from stored snapshots
 const TIER_ORDER = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Onyx'];
-function getNextRank(tier, subTier) {
-  if (tier === 'Onyx') return null;
+function getNextRank(tier, subTier, csrValue) {
+  if (tier === 'Onyx') {
+    // Onyx buckets in 100-point bands up to 1900+
+    const bandLow = csrValue != null ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : 1500;
+    if (bandLow >= 1900) return null; // already in top bucket
+    return { tier: 'Onyx', subTier: 0, csrValue: bandLow + 100 }; // next band
+  }
   if (subTier < 6) return { tier, subTier: subTier + 1 };
   const idx = TIER_ORDER.indexOf(tier);
   if (idx < 0 || idx === TIER_ORDER.length - 1) return null;
   const next = TIER_ORDER[idx + 1];
-  return { tier: next, subTier: next === 'Onyx' ? 0 : 1 };
+  return { tier: next, subTier: next === 'Onyx' ? 0 : 1, csrValue: next === 'Onyx' ? 1500 : null };
 }
 function computeGroupStats(rows, playerStats) {
   if (!rows.length) return { count: 0 };
@@ -426,6 +431,7 @@ app.get('/api/rank-comparison', async (req, res) => {
 
     const isArena = pl === 'Ranked Arena';
     const { tier, subTier = 0 } = csr[pl];
+    const csrValue = csr[pl].value || 0;
     const s = player.stats || {};
     const playerStats = {
       kd:        parseFloat(s.kd)              || null,
@@ -434,9 +440,19 @@ app.get('/api/rank-comparison', async (req, res) => {
       avg_kills: parseFloat(s.avgKillsPerGame) || null,
     };
 
-    const peerRows = await getSnapshotsByRank(tier, subTier);
-    const next = getNextRank(tier, subTier);
-    const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier) : [];
+    // For Onyx, bucket into 100-point CSR bands so 1500 ≠ 1900
+    const onyxBandLow  = tier === 'Onyx' ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : null;
+    const onyxBandHigh = onyxBandLow != null ? (onyxBandLow >= 1900 ? null : onyxBandLow + 100) : null;
+    const onyxLabel    = onyxBandLow != null ? (onyxBandHigh != null ? `Onyx ${onyxBandLow}–${onyxBandHigh - 1}` : `Onyx ${onyxBandLow}+`) : null;
+
+    const peerRows = await getSnapshotsByRank(tier, subTier, csrValue);
+    const next = getNextRank(tier, subTier, csrValue);
+    const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier, next.csrValue) : [];
+
+    // Label for next Onyx band
+    const nextOnyxLow  = next && next.tier === 'Onyx' ? Math.min(Math.floor((next.csrValue || 1500) / 100) * 100, 1900) : null;
+    const nextOnyxHigh = nextOnyxLow != null ? (nextOnyxLow >= 1900 ? null : nextOnyxLow + 100) : null;
+    const nextOnyxLabel = nextOnyxLow != null ? (nextOnyxHigh != null ? `Onyx ${nextOnyxLow}–${nextOnyxHigh - 1}` : `Onyx ${nextOnyxLow}+`) : null;
 
     res.json({
       available: true,
@@ -446,14 +462,14 @@ app.get('/api/rank-comparison', async (req, res) => {
       allPlaylists: Object.entries(csr)
         .filter(([, c]) => c && c.tier)
         .map(([label, c]) => ({ label, display: c.display, value: c.value })),
-      rank: { tier, subTier, display: csr[pl].display || (tier === 'Onyx' ? 'Onyx' : `${tier} ${subTier}`) },
+      rank: { tier, subTier, csrValue, display: onyxLabel || csr[pl].display || `${tier} ${subTier}` },
       player: playerStats,
       peers: {
-        label: tier === 'Onyx' ? 'Onyx' : `${tier} ${subTier}`,
+        label: onyxLabel || (tier === 'Onyx' ? 'Onyx' : `${tier} ${subTier}`),
         ...computeGroupStats(peerRows, playerStats),
       },
       nextRank: next ? {
-        label: next.tier === 'Onyx' ? 'Onyx' : `${next.tier} ${next.subTier}`,
+        label: nextOnyxLabel || (next.tier === 'Onyx' ? 'Onyx' : `${next.tier} ${next.subTier}`),
         ...computeGroupStats(nextRows, null),
       } : null,
     });

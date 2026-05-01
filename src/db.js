@@ -174,20 +174,35 @@ async function savePlayerSnapshot(player) {
   } catch(e) { console.error('[DB] savePlayerSnapshot error:', e.message); }
 }
 
-// Fetch stats rows for players at a given rank tier+subtier (last 30 days, up to 1000 rows)
-async function getSnapshotsByRank(tier, subTier) {
+// Fetch stats rows for players at a given rank tier+subtier (last 30 days, up to 1000 rows).
+// For Onyx, csrValue is required — players are bucketed in 100-point ranges (1500-1599, 1600-1699, etc.)
+// so an Onyx 1500 is never compared against an Onyx 1900.
+async function getSnapshotsByRank(tier, subTier, csrValue) {
   try {
     const db = await getDb();
     if (!db) return [];
-    const isOnyx = tier === 'Onyx';
-    const params = isOnyx ? [tier] : [tier, subTier];
-    const subFilter = isOnyx ? '' : 'AND csr_subtier = $2';
-    const res = await db.query(`
-      SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
-      WHERE csr_tier = $1 ${subFilter} AND kd IS NOT NULL
-        AND ts > NOW() - INTERVAL '30 days'
-      ORDER BY ts DESC LIMIT 1000
-    `, params);
+    let queryStr, params;
+    if (tier === 'Onyx') {
+      // Bucket into 100-point bands: floor to nearest 100, cap at 1900+
+      const bandLow = csrValue != null ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : 1500;
+      const bandHigh = bandLow >= 1900 ? 9999 : bandLow + 100;
+      queryStr = `
+        SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+        WHERE csr_tier = $1 AND csr_value >= $2 AND csr_value < $3 AND kd IS NOT NULL
+          AND ts > NOW() - INTERVAL '30 days'
+        ORDER BY ts DESC LIMIT 1000
+      `;
+      params = [tier, bandLow, bandHigh];
+    } else {
+      queryStr = `
+        SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+        WHERE csr_tier = $1 AND csr_subtier = $2 AND kd IS NOT NULL
+          AND ts > NOW() - INTERVAL '30 days'
+        ORDER BY ts DESC LIMIT 1000
+      `;
+      params = [tier, subTier];
+    }
+    const res = await db.query(queryStr, params);
     return res.rows;
   } catch(e) { console.error('[DB] getSnapshotsByRank error:', e.message); return []; }
 }
