@@ -306,15 +306,14 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var dpmTaken=m.damageTaken/effectiveMins;
   var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
   var kd=m.deaths>0?m.kills/m.deaths:m.kills;
+  // Get baseline — for DPM only use Slayer baseline (objective modes vary too much)
+  // SPK and accuracy use __overall__ — weapon mechanics don't change by mode
+  var mode=m.gameMode||'Unknown';
   // BR (Legacy) fires 3 rounds per trigger pull — normalize to trigger-pull equivalents
   // so SPK is comparable to Bandit Evo. Must match the normalization used in baseline building.
   var isLegacy=mode.indexOf('Legacy')>-1;
   var effectiveShotsFired=isLegacy&&m.shotsFired>0?m.shotsFired/3:m.shotsFired;
   var spk=m.kills>0&&effectiveShotsFired>0?effectiveShotsFired/m.kills:null;
-
-  // Get baseline — for DPM only use Slayer baseline (objective modes vary too much)
-  // SPK and accuracy use __overall__ — weapon mechanics don't change by mode
-  var mode=m.gameMode||'Unknown';
   var _isObjMode=/oddball|ctf|capture|stronghold|stockpile|koth|king/i.test(mode);
   var blOverall=modeBaselines['__overall__'];
   if(!blOverall||blOverall.count<5) return null;
