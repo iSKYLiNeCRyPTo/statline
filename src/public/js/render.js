@@ -1896,12 +1896,36 @@ function render(){
     var recent=sorted.slice(0,Math.min(5,sorted.length));
     var older=sorted.slice(5,Math.min(10,sorted.length));
 
+    // Lobby difficulty helpers for trend insights
+    // avgMmrGap > 0 means underdog (harder lobbies), < 0 means favored
+    function _avgMmrGap(arr){
+      var g=arr.filter(function(m){return m.mmr&&m.oppMmr;});
+      return g.length?g.reduce(function(s,m){return s+(m.oppMmr-m.mmr);},0)/g.length:0;
+    }
+    // Convert avg MMR gap to an expected stat suppression note
+    function _lobbyCtx(gap){
+      if(gap>150) return ' — recent lobbies were harder (avg ~'+Math.round(100/(1+Math.pow(10,gap/400)))+'% win prob)';
+      if(gap<-150) return ' — recent lobbies were easier';
+      return '';
+    }
+
     if(recent.length>=3&&older.length>=3){
       function avgKD(arr){var t=arr.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0);return t/arr.length;}
       var recentKD=avgKD(recent);var olderKD=avgKD(older);var delta=recentKD-olderKD;
-      if(Math.abs(delta)>=0.10){
-        if(delta>=0.10) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5 — momentum is building.','var(--win)'));
-        else insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+delta.toFixed(2)+' from the prior 5 — you may be fatiguing or facing harder lobbies.','var(--loss)'));
+      var _rGap=_avgMmrGap(recent); var _oGap=_avgMmrGap(older);
+      var _kdLobbyDelta=_rGap-_oGap; // positive = recent games harder than older
+      // Lobby-adjust: if recent lobbies are meaningfully harder, require a bigger delta to flag a decline
+      // and soften or suppress the "Trending Down" card if lobby difficulty explains the gap
+      var _kdThreshold=0.10+(_kdLobbyDelta>100?0.08:0); // raise bar if recent games were harder
+      if(Math.abs(delta)>=_kdThreshold){
+        if(delta>=_kdThreshold){
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5'+(_kdLobbyDelta<-100?' — and in harder lobbies, making this more impressive':' — momentum is building')+'.','var(--win)'));
+        } else if(_kdLobbyDelta>150){
+          // Decline clearly explained by harder lobbies — flag as informational, not negative
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','Harder Recent Lobbies','K/D dipped '+Math.abs(delta).toFixed(2)+' in recent games ('+recentKD.toFixed(2)+')'+_lobbyCtx(_rGap)+' — expected given the tougher matchups, not necessarily a performance decline.','var(--muted)'));
+        } else {
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','K/D Trending Down','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is down '+Math.abs(delta).toFixed(2)+' from the prior 5'+_lobbyCtx(_rGap)+'.','var(--loss)'));
+        }
       }
     }
 
@@ -1910,9 +1934,18 @@ function render(){
     if(accRecent.length>=3&&accOlder.length>=3){
       function avgAcc(arr){return arr.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/arr.length;}
       var aR=avgAcc(accRecent);var aO=avgAcc(accOlder);var aDelta=aR-aO;
-      if(Math.abs(aDelta)>=2){
-        if(aDelta>=2) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) — your aim is locking in.','var(--win)'));
-        else insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%).','var(--gold)'));
+      var _aRGap=_avgMmrGap(accRecent); var _aOGap=_avgMmrGap(accOlder);
+      var _accLobbyDelta=_aRGap-_aOGap; // positive = recent acc games were harder lobbies
+      // Harder lobbies naturally suppress accuracy — raise the flag threshold and soften the message
+      var _accThreshold=2+(_accLobbyDelta>100?2:0);
+      if(Math.abs(aDelta)>=_accThreshold){
+        if(aDelta>=_accThreshold){
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%)'+(_accLobbyDelta<-100?' — even in comparatively easier lobbies, still a good sign':' — your aim is locking in')+'.','var(--win)'));
+        } else if(_accLobbyDelta>150){
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Dip — Harder Lobbies','Accuracy down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%)'+_lobbyCtx(_aRGap)+'. Better opponents strafe and move differently — this may not reflect your actual aim.','var(--muted)'));
+        } else {
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Dropping','Shot accuracy is down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%) vs prior games ('+aO.toFixed(1)+'%)'+_lobbyCtx(_aRGap)+'.','var(--gold)'));
+        }
       }
     }
 
@@ -1996,12 +2029,44 @@ function render(){
 
 
 
-    // Win rate check
+    // Win rate check (lobby-difficulty aware)
     var _wGames=allMatches.filter(function(m){return m.outcome===2||m.outcome===3;});
     if(_wGames.length>=5){
       var _wr=_wGames.filter(function(m){return m.outcome===2;}).length/_wGames.length*100;
-      if(_wr<40) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','Below 40% Win Rate','Your win rate over '+_wGames.length+' games is '+Math.round(_wr)+'% — focus on one playlist and map type until your fundamentals solidify.','var(--loss)'));
-      else if(_wr>=60) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','Above 60% Win Rate','Winning '+Math.round(_wr)+'% of '+_wGames.length+' games — you are consistently outperforming your lobbies.','var(--win)'));
+      // Average MMR gap across all evaluated games
+      var _wrAvgGap=_avgMmrGap(_wGames);
+      var _wrLobbyFactor=Math.tanh(_wrAvgGap/400);
+      // Chronic underdog: avg gap > 150 → expected win rate < 45%, so <40% is not alarming
+      // Chronic favorite: avg gap < -150 → <40% win rate IS more concerning (should be winning)
+      if(_wr<40){
+        if(_wrAvgGap>150){
+          // Harder lobbies — muted card, explanatory context
+          var _wrApproxPct=Math.round(100/(1+Math.pow(10,_wrAvgGap/400)));
+          insights.push(insightCard(
+            '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>',
+            'Low Win Rate — Harder Lobbies',
+            'Win rate is '+Math.round(_wr)+'% over '+_wGames.length+' games, but your average lobby gives you ~'+_wrApproxPct+'% win probability — so this is close to expected. Focus on consistency rather than raw results while facing tougher opponents.',
+            'var(--muted,#8a8a9a)'
+          ));
+        } else {
+          // Normal or favored lobbies — standard red flag
+          var _wrLobbyCtx=_wrAvgGap<-150?' (despite favored matchmaking)':'';
+          insights.push(insightCard(
+            '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>',
+            'Below 40% Win Rate',
+            'Your win rate over '+_wGames.length+' games is '+Math.round(_wr)+'%'+_wrLobbyCtx+' — focus on one playlist and map type until your fundamentals solidify.',
+            'var(--loss)'
+          ));
+        }
+      } else if(_wr>=60){
+        var _wrWinCtx=_wrAvgGap>150?' — especially impressive given the lobby difficulty':'';
+        insights.push(insightCard(
+          '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>',
+          'Above 60% Win Rate',
+          'Winning '+Math.round(_wr)+'% of '+_wGames.length+' games — you are consistently outperforming your lobbies'+_wrWinCtx+'.',
+          'var(--win)'
+        ));
+      }
     }
 
     // Damage ratio

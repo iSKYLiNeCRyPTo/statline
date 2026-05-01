@@ -342,25 +342,45 @@ function analyzeConnectionQuality(m, modeBaselines) {
   // Pro accuracy reference note for signal messages
   var _proAccNote = _proAcc ? ' (pro acceptable: ≥'+(proStats.accuracy - _accBandMild).toFixed(1)+'%)' : '';
 
+  // ── Lobby difficulty scaling ─────────────────────────────────────────
+  // Harder opponents naturally suppress accuracy, DPM, and SPK regardless of connection.
+  // Scale all thresholds by the MMR gap so a 25% underdog isn't judged the same as an even lobby.
+  // Same tanh curve used by the performance baseline score.
+  var _mmrGap = (m.oppMmr && m.mmr) ? m.oppMmr - m.mmr : 0;
+  var _lobbyFactor = Math.tanh(_mmrGap / 400); // -1 to +1 (positive = underdog, negative = favored)
+  // Grace on bad signals: harder lobby → widen the tolerance window
+  // Up to +7% accuracy grace and +0.15 DPM ratio grace at extreme underdog
+  var _lobbyAccGrace = _lobbyFactor > 0 ? _lobbyFactor * 7  : _lobbyFactor * 3;  // positive when underdog
+  var _lobbyDpmGrace = _lobbyFactor > 0 ? _lobbyFactor * 0.15 : _lobbyFactor * 0.07;
+  var _lobbySpkGrace = _lobbyFactor > 0 ? _lobbyFactor * 1.5  : _lobbyFactor * 0.7;
+  // Lobby context string appended to messages when gap is meaningful
+  var _lobbyNote = '';
+  if(_mmrGap > 150){
+    var _approxWinPct = Math.round(100/(1+Math.pow(10,_mmrGap/400)));
+    _lobbyNote = ' ('+_approxWinPct+'% win prob — harder lobby)';
+  } else if(_mmrGap < -150){
+    _lobbyNote = ' (favored lobby)';
+  }
+
   var signals=[];
   var score=0;
 
   // ── GOOD CONNECTION signals ──────────────────────────────────────────
-  // Accuracy well above your norm
-  if(!_isObjMode&&accDelta!=null&&accDelta>=_accGoodStrong&&kd>=1.5){
-    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
+  // Accuracy well above your norm — threshold lowered for underdogs (holding avg in a hard lobby is impressive)
+  if(!_isObjMode&&accDelta!=null&&accDelta>=(_accGoodStrong-_lobbyAccGrace)&&kd>=1.5){
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%)'+(_mmrGap>150?' in a harder lobby':'')+' — shots landing cleanly'});
     score+=2;
-  } else if(!_isObjMode&&accDelta!=null&&accDelta>=_accGoodMild&&kd>=1.8){
-    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg) — shots landing above your baseline'});
+  } else if(!_isObjMode&&accDelta!=null&&accDelta>=(_accGoodMild-_lobbyAccGrace)&&kd>=1.8){
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg)'+(_mmrGap>150?' vs tougher opponents':'')+' — shots landing above your baseline'});
     score+=1;
   }
-  // DPM well above baseline with good K/D
-  if(!_isObjMode&&dpmDealtRatio>1.35&&kd>=1.8){
+  // DPM well above baseline with good K/D — threshold raised for underdogs
+  if(!_isObjMode&&bl&&dpmDealtRatio>(1.35-_lobbyDpmGrace)&&kd>=1.8){
     signals.push({bad:false,msg:Math.round(dpmDealt)+' dmg/min vs your '+Math.round(bl.avgDpmDealt)+' avg (+'+Math.round((dpmDealtRatio-1)*100)+'%) — shots registering'});
     score+=1;
   }
-  // Bandit SPK: well below your own average (cleaner kills than usual)
-  if(spkDelta!=null&&spkDelta<=-1.5&&spk<=7){
+  // Bandit SPK: well below your own average (cleaner kills than usual) — threshold raised for underdogs
+  if(spkDelta!=null&&spkDelta<=(-1.5+_lobbySpkGrace)&&spk<=7){
     signals.push({bad:false,msg:spk.toFixed(1)+' shots/kill vs your '+blOverall.avgSpk.toFixed(1)+' overall avg — winning gunfights faster than usual'});
     score+=1;
   }
@@ -370,26 +390,39 @@ function analyzeConnectionQuality(m, modeBaselines) {
     score+=1;
   }
 
+  // Context: low DPM can mean connection issues OR conservative/efficient play.
+  // If deaths are well below expected AND headshot rate is solid, the player was
+  // picking their spots carefully — not a connection issue. Suppress DPM flag.
+  var _deathsWellBelow = m.expectedDeaths && m.expectedDeaths > 0 && m.deaths < m.expectedDeaths * 0.80;
+  var _hsRateOk = m.weaponStats && m.kills > 0 && (m.weaponStats.headshots / m.kills) >= 0.40;
+  var _conservativePlay = _deathsWellBelow && _hsRateOk;
+
   // ── POOR CONNECTION signals ──────────────────────────────────────────
-  // Accuracy well below your norm — strongest signal
-  if(!_isObjMode&&accDelta!=null&&accDelta<=-_accBandStrong){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — well below your baseline'+_proAccNote});
+  // Accuracy well below your norm — thresholds widened for harder lobbies
+  var _adjAccBandStrong = _accBandStrong + _lobbyAccGrace;
+  var _adjAccBandMild   = _accBandMild   + _lobbyAccGrace;
+  if(!_isObjMode&&accDelta!=null&&accDelta<=-_adjAccBandStrong){
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — well below your baseline'+_proAccNote+_lobbyNote});
     score-=3;
-  } else if(!_isObjMode&&accDelta!=null&&accDelta<=-_accBandMild){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — off your baseline'+_proAccNote});
+  } else if(!_isObjMode&&accDelta!=null&&accDelta<=-_adjAccBandMild){
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — off your baseline'+_proAccNote+_lobbyNote});
     score-=2;
   }
-  // DPM tanked AND taking more damage — lag comp against you
-  if(!_isObjMode&&dpmDealtRatio<0.6&&dpmTakenRatio>1.5){
-    signals.push({bad:true,msg:'Damage output '+Math.round((1-dpmDealtRatio)*100)+'% below your avg while taking '+Math.round((dpmTakenRatio-1)*100)+'% more — damage ratio well off your baseline'});
+  // DPM tanked AND taking more damage — lag comp regardless of play style
+  // (lobby grace applied: harder lobby = lower threshold to account for natural output drop)
+  var _adjDpmBadHard = 0.60 - _lobbyDpmGrace;
+  var _adjDpmBadMild = 0.65 - _lobbyDpmGrace;
+  if(!_isObjMode&&dpmDealtRatio<_adjDpmBadHard&&dpmTakenRatio>1.5){
+    signals.push({bad:true,msg:'Damage output '+Math.round((1-dpmDealtRatio)*100)+'% below your avg while taking '+Math.round((dpmTakenRatio-1)*100)+'% more — damage ratio well off your baseline'+_lobbyNote});
     score-=3;
-  } else if(!_isObjMode&&dpmDealtRatio<0.65){
-    signals.push({bad:true,msg:Math.round(dpmDealt)+' dmg/min ('+Math.round((1-dpmDealtRatio)*100)+'% below your '+mode.replace('Ranked ','')+' avg) — shots not registering'});
+  } else if(!_isObjMode&&dpmDealtRatio<_adjDpmBadMild&&!_conservativePlay){
+    signals.push({bad:true,msg:Math.round(dpmDealt)+' dmg/min ('+Math.round((1-dpmDealtRatio)*100)+'% below your '+mode.replace('Ranked ','')+' avg) — shots not registering'+_lobbyNote});
     score-=2;
   }
-  // Bandit SPK: significantly above your own baseline (forced to fire more to kill)
-  if(spkDelta!=null&&spkDelta>=2.5&&spk>=10){
-    signals.push({bad:true,msg:spk.toFixed(1)+' shots/kill vs your '+blOverall.avgSpk.toFixed(1)+' overall avg — taking far more shots to finish kills, shots may not be registering'});
+  // Bandit SPK: significantly above your own baseline — threshold tightened for harder lobbies
+  var _adjSpkBad = 2.5 - _lobbySpkGrace; // harder lobby = need more extreme SPK spike to flag it
+  if(spkDelta!=null&&spkDelta>=_adjSpkBad&&spk>=10){
+    signals.push({bad:true,msg:spk.toFixed(1)+' shots/kill vs your '+blOverall.avgSpk.toFixed(1)+' overall avg — taking far more shots to finish kills'+_lobbyNote});
     score-=2;
   }
   // MMR expected much more kills
