@@ -328,7 +328,7 @@ function analyzeConnectionQuality(m, modeBaselines) {
     signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg (+'+accDelta.toFixed(1)+'%) — shots landing cleanly'});
     score+=2;
   } else if(!_isObjMode&&accDelta!=null&&accDelta>=6&&kd>=1.8){
-    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg) — hitreg in your favour'});
+    signals.push({bad:false,msg:'Accuracy '+acc.toFixed(1)+'% (+'+accDelta.toFixed(1)+'% above your overall avg) — shots landing above your baseline'});
     score+=1;
   }
   // DPM well above baseline with good K/D
@@ -343,22 +343,22 @@ function analyzeConnectionQuality(m, modeBaselines) {
   }
   // MMR expectation significantly beaten
   if(m.expectedKills!=null&&m.kills>m.expectedKills+4&&dpmDealtRatio>1.1){
-    signals.push({bad:false,msg:'+'+(m.kills-Math.round(m.expectedKills))+' kills above MMR expectation — server-side advantage'});
+    signals.push({bad:false,msg:'+'+(m.kills-Math.round(m.expectedKills))+' kills above MMR expectation — above baseline for this lobby'});
     score+=1;
   }
 
   // ── POOR CONNECTION signals ──────────────────────────────────────────
   // Accuracy well below your norm — strongest signal
   if(!_isObjMode&&accDelta!=null&&accDelta<=-12){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — shots not registering server-side'});
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — well below your baseline'});
     score-=3;
   } else if(!_isObjMode&&accDelta!=null&&accDelta<=-8){
-    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — suspect hitreg'});
+    signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — off your baseline'});
     score-=2;
   }
   // DPM tanked AND taking more damage — lag comp against you
   if(!_isObjMode&&dpmDealtRatio<0.6&&dpmTakenRatio>1.5){
-    signals.push({bad:true,msg:'Damage output '+Math.round((1-dpmDealtRatio)*100)+'% below your avg while taking '+Math.round((dpmTakenRatio-1)*100)+'% more — lag comp against you'});
+    signals.push({bad:true,msg:'Damage output '+Math.round((1-dpmDealtRatio)*100)+'% below your avg while taking '+Math.round((dpmTakenRatio-1)*100)+'% more — damage ratio well off your baseline'});
     score-=3;
   } else if(!_isObjMode&&dpmDealtRatio<0.65){
     signals.push({bad:true,msg:Math.round(dpmDealt)+' dmg/min ('+Math.round((1-dpmDealtRatio)*100)+'% below your '+mode.replace('Ranked ','')+' avg) — shots not registering'});
@@ -377,9 +377,9 @@ function analyzeConnectionQuality(m, modeBaselines) {
 
   if(signals.length===0) return null;
   var verdict=
-    score<=-4?{level:'bad', label:'Poor Connection', color:'var(--loss)'}:
-    score<=-2?{level:'warn',label:'Suspect Hitreg',  color:'var(--gold)'}:
-    score>=3 ?{level:'good',label:'Server-Side',     color:'var(--win)'}:
+    score<=-4?{level:'bad', label:'Poor Session',    color:'var(--loss)'}:
+    score<=-2?{level:'warn',label:'Off Baseline',    color:'var(--gold)'}:
+    score>=3 ?{level:'good',label:'Above Baseline',  color:'var(--win)'}:
     null;
   if(!verdict) return null;
 

@@ -5,7 +5,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -279,6 +279,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
     res.json({ success: true, player: result });
     flushXuidCache(getXuidToGt()).catch(() => {});
     flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
+    // Save player snapshot for rank comparison feature (fire and forget)
+    savePlayerSnapshot(result).catch(() => {});
     // Background: enrich matches with skill data (hits skill.svc — separate rate limit from halostats)
     // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
     const _bgMatches = result.allMatches || result.recentMatches || [];
@@ -315,6 +317,91 @@ app.get('/api/skill-status', async (req, res) => {
     const pct = Math.round(withSkill / ranked.length * 100);
     res.json({ ready: pct >= 95, pct, withSkill, total: ranked.length });
   } catch(e) { res.json({ ready: false, pct: 0 }); }
+});
+
+// Rank comparison — returns peer stats and next-rank targets from stored snapshots
+const TIER_ORDER = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Onyx'];
+function getNextRank(tier, subTier) {
+  if (tier === 'Onyx') return null;
+  if (subTier < 6) return { tier, subTier: subTier + 1 };
+  const idx = TIER_ORDER.indexOf(tier);
+  if (idx < 0 || idx === TIER_ORDER.length - 1) return null;
+  const next = TIER_ORDER[idx + 1];
+  return { tier: next, subTier: next === 'Onyx' ? 0 : 1 };
+}
+function computeGroupStats(rows, playerStats) {
+  if (!rows.length) return { count: 0 };
+  const avg = key => rows.reduce((s, r) => s + (parseFloat(r[key]) || 0), 0) / rows.length;
+  const percentile = (key, val) => {
+    if (val == null) return null;
+    const sorted = rows.map(r => parseFloat(r[key]) || 0).sort((a, b) => a - b);
+    return Math.round(sorted.filter(v => v < val).length / sorted.length * 100);
+  };
+  const ps = playerStats || {};
+  return {
+    count: rows.length,
+    avg: {
+      kd:        +avg('kd').toFixed(2),
+      win_rate:  +avg('win_rate').toFixed(1),
+      accuracy:  +avg('accuracy').toFixed(1),
+      avg_kills: +avg('avg_kills').toFixed(1),
+    },
+    percentiles: ps.kd != null ? {
+      kd:        percentile('kd',        ps.kd),
+      win_rate:  percentile('win_rate',  ps.win_rate),
+      accuracy:  percentile('accuracy',  ps.accuracy),
+      avg_kills: percentile('avg_kills', ps.avg_kills),
+    } : null,
+  };
+}
+
+app.get('/api/rank-comparison', async (req, res) => {
+  try {
+    const { gamertag, playlist } = req.query;
+    if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
+
+    const player = await getFromCache(gamertag);
+    if (!player) return res.json({ available: false, reason: 'not_cached' });
+
+    const csr = player.csr || {};
+    const PREFERRED = ['ranked_arena', 'ranked_slayer', 'ranked_slayer_2'];
+    let pl = playlist || null;
+    if (!pl || !csr[pl] || !csr[pl].tier) {
+      pl = PREFERRED.find(k => csr[k] && csr[k].tier) || Object.keys(csr).find(k => csr[k] && csr[k].tier);
+    }
+    if (!pl || !csr[pl] || !csr[pl].tier) return res.json({ available: false, reason: 'no_csr' });
+
+    const { tier, subTier = 0 } = csr[pl];
+    const s = player.stats || {};
+    const playerStats = {
+      kd:        parseFloat(s.kd)              || null,
+      win_rate:  parseFloat(s.winRate)         || null,
+      accuracy:  parseFloat(s.accuracy)        || null,
+      avg_kills: parseFloat(s.avgKillsPerGame) || null,
+    };
+
+    const peerRows = await getSnapshotsByRank(tier, subTier);
+    const next = getNextRank(tier, subTier);
+    const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier) : [];
+
+    res.json({
+      available: true,
+      playlist: pl,
+      rank: { tier, subTier, display: csr[pl].display || (tier === 'Onyx' ? 'Onyx' : `${tier} ${subTier}`) },
+      player: playerStats,
+      peers: {
+        label: tier === 'Onyx' ? 'Onyx' : `${tier} ${subTier}`,
+        ...computeGroupStats(peerRows, playerStats),
+      },
+      nextRank: next ? {
+        label: next.tier === 'Onyx' ? 'Onyx' : `${next.tier} ${next.subTier}`,
+        ...computeGroupStats(nextRows, null),
+      } : null,
+    });
+  } catch(e) {
+    console.error('[rank-comparison]', e.message);
+    res.json({ available: false, reason: 'error' });
+  }
 });
 
 // Match history (paginated; perPage capped at 2000 so loadFullMatches can pull the whole set)

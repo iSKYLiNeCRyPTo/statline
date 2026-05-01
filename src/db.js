@@ -15,6 +15,26 @@ async function getDb() {
       try {
         await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
         await _dbPool.query(`CREATE TABLE IF NOT EXISTS emblem_cache (xuid TEXT PRIMARY KEY, emblem_path TEXT, nameplate_path TEXT, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS player_snapshots (
+          xuid TEXT NOT NULL,
+          gamertag TEXT NOT NULL,
+          snap_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          primary_playlist TEXT,
+          csr_tier TEXT,
+          csr_subtier INT,
+          csr_value INT,
+          csr JSONB,
+          matches_played INT,
+          wins INT,
+          losses INT,
+          kd FLOAT,
+          kda FLOAT,
+          win_rate FLOAT,
+          accuracy FLOAT,
+          avg_kills FLOAT,
+          PRIMARY KEY (xuid, snap_date)
+        )`);
       } catch(e) { console.error('[DB] schema error:', e.message); }
       return _dbPool;
     })();
@@ -98,4 +118,76 @@ async function flushEmblemCache(emblemPathCache, nameplatePathCache) {
   } catch(e) { console.error('[DB] flushEmblemCache error:', e.message); }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache };
+// Save a snapshot of a player's stats at search time (one row per player per day)
+async function savePlayerSnapshot(player) {
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    const csr = player.csr || {};
+    const PREFERRED = ['ranked_arena', 'ranked_slayer', 'ranked_slayer_2'];
+    let primaryPlaylist = null, csrTier = null, csrSubtier = null, csrValue = null;
+
+    for (const pl of PREFERRED) {
+      if (csr[pl] && csr[pl].tier) {
+        primaryPlaylist = pl; csrTier = csr[pl].tier;
+        csrSubtier = csr[pl].subTier || 0; csrValue = csr[pl].value || 0;
+        break;
+      }
+    }
+    if (!primaryPlaylist) {
+      for (const k of Object.keys(csr)) {
+        if (csr[k] && csr[k].tier) {
+          primaryPlaylist = k; csrTier = csr[k].tier;
+          csrSubtier = csr[k].subTier || 0; csrValue = csr[k].value || 0;
+          break;
+        }
+      }
+    }
+    if (!csrTier) return; // unranked — nothing to store
+
+    const s = player.stats || {};
+    await db.query(`
+      INSERT INTO player_snapshots
+        (xuid, gamertag, snap_date, ts, primary_playlist, csr_tier, csr_subtier, csr_value,
+         csr, matches_played, wins, losses, kd, kda, win_rate, accuracy, avg_kills)
+      VALUES ($1,$2,CURRENT_DATE,NOW(),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ON CONFLICT (xuid, snap_date) DO UPDATE SET
+        gamertag=EXCLUDED.gamertag, ts=NOW(),
+        primary_playlist=EXCLUDED.primary_playlist,
+        csr_tier=EXCLUDED.csr_tier, csr_subtier=EXCLUDED.csr_subtier, csr_value=EXCLUDED.csr_value,
+        csr=EXCLUDED.csr, matches_played=EXCLUDED.matches_played,
+        wins=EXCLUDED.wins, losses=EXCLUDED.losses,
+        kd=EXCLUDED.kd, kda=EXCLUDED.kda, win_rate=EXCLUDED.win_rate,
+        accuracy=EXCLUDED.accuracy, avg_kills=EXCLUDED.avg_kills
+    `, [
+      player.xuid, player.gamertag, primaryPlaylist, csrTier, csrSubtier, csrValue,
+      JSON.stringify(csr),
+      s.matchesPlayed || null, s.wins || null, s.losses || null,
+      parseFloat(s.kd) || null, parseFloat(s.kda) || null,
+      parseFloat(s.winRate) || null, parseFloat(s.accuracy) || null,
+      parseFloat(s.avgKillsPerGame) || null
+    ]);
+    console.log(`[DB] Snapshot saved for ${player.gamertag} (${csrTier} ${csrSubtier})`);
+  } catch(e) { console.error('[DB] savePlayerSnapshot error:', e.message); }
+}
+
+// Fetch stats rows for players at a given rank tier+subtier (last 30 days, up to 1000 rows)
+async function getSnapshotsByRank(tier, subTier) {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    const isOnyx = tier === 'Onyx';
+    const params = isOnyx ? [tier] : [tier, subTier];
+    const subFilter = isOnyx ? '' : 'AND csr_subtier = $2';
+    const res = await db.query(`
+      SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+      WHERE csr_tier = $1 ${subFilter} AND kd IS NOT NULL
+        AND ts > NOW() - INTERVAL '30 days'
+      ORDER BY ts DESC LIMIT 1000
+    `, params);
+    return res.rows;
+  } catch(e) { console.error('[DB] getSnapshotsByRank error:', e.message); return []; }
+}
+
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank };

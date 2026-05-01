@@ -98,6 +98,192 @@ function renderObjectiveStats(matches){
   html+='</div>'; return html;
 }
 
+// ── Performance Baseline ────────────────────────────────────────────────────
+// Lobby-adjusted, rank-normalized performance score per game.
+// Accounts for:
+//   1. Raw delta from expected kills/deaths (skill API baseline)
+//   2. Lobby difficulty bonus — being an underdog makes hitting baseline harder
+//   3. Rank-tier sigma — lower ranks have wider natural variance, so we normalize
+//      to a rank-appropriate standard deviation so scores compare across tiers
+function renderPerformanceBaseline(allMatches, tier) {
+  // Rank-tier sigma: expected game-to-game variation in raw kill delta at each tier
+  var TIER_SIGMA = {Bronze:3.5, Silver:3.0, Gold:2.5, Platinum:2.0, Diamond:1.7, Onyx:1.4};
+  var sigma = TIER_SIGMA[tier] || 2.5;
+
+  // Only use matches where skill API filled in expected values
+  var games = allMatches.filter(function(m){
+    return m.expectedKills!=null && m.expectedDeaths!=null &&
+           m.kills!=null && m.mmr && m.oppMmr &&
+           (m.outcome===2||m.outcome===3);
+  }).slice(0,40); // last 40 qualifying matches
+
+  if(games.length<5) return '';
+
+  // Score each game
+  var scored = games.map(function(m){
+    var killDelta  = m.kills - m.expectedKills;          // positive = outperformed
+    var deathDelta = m.expectedDeaths - m.deaths;        // positive = fewer deaths (good)
+    var rawPerf    = killDelta * 0.6 + deathDelta * 0.4;
+
+    // Lobby difficulty: smooth sigmoid so extreme disparities don't dominate
+    // A 300-pt MMR gap gives ~±1.1 adjustment; 100-pt gap gives ~±0.45
+    var mmrGap = m.oppMmr - m.mmr; // positive = you were the underdog
+    var diffBonus = Math.tanh(mmrGap / 300) * 1.5;
+
+    var adjusted   = rawPerf + diffBonus;
+    var normalized = adjusted / sigma; // in rank-sigma units
+
+    return {
+      m: m,
+      ns: normalized,          // normalized score
+      killDelta: killDelta,
+      deathDelta: deathDelta,
+      mmrGap: mmrGap,
+      isUnderdog: mmrGap > 100,
+      isFav: mmrGap < -100,
+    };
+  });
+
+  // Aggregate
+  var n = scored.length;
+  var avgScore = scored.reduce(function(s,g){return s+g.ns;},0)/n;
+  var variance = scored.reduce(function(s,g){return s+Math.pow(g.ns-avgScore,2);},0)/n;
+  var stdDev   = Math.sqrt(variance);
+
+  var underdogs = scored.filter(function(g){return g.isUnderdog;});
+  var favs      = scored.filter(function(g){return g.isFav;});
+  var avgUD = underdogs.length ? underdogs.reduce(function(s,g){return s+g.ns;},0)/underdogs.length : null;
+  var avgFV = favs.length      ? favs.reduce(function(s,g){return s+g.ns;},0)/favs.length           : null;
+
+  // Recent trend: last 5 vs 6–15
+  var recent = scored.slice(0,5);
+  var older  = scored.slice(5,15);
+  var recentAvg = recent.reduce(function(s,g){return s+g.ns;},0)/recent.length;
+  var olderAvg  = older.length >= 3 ? older.reduce(function(s,g){return s+g.ns;},0)/older.length : null;
+  var trendDelta = olderAvg!=null ? recentAvg - olderAvg : null;
+
+  // Consistency label
+  var conLabel, conColor;
+  if     (stdDev<0.6) {conLabel='Elite';    conColor='var(--win)';}
+  else if(stdDev<1.0) {conLabel='High';     conColor='var(--win)';}
+  else if(stdDev<1.5) {conLabel='Moderate'; conColor='var(--gold)';}
+  else if(stdDev<2.2) {conLabel='Streaky';  conColor='var(--gold)';}
+  else                {conLabel='Volatile'; conColor='var(--loss)';}
+
+  // Avg score label + color
+  var scoreColor = avgScore>0.4?'var(--win)':avgScore<-0.4?'var(--loss)':'var(--gold)';
+  var scoreLabel = avgScore>1?'Outperforming':avgScore>0.4?'Above baseline':avgScore<-1?'Underperforming':avgScore<-0.4?'Below baseline':'On baseline';
+
+  // ── Mini bar chart (newest on right) ──────────────────────────────────────
+  var chartGames = scored.slice(0,25).reverse();
+  var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
+  var HALF=32; // half chart height in px
+  var BAND=Math.max(4, Math.round(HALF/maxAbs)); // ±1-sigma band half-height in px
+
+  var barsHtml = chartGames.map(function(g){
+    var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
+    var barH = Math.max(2, Math.round(Math.abs(clamped)/maxAbs*HALF));
+    var color = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
+    var kSign = g.killDelta>=0?'+':'';
+    var dSign = g.deathDelta>=0?'+':'';
+    var lobby = g.isUnderdog?'underdog':g.isFav?'favored':'even';
+    var tip = kSign+g.killDelta.toFixed(1)+' kills, '+dSign+g.deathDelta.toFixed(1)+' deaths vs expected | lobby: '+lobby;
+    var barCss = clamped>=0
+      ? 'position:absolute;bottom:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:2px 2px 0 0'
+      : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px';
+    return '<div style="flex:1;min-width:4px;max-width:14px;height:'+(HALF*2)+'px;position:relative" title="'+tip+'">'
+         +  '<div style="'+barCss+'"></div>'
+         +'</div>';
+  }).join('');
+
+  var html = '';
+
+  // Chart container
+  html += '<div style="background:var(--surface2);border-radius:6px;padding:10px 12px 8px;margin-bottom:12px">';
+  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:8px">LAST '+chartGames.length+' RANKED GAMES · lobby-adjusted · newer →</div>';
+  html += '<div style="height:'+(HALF*2)+'px;position:relative">';
+  // Band (±1-sigma "on par" zone)
+  html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-BAND)+'px;height:'+(BAND*2)+'px;background:rgba(255,255,255,0.04);pointer-events:none"></div>';
+  // Center line
+  html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-1)+'px;height:1px;background:var(--border2)"></div>';
+  // Bars
+  html += '<div style="display:flex;gap:2px;height:100%;align-items:flex-start">'+barsHtml+'</div>';
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;margin-top:4px">';
+  html += '<span style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">shaded band = on par for '+( tier||'this rank')+'</span>';
+  html += '<span style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">σ='+sigma.toFixed(1)+' ('+( tier||'?')+')</span>';
+  html += '</div>';
+  html += '</div>';
+
+  // ── Stat cards ─────────────────────────────────────────────────────────────
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px">';
+
+  // Avg score
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">AVG SCORE</div>';
+  html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+scoreColor+'">'+(avgScore>=0?'+':'')+avgScore.toFixed(2)+'</div>';
+  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+scoreLabel+'</div>';
+  html += '</div>';
+
+  // Consistency
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CONSISTENCY</div>';
+  html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+conColor+'">'+conLabel+'</div>';
+  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">σ='+stdDev.toFixed(2)+' across '+n+' games</div>';
+  html += '</div>';
+
+  // Underdog performance
+  if(underdogs.length>=3){
+    var udColor = avgUD>0.3?'var(--win)':avgUD<-0.3?'var(--loss)':'var(--gold)';
+    var udLabel = avgUD>0.4?'Rises to it':avgUD<-0.4?'Struggles':' Holds even';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">AS UNDERDOG</div>';
+    html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+udColor+'">'+(avgUD>=0?'+':'')+avgUD.toFixed(2)+'</div>';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+udLabel+' · '+underdogs.length+' games</div>';
+    html += '</div>';
+  }
+
+  // Favored performance
+  if(favs.length>=3){
+    var fvColor = avgFV>0.3?'var(--win)':avgFV<-0.3?'var(--loss)':'var(--gold)';
+    var fvLabel = avgFV>0.4?'Capitalizes':avgFV<-0.4?'Underdelivers':'Steady';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">AS FAVORITE</div>';
+    html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+fvColor+'">'+(avgFV>=0?'+':'')+avgFV.toFixed(2)+'</div>';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+fvLabel+' · '+favs.length+' games</div>';
+    html += '</div>';
+  }
+
+  // Trend
+  if(trendDelta!=null){
+    var trColor = trendDelta>0.3?'var(--win)':trendDelta<-0.3?'var(--loss)':'var(--muted)';
+    var trIcon  = trendDelta>0.3?'↑':trendDelta<-0.3?'↓':'→';
+    var trLabel = trendDelta>0.3?'Improving':trendDelta<-0.3?'Declining':'Stable';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">TREND</div>';
+    html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+trColor+'">'+trIcon+' '+trLabel+'</div>';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">recent vs prior '+(older.length)+' games</div>';
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  // Interpretation line
+  var interp = '';
+  if(avgUD!=null && avgFV!=null){
+    var diff = avgUD - avgFV;
+    if(diff>0.5)       interp = 'You perform meaningfully better in tougher lobbies than easy ones — a sign your MMR may be underselling you.';
+    else if(diff<-0.5) interp = 'Your numbers dip in harder lobbies relative to easier games — focus on maintaining discipline when the lobby skill is elevated.';
+  }
+  if(!interp && avgScore>0.4 && stdDev>1.8) interp = 'Strong average but high variance — your ceiling is real, but the floor is costing you CSR. Cutting your worst games matters more than improving your best.';
+  if(!interp && avgScore<-0.3 && stdDev<1.0) interp = 'Consistent, but consistently below baseline. This is a mechanical or positioning gap, not a luck issue — try reviewing your deaths per game.';
+  if(interp){
+    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.5;border-left:2px solid var(--border2);padding-left:10px;margin-bottom:6px">'+interp+'</div>';
+  }
+
+  return html;
+}
+
 function renderCsrEfficiency(matches){
   var cm=matches.filter(function(m){return m.csrDelta!=null&&m.csrDelta!==0&&m.isRanked;}).slice(0,100);
   if(cm.length<3)return'';
@@ -813,6 +999,27 @@ function render(){
       +'<div class="medals-grid">'+_inner+'</div>'
       +'</div></div>';
   })();
+
+  // ── Performance Baseline ───────────────────────────────────────────────────
+  (function(){
+    // Resolve primary rank tier for sigma calibration
+    var _csr=p.csr||{};
+    var _plPref=['Ranked Arena','Ranked Slayer'];
+    var _tier=null;
+    for(var _i=0;_i<_plPref.length;_i++){if(_csr[_plPref[_i]]&&_csr[_plPref[_i]].tier){_tier=_csr[_plPref[_i]].tier;break;}}
+    if(!_tier){var _ks=Object.keys(_csr);for(var _j=0;_j<_ks.length;_j++){if(_csr[_ks[_j]]&&_csr[_ks[_j]].tier){_tier=_csr[_ks[_j]].tier;break;}}}
+    var _baseHtml=renderPerformanceBaseline(allMatches,_tier);
+    if(_baseHtml){
+      html+=sectionHead('Performance Baseline','lobby-adjusted');
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">'+_baseHtml+'</div>';
+    }
+  })();
+
+  // ── Rank Benchmark card (populated async by benchmark.js after render) ──────
+  if(p.csr&&Object.keys(p.csr).length){
+    html+=sectionHead('Rank Benchmark');
+    html+='<div id="rankBenchmarkCard" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px"></div>';
+  }
 
   // Last 10 matches on overview — skip if in search mode (they have their own matches shown)
   if(displayMatches.length>0){
@@ -1670,18 +1877,31 @@ function render(){
     }
 
     // ── PERFORMANCE VS EXPECTATION ──────────────────────────────────────────
+    // Note: rank-adjusted lobby difficulty scores live in the Performance Baseline
+    // section on the Overview tab. These insight cards flag only clear persistent outliers.
 
-    var _expGames=allMatches.filter(function(m){return m.expectedKills!=null&&m.expectedDeaths!=null&&m.kills!=null&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
+    var _expGames=allMatches.filter(function(m){return m.expectedKills!=null&&m.expectedDeaths!=null&&m.kills!=null&&m.mmr&&m.oppMmr&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
     if(_expGames.length>=5){
-      var _killDelta=_expGames.reduce(function(s,m){return s+(m.kills-m.expectedKills);},0)/_expGames.length;
-      var _deathDelta=_expGames.reduce(function(s,m){return s+(m.deaths-m.expectedDeaths);},0)/_expGames.length;
-      if(_killDelta>1.5&&_deathDelta<0.5){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Outperforming Your MMR','You average +'+_killDelta.toFixed(1)+' kills above expectation per game — you\'re playing above your current rank. Keep the consistency and CSR should follow.','var(--win)'));
-      } else if(_killDelta<-1.5){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Below Kill Expectation','Averaging '+_killDelta.toFixed(1)+' kills vs expectation. The matchmaker expects more from you at this MMR — focus on taking safer, higher-percentage fights rather than challenging every duel.','var(--loss)'));
+      // Lobby-adjusted deltas: correct for MMR disparity before comparing to rank expectation
+      var _adjDeltas=_expGames.map(function(m){
+        var kd=m.kills-m.expectedKills;
+        var dd=m.expectedDeaths-m.deaths;
+        // subtract the difficulty bonus so we're comparing apples-to-apples across lobby types
+        var diffBonus=Math.tanh((m.oppMmr-m.mmr)/300)*1.5;
+        return{k:kd,d:dd,raw:kd*0.6+dd*0.4,adj:(kd*0.6+dd*0.4)-diffBonus};
+      });
+      var _killDelta=_adjDeltas.reduce(function(s,g){return s+g.k;},0)/_adjDeltas.length;
+      var _deathDelta=_adjDeltas.reduce(function(s,g){return s-g.d;},0)/_adjDeltas.length; // positive = dying more than expected
+      var _adjScore=_adjDeltas.reduce(function(s,g){return s+g.adj;},0)/_adjDeltas.length;
+
+      // Only surface insight if the signal is clear after lobby-difficulty correction
+      if(_adjScore>1.2&&_killDelta>2){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Outperforming Your Baseline','After adjusting for lobby difficulty, you average +'+_killDelta.toFixed(1)+' kills above expectation — you\'re playing above your current rank even accounting for harder lobbies. Consistency is the next step.','var(--win)'));
+      } else if(_adjScore<-1.2&&_killDelta<-2){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Below Kill Baseline','Even accounting for lobby difficulty, you average '+_killDelta.toFixed(1)+' kills vs expectation. This points to a mechanical gap rather than bad matchmaking — focus on taking higher-percentage fights and avoiding 1v2 situations.','var(--loss)'));
       }
-      if(_deathDelta>2){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Dying Too Much for Your MMR',''+_deathDelta.toFixed(1)+' deaths above expectation per game. Your opponents are punishing overextensions that players at your MMR typically avoid. Play slower — let them come to you.','var(--loss)'));
+      if(_deathDelta>2.5){
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>','Death Rate Above Baseline',''+_deathDelta.toFixed(1)+' extra deaths per game vs expectation, even after accounting for lobby difficulty. Your opponents are punishing overextensions — play for position first, fights second.','var(--loss)'));
       }
     }
 
@@ -2144,6 +2364,10 @@ function render(){
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
   scheduleEmblemRetry();
+  // Populate rank benchmark card async (benchmark.js)
+  setTimeout(function(){
+    if(p&&p.gamertag&&p.csr&&window.loadRankBenchmark)window.loadRankBenchmark(p.gamertag,p.csr);
+  },0);
   // Resolve gamertags for any match cards that were already expanded (e.g. persisted across re-renders)
   setTimeout(function(){
     document.querySelectorAll('.match-card.expanded').forEach(function(card){
