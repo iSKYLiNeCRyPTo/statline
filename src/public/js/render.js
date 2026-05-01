@@ -98,6 +98,20 @@ function renderObjectiveStats(matches){
   html+='</div>'; return html;
 }
 
+// Touch handler for performance baseline chart bars (mobile)
+// Shows tap detail in the panel below the chart; dismisses on second tap
+function _pbTip(el){
+  var panel = document.getElementById('_pbTipPanel');
+  if(!panel) return;
+  var tip = el.getAttribute('data-tip');
+  if(panel.style.display !== 'none' && panel._srcEl === el){
+    panel.style.display = 'none'; panel._srcEl = null; return;
+  }
+  panel.textContent = tip;
+  panel.style.display = 'block';
+  panel._srcEl = el;
+}
+
 // ── Performance Baseline ────────────────────────────────────────────────────
 // Lobby-adjusted, rank-normalized performance score per game.
 // Accounts for:
@@ -176,7 +190,8 @@ function renderPerformanceBaseline(allMatches, tier) {
   // Floored at 13px so outlier games don't shrink it into invisibility.
   var BAND=Math.max(13, Math.round(HALF*0.4/maxAbs));
 
-  var barsHtml = chartGames.map(function(g){
+  var _isMobile = window.innerWidth < 768;
+  var barsHtml = chartGames.map(function(g,_bi){
     var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
     var barH    = Math.max(3, Math.round(Math.abs(clamped)/maxAbs*HALF));
     var color   = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
@@ -189,7 +204,9 @@ function renderPerformanceBaseline(allMatches, tier) {
     var barCss = clamped>=0
       ? 'position:absolute;bottom:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:2px 2px 0 0;opacity:0.85'
       : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px;opacity:0.85';
-    return '<div style="flex:1;min-width:5px;max-width:16px;height:'+(HALF*2)+'px;position:relative;cursor:default" title="'+tip+'">'
+    var tipAttr = tip.replace(/"/g,'&quot;');
+    var touchAttr = _isMobile ? ' ontouchstart="_pbTip(this);event.preventDefault()" ' : '';
+    return '<div style="flex:1;min-width:5px;max-width:16px;height:'+(HALF*2)+'px;position:relative;cursor:default" title="'+tipAttr+'" data-tip="'+tipAttr+'"'+touchAttr+'>'
          +  '<div style="'+barCss+'"></div>'
          +'</div>';
   }).join('');
@@ -203,7 +220,7 @@ function renderPerformanceBaseline(allMatches, tier) {
   html += 'The shaded zone in the middle is the normal variance range for <strong style="color:var(--text)">'+(tier||'your rank')+'</strong>; ';
   html += 'bars inside it are within expected fluctuation. ';
   html += 'Scores are adjusted for lobby difficulty — performing at baseline in a hard lobby scores better than the same output in an easy one. ';
-  html += '<span style="color:var(--muted2)">Hover a bar for details.</span>';
+  html += '<span style="color:var(--muted2)">'+(_isMobile?'Tap a bar for details.':'Hover a bar for details.')+'</span>';
   html += '</div>';
 
   // ── Chart ──────────────────────────────────────────────────────────────────
@@ -218,8 +235,8 @@ function renderPerformanceBaseline(allMatches, tier) {
   html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-BAND)+'px;height:'+(BAND*2)+'px;background:rgba(255,255,255,0.06);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);pointer-events:none"></div>';
   // Center baseline
   html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-1)+'px;height:1px;background:var(--border2)"></div>';
-  // "BASELINE" label on center line
-  html += '<div style="position:absolute;right:0;top:'+(HALF-9)+'px;font-size:7px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;pointer-events:none">BASELINE</div>';
+  // "BASELINE" label — desktop only
+  if(!_isMobile) html += '<div style="position:absolute;right:0;top:'+(HALF-9)+'px;font-size:7px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;pointer-events:none">BASELINE</div>';
   html += '<div style="display:flex;gap:2px;height:100%;align-items:flex-start">'+barsHtml+'</div>';
   html += '</div>';
 
@@ -232,6 +249,10 @@ function renderPerformanceBaseline(allMatches, tier) {
   html += '</div>';
   html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Calibrated for '+(tier||'your rank')+' variance</span>';
   html += '</div>';
+  // Tap-detail panel (mobile only) — filled by _pbTip() when a bar is touched
+  if(_isMobile){
+    html += '<div id="_pbTipPanel" style="display:none;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6;background:var(--surface3);border-radius:4px;padding:8px 10px;margin-top:6px"></div>';
+  }
   html += '</div>';
 
   // ── Stat cards ─────────────────────────────────────────────────────────────

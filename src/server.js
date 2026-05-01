@@ -1225,7 +1225,7 @@ app.get('/api/admin', (req, res) => {
               +'<td>'+(p.accuracy!=null?parseFloat(p.accuracy).toFixed(1)+'%':'—')+'</td>'
               +'<td>'+(p.avg_kills!=null?parseFloat(p.avg_kills).toFixed(1):'—')+'</td>'
               +'<td class="muted">'+added+'</td>'
-              +'<td><button class="action-btn danger" style="font-size:10px;padding:2px 7px" onclick="removePro(\''+p.xuid+'\',\''+p.gamertag.replace(/'/g,"\\'")+'\')"  >remove</button></td>'
+              +'<td><button class="action-btn danger" style="font-size:10px;padding:2px 7px" data-pro-xuid="'+p.xuid+'" data-pro-gt="'+p.gamertag.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">remove</button></td>'
               +'</tr>';
           }).join('')+'</tbody></table>';
       })
@@ -1282,6 +1282,8 @@ app.get('/api/admin', (req, res) => {
   }
 
   document.addEventListener('click',function(e){
+    var proBtn=e.target.closest('[data-pro-xuid]');
+    if(proBtn){removePro(proBtn.getAttribute('data-pro-xuid'),proBtn.getAttribute('data-pro-gt'));return;}
     var clrBtn=e.target.closest('[data-clr]');
     if(clrBtn){clearPlayerCache(clrBtn.getAttribute('data-clr'));return;}
     var fbRow=e.target.closest('.fb-row');
