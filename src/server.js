@@ -303,6 +303,56 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 });
 
+// Latest match check — lightweight poll used by auto-refresh.
+// Fetches only 1 match from Waypoint to check if something new has finished,
+// then compares against cached data. Triggers a full force-refresh on the server
+// if a new match is found so the next /api/search call gets fresh data.
+const _latestMatchCheckCache = {}; // gamertag.lower -> { matchId, checkedAt }
+const LATEST_CHECK_TTL = 60000;    // don't hammer Waypoint — reuse result for 60s
+app.get('/api/latest-match', async (req, res) => {
+  try {
+    const { gamertag } = req.query;
+    if (!gamertag) return res.json({ ok: false });
+    const key = gamertag.toLowerCase().trim();
+
+    // Get the xuid from our cache — we need it for the Waypoint call
+    const entry = searchCache[key];
+    const xuid = entry && entry.data && entry.data.xuid;
+    if (!xuid) return res.json({ ok: false, reason: 'not_cached' });
+
+    // Rate-limit: reuse the last check result for 60s to avoid hammering Waypoint
+    const lastCheck = _latestMatchCheckCache[key];
+    if (lastCheck && Date.now() - lastCheck.checkedAt < LATEST_CHECK_TTL) {
+      return res.json({ ok: true, matchId: lastCheck.matchId, startTime: lastCheck.startTime, fromCache: true });
+    }
+
+    // Fetch just the 1 most recent match from Waypoint
+    const headers = getAuthHeaders();
+    const wayRes = await fetch(
+      `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=1&start=0`,
+      { headers, signal: AbortSignal.timeout(8000) }
+    );
+    if (!wayRes.ok) return res.json({ ok: false, reason: `waypoint_${wayRes.status}` });
+    const wayData = await wayRes.json();
+    const latestWay = wayData.Results && wayData.Results[0];
+    const latestMatchId = latestWay ? latestWay.MatchId : null;
+    const latestStartTime = latestWay ? latestWay.MatchInfo?.StartTime : null;
+
+    // Cache the result
+    _latestMatchCheckCache[key] = { matchId: latestMatchId, startTime: latestStartTime, checkedAt: Date.now() };
+
+    // If the new matchId differs from what's in the player cache, invalidate the
+    // server cache so the next force-refresh pulls fresh data from Waypoint
+    const cachedMatches = entry.data.allMatches || entry.data.recentMatches || [];
+    const cachedLatestId = cachedMatches[0] ? cachedMatches[0].matchId : null;
+    if (latestMatchId && latestMatchId !== cachedLatestId) {
+      delete searchCache[key]; // bust cache so next /api/search?force=1 fetches fresh
+    }
+
+    res.json({ ok: true, matchId: latestMatchId, startTime: latestStartTime });
+  } catch(e) { res.json({ ok: false, reason: e.message }); }
+});
+
 // Skill enrichment status — tells the client how much of the background skill fetch is done
 app.get('/api/skill-status', async (req, res) => {
   try {

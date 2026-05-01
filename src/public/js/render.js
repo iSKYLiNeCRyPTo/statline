@@ -115,7 +115,7 @@ function renderPerformanceBaseline(allMatches, tier) {
     return m.expectedKills!=null && m.expectedDeaths!=null &&
            m.kills!=null && m.mmr && m.oppMmr &&
            (m.outcome===2||m.outcome===3);
-  }).slice(0,40);
+  }).slice(0,50);
 
   if(games.length<5) return '';
 
@@ -169,7 +169,7 @@ function renderPerformanceBaseline(allMatches, tier) {
                    'Performing right around what the system expects';
 
   // ── Bar chart ──────────────────────────────────────────────────────────────
-  var chartGames = scored.slice(0,25).reverse();
+  var chartGames = scored.slice(0,35).reverse();
   var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
   var HALF=44; // half chart height in px — taller for readability
   // Band represents ±0.4 normalized score units ("on par" zone).

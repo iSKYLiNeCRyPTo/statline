@@ -3,6 +3,7 @@ async function doSearch(gt, isRefresh, force){
   gt=gt.trim();
   var myToken = ++_searchToken; // claim this search slot
   function isCurrent(){ return _searchToken === myToken; } // false = newer search started, bail
+  stopAutoRefresh(); // cancel any existing poller before starting a new search
   hideLanding();
   expandedMatches={}; // clear any open match cards from the previous search
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display=window.innerWidth>=768?'flex':'none';
@@ -326,6 +327,9 @@ async function doSearch(gt, isRefresh, force){
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
       activeTab='overview'; render();
+      // Start background poller — checks every 90s for new matches without requiring a manual refresh
+      var _allM=fullD.player.allMatches||fullD.player.recentMatches||[];
+      startAutoRefresh(_canonicalGt, _allM[0]?_allM[0].matchId:null);
       // Sync tab button highlight to overview — render() only sets panel active classes,
       // tab bar buttons are only updated by switchTab(), so we sync them here manually.
       (function(){
