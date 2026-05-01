@@ -122,16 +122,27 @@ function _renderAdSlot(variant){
         +'</div>'
         +'</div>';
     }
-    // Desktop card or banner
-    var imgH = isCard ? '320px' : (isMobile ? '90px' : '110px');
-    var imgFit = isCard ? 'contain' : 'cover';
+    if(isCard){
+      // Desktop card: stretch to full height of the flex row, cover image fills the space
+      return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2);display:flex;flex-direction:column;height:100%;min-height:420px">'
+        +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:4px 0;background:var(--surface3);text-transform:uppercase;flex-shrink:0">Sponsored</div>'
+        +'<div style="flex:1;min-height:0;overflow:hidden">'
+        +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" alt="'+ad.brand+'"></div>'
+        +'<div style="padding:14px 18px;flex-shrink:0;background:var(--surface2)">'
+        +'<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">'+ad.brand+'</div>'
+        +'<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);line-height:1.5">'+ad.tagline+'</div>'
+        +'</div>'
+        +'</div>';
+    }
+    // Banner (compact)
+    var imgH = isMobile ? '90px' : '110px';
     return '<div style="border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface2)">'
       +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:4px 0;background:var(--surface3);text-transform:uppercase">Sponsored</div>'
-      +'<div style="width:100%;height:'+imgH+';background:var(--surface3);display:flex;align-items:center;justify-content:center">'
-      +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:'+imgFit+';display:block" alt="'+ad.brand+'"></div>'
-      +'<div style="padding:'+(isCard?'12px 16px':'8px 12px')+'">'
-      +'<div style="font-family:Rajdhani,sans-serif;font-size:'+(isCard?'13px':'11px')+';font-weight:700;color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px">'+ad.brand+'</div>'
-      +'<div style="font-size:'+(isCard?'10px':'9px')+';font-family:Share Tech Mono,monospace;color:var(--muted2);line-height:1.5">'+(isCard?ad.tagline:taglineShort)+'</div>'
+      +'<div style="width:100%;height:'+imgH+';background:var(--surface3)">'
+      +'<img src="'+ad.image+'" style="width:100%;height:100%;object-fit:cover;display:block" alt="'+ad.brand+'"></div>'
+      +'<div style="padding:8px 12px">'
+      +'<div style="font-family:Rajdhani,sans-serif;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px">'+ad.brand+'</div>'
+      +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);line-height:1.5">'+taglineShort+'</div>'
       +'</div></div>';
   }
 
@@ -143,14 +154,15 @@ function _renderAdSlot(variant){
   var brandFontSize = isCard ? (isMobile ? '22px' : '26px') : '15px';
 
   if(isCard){
-    return '<div style="border:1px solid var(--border2);border-radius:8px;background:var(--surface2);padding:20px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box">'
+    var _cardFs = isMobile ? '22px' : '32px';
+    return '<div style="border:1px solid var(--border2);border-radius:8px;background:var(--surface2);padding:28px 24px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box;height:100%;min-height:420px">'
       +'<div style="font-size:8px;letter-spacing:2px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-transform:uppercase">Sponsored</div>'
-      +'<div style="font-family:Rajdhani,sans-serif;font-weight:700;line-height:1.05;color:var(--text)">'
-        +'<span style="font-size:'+brandFontSize+';color:var(--accent)">'+brandL1+'</span>'
-        +(brandL2?'<br><span style="font-size:'+brandFontSize+'">'+brandL2+'</span>':'')
+      +'<div style="font-family:Rajdhani,sans-serif;font-weight:700;line-height:1.05;color:var(--text);flex:1;display:flex;flex-direction:column;justify-content:center">'
+        +'<span style="font-size:'+_cardFs+';color:var(--accent)">'+brandL1+'</span>'
+        +(brandL2?'<br><span style="font-size:'+_cardFs+'">'+brandL2+'</span>':'')
       +'</div>'
-      +'<div style="width:28px;height:2px;background:var(--accent);border-radius:1px;opacity:0.5"></div>'
-      +'<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6">'+ad.tagline+'</div>'
+      +'<div style="width:36px;height:2px;background:var(--accent);border-radius:1px;opacity:0.5"></div>'
+      +'<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6">'+ad.tagline+'</div>'
       +'</div>';
   } else {
     return '<div style="border:1px solid var(--border2);border-radius:6px;background:var(--surface2);padding:12px 16px">'

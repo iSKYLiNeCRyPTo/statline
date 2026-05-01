@@ -112,9 +112,9 @@ async function doSearch(gt, isRefresh, force){
           +'</div>';
       } else {
         html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
-          +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
+          +'<div style="display:flex;align-items:stretch;gap:32px;max-width:1000px;width:100%">'
           +'<div id="_lc_playersect" style="flex:1;min-width:0">'+leftHtml+'</div>'
-          +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
+          +'<div style="width:440px;flex-shrink:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
           +'</div></div>';
       }
       document.getElementById('app').innerHTML=html;
