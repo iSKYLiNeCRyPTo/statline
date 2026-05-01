@@ -471,8 +471,7 @@ async function fetchPlayerStats(gamertag) {
     'Ranked Arena':  'edfef3ac-9cbe-4fa2-b949-8f29deafd483',
     'Ranked Slayer': 'f5580605-660c-43f9-ac69-4075c4a05c5d',
     'Ranked Slayer2': 'dcb2e24e-05fb-4390-8076-32a0cdb4326e',
-    // Ranked Legacy: ID to be filled in once discovered from [PlaylistDiscover] logs
-    // 'Ranked Legacy': '<id-here>',
+    'Ranked Legacy': 'c94cb508-2fbd-450a-81db-bb74f7741d45',
   };
 
   const [statsRes, countRes, rankedStatsRes, ...csrResponses] = await Promise.all([
@@ -735,8 +734,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 
         const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
-        // Ranked Legacy playlist IDs — fill in once discovered via /api/discover-playlists
-        const RANKED_LEGACY_IDS = [];
+        const RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
         const matchPlaylistId = md.MatchInfo?.Playlist?.AssetId;
         const isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         const isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
