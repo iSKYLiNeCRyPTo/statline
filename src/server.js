@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists } = require('./halo');
-const { startAutoRefresh } = require('./tokenRefresh');
+const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats } = require('./db');
 const _memSearchLog = [];
@@ -189,6 +189,37 @@ app.get('/api/token-status', (req, res) => {
     hasRefreshToken: refresh.length > 0,
     refreshPreview: refresh ? refresh.slice(0, 8) + '...' : 'NOT SET',
   });
+});
+
+// Live API connectivity test — actually hits the Halo API so admin knows if auth is working
+app.get('/api/admin/test-api', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    // Use a known-stable public gamertag as the canary — just needs profile lookup, no match fetch
+    await fetchPlayerStats('Ninja');
+    res.json({ ok: true, message: 'Halo API reachable — token valid' });
+  } catch(e) {
+    const is403 = e.message && (e.message.includes('403') || e.message.includes('clearance') || e.message.includes('Unauthorized'));
+    res.json({ ok: false, message: is403
+      ? 'Token expired (403) — click "force refresh token" to get a new one'
+      : 'API error: ' + e.message });
+  }
+});
+
+// Force-trigger a Spartan token refresh on demand (same flow as the scheduled auto-refresh)
+app.post('/api/admin/refresh-token', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  if (!process.env.MS_REFRESH_TOKEN) {
+    return res.status(400).json({ ok: false, error: 'MS_REFRESH_TOKEN is not set — cannot auto-refresh. Set it in your env vars.' });
+  }
+  try {
+    await refreshSpartanToken();
+    res.json({ ok: true, message: 'Spartan token refreshed successfully' });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // Main search endpoint
@@ -1232,6 +1263,7 @@ app.get('/api/admin', (req, res) => {
   <body><h1>// fragr analytics</h1>
   <div class="action-row">
     <button class="action-btn warn" onclick="checkToken()">check token</button>
+    <button class="action-btn warn" onclick="forceRefreshToken()" id="force-token-btn">↻ refresh token</button>
     <button class="action-btn danger" onclick="clearAllCache()">clear all cache</button>
     <button class="action-btn" onclick="loadCache()">refresh cache view</button>
     <a href="/calibrate?key=${CAL_KEY}" target="_blank" class="action-btn" style="text-decoration:none">aim calibration ↗</a>
@@ -1276,13 +1308,43 @@ app.get('/api/admin', (req, res) => {
   function fmtMins(m){if(!m)return'--';var n=parseFloat(m);if(n<60)return Math.round(n)+'m';var h=Math.floor(n/60),rm=Math.round(n%60);return h+'h '+(rm?rm+'m':'');}
 
   function checkToken(){
-    document.getElementById('token-status').textContent='checking...';
+    var el=document.getElementById('token-status');
+    el.className='';el.textContent='testing live API…';
+    // First check env vars, then do a live Halo API call to confirm auth actually works
     fetch('/api/token-status').then(function(r){return r.json();}).then(function(d){
-      var el=document.getElementById('token-status');
-      if(d.hasToken&&d.hasRefreshToken){el.className='token-ok';el.textContent='token ok ('+d.tokenPreview+') + refresh token ok';}
-      else if(d.hasToken){el.className='token-ok';el.textContent='token ok ('+d.tokenPreview+') -- no refresh token';}
-      else{el.className='token-err';el.textContent='NO TOKEN SET';}
-    }).catch(function(){var el=document.getElementById('token-status');el.className='token-err';el.textContent='check failed';});
+      if(!d.hasToken){el.className='token-err';el.textContent='NO SPARTAN_TOKEN SET';return;}
+      el.textContent='token set ('+d.tokenPreview+') — testing live call…';
+      return fetch('/api/admin/test-api?pass=${pass}').then(function(r){return r.json();}).then(function(t){
+        if(t.ok){el.className='token-ok';el.textContent='✓ '+t.message+(d.hasRefreshToken?' · refresh token ok':'');}
+        else{el.className='token-err';el.textContent='✗ '+t.message;}
+      });
+    }).catch(function(){el.className='token-err';el.textContent='check failed';});
+  }
+
+  function forceRefreshToken(){
+    var btn=document.getElementById('force-token-btn');
+    var el=document.getElementById('token-status');
+    btn.disabled=true;btn.textContent='refreshing…';
+    el.className='';el.textContent='requesting new Spartan token…';
+    fetch('/api/admin/refresh-token?pass=${pass}',{method:'POST'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        btn.disabled=false;btn.textContent='↻ refresh token';
+        if(d.ok){el.className='token-ok';el.textContent='✓ '+d.message+' — token live';}
+        else{el.className='token-err';el.textContent='✗ '+(d.error||'refresh failed');}
+      })
+      .catch(function(e){btn.disabled=false;btn.textContent='↻ refresh token';el.className='token-err';el.textContent='✗ '+e.message;});
+  }
+
+  // Pre-flight: test the Halo API before any bulk operation that would waste time on a dead token.
+  // Returns a Promise that resolves to true if ok, or rejects with a user-friendly message.
+  function preflightApi(){
+    return fetch('/api/admin/test-api?pass=${pass}')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(!d.ok) throw new Error(d.message||'Halo API auth failed');
+        return true;
+      });
   }
 
   function clearAllCache(){
@@ -1550,7 +1612,18 @@ app.get('/api/admin', (req, res) => {
     var btn=document.getElementById('seed-pros-btn');
     var msg=document.getElementById('pro-msg');
     if(!confirm('Add '+KNOWN_PROS.length+' known HCS pros? Any already tracked will be skipped.'))return;
-    btn.disabled=true;btn.textContent='adding…';
+    btn.disabled=true;btn.textContent='checking API…';
+    msg.style.color='#ffc107';msg.textContent='testing Halo API before starting…';
+    preflightApi().then(function(){
+      _doSeedPros(btn,msg);
+    }).catch(function(e){
+      btn.disabled=false;btn.textContent='＋ seed known pros';
+      msg.style.color='#f44336';msg.textContent='✗ Cannot seed — '+e.message+'. Use "check token" button to diagnose.';
+    });
+  }
+
+  function _doSeedPros(btn,msg){
+    btn.textContent='adding…';
     msg.style.color='#ffc107';msg.textContent='adding pros one by one (auto-fetching XUIDs)…';
     var added=0,failed=[];
     function next(i){
@@ -1572,14 +1645,29 @@ app.get('/api/admin', (req, res) => {
         .catch(function(){failed.push(p.gt);setTimeout(function(){next(i+1);},1500);});
     }
     next(0);
-  }
+  } // end _doSeedPros
 
   function refreshAllPros(){
     var btn=document.getElementById('refresh-pros-btn');
     var msg=document.getElementById('pro-msg');
-    btn.disabled=true;btn.textContent='refreshing…';
-    msg.style.color='#ffc107';msg.textContent='fetching fresh stats for all pros — this takes ~3s per player, runs in background';
-    fetch('/api/admin/refresh-pros?pass=${pass}',{method:'POST'})
+    btn.disabled=true;btn.textContent='checking API…';
+    msg.style.color='#ffc107';msg.textContent='testing Halo API before starting…';
+    preflightApi().then(function(){
+      btn.textContent='refreshing…';
+      msg.textContent='fetching fresh stats for all pros — this takes ~3s per player, runs in background';
+      return fetch('/api/admin/refresh-pros?pass=${pass}',{method:'POST'});
+    }).then(function(r){return r.json();})
+    .then(function(d){
+        if(d.error){msg.style.color='#f44336';msg.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='↻ refresh all stats';return;}
+        msg.style.color='#ffc107';msg.textContent='Queued '+d.queued+' pros — stats will update over the next ~'+(d.queued*3)+'s. Reload the table to see progress.';
+        var polls=0,maxPolls=Math.ceil(d.queued*3/10)+3;
+        var iv=setInterval(function(){
+          loadProPlayers();polls++;
+          if(polls>=maxPolls){clearInterval(iv);btn.disabled=false;btn.textContent='↻ refresh all stats';msg.textContent='Refresh complete.';}
+        },10000);
+      })
+      .catch(function(e){msg.style.color='#f44336';msg.textContent='✗ '+e.message+'. Use "check token" to diagnose.';btn.disabled=false;btn.textContent='↻ refresh all stats';});
+  }
       .then(function(r){return r.json();})
       .then(function(d){
         if(d.error){msg.style.color='#f44336';msg.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='↻ refresh all stats';return;}
