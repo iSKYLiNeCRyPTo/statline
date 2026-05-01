@@ -110,6 +110,9 @@
     var isArena = data.isArena;
     var allPlaylists = data.allPlaylists || [];
     var pro = data.pro || null; // pro player aggregate stats
+    var statsSource = data.statsSource || 'career'; // 'recent' | 'career'
+    var statsGames  = data.statsGames  || null;
+    var lowData     = peers.count < 20; // flag thin peer pools
 
     var h = '';
     // Header
@@ -117,7 +120,7 @@
     h += '<div>';
     h += '<div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted2);font-family:Share Tech Mono,monospace">Rank Benchmark</div>';
     h += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--accent);margin-top:2px">';
-    h += rank.display + ' · ' + peers.count + ' players tracked';
+    h += rank.display + ' · ' + peers.count + ' player' + (peers.count !== 1 ? 's' : '') + ' tracked';
     h += '</div>';
     h += '<div style="margin-top:4px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
     h += 'benchmarking vs <span style="color:' + (isArena ? 'var(--accent)' : 'var(--gold)') + '">' + playlist + '</span> peers';
@@ -129,6 +132,12 @@
         h += '⚠ Ranked Arena (' + arenaEntry.display + ') is the primary competitive metric';
         h += '</div>';
       }
+    }
+    // Low peer count warning
+    if (lowData) {
+      h += '<div style="margin-top:4px;font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
+      h += '⚠ Small sample (' + peers.count + ' peers) — percentiles less reliable';
+      h += '</div>';
     }
     h += '</div>';
     if (next) {
@@ -143,7 +152,11 @@
     var hasPro = pro && pro.count > 0;
     var cols = hasPro ? '80px 1fr 58px 58px' : '80px 1fr 70px';
     h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;margin-bottom:2px">';
-    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase">YOUR STAT</div>';
+    // Show stat source in the "YOUR STAT" column header
+    var yourStatLabel = statsSource === 'recent' && statsGames
+      ? 'YOUR STAT <span style="color:var(--muted2);font-weight:400">last ' + statsGames + 'g</span>'
+      : 'YOUR STAT <span style="color:var(--muted2);font-weight:400">career</span>';
+    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase">' + yourStatLabel + '</div>';
     h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:center">RANK PERCENTILE</div>';
     if (hasPro) {
       h += '<div style="font-size:8px;color:var(--gold);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">PRO AVG</div>';
@@ -163,7 +176,7 @@
 
     // Footer
     h += '<div style="margin-top:10px;font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);display:flex;justify-content:space-between">';
-    h += '<span>Based on players searched in the last 30 days</span>';
+    h += '<span>Peers: players searched in the last 30 days</span>';
     if (hasPro) h += '<span style="color:var(--gold)">★ ' + pro.count + ' pro' + (pro.count !== 1 ? 's' : '') + ' tracked</span>';
     h += '</div>';
 

@@ -129,7 +129,7 @@ function renderPerformanceBaseline(allMatches, tier) {
     return m.expectedKills!=null && m.expectedDeaths!=null &&
            m.kills!=null && m.mmr && m.oppMmr &&
            (m.outcome===2||m.outcome===3);
-  }).slice(0,50);
+  }).slice(0,100);
 
   if(games.length<5) return '';
 

@@ -154,7 +154,45 @@ async function savePlayerSnapshot(player) {
     }
     if (!csrTier) return; // unranked — nothing to store
 
-    const s = player.stats || {};
+    // Compute stats from recent match history so snapshots (and peer benchmarks) reflect
+    // current play, not career/lifetime API numbers. Falls back to career stats if no matches.
+    const recentArr = Array.isArray(player.allMatches) ? player.allMatches
+                    : Array.isArray(player.recentMatches) ? player.recentMatches : [];
+    const mValid = recentArr.filter(m => m && m.kills != null);
+    let snapKd = null, snapWinRate = null, snapAccuracy = null, snapAvgKills = null;
+    let snapMatchesPlayed = null, snapWins = null, snapLosses = null;
+    if (mValid.length >= 5) {
+      const totalKills  = mValid.reduce((s, m) => s + (m.kills || 0), 0);
+      const totalDeaths = mValid.reduce((s, m) => s + (m.deaths || 0), 0);
+      const wlMatches   = mValid.filter(m => m.outcome === 2 || m.outcome === 3);
+      const wins        = wlMatches.filter(m => m.outcome === 2).length;
+      const accGames    = mValid.filter(m => m.accuracy != null && parseFloat(m.accuracy) > 0);
+      snapKd        = totalDeaths > 0 ? parseFloat((totalKills / totalDeaths).toFixed(2)) : null;
+      snapWinRate   = wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null;
+      snapAccuracy  = accGames.length ? parseFloat((accGames.reduce((s, m) => s + parseFloat(m.accuracy), 0) / accGames.length).toFixed(1)) : null;
+      snapAvgKills  = parseFloat((totalKills / mValid.length).toFixed(1));
+      snapMatchesPlayed = mValid.length;
+      snapWins      = wins;
+      snapLosses    = wlMatches.length - wins;
+    } else {
+      // Fall back to career API stats
+      const s = player.stats || {};
+      snapKd        = parseFloat(s.kd)              || null;
+      snapWinRate   = parseFloat(s.winRate)         || null;
+      snapAccuracy  = parseFloat(s.accuracy)        || null;
+      snapAvgKills  = parseFloat(s.avgKillsPerGame) || null;
+      snapMatchesPlayed = s.matchesPlayed || null;
+      snapWins      = s.wins || null;
+      snapLosses    = s.losses || null;
+    }
+
+    // Don't write a snapshot with no usable stats — it can't help the peer pool and could
+    // overwrite a previously valid snapshot (same xuid + same day) with nulls.
+    if (snapKd == null) {
+      console.log(`[DB] Snapshot skipped for ${player.gamertag} — no usable stats (0 recent matches, no career K/D)`);
+      return;
+    }
+
     await db.query(`
       INSERT INTO player_snapshots
         (xuid, gamertag, snap_date, ts, primary_playlist, csr_tier, csr_subtier, csr_value,
@@ -166,17 +204,20 @@ async function savePlayerSnapshot(player) {
         csr_tier=EXCLUDED.csr_tier, csr_subtier=EXCLUDED.csr_subtier, csr_value=EXCLUDED.csr_value,
         csr=EXCLUDED.csr, matches_played=EXCLUDED.matches_played,
         wins=EXCLUDED.wins, losses=EXCLUDED.losses,
-        kd=EXCLUDED.kd, kda=EXCLUDED.kda, win_rate=EXCLUDED.win_rate,
-        accuracy=EXCLUDED.accuracy, avg_kills=EXCLUDED.avg_kills
+        -- Only overwrite stats columns if the new values are non-null,
+        -- so a bad re-search never clobbers a previously good snapshot.
+        kd        = COALESCE(EXCLUDED.kd,        player_snapshots.kd),
+        kda       = COALESCE(EXCLUDED.kda,       player_snapshots.kda),
+        win_rate  = COALESCE(EXCLUDED.win_rate,  player_snapshots.win_rate),
+        accuracy  = COALESCE(EXCLUDED.accuracy,  player_snapshots.accuracy),
+        avg_kills = COALESCE(EXCLUDED.avg_kills, player_snapshots.avg_kills)
     `, [
       player.xuid, player.gamertag, primaryPlaylist, csrTier, csrSubtier, csrValue,
       JSON.stringify(csr),
-      s.matchesPlayed || null, s.wins || null, s.losses || null,
-      parseFloat(s.kd) || null, parseFloat(s.kda) || null,
-      parseFloat(s.winRate) || null, parseFloat(s.accuracy) || null,
-      parseFloat(s.avgKillsPerGame) || null
+      snapMatchesPlayed, snapWins, snapLosses,
+      snapKd, null, snapWinRate, snapAccuracy, snapAvgKills
     ]);
-    console.log(`[DB] Snapshot saved for ${player.gamertag} (${csrTier} ${csrSubtier})`);
+    console.log(`[DB] Snapshot saved for ${player.gamertag} (${csrTier} ${csrSubtier}) — ${mValid.length || 'career'} match stats`);
   } catch(e) { console.error('[DB] savePlayerSnapshot error:', e.message); }
 }
 

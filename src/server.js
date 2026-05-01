@@ -387,10 +387,18 @@ function getNextRank(tier, subTier, csrValue) {
 function computeGroupStats(rows, playerStats) {
   if (!rows.length) return { count: 0 };
   const avg = key => rows.reduce((s, r) => s + (parseFloat(r[key]) || 0), 0) / rows.length;
+  // Mid-point percentile rank: count_below + 0.5 * count_equal, using display-precision
+  // rounding so a player at the peer average always reads ~50th, not deceptively low.
+  const PRECISION = { kd: 2, win_rate: 1, accuracy: 1, avg_kills: 1 };
   const percentile = (key, val) => {
     if (val == null) return null;
-    const sorted = rows.map(r => parseFloat(r[key]) || 0).sort((a, b) => a - b);
-    return Math.round(sorted.filter(v => v < val).length / sorted.length * 100);
+    const dec = PRECISION[key] ?? 1;
+    const round = v => Math.round(v * Math.pow(10, dec)) / Math.pow(10, dec);
+    const rv = round(val);
+    const sorted = rows.map(r => round(parseFloat(r[key]) || 0)).sort((a, b) => a - b);
+    const below = sorted.filter(v => v < rv).length;
+    const equal = sorted.filter(v => v === rv).length;
+    return Math.round((below + equal * 0.5) / sorted.length * 100);
   };
   const ps = playerStats || {};
   return {
@@ -432,13 +440,39 @@ app.get('/api/rank-comparison', async (req, res) => {
     const isArena = pl === 'Ranked Arena';
     const { tier, subTier = 0 } = csr[pl];
     const csrValue = csr[pl].value || 0;
-    const s = player.stats || {};
-    const playerStats = {
-      kd:        parseFloat(s.kd)              || null,
-      win_rate:  parseFloat(s.winRate)         || null,
-      accuracy:  parseFloat(s.accuracy)        || null,
-      avg_kills: parseFloat(s.avgKillsPerGame) || null,
-    };
+
+    // Prefer recent-match stats so this card is consistent with the rest of the app
+    // (Pro Reference, Insights, etc. all use match history). Fall back to career API stats.
+    let playerStats, statsSource = 'career', statsGames = null;
+    const allMatchArr = Array.isArray(player.allMatches) ? player.allMatches
+                      : Array.isArray(player.recentMatches) ? player.recentMatches : [];
+    // Use all matches (PvP, non-custom) — outcome filter only needed for win rate calc
+    const validMatches = allMatchArr.filter(m => m && m.kills != null);
+    if (validMatches.length >= 5) {
+      const totalKills  = validMatches.reduce((s, m) => s + (m.kills || 0), 0);
+      const totalDeaths = validMatches.reduce((s, m) => s + (m.deaths || 0), 0);
+      // Win rate: only count decisive outcomes (2=win, 3=loss), ignore draws/unknown
+      const wlMatches   = validMatches.filter(m => m.outcome === 2 || m.outcome === 3);
+      const wins        = wlMatches.filter(m => m.outcome === 2).length;
+      const accGames    = validMatches.filter(m => m.accuracy != null && parseFloat(m.accuracy) > 0);
+      const avgAcc      = accGames.length ? accGames.reduce((s, m) => s + parseFloat(m.accuracy), 0) / accGames.length : null;
+      playerStats = {
+        kd:        totalDeaths > 0 ? parseFloat((totalKills / totalDeaths).toFixed(2)) : null,
+        win_rate:  wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null,
+        accuracy:  avgAcc != null ? parseFloat(avgAcc.toFixed(1)) : null,
+        avg_kills: parseFloat((totalKills / validMatches.length).toFixed(1)),
+      };
+      statsSource = 'recent';
+      statsGames  = validMatches.length;
+    } else {
+      const s = player.stats || {};
+      playerStats = {
+        kd:        parseFloat(s.kd)              || null,
+        win_rate:  parseFloat(s.winRate)         || null,
+        accuracy:  parseFloat(s.accuracy)        || null,
+        avg_kills: parseFloat(s.avgKillsPerGame) || null,
+      };
+    }
 
     // For Onyx, bucket into 100-point CSR bands so 1500 ≠ 1900
     const onyxBandLow  = tier === 'Onyx' ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : null;
@@ -459,6 +493,8 @@ app.get('/api/rank-comparison', async (req, res) => {
       available: true,
       playlist: pl,
       isArena,
+      statsSource,   // 'recent' | 'career'
+      statsGames,    // number of recent matches used, or null
       // Surface all CSR ranks so the client can display a note when not using Arena
       allPlaylists: Object.entries(csr)
         .filter(([, c]) => c && c.tier)
