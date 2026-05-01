@@ -125,7 +125,7 @@ async function savePlayerSnapshot(player) {
     if (!db) return;
 
     const csr = player.csr || {};
-    const PREFERRED = ['ranked_arena', 'ranked_slayer', 'ranked_slayer_2'];
+    const PREFERRED = ['ranked_arena', 'ranked_slayer', 'ranked_legacy', 'ranked_slayer_2'];
     let primaryPlaylist = null, csrTier = null, csrSubtier = null, csrValue = null;
 
     for (const pl of PREFERRED) {

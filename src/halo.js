@@ -471,6 +471,8 @@ async function fetchPlayerStats(gamertag) {
     'Ranked Arena':  'edfef3ac-9cbe-4fa2-b949-8f29deafd483',
     'Ranked Slayer': 'f5580605-660c-43f9-ac69-4075c4a05c5d',
     'Ranked Slayer2': 'dcb2e24e-05fb-4390-8076-32a0cdb4326e',
+    // Ranked Legacy: ID to be filled in once discovered from [PlaylistDiscover] logs
+    // 'Ranked Legacy': '<id-here>',
   };
 
   const [statsRes, countRes, rankedStatsRes, ...csrResponses] = await Promise.all([
@@ -733,12 +735,24 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 
         const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
+        // Ranked Legacy playlist IDs (populated once discovered from logs)
+        const RANKED_LEGACY_IDS = [];
         const matchPlaylistId = md.MatchInfo?.Playlist?.AssetId;
         const isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         const isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
-        isRanked = isRankedArena || isRankedSlayer;
-        // Skip entirely if not Ranked Arena or Ranked Slayer
+        const isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
+        isRanked = isRankedArena || isRankedSlayer || isRankedLegacy;
+        // Skip entirely if not a tracked ranked playlist
         if (!isRanked) {
+          // Discovery log: capture any unrecognized playlist so we can add it
+          if (matchPlaylistId && matchPlaylistId !== md.MatchInfo?.Playlist?.AssetId) {
+            // (placeholder — see log below)
+          }
+          if (matchPlaylistId) {
+            const plName = md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || '(no name)';
+            const exp = md.MatchInfo?.PlaylistExperience || '';
+            console.log(`[PlaylistDiscover] Filtered playlist: ${matchPlaylistId} name="${plName}" exp="${exp}" lifecycle=${lifecycleMode}`);
+          }
           results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'Filtered', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
           continue;
         }
@@ -752,25 +766,29 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
           const hasZones = !!myPstats.ZonesStats, hasOddball = !!myPstats.OddballStats;
           const isKothByName = ugcLower.includes('king of the hill') || ugcLower.includes('koth') || ugcLower.includes('hill');
 
-          if (catNum === 14) gameMode = (isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'King of the Hill';
-          else if (catNum === 20) gameMode = (isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'Land Grab';
-          else if (catNum === 11) gameMode = (isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'Strongholds';
-          else if (isKothByName) gameMode = isRanked && !isRankedSlayer ? 'Ranked Arena: King of the Hill' : 'King of the Hill';
+          if (catNum === 14) gameMode = (isRankedLegacy ? 'Ranked Legacy: ' : isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'King of the Hill';
+          else if (catNum === 20) gameMode = (isRankedLegacy ? 'Ranked Legacy: ' : isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'Land Grab';
+          else if (catNum === 11) gameMode = (isRankedLegacy ? 'Ranked Legacy: ' : isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'Strongholds';
+          else if (isKothByName) gameMode = isRankedLegacy ? 'Ranked Legacy: King of the Hill' : isRanked && !isRankedSlayer ? 'Ranked Arena: King of the Hill' : 'King of the Hill';
           else if (hasZones && !hasOddball && (catNum === 12 || catNum === 18)) {
             const z = myPstats.ZonesStats;
-            gameMode = ((z.StrongholdCaptures??0)>0||(z.StrongholdSecures??0)>0) 
-              ? (isRanked&&!isRankedSlayer?'Ranked Arena: ':'')+'Strongholds'
-              : (isRanked&&!isRankedSlayer?'Ranked Arena: ':'')+'King of the Hill';
+            const prefix = isRankedLegacy ? 'Ranked Legacy: ' : (isRanked&&!isRankedSlayer?'Ranked Arena: ':'');
+            gameMode = ((z.StrongholdCaptures??0)>0||(z.StrongholdSecures??0)>0)
+              ? prefix+'Strongholds'
+              : prefix+'King of the Hill';
           } else if (ugcName) {
             gameMode = ugcName.replace(/^Arena:\s*/i,'').replace(/:/g,' ').replace(/\s+/g,' ').trim();
             if (isRanked) {
               if (isRankedSlayer) gameMode = 'Ranked Slayer';
-              else if (!gameMode.toLowerCase().startsWith('ranked')) gameMode = 'Ranked Arena: ' + gameMode;
+              else if (isRankedLegacy) {
+                if (!gameMode.toLowerCase().startsWith('ranked legacy')) gameMode = 'Ranked Legacy: ' + gameMode.replace(/^Ranked\s+/i,'');
+              } else if (!gameMode.toLowerCase().startsWith('ranked')) gameMode = 'Ranked Arena: ' + gameMode;
               else if (!gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
             }
           } else {
             gameMode = (isRanked ? 'Ranked ' : '') + (MODE_NAMES[catNum] || 'Mode ' + catNum);
-            if (isRanked && !isRankedSlayer && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
+            if (isRankedLegacy) gameMode = 'Ranked Legacy: ' + gameMode.replace(/^Ranked\s+/i,'');
+            else if (isRanked && !isRankedSlayer && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
             else if (isRanked && isRankedSlayer) gameMode = 'Ranked Slayer';
           }
           gameMode = (gameMode||'').replace(/Capture the Flag (\d+) Captures?/gi,'CTF $1').replace(/Capture the Flag/gi,'CTF').trim();

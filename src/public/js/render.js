@@ -106,36 +106,28 @@ function renderObjectiveStats(matches){
 //   3. Rank-tier sigma — lower ranks have wider natural variance, so we normalize
 //      to a rank-appropriate standard deviation so scores compare across tiers
 function renderPerformanceBaseline(allMatches, tier) {
-  // Rank-tier sigma: expected game-to-game variation in raw kill delta at each tier
   var TIER_SIGMA = {Bronze:3.5, Silver:3.0, Gold:2.5, Platinum:2.0, Diamond:1.7, Onyx:1.4};
   var sigma = TIER_SIGMA[tier] || 2.5;
 
-  // Only use matches where skill API filled in expected values
   var games = allMatches.filter(function(m){
     return m.expectedKills!=null && m.expectedDeaths!=null &&
            m.kills!=null && m.mmr && m.oppMmr &&
            (m.outcome===2||m.outcome===3);
-  }).slice(0,40); // last 40 qualifying matches
+  }).slice(0,40);
 
   if(games.length<5) return '';
 
-  // Score each game
   var scored = games.map(function(m){
-    var killDelta  = m.kills - m.expectedKills;          // positive = outperformed
-    var deathDelta = m.expectedDeaths - m.deaths;        // positive = fewer deaths (good)
+    var killDelta  = m.kills - m.expectedKills;       // positive = more kills than expected (good)
+    var deathDelta = m.expectedDeaths - m.deaths;     // positive = fewer deaths than expected (good)
     var rawPerf    = killDelta * 0.6 + deathDelta * 0.4;
-
-    // Lobby difficulty: smooth sigmoid so extreme disparities don't dominate
-    // A 300-pt MMR gap gives ~±1.1 adjustment; 100-pt gap gives ~±0.45
-    var mmrGap = m.oppMmr - m.mmr; // positive = you were the underdog
-    var diffBonus = Math.tanh(mmrGap / 300) * 1.5;
-
+    var mmrGap     = m.oppMmr - m.mmr;               // positive = you were the underdog
+    var diffBonus  = Math.tanh(mmrGap / 300) * 1.5;
     var adjusted   = rawPerf + diffBonus;
-    var normalized = adjusted / sigma; // in rank-sigma units
-
+    var normalized = adjusted / sigma;
     return {
       m: m,
-      ns: normalized,          // normalized score
+      ns: normalized,
       killDelta: killDelta,
       deathDelta: deathDelta,
       mmrGap: mmrGap,
@@ -144,113 +136,146 @@ function renderPerformanceBaseline(allMatches, tier) {
     };
   });
 
-  // Aggregate
-  var n = scored.length;
-  var avgScore = scored.reduce(function(s,g){return s+g.ns;},0)/n;
-  var variance = scored.reduce(function(s,g){return s+Math.pow(g.ns-avgScore,2);},0)/n;
-  var stdDev   = Math.sqrt(variance);
-
+  var n         = scored.length;
+  var avgScore  = scored.reduce(function(s,g){return s+g.ns;},0)/n;
+  var variance  = scored.reduce(function(s,g){return s+Math.pow(g.ns-avgScore,2);},0)/n;
+  var stdDev    = Math.sqrt(variance);
   var underdogs = scored.filter(function(g){return g.isUnderdog;});
   var favs      = scored.filter(function(g){return g.isFav;});
-  var avgUD = underdogs.length ? underdogs.reduce(function(s,g){return s+g.ns;},0)/underdogs.length : null;
-  var avgFV = favs.length      ? favs.reduce(function(s,g){return s+g.ns;},0)/favs.length           : null;
+  var avgUD     = underdogs.length>=5 ? underdogs.reduce(function(s,g){return s+g.ns;},0)/underdogs.length : null;
+  var avgFV     = favs.length>=5      ? favs.reduce(function(s,g){return s+g.ns;},0)/favs.length           : null;
 
-  // Recent trend: last 5 vs 6–15
-  var recent = scored.slice(0,5);
-  var older  = scored.slice(5,15);
+  var recent    = scored.slice(0,5);
+  var older     = scored.slice(5,15);
   var recentAvg = recent.reduce(function(s,g){return s+g.ns;},0)/recent.length;
-  var olderAvg  = older.length >= 3 ? older.reduce(function(s,g){return s+g.ns;},0)/older.length : null;
-  var trendDelta = olderAvg!=null ? recentAvg - olderAvg : null;
+  var olderAvg  = older.length>=3 ? older.reduce(function(s,g){return s+g.ns;},0)/older.length : null;
+  var trendDelta= olderAvg!=null ? recentAvg - olderAvg : null;
 
-  // Consistency label
-  var conLabel, conColor;
-  if     (stdDev<0.6) {conLabel='Elite';    conColor='var(--win)';}
-  else if(stdDev<1.0) {conLabel='High';     conColor='var(--win)';}
-  else if(stdDev<1.5) {conLabel='Moderate'; conColor='var(--gold)';}
-  else if(stdDev<2.2) {conLabel='Streaky';  conColor='var(--gold)';}
-  else                {conLabel='Volatile'; conColor='var(--loss)';}
+  var conLabel, conColor, conDesc;
+  if     (stdDev<0.6) {conLabel='Elite';    conColor='var(--win)'; conDesc='Barely any swing between your best and worst games';}
+  else if(stdDev<1.0) {conLabel='High';     conColor='var(--win)'; conDesc='Small game-to-game variance — you show up reliably';}
+  else if(stdDev<1.5) {conLabel='Moderate'; conColor='var(--gold)';conDesc='Some variance between good and bad games';}
+  else if(stdDev<2.2) {conLabel='Streaky';  conColor='var(--gold)';conDesc='Your highs are high but so are your lows';}
+  else                {conLabel='Volatile'; conColor='var(--loss)';conDesc='Wide swings game to game — hard to predict output';}
 
-  // Avg score label + color
   var scoreColor = avgScore>0.4?'var(--win)':avgScore<-0.4?'var(--loss)':'var(--gold)';
   var scoreLabel = avgScore>1?'Outperforming':avgScore>0.4?'Above baseline':avgScore<-1?'Underperforming':avgScore<-0.4?'Below baseline':'On baseline';
+  var scoreDesc  = avgScore>1?'Consistently beating what the system expects at your rank':
+                   avgScore>0.4?'Delivering more than expected — CSR should follow':
+                   avgScore<-1?'Falling short of expectations most games':
+                   avgScore<-0.4?'Slightly below what your MMR predicts':
+                   'Performing right around what the system expects';
 
-  // ── Mini bar chart (newest on right) ──────────────────────────────────────
+  // ── Bar chart ──────────────────────────────────────────────────────────────
   var chartGames = scored.slice(0,25).reverse();
   var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
-  var HALF=32; // half chart height in px
-  var BAND=Math.max(4, Math.round(HALF/maxAbs)); // ±1-sigma band half-height in px
+  var HALF=44; // half chart height in px — taller for readability
+  var BAND=Math.max(5, Math.round(HALF/maxAbs));
 
   var barsHtml = chartGames.map(function(g){
     var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
-    var barH = Math.max(2, Math.round(Math.abs(clamped)/maxAbs*HALF));
-    var color = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
-    var kSign = g.killDelta>=0?'+':'';
-    var dSign = g.deathDelta>=0?'+':'';
-    var lobby = g.isUnderdog?'underdog':g.isFav?'favored':'even';
-    var tip = kSign+g.killDelta.toFixed(1)+' kills, '+dSign+g.deathDelta.toFixed(1)+' deaths vs expected | lobby: '+lobby;
+    var barH    = Math.max(3, Math.round(Math.abs(clamped)/maxAbs*HALF));
+    var color   = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
+    var lobby   = g.isUnderdog?'underdog (harder lobby)':g.isFav?'favored (easier lobby)':'even lobby';
+    // Tooltip: plain English, correct direction for deaths
+    var kAbs = Math.abs(g.killDelta), kDir = g.killDelta>=0?'above':'below';
+    var dAbs = Math.abs(g.deathDelta), dDir = g.deathDelta>=0?'fewer':'more';
+    var scoreStr = (g.ns>=0?'+':'')+g.ns.toFixed(2);
+    var tip = 'Kills: '+kAbs.toFixed(1)+' '+kDir+' expected  ·  Deaths: '+dAbs.toFixed(1)+' '+dDir+' than expected  ·  '+lobby+'  ·  Score: '+scoreStr;
     var barCss = clamped>=0
-      ? 'position:absolute;bottom:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:2px 2px 0 0'
-      : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px';
-    return '<div style="flex:1;min-width:4px;max-width:14px;height:'+(HALF*2)+'px;position:relative" title="'+tip+'">'
+      ? 'position:absolute;bottom:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:2px 2px 0 0;opacity:0.85'
+      : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px;opacity:0.85';
+    return '<div style="flex:1;min-width:5px;max-width:16px;height:'+(HALF*2)+'px;position:relative;cursor:default" title="'+tip+'">'
          +  '<div style="'+barCss+'"></div>'
          +'</div>';
   }).join('');
 
   var html = '';
 
-  // Chart container
-  html += '<div style="background:var(--surface2);border-radius:6px;padding:10px 12px 8px;margin-bottom:12px">';
-  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:8px">LAST '+chartGames.length+' RANKED GAMES · lobby-adjusted · newer →</div>';
-  html += '<div style="height:'+(HALF*2)+'px;position:relative">';
-  // Band (±1-sigma "on par" zone)
-  html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-BAND)+'px;height:'+(BAND*2)+'px;background:rgba(255,255,255,0.04);pointer-events:none"></div>';
-  // Center line
+  // ── Explanation ────────────────────────────────────────────────────────────
+  html += '<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">';
+  html += 'Each bar is one ranked game — <span style="color:var(--win)">green</span> means you outperformed what the system expected, ';
+  html += '<span style="color:var(--loss)">red</span> means you fell short. ';
+  html += 'The shaded zone in the middle is the normal variance range for <strong style="color:var(--text)">'+(tier||'your rank')+'</strong>; ';
+  html += 'bars inside it are within expected fluctuation. ';
+  html += 'Scores are adjusted for lobby difficulty — performing at baseline in a hard lobby scores better than the same output in an easy one. ';
+  html += '<span style="color:var(--muted2)">Hover a bar for details.</span>';
+  html += '</div>';
+
+  // ── Chart ──────────────────────────────────────────────────────────────────
+  html += '<div style="background:var(--surface2);border-radius:6px;padding:12px 14px 10px;margin-bottom:14px">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES</span>';
+  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">older ← · → newer</span>';
+  html += '</div>';
+
+  html += '<div style="height:'+(HALF*2)+'px;position:relative;margin-bottom:4px">';
+  // "On par" band — more visible
+  html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-BAND)+'px;height:'+(BAND*2)+'px;background:rgba(255,255,255,0.06);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);pointer-events:none"></div>';
+  // Center baseline
   html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-1)+'px;height:1px;background:var(--border2)"></div>';
-  // Bars
+  // "BASELINE" label on center line
+  html += '<div style="position:absolute;right:0;top:'+(HALF-9)+'px;font-size:7px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;pointer-events:none">BASELINE</div>';
   html += '<div style="display:flex;gap:2px;height:100%;align-items:flex-start">'+barsHtml+'</div>';
   html += '</div>';
-  html += '<div style="display:flex;justify-content:space-between;margin-top:4px">';
-  html += '<span style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">shaded band = on par for '+( tier||'this rank')+'</span>';
-  html += '<span style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">σ='+sigma.toFixed(1)+' ('+( tier||'?')+')</span>';
+
+  // Scale legend below chart
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">';
+  html += '<div style="display:flex;align-items:center;gap:6px">';
+  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--loss);opacity:0.8"></span><span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Below</span>';
+  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--border2)"></span><span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">On par</span>';
+  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--win);opacity:0.8"></span><span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Above</span>';
+  html += '</div>';
+  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Calibrated for '+(tier||'your rank')+' variance</span>';
   html += '</div>';
   html += '</div>';
 
   // ── Stat cards ─────────────────────────────────────────────────────────────
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px">';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:12px">';
 
   // Avg score
-  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
-  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">AVG SCORE</div>';
-  html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+scoreColor+'">'+(avgScore>=0?'+':'')+avgScore.toFixed(2)+'</div>';
-  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+scoreLabel+'</div>';
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+scoreColor+';border-radius:6px;padding:12px 14px">';
+  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AVG SCORE</div>';
+  html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+scoreColor+';line-height:1">'+(avgScore>=0?'+':'')+avgScore.toFixed(2)+'</div>';
+  html += '<div style="font-size:10px;font-weight:600;color:'+scoreColor+';margin-top:2px;margin-bottom:4px">'+scoreLabel+'</div>';
+  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+scoreDesc+'</div>';
   html += '</div>';
 
   // Consistency
-  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
-  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CONSISTENCY</div>';
-  html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+conColor+'">'+conLabel+'</div>';
-  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">σ='+stdDev.toFixed(2)+' across '+n+' games</div>';
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+conColor+';border-radius:6px;padding:12px 14px">';
+  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">CONSISTENCY</div>';
+  html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+conColor+';line-height:1">'+conLabel+'</div>';
+  html += '<div style="font-size:10px;font-weight:600;color:'+conColor+';margin-top:2px;margin-bottom:4px">across '+n+' games</div>';
+  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+conDesc+'</div>';
   html += '</div>';
 
-  // Underdog performance
-  if(underdogs.length>=3){
+  // Underdog (min 5 games for meaningful sample)
+  if(avgUD!=null){
     var udColor = avgUD>0.3?'var(--win)':avgUD<-0.3?'var(--loss)':'var(--gold)';
-    var udLabel = avgUD>0.4?'Rises to it':avgUD<-0.4?'Struggles':' Holds even';
-    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">AS UNDERDOG</div>';
-    html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+udColor+'">'+(avgUD>=0?'+':'')+avgUD.toFixed(2)+'</div>';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+udLabel+' · '+underdogs.length+' games</div>';
+    var udLabel = avgUD>0.4?'Rises to it':avgUD<-0.4?'Struggles':'Holds even';
+    var udDesc  = avgUD>0.4?'Performs better vs tougher opponents than vs even ones':
+                  avgUD<-0.4?'Numbers dip when the lobby skill goes up — work on staying disciplined':
+                  'Holds your own in harder lobbies';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+udColor+';border-radius:6px;padding:12px 14px">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AS UNDERDOG</div>';
+    html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+udColor+';line-height:1">'+(avgUD>=0?'+':'')+avgUD.toFixed(2)+'</div>';
+    html += '<div style="font-size:10px;font-weight:600;color:'+udColor+';margin-top:2px;margin-bottom:4px">'+udLabel+' · '+underdogs.length+' games</div>';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+udDesc+'</div>';
     html += '</div>';
   }
 
-  // Favored performance
-  if(favs.length>=3){
+  // Favored (min 5 games)
+  if(avgFV!=null){
     var fvColor = avgFV>0.3?'var(--win)':avgFV<-0.3?'var(--loss)':'var(--gold)';
     var fvLabel = avgFV>0.4?'Capitalizes':avgFV<-0.4?'Underdelivers':'Steady';
-    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">AS FAVORITE</div>';
-    html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+fvColor+'">'+(avgFV>=0?'+':'')+avgFV.toFixed(2)+'</div>';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+fvLabel+' · '+favs.length+' games</div>';
+    var fvDesc  = avgFV>0.4?'Makes the most of easier matchups':
+                  avgFV<-0.4?'Should be winning these more convincingly — check if you\'re playing too passively':
+                  'Consistent output whether favored or not';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+fvColor+';border-radius:6px;padding:12px 14px">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AS FAVORITE</div>';
+    html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+fvColor+';line-height:1">'+(avgFV>=0?'+':'')+avgFV.toFixed(2)+'</div>';
+    html += '<div style="font-size:10px;font-weight:600;color:'+fvColor+';margin-top:2px;margin-bottom:4px">'+fvLabel+' · '+favs.length+' games</div>';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+fvDesc+'</div>';
     html += '</div>';
   }
 
@@ -259,26 +284,30 @@ function renderPerformanceBaseline(allMatches, tier) {
     var trColor = trendDelta>0.3?'var(--win)':trendDelta<-0.3?'var(--loss)':'var(--muted)';
     var trIcon  = trendDelta>0.3?'↑':trendDelta<-0.3?'↓':'→';
     var trLabel = trendDelta>0.3?'Improving':trendDelta<-0.3?'Declining':'Stable';
-    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">TREND</div>';
-    html += '<div style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+trColor+'">'+trIcon+' '+trLabel+'</div>';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted)">recent vs prior '+(older.length)+' games</div>';
+    var trDesc  = trendDelta>0.3?'Recent games trending above your prior form':
+                  trendDelta<-0.3?'Recent games falling below your prior form':
+                  'No meaningful change in recent form';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+trColor+';border-radius:6px;padding:12px 14px">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">TREND</div>';
+    html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+trColor+';line-height:1">'+trIcon+' '+trLabel+'</div>';
+    html += '<div style="font-size:10px;font-weight:600;color:'+trColor+';margin-top:2px;margin-bottom:4px">'+(trendDelta>=0?'+':'')+trendDelta.toFixed(2)+' vs prior '+older.length+' games</div>';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+trDesc+'</div>';
     html += '</div>';
   }
 
   html += '</div>';
 
-  // Interpretation line
+  // ── Interpretation callout ─────────────────────────────────────────────────
   var interp = '';
   if(avgUD!=null && avgFV!=null){
     var diff = avgUD - avgFV;
-    if(diff>0.5)       interp = 'You perform meaningfully better in tougher lobbies than easy ones — a sign your MMR may be underselling you.';
-    else if(diff<-0.5) interp = 'Your numbers dip in harder lobbies relative to easier games — focus on maintaining discipline when the lobby skill is elevated.';
+    if(diff>0.5)       interp = 'You perform better in tougher lobbies than easy ones — your MMR may be underselling you.';
+    else if(diff<-0.5) interp = 'Your numbers dip in harder lobbies relative to easier games. Focus on maintaining discipline when lobby skill is elevated.';
   }
   if(!interp && avgScore>0.4 && stdDev>1.8) interp = 'Strong average but high variance — your ceiling is real, but the floor is costing you CSR. Cutting your worst games matters more than improving your best.';
-  if(!interp && avgScore<-0.3 && stdDev<1.0) interp = 'Consistent, but consistently below baseline. This is a mechanical or positioning gap, not a luck issue — try reviewing your deaths per game.';
+  if(!interp && avgScore<-0.3 && stdDev<1.0) interp = 'Consistent, but consistently below baseline. This points to a mechanical or positioning gap rather than bad luck — try reviewing your deaths per game.';
   if(interp){
-    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.5;border-left:2px solid var(--border2);padding-left:10px;margin-bottom:6px">'+interp+'</div>';
+    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 4px 4px 0;padding:10px 14px">'+interp+'</div>';
   }
 
   return html;
@@ -741,10 +770,13 @@ function render(){
     var skd=sd>0?(sk/sd).toFixed(2):sk>0?String(sk):'—';
     // Arena = any ranked mode with 'Arena' in name (includes "Ranked Arena: Slayer")
     // Slayer = only "Ranked Slayer" exactly (not Arena: Slayer)
+    // Legacy = any ranked mode with 'Legacy' in name
     var arenaToday=todayMatches.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&m.gameMode.indexOf('Arena')>-1;});
     var slayerToday=todayMatches.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&/^Ranked Slayer$/.test(m.gameMode.trim());});
+    var legacyToday=todayMatches.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&m.gameMode.indexOf('Legacy')>-1;});
     var arenaDelta=arenaToday.reduce(function(a,m){return a+m.csrDelta;},0);
     var slayerDelta=slayerToday.reduce(function(a,m){return a+m.csrDelta;},0);
+    var legacyDelta=legacyToday.reduce(function(a,m){return a+m.csrDelta;},0);
 
     // Session fatigue — compare first half vs second half K/D
     var fatigueMsg='';var fatigueColor='var(--muted)';
@@ -792,6 +824,7 @@ function render(){
     html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+sl+'L</div><div class="session-stat-lbl">Losses</div></div>';
     if(arenaToday.length){var ac=arenaDelta>=0?'+'+arenaDelta:String(arenaDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(arenaDelta>=0?'var(--win)':'var(--loss)')+'">'+ac+'</div><div class="session-stat-lbl">Arena CSR</div></div>';}
     if(slayerToday.length){var sc2=slayerDelta>=0?'+'+slayerDelta:String(slayerDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(slayerDelta>=0?'var(--win)':'var(--loss)')+'">'+sc2+'</div><div class="session-stat-lbl">Slayer CSR</div></div>';}
+    if(legacyToday.length){var lc=legacyDelta>=0?'+'+legacyDelta:String(legacyDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(legacyDelta>=0?'var(--win)':'var(--loss)')+'">'+lc+'</div><div class="session-stat-lbl">Legacy CSR</div></div>';}
     if(streak>=3)html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+streak+'L</div><div class="session-stat-lbl">Streak <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-3px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg></div></div>';
     html+='</div>';
     if(fatigueMsg)html+='<div style="margin-top:8px;padding:6px 10px;border-left:3px solid '+fatigueColor+';font-size:11px;font-family:Share Tech Mono,monospace;color:'+fatigueColor+';background:var(--surface2);border-radius:0 4px 4px 0">'+fatigueMsg+'</div>';
@@ -833,23 +866,25 @@ function render(){
       var kd=dth>0?(k/dth):k;
       var arenaMs=ms.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&m.gameMode.indexOf('Arena')>-1;});
       var slayerMs=ms.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&/^Ranked Slayer$/i.test(m.gameMode.trim());});
+      var legacyMs=ms.filter(function(m){return m.isRanked&&m.csrDelta!=null&&m.gameMode&&m.gameMode.indexOf('Legacy')>-1;});
       var arenaCsr=arenaMs.reduce(function(a,m){return a+m.csrDelta;},0);
       var slayerCsr=slayerMs.reduce(function(a,m){return a+m.csrDelta;},0);
+      var legacyCsr=legacyMs.reduce(function(a,m){return a+m.csrDelta;},0);
       var bestKda=0;var bestGame=null;
       ms.forEach(function(m){var v=parseFloat(m.kda||0);if(v>bestKda){bestKda=v;bestGame=m;}});
       var dmgDealt=valid.reduce(function(a,m){return a+(m.damageDealt||0);},0);
       var dmgTaken=valid.reduce(function(a,m){return a+(m.damageTaken||0);},0);
       return{label:dayLabel(d),ds:d.ds,matches:ms,games:ms.length,wins:wins,losses:losses,k:k,dth:dth,kd:kd,
-        arenaCsr:arenaMs.length?arenaCsr:null,slayerCsr:slayerMs.length?slayerCsr:null,
+        arenaCsr:arenaMs.length?arenaCsr:null,slayerCsr:slayerMs.length?slayerCsr:null,legacyCsr:legacyMs.length?legacyCsr:null,
         bestKda:bestKda,bestGame:bestGame};
     });
 
     // Find best day by net CSR (or KDA if no CSR data)
-    var hasCsr=dayStats.some(function(d){return d.arenaCsr!=null||d.slayerCsr!=null;});
+    var hasCsr=dayStats.some(function(d){return d.arenaCsr!=null||d.slayerCsr!=null||d.legacyCsr!=null;});
     var bestDayIdx=0;
     dayStats.forEach(function(d,i){
-      var score=hasCsr?(d.arenaCsr||0)+(d.slayerCsr||0):d.kd;
-      var best=hasCsr?(dayStats[bestDayIdx].arenaCsr||0)+(dayStats[bestDayIdx].slayerCsr||0):dayStats[bestDayIdx].kd;
+      var score=hasCsr?(d.arenaCsr||0)+(d.slayerCsr||0)+(d.legacyCsr||0):d.kd;
+      var best=hasCsr?(dayStats[bestDayIdx].arenaCsr||0)+(dayStats[bestDayIdx].slayerCsr||0)+(dayStats[bestDayIdx].legacyCsr||0):dayStats[bestDayIdx].kd;
       if(score>best)bestDayIdx=i;
     });
 
@@ -875,6 +910,7 @@ function render(){
       var csrBits='';
       if(d.arenaCsr!=null){var ac=d.arenaCsr>=0?'+'+d.arenaCsr:String(d.arenaCsr);csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+(d.arenaCsr>=0?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(d.arenaCsr>=0?'var(--win)':'var(--loss)')+'">Arena '+ac+'</span>';}
       if(d.slayerCsr!=null){var sc=d.slayerCsr>=0?'+'+d.slayerCsr:String(d.slayerCsr);csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+(d.slayerCsr>=0?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(d.slayerCsr>=0?'var(--win)':'var(--loss)')+'">Slayer '+sc+'</span>';}
+      if(d.legacyCsr!=null){var lc2=d.legacyCsr>=0?'+'+d.legacyCsr:String(d.legacyCsr);csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:'+(d.legacyCsr>=0?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(d.legacyCsr>=0?'var(--win)':'var(--loss)')+'">Legacy '+lc2+'</span>';}
       if(isBest)csrBits+='<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,193,7,0.13);color:var(--gold)">best day</span>';
 
       var drawBit=draws?'<span style="color:var(--muted2);font-size:11px;margin-left:4px">'+draws+'D</span>':'';
@@ -1004,7 +1040,7 @@ function render(){
   (function(){
     // Resolve primary rank tier for sigma calibration
     var _csr=p.csr||{};
-    var _plPref=['Ranked Arena','Ranked Slayer'];
+    var _plPref=['Ranked Arena','Ranked Slayer','Ranked Legacy'];
     var _tier=null;
     for(var _i=0;_i<_plPref.length;_i++){if(_csr[_plPref[_i]]&&_csr[_plPref[_i]].tier){_tier=_csr[_plPref[_i]].tier;break;}}
     if(!_tier){var _ks=Object.keys(_csr);for(var _j=0;_j<_ks.length;_j++){if(_csr[_ks[_j]]&&_csr[_ks[_j]].tier){_tier=_csr[_ks[_j]].tier;break;}}}
