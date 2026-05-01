@@ -1362,6 +1362,7 @@ function render(){
       // Row 2 — accuracy, CSR, headshot rate, damage ratio
       html+='<div class="mapexp-stats-row">';
       var _proAccRef = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy) ? proStats.accuracy : null;
+      // Map accuracy color thresholds: 0.83× pro = green (close to pro level), 0.67× pro = red (noticeably below pro)
       var _accGreenThr = _proAccRef ? Math.round(_proAccRef * 0.83) : 50;
       var _accRedThr   = _proAccRef ? Math.round(_proAccRef * 0.67) : 40;
       html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=_accGreenThr?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<_accRedThr?'var(--loss)':'var(--text)');
@@ -2093,7 +2094,12 @@ function render(){
     if(_aimGames.length>=8){
       var _acc=_aimGames.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_aimGames.length;
       var _hs=_aimGames.reduce(function(s,m){return s+(m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:0);},0)/_aimGames.length;
-      // Calibrate "solid" and "low" accuracy thresholds to pro data when available
+      // Calibrate accuracy thresholds to pro data when available.
+      // 0.75× pro avg = "solid" floor — you're tracking well enough to have the conversation about sens being too high.
+      // 0.67× pro avg = "low" ceiling — clearly missing shots; high HS% at this level points to sens too low / input lag.
+      // 0.63× pro avg = "deadzone" threshold (used below in close-range block) — this far below pro in melee-heavy games
+      //                 is almost always a deadzone / stick drift issue, not a sensitivity issue.
+      // Fallbacks (45 / 40 / 38) are used when no pro snapshot is on file.
       var _proAccCtx = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy) ? proStats : null;
       var _solidAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.75) : 45;
       var _lowAccThr   = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.67) : 40;
@@ -2112,8 +2118,7 @@ function render(){
     var _meleeHeavy=_aimGames.filter(function(m){return m.weaponStats&&m.kills>0&&m.weaponStats.melee/m.kills>0.25&&_durSecs(m)>=180;});
     if(_meleeHeavy.length>=5){
       var _meleeAcc=_meleeHeavy.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_meleeHeavy.length;
-      // Deadzone threshold: 63% of pro average (or 38% fallback) — accuracy this far below pro in close-range games suggests deadzone issue
-      var _deadzoneAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.63) : 38;
+      var _deadzoneAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.63) : 38; // 0.63× pro avg — see threshold rationale above
       if(_meleeAcc<_deadzoneAccThr){
         insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Check Your Inner Deadzone','In close-range fights you finish with melee '+Math.round(_meleeHeavy.length/_aimGames.length*100)+'% of the time, but your accuracy in those games is only '+_meleeAcc.toFixed(1)+'%'+(_proAccCtx?' (pro avg: '+_proAccCtx.accuracy.toFixed(1)+'%)':'')+'. A large inner deadzone can cause sluggish micro-adjustments at close range — try reducing it by 5-10% in Halo\'s controller settings.','var(--gold)'));
       }
