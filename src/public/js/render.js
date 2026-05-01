@@ -110,6 +110,8 @@ function renderPerformanceBaseline(allMatches, tier) {
   var sigma = TIER_SIGMA[tier] || 2.5;
 
   var games = allMatches.filter(function(m){
+    // Include Ranked Legacy — expectedKills/expectedDeaths come from the skill API
+    // which is calibrated per playlist, so the BR baseline is already baked in.
     return m.expectedKills!=null && m.expectedDeaths!=null &&
            m.kills!=null && m.mmr && m.oppMmr &&
            (m.outcome===2||m.outcome===3);
@@ -170,7 +172,9 @@ function renderPerformanceBaseline(allMatches, tier) {
   var chartGames = scored.slice(0,25).reverse();
   var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
   var HALF=44; // half chart height in px — taller for readability
-  var BAND=Math.max(5, Math.round(HALF/maxAbs));
+  // Band represents ±0.4 normalized score units ("on par" zone).
+  // Floored at 13px so outlier games don't shrink it into invisibility.
+  var BAND=Math.max(13, Math.round(HALF*0.4/maxAbs));
 
   var barsHtml = chartGames.map(function(g){
     var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
@@ -631,15 +635,23 @@ function render(){
     var _bk={};
     _vM.forEach(function(m){
       var mode=m.gameMode||'Unknown';
+      // Ranked Legacy uses Battle Rifle starts (3-round burst) — fundamentally different
+      // SPK, accuracy, and DPM profiles are incompatible with AR/Sidekick baselines.
+      // Keep Legacy matches in their own mode buckets but never add to __overall__.
+      var isLegacy=mode.indexOf('Legacy')>-1;
       var _rs=_gdsR(m);
       var _oh=m.objStats&&m.objStats.timeAsCarrier?m.objStats.timeAsCarrier:0;
       var mins=Math.max((_rs-_oh)/60,1);
+      // BR fires 3 rounds per trigger pull — normalize SPK to trigger-pull equivalents
+      // so Legacy SPK (~5 bursts/kill) is comparable to AR/Sidekick SPK (~10-12 shots/kill).
+      // DPM and accuracy count individual bullets the same way, so no normalization needed there.
+      var effectiveShotsFired=isLegacy&&m.shotsFired>0?m.shotsFired/3:m.shotsFired;
       [mode,'__overall__'].forEach(function(k){
         if(!_bk[k])_bk[k]={dpmDealt:[],dpmTaken:[],acc:[],spk:[]};
         _bk[k].dpmDealt.push(m.damageDealt/mins);
         _bk[k].dpmTaken.push(m.damageTaken/mins);
         if(m.accuracy!=null)_bk[k].acc.push(parseFloat(m.accuracy));
-        if(m.kills>0&&m.shotsFired>0)_bk[k].spk.push(m.shotsFired/m.kills);
+        if(m.kills>0&&effectiveShotsFired>0)_bk[k].spk.push(effectiveShotsFired/m.kills);
       });
     });
     var bl={};
@@ -1887,7 +1899,8 @@ function render(){
 
     // Look sensitivity signal: high accuracy but low headshot rate → sensitivity likely too fast (overshooting heads)
     //                          low accuracy but decent headshot rate → sensitivity too slow (only landing when very close)
-    var _aimGames=allMatches.filter(function(m){return m.shotsFired>0&&m.shotsHit!=null&&m.kills>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;});
+    // Exclude Ranked Legacy — BR burst fire produces different accuracy/headshot distributions
+    var _aimGames=allMatches.filter(function(m){return m.shotsFired>0&&m.shotsHit!=null&&m.kills>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180&&!(m.gameMode&&m.gameMode.indexOf('Legacy')>-1);});
     if(_aimGames.length>=8){
       var _acc=_aimGames.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_aimGames.length;
       var _hs=_aimGames.reduce(function(s,m){return s+(m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:0);},0)/_aimGames.length;
@@ -1972,8 +1985,12 @@ function render(){
 
     var _rangeGames=allMatches.filter(function(m){return m.kills>0&&m.shotsFired>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;});
     if(_rangeGames.length>=8){
-      // SPK and melee % are the reliable range proxies — DPK is not usable here
-      var _avgSpk=_rangeGames.reduce(function(s,m){return s+m.shotsFired/m.kills;},0)/_rangeGames.length;
+      // SPK and melee % are the reliable range proxies — DPK is not usable here.
+      // BR (Legacy) fires 3 rounds/trigger pull so normalize to trigger-pull equivalents.
+      var _avgSpk=_rangeGames.reduce(function(s,m){
+        var isLeg=m.gameMode&&m.gameMode.indexOf('Legacy')>-1;
+        return s+(isLeg?m.shotsFired/3:m.shotsFired)/m.kills;
+      },0)/_rangeGames.length;
       var _meleePct2=_rangeGames.reduce(function(s,m){return s+(m.weaponStats?m.weaponStats.melee/m.kills:0);},0)/_rangeGames.length*100;
       if(_meleePct2>20&&_avgSpk<=9){
         // High melee + clean SPK = finishing fights at close range consistently

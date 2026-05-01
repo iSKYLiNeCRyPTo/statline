@@ -4,17 +4,20 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
   var cq=analyzeConnectionQuality(m,modeBaselines||{});
   if(cq)html+=renderConnectionDetail(cq);
 
-  // Bandit-specific per-match stats
+  // Per-match stats (BR-normalized for Legacy)
   if(m.shotsFired>0&&m.kills>0){
-    var _spkM=m.shotsFired/m.kills;
+    var _isLegacyMatch=m.gameMode&&m.gameMode.indexOf('Legacy')>-1;
+    var _effectiveShotsFired=_isLegacyMatch?m.shotsFired/3:m.shotsFired;
+    var _spkM=_effectiveShotsFired/m.kills;
     var _hsRateM=m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:null;
     var _spkColor='var(--muted)'; // SPK is mixed weapons so no colour judgment
     var _hsColor=_hsRateM!=null?(_hsRateM>=60?'var(--win)':_hsRateM>=35?'var(--muted)':'var(--loss)'):'var(--muted)';
+    var _spkSub=_isLegacyMatch?'burst equiv (BR ÷3)':'all weapons';
     html+='<div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap">';
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
       +'<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px">Shots / Kill</div>'
       +'<div style="font-size:18px;font-weight:700;color:'+_spkColor+'">'+_spkM.toFixed(1)+'</div>'
-      +'<div style="font-size:9px;color:var(--muted)">all weapons</div>'
+      +'<div style="font-size:9px;color:var(--muted)">'+_spkSub+'</div>'
       +'</div>';
     if(_hsRateM!=null){
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 12px;display:flex;flex-direction:column">'
@@ -303,7 +306,11 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var dpmTaken=m.damageTaken/effectiveMins;
   var acc=m.accuracy!=null?parseFloat(m.accuracy):null;
   var kd=m.deaths>0?m.kills/m.deaths:m.kills;
-  var spk=m.kills>0&&m.shotsFired>0?m.shotsFired/m.kills:null;
+  // BR (Legacy) fires 3 rounds per trigger pull — normalize to trigger-pull equivalents
+  // so SPK is comparable to Bandit Evo. Must match the normalization used in baseline building.
+  var isLegacy=mode.indexOf('Legacy')>-1;
+  var effectiveShotsFired=isLegacy&&m.shotsFired>0?m.shotsFired/3:m.shotsFired;
+  var spk=m.kills>0&&effectiveShotsFired>0?effectiveShotsFired/m.kills:null;
 
   // Get baseline — for DPM only use Slayer baseline (objective modes vary too much)
   // SPK and accuracy use __overall__ — weapon mechanics don't change by mode
