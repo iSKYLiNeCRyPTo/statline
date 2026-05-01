@@ -14,8 +14,10 @@ function renderCsrFromMatches(matches,playlist,color){
   function _matchesPlaylist(m){
     if(!m.isRanked||!m.gameMode)return false;
     var gm=m.gameMode.trim();
-    if(playlist==='Ranked Slayer')return /^Ranked Slayer$/i.test(gm);
-    return !/^Ranked Slayer$/i.test(gm);
+    if(playlist==='Ranked Slayer') return /^Ranked Slayer$/i.test(gm);
+    if(playlist==='Ranked Legacy') return /^Ranked Legacy$/i.test(gm);
+    // Ranked Arena = everything ranked that isn't Slayer or Legacy
+    return !/^Ranked Slayer$/i.test(gm) && !/^Ranked Legacy$/i.test(gm);
   }
   var pm=matches.slice().reverse().filter(function(m){
     if(!_matchesPlaylist(m))return false;
@@ -31,8 +33,9 @@ function renderCsrFromMatches(matches,playlist,color){
   var recent=matches.find(function(m){
     if(!m.isRanked||!m.csrAfter||!m.gameMode)return false;
     var gm=m.gameMode.trim();
-    if(playlist==='Ranked Slayer')return /^Ranked Slayer$/i.test(gm);
-    return !/^Ranked Slayer$/i.test(gm);
+    if(playlist==='Ranked Slayer') return /^Ranked Slayer$/i.test(gm);
+    if(playlist==='Ranked Legacy') return /^Ranked Legacy$/i.test(gm);
+    return !/^Ranked Slayer$/i.test(gm) && !/^Ranked Legacy$/i.test(gm);
   });
   if(recent&&recent.csrAfter){
     var raw=recent.csrAfter;
@@ -40,7 +43,7 @@ function renderCsrFromMatches(matches,playlist,color){
     if(!isNaN(num))lastCsr=num;
   }
   if(!lastCsr){
-    var csrKey=playlist==='Ranked Arena'?'Ranked Arena':'Ranked Slayer';
+    var csrKey=playlist==='Ranked Arena'?'Ranked Arena':playlist==='Ranked Legacy'?'Ranked Legacy':'Ranked Slayer';
     var pnow=(getAllPlayers()[selectedPlayer]||{});
     if(pnow.csr&&pnow.csr[csrKey])lastCsr=pnow.csr[csrKey].value;
   }

@@ -943,7 +943,13 @@ function render(){
       var lateWR=Math.round(late.filter(function(m){return m.outcome===2;}).length/late.length*100);
       if(drop>0.2){
         fatigueColor='var(--loss)';
-        fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> Fatigue detected — K/D dropped from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' and win rate from '+earlyWR+'% to '+lateWR+'% as session progressed. Consider a break.';
+        // Only mention win rate direction if it also dropped; if it improved despite K/D drop, note that instead
+        var _wrNote = lateWR < earlyWR
+          ? ' and win rate from '+earlyWR+'% to '+lateWR+'%'
+          : lateWR > earlyWR
+            ? ' (win rate held at '+lateWR+'% despite the dip)'
+            : '';
+        fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> Fatigue detected — K/D dropped from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+_wrNote+' as session progressed. Consider a break.';
       } else if(lateKD>earlyKD+0.2){
         fatigueColor='var(--win)';
         fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Warming up — K/D improved from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' through the session.';
@@ -1634,7 +1640,7 @@ function render(){
 
   // PERFORMANCE TAB
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
-  var _cc=window._themeChartColors||['#378ADD','#85B7EB'];
+  var _cc=window._themeChartColors||['#378ADD','#85B7EB','#E0A020'];
 
   // ── PLAYSTYLE FINGERPRINT + CONSISTENCY SCORE ─────────────────────────────────
   (function(){
@@ -1926,7 +1932,12 @@ function render(){
       var _kdThreshold=0.10+(_kdLobbyDelta>100?0.08:0); // raise bar if recent games were harder
       if(Math.abs(delta)>=_kdThreshold){
         if(delta>=_kdThreshold){
-          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5'+(_kdLobbyDelta<-100?' — and in harder lobbies, making this more impressive':' — momentum is building')+'.','var(--win)'));
+          // _kdLobbyDelta > 0 means recent games were harder than older games
+          // Improvement in harder lobbies = more impressive; improvement in easier lobbies = less meaningful
+          var _kdImpressCtx = _kdLobbyDelta>100 ? ' — even in harder lobbies, very impressive'
+                            : _kdLobbyDelta<-100 ? ' — though recent lobbies were easier'
+                            : ' — momentum is building';
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>','K/D Trending Up','Your K/D over the last 5 games ('+recentKD.toFixed(2)+') is up +'+delta.toFixed(2)+' from the prior 5'+_kdImpressCtx+'.','var(--win)'));
         } else if(_kdLobbyDelta>150){
           // Decline clearly explained by harder lobbies — flag as informational, not negative
           insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"23 18 13.5 8.5 8.5 13.5 1 6\"/><polyline points=\"17 18 23 18 23 12\"/></svg>','Harder Recent Lobbies','K/D dipped '+Math.abs(delta).toFixed(2)+' in recent games ('+recentKD.toFixed(2)+')'+_lobbyCtx(_rGap)+' — expected given the tougher matchups, not necessarily a performance decline.','var(--muted)'));
@@ -1947,7 +1958,12 @@ function render(){
       var _accThreshold=2+(_accLobbyDelta>100?2:0);
       if(Math.abs(aDelta)>=_accThreshold){
         if(aDelta>=_accThreshold){
-          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%)'+(_accLobbyDelta<-100?' — even in comparatively easier lobbies, still a good sign':' — your aim is locking in')+'.','var(--win)'));
+          // _accLobbyDelta > 0 means recent accuracy games were in harder lobbies
+          // Improvement despite harder lobbies = genuinely better aim; improvement in easier lobbies = expected, less meaningful
+          var _accImpressCtx = _accLobbyDelta>100 ? ' — even in harder lobbies, your aim is locking in'
+                             : _accLobbyDelta<-100 ? ' — though recent lobbies were easier, still a positive sign'
+                             : ' — your aim is locking in';
+          insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Improving','Shot accuracy is up '+aDelta.toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%)'+_accImpressCtx+'.','var(--win)'));
         } else if(_accLobbyDelta>150){
           insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>','Accuracy Dip — Harder Lobbies','Accuracy down '+Math.abs(aDelta).toFixed(1)+'% in recent games ('+aR.toFixed(1)+'%)'+_lobbyCtx(_aRGap)+'. Better opponents strafe and move differently — this may not reflect your actual aim.','var(--muted)'));
         } else {
@@ -2312,6 +2328,7 @@ function render(){
   html+=sectionHead('CSR History');
   html+=renderCsrFromMatches(allMatches,'Ranked Arena',_cc[0]);
   html+=renderCsrFromMatches(allMatches,'Ranked Slayer',_cc[1]);
+  html+=renderCsrFromMatches(allMatches,'Ranked Legacy',_cc[2]);
   html+=renderCsrEfficiency(allMatches);
   // Objective stats live in Stats tab (Objectives tab removed; synergy removed in favour of Rivals tab)
   html+=renderObjectiveStats(matches);
