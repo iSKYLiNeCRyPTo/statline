@@ -279,10 +279,10 @@ async function getProPlayers() {
   if (!db) return [];
   const res = await db.query(`
     SELECT p.xuid, p.gamertag, p.label, p.added_at,
-           s.csr_tier, s.csr_value, s.kd, s.win_rate, s.accuracy, s.avg_kills
+           s.csr_tier, s.csr_value, s.kd, s.win_rate, s.accuracy, s.avg_kills, s.ts AS last_snapshot
     FROM pro_players p
     LEFT JOIN LATERAL (
-      SELECT csr_tier, csr_value, kd, win_rate, accuracy, avg_kills
+      SELECT csr_tier, csr_value, kd, win_rate, accuracy, avg_kills, ts
       FROM player_snapshots
       WHERE xuid = p.xuid AND kd IS NOT NULL
       ORDER BY ts DESC LIMIT 1
@@ -294,41 +294,63 @@ async function getProPlayers() {
 
 // Returns aggregate stats across all pro players using their most recent snapshot each.
 // Includes std dev for each stat so callers can build rank-scaled acceptable deviation bands.
+// Also returns staleness metadata so the client can warn when pro data is outdated.
 async function getProStats() {
   const db = await getDb();
   if (!db) return null;
   const res = await db.query(`
-    SELECT s.kd, s.win_rate, s.accuracy, s.avg_kills, s.csr_tier, s.csr_value
+    SELECT s.kd, s.win_rate, s.accuracy, s.avg_kills, s.csr_tier, s.csr_value, s.ts,
+           p.gamertag
     FROM pro_players p
     JOIN LATERAL (
-      SELECT kd, win_rate, accuracy, avg_kills, csr_tier, csr_value
+      SELECT kd, win_rate, accuracy, avg_kills, csr_tier, csr_value, ts
       FROM player_snapshots
       WHERE xuid = p.xuid AND kd IS NOT NULL
       ORDER BY ts DESC LIMIT 1
     ) s ON true
   `);
-  if (!res.rows.length) return null;
+  // Also count pros that have NO snapshot yet (so client can warn about gaps)
+  const totalRes = await db.query('SELECT COUNT(*) AS total FROM pro_players');
+  const totalPros = parseInt(totalRes.rows[0].total, 10);
+
+  if (!res.rows.length) return { count: 0, totalAdded: totalPros, unsearched: totalPros };
   const rows = res.rows;
   const n = rows.length;
+
   const avg = key => rows.reduce((s, r) => s + (parseFloat(r[key]) || 0), 0) / n;
-  const stddev = (key, mean) => {
-    if (n < 2) return null; // need at least 2 pros for meaningful std dev
-    const variance = rows.reduce((s, r) => s + Math.pow((parseFloat(r[key]) || 0) - mean, 2), 0) / (n - 1);
-    return Math.sqrt(variance);
+  const stddev = (key, m) => {
+    if (n < 2) return null;
+    return Math.sqrt(rows.reduce((s, r) => s + Math.pow((parseFloat(r[key]) || 0) - m, 2), 0) / (n - 1));
   };
-  const avgKd  = avg('kd'),  avgWr  = avg('win_rate');
+
+  const avgKd  = avg('kd'),   avgWr  = avg('win_rate');
   const avgAcc = avg('accuracy'), avgKpg = avg('avg_kills');
+  const sdKd   = stddev('kd', avgKd);
+  const sdWr   = stddev('win_rate', avgWr);
+  const sdAcc  = stddev('accuracy', avgAcc);
+  const sdKpg  = stddev('avg_kills', avgKpg);
+
+  // Staleness: oldest snapshot among active pros
+  const timestamps = rows.map(r => new Date(r.ts)).filter(d => !isNaN(d));
+  const oldestTs   = timestamps.length ? new Date(Math.min(...timestamps)) : null;
+  const newestTs   = timestamps.length ? new Date(Math.max(...timestamps)) : null;
+  const oldestDays = oldestTs ? Math.floor((Date.now() - oldestTs) / 86400000) : null;
+
   return {
-    count:     n,
+    count:        n,
+    totalAdded:   totalPros,
+    unsearched:   totalPros - n,          // pros added but never searched on fragr
+    oldestDays,                            // days since least-recently-updated pro was searched
+    oldestTs:     oldestTs ? oldestTs.toISOString() : null,
+    newestTs:     newestTs ? newestTs.toISOString() : null,
     kd:        +avgKd.toFixed(2),
     win_rate:  +avgWr.toFixed(1),
     accuracy:  +avgAcc.toFixed(1),
     avg_kills: +avgKpg.toFixed(1),
-    // Std dev — null when only 1 pro tracked (can't compute variance from a single point)
-    kd_sd:        stddev('kd', avgKd)        != null ? +stddev('kd', avgKd).toFixed(3)        : null,
-    win_rate_sd:  stddev('win_rate', avgWr)  != null ? +stddev('win_rate', avgWr).toFixed(2)  : null,
-    accuracy_sd:  stddev('accuracy', avgAcc) != null ? +stddev('accuracy', avgAcc).toFixed(2) : null,
-    avg_kills_sd: stddev('avg_kills', avgKpg)!= null ? +stddev('avg_kills', avgKpg).toFixed(3): null,
+    kd_sd:        sdKd  != null ? +sdKd.toFixed(3)  : null,
+    win_rate_sd:  sdWr  != null ? +sdWr.toFixed(2)  : null,
+    accuracy_sd:  sdAcc != null ? +sdAcc.toFixed(2) : null,
+    avg_kills_sd: sdKpg != null ? +sdKpg.toFixed(3) : null,
   };
 }
 

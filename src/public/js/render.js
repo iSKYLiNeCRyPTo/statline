@@ -383,10 +383,14 @@ function renderPerformanceBaseline(allMatches, tier) {
     ];
 
     var _hasSd = proStats.kd_sd != null; // true once ≥2 pros tracked
+    var _staleWarning = proStats.oldestDays != null && proStats.oldestDays > 7;
+    var _unsearchedWarn = proStats.unsearched && proStats.unsearched > 0;
     html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">';
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
     html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--gold);letter-spacing:1.5px">★ PRO REFERENCE · '+proStats.count+' pro'+(proStats.count!==1?'s':'')+' tracked</div>';
     if(_hasSd) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">deviation bands scaled '+_rankMult+'× pro SD for '+(tier||'your rank')+'</div>';
+    if(_staleWarning) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--gold)" title="Pro stats refresh when each player is searched on fragr">⚠ data '+proStats.oldestDays+'d old — re-search pros to refresh</div>';
+    if(_unsearchedWarn) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">'+proStats.unsearched+' added pro'+(proStats.unsearched!==1?'s':'')+' not yet searched</div>';
     html += '</div>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">';
 

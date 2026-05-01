@@ -1140,6 +1140,7 @@ app.get('/api/admin', (req, res) => {
     <button class="action-btn warn" onclick="checkToken()">check token</button>
     <button class="action-btn danger" onclick="clearAllCache()">clear all cache</button>
     <button class="action-btn" onclick="loadCache()">refresh cache view</button>
+    <a href="/calibrate?key=${CAL_KEY}" target="_blank" class="action-btn" style="text-decoration:none">aim calibration ↗</a>
     <span id="token-status" style="font-size:11px;color:#555"></span>
   </div>
   <h2>// playlist discovery</h2>
@@ -1248,22 +1249,45 @@ app.get('/api/admin', (req, res) => {
       .then(function(r){return r.json();})
       .then(function(rows){
         if(!rows.length){el.innerHTML='<span class="muted">no pro players added yet</span>';return;}
-        el.innerHTML='<table style="width:auto;font-size:11px"><thead><tr><th>GAMERTAG</th><th>LABEL</th><th>RANK</th><th>K/D</th><th>WIN%</th><th>ACC%</th><th>K/G</th><th>ADDED</th><th></th></tr></thead><tbody>'
-          +rows.map(function(p){
-            var rank=p.csr_tier?(p.csr_tier+(p.csr_value?' '+p.csr_value:'')):'—';
-            var added=p.added_at?new Date(p.added_at).toLocaleDateString():'';
-            return'<tr>'
-              +'<td style="color:#00d4ff">'+p.gamertag+'</td>'
-              +'<td style="color:#ffc107">'+(p.label||'—')+'</td>'
-              +'<td class="muted">'+rank+'</td>'
-              +'<td>'+(p.kd!=null?parseFloat(p.kd).toFixed(2):'—')+'</td>'
-              +'<td>'+(p.win_rate!=null?parseFloat(p.win_rate).toFixed(1)+'%':'—')+'</td>'
-              +'<td>'+(p.accuracy!=null?parseFloat(p.accuracy).toFixed(1)+'%':'—')+'</td>'
-              +'<td>'+(p.avg_kills!=null?parseFloat(p.avg_kills).toFixed(1):'—')+'</td>'
-              +'<td class="muted">'+added+'</td>'
-              +'<td><button class="action-btn danger" style="font-size:10px;padding:2px 7px" data-pro-xuid="'+p.xuid+'" data-pro-gt="'+p.gamertag.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">remove</button></td>'
-              +'</tr>';
-          }).join('')+'</tbody></table>';
+        var now=Date.now();
+        var html='<table style="width:auto;font-size:11px"><thead><tr>'
+          +'<th>GAMERTAG</th><th>LABEL</th><th>RANK</th>'
+          +'<th>K/D</th><th>WIN%</th><th>ACC%</th><th>K/G</th>'
+          +'<th>LAST SEARCHED</th><th>ADDED</th><th></th>'
+          +'</tr></thead><tbody>';
+        var unsearched=[];
+        rows.forEach(function(p){
+          var rank=p.csr_tier?(p.csr_tier+(p.csr_value?' '+p.csr_value:'')):'—';
+          var added=p.added_at?new Date(p.added_at).toLocaleDateString():'';
+          var noSnap=p.kd==null;
+          var lastSearched='—';
+          var staleCell='';
+          if(p.last_snapshot){
+            var days=Math.floor((now-new Date(p.last_snapshot))/86400000);
+            lastSearched=days===0?'today':days===1?'yesterday':days+'d ago';
+            if(days>7) staleCell=' style="color:#ffc107"';
+          } else {
+            lastSearched='<span style="color:#f44336">never searched</span>';
+            unsearched.push(p.gamertag);
+          }
+          html+='<tr style="'+(noSnap?'opacity:0.6':'')+'">'
+            +'<td style="color:#00d4ff">'+p.gamertag+'</td>'
+            +'<td style="color:#ffc107">'+(p.label||'—')+'</td>'
+            +'<td class="muted">'+rank+'</td>'
+            +'<td>'+(p.kd!=null?parseFloat(p.kd).toFixed(2):'<span style="color:#555">no data</span>')+'</td>'
+            +'<td>'+(p.win_rate!=null?parseFloat(p.win_rate).toFixed(1)+'%':'—')+'</td>'
+            +'<td>'+(p.accuracy!=null?parseFloat(p.accuracy).toFixed(1)+'%':'—')+'</td>'
+            +'<td>'+(p.avg_kills!=null?parseFloat(p.avg_kills).toFixed(1):'—')+'</td>'
+            +'<td'+staleCell+'>'+lastSearched+'</td>'
+            +'<td class="muted">'+added+'</td>'
+            +'<td><button class="action-btn danger" style="font-size:10px;padding:2px 7px" data-pro-xuid="'+p.xuid+'" data-pro-gt="'+p.gamertag.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">remove</button></td>'
+            +'</tr>';
+        });
+        html+='</tbody></table>';
+        if(unsearched.length){
+          html+='<div style="margin-top:10px;font-size:10px;color:#f44336">⚠ '+unsearched.length+' pro'+(unsearched.length>1?'s':'')+' never searched — search on fragr to populate their stats: '+unsearched.join(', ')+'</div>';
+        }
+        el.innerHTML=html;
       })
       .catch(function(e){el.innerHTML='<span class="muted">error: '+e.message+'</span>';});
   }
