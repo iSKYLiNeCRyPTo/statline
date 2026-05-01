@@ -989,6 +989,15 @@ app.get('/api/admin', (req, res) => {
     <button class="action-btn" onclick="loadCache()">refresh cache view</button>
     <span id="token-status" style="font-size:11px;color:#555"></span>
   </div>
+  <h2>// playlist discovery</h2>
+  <div class="action-row">
+    <input id="disc-gt" placeholder="Gamertag..." style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:220px;box-sizing:border-box">
+    <button class="action-btn" onclick="discoverPlaylists()">scan recent matches</button>
+    <span style="font-size:10px;color:#555">finds playlist IDs from last 25 matches — use to get Ranked Legacy/Doubles IDs</span>
+  </div>
+  <div id="disc-result" style="font-size:11px;margin-bottom:24px;display:none">
+    <table style="width:auto;font-size:11px"><thead><tr><th>PLAYLIST ID</th><th>NAME</th><th>EXP</th><th>MATCHES (of 25)</th></tr></thead><tbody id="disc-tbody"></tbody></table>
+  </div>
   <div class="summary" id="summary">Loading...</div>
   <h2>// active cache</h2>
   <div id="cache-panel" style="font-size:11px;color:#555;margin-bottom:16px">Loading...</div>
@@ -1042,6 +1051,33 @@ app.get('/api/admin', (req, res) => {
     setTimeout(function(){
       window.open('/?player='+encodeURIComponent(q),'_blank');
     },300);
+  }
+
+  function discoverPlaylists(){
+    var gt=(document.getElementById('disc-gt').value||'').trim();
+    if(!gt){alert('Enter a gamertag first');return;}
+    var resultDiv=document.getElementById('disc-result');
+    var tbody=document.getElementById('disc-tbody');
+    tbody.innerHTML='<tr><td colspan="4" class="muted">scanning…</td></tr>';
+    resultDiv.style.display='block';
+    fetch('/api/discover-playlists?gamertag='+encodeURIComponent(gt))
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error){tbody.innerHTML='<tr><td colspan="4" style="color:#f44336">'+d.error+'</td></tr>';return;}
+        var rows=d.playlists||[];
+        if(!rows.length){tbody.innerHTML='<tr><td colspan="4" class="muted">no playlists found</td></tr>';return;}
+        tbody.innerHTML=rows.map(function(p){
+          var known=['edfef3ac-9cbe-4fa2-b949-8f29deafd483','f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
+          var isNew=known.indexOf(p.id)===-1;
+          return'<tr>'
+            +'<td style="font-family:monospace;color:'+(isNew?'#ffc107':'#555')+'">'+p.id+(isNew?' ★':'')+'</td>'
+            +'<td style="color:'+(isNew?'#00d4ff':'#ccc')+'">'+p.name+'</td>'
+            +'<td class="muted">'+p.exp+'</td>'
+            +'<td>'+p.count+'</td>'
+            +'</tr>';
+        }).join('');
+      })
+      .catch(function(e){tbody.innerHTML='<tr><td colspan="4" style="color:#f44336">'+e.message+'</td></tr>';});
   }
 
   function loadCache(){
