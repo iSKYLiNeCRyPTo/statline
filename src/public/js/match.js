@@ -420,7 +420,7 @@ function analyzeConnectionQuality(m, modeBaselines) {
     score-=2;
   }
   // Bandit SPK: significantly above your own baseline — threshold tightened for harder lobbies
-  var _adjSpkBad = 2.5 - _lobbySpkGrace; // harder lobby = need more extreme SPK spike to flag it
+  var _adjSpkBad = 2.5 + _lobbySpkGrace; // harder lobby = need more extreme SPK spike to flag it
   if(spkDelta!=null&&spkDelta>=_adjSpkBad&&spk>=10){
     signals.push({bad:true,msg:spk.toFixed(1)+' shots/kill vs your '+blOverall.avgSpk.toFixed(1)+' overall avg — taking far more shots to finish kills'+_lobbyNote});
     score-=2;

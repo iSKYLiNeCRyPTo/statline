@@ -1394,6 +1394,623 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ── Aim Calibration ───────────────────────────────────────────────────────────
+// Personal hidden page — protected by CALIBRATE_KEY env var (default: 'calibrate')
+
+const CAL_KEY = process.env.CALIBRATE_KEY || 'calibrate';
+
+// Analysis endpoint — POST with settings JSON, returns recommendations
+app.post('/api/calibrate', express.json(), async (req, res) => {
+  const { key, gamertag, sensitivityH, sensitivityV, innerDead, outerDead, fov,
+          deadzoneType, viewingDist, acceleration, tzOffset } = req.body || {};
+  if (key !== CAL_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  if (!gamertag) return res.status(400).json({ error: 'Gamertag required' });
+
+  const player = await getFromCache(gamertag);
+  if (!player) return res.json({ ok: false, error: 'Player not in cache — search them on fragr first.' });
+
+  const matches = (player.allMatches || player.recentMatches || [])
+    .filter(m => m && m.kills != null && !m.isCustom);
+
+  // ── Core helpers ──────────────────────────────────────────────────────────
+  const mean   = arr => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+  const stdDev = arr => { const m = mean(arr); return arr.length ? Math.sqrt(mean(arr.map(v => (v - m) ** 2))) : 0; };
+  const gameAcc = m => m.shotsHit / m.shotsFired * 100;
+
+  // ── Filter to valid aim games ─────────────────────────────────────────────
+  const aimGames = matches.filter(m =>
+    m.shotsFired > 0 && m.shotsHit != null && m.kills > 0 &&
+    (m.outcome === 2 || m.outcome === 3) && !(m.gameMode && m.gameMode.includes('Legacy')));
+
+  if (aimGames.length < 5) return res.json({ ok: false, error: 'Need at least 5 ranked games with accuracy data.' });
+
+  // ── Core averages ─────────────────────────────────────────────────────────
+  const accPerGame = aimGames.map(gameAcc);
+  const hsPerGame  = aimGames.map(m => m.weaponStats && m.kills > 0 ? m.weaponStats.headshots / m.kills * 100 : 0);
+  const spkPerGame = aimGames.map(m => m.shotsFired / Math.max(m.kills, 1));
+
+  const avgAcc = mean(accPerGame);
+  const accSd  = stdDev(accPerGame);
+  const avgHs  = mean(hsPerGame);
+  const avgSpk = mean(spkPerGame);
+
+  // Close-range proxy: high melee finish rate
+  const closeGames = aimGames.filter(m => m.weaponStats && m.kills > 0 && m.weaponStats.melee / m.kills > 0.25);
+  const closeAcc   = closeGames.length >= 3 ? mean(closeGames.map(gameAcc)) : null;
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  const sensH  = parseFloat(sensitivityH) || 3;
+  const sensV  = parseFloat(sensitivityV) || 3;
+  const iDead  = parseFloat(innerDead)    || 0.0;
+  const oDead  = parseFloat(outerDead)    || 0.0;
+  const fovVal = parseFloat(fov)          || 78;
+  const accel  = parseFloat(acceleration) || 0;
+  const vDist  = parseFloat(viewingDist)  || 8;   // feet
+  const tzOff  = typeof tzOffset === 'number' ? tzOffset : 0; // minutes offset from UTC
+  const TV_IN  = 60;
+  const tvWidthIn     = TV_IN * (16 / Math.sqrt(16**2 + 9**2));
+  const screenAngleDeg = 2 * Math.atan((tvWidthIn / 2) / (vDist * 12)) * (180 / Math.PI);
+
+  // ── Session analysis (warm-up + fatigue) ──────────────────────────────────
+  const timed = aimGames.filter(m => m.startTime).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  let warmupDelta = null, fatigueDelta = null, avgSessionLen = null;
+  if (timed.length >= 8) {
+    const sessions = [];
+    let cur = [timed[0]];
+    for (let i = 1; i < timed.length; i++) {
+      const gap = new Date(timed[i].startTime) - new Date(timed[i - 1].startTime);
+      if (gap > 2 * 60 * 60 * 1000) { sessions.push(cur); cur = []; }
+      cur.push(timed[i]);
+    }
+    sessions.push(cur);
+    const longS = sessions.filter(s => s.length >= 4);
+    avgSessionLen = longS.length ? Math.round(mean(longS.map(s => s.length))) : null;
+    if (longS.length >= 2) {
+      // Warm-up: first game of session vs rest
+      const firstAcc = longS.map(s => gameAcc(s[0]));
+      const restAcc  = longS.map(s => mean(s.slice(1).map(gameAcc)));
+      warmupDelta = +(mean(restAcc) - mean(firstAcc)).toFixed(1); // positive = first game is worse
+      // Fatigue: first third vs last third
+      const fatS = longS.filter(s => s.length >= 5);
+      if (fatS.length >= 2) {
+        const earlyAcc = fatS.map(s => mean(s.slice(0, Math.ceil(s.length / 3)).map(gameAcc)));
+        const lateAcc  = fatS.map(s => mean(s.slice(-Math.ceil(s.length / 3)).map(gameAcc)));
+        fatigueDelta = +(mean(lateAcc) - mean(earlyAcc)).toFixed(1); // negative = drops late in session
+      }
+    }
+  }
+
+  // ── Map type accuracy split ───────────────────────────────────────────────
+  const CLOSE_MAPS = ['empyrean','streets','catalyst','live fire','bazaar','solitude','prism','launch site'];
+  const OPEN_MAPS  = ['aquarius','recharge','forbidden','illusion','breaker','fragmentation','highpower','interference','oasis','detachment','avalanche'];
+  const closeMapG = aimGames.filter(m => m.mapName && CLOSE_MAPS.some(n => m.mapName.toLowerCase().includes(n)));
+  const openMapG  = aimGames.filter(m => m.mapName && OPEN_MAPS.some(n => m.mapName.toLowerCase().includes(n)));
+  const closeMapAcc = closeMapG.length >= 3 ? +mean(closeMapG.map(gameAcc)).toFixed(1) : null;
+  const openMapAcc  = openMapG.length  >= 3 ? +mean(openMapG.map(gameAcc)).toFixed(1)  : null;
+
+  // ── Accuracy → win rate correlation ──────────────────────────────────────
+  const bucketMap = {};
+  aimGames.forEach(m => {
+    const acc = gameAcc(m);
+    const b   = Math.floor(acc / 5) * 5;
+    if (!bucketMap[b]) bucketMap[b] = { wins: 0, total: 0 };
+    if (m.outcome === 2) bucketMap[b].wins++;
+    bucketMap[b].total++;
+  });
+  const accWinCorr = Object.entries(bucketMap)
+    .filter(([, v]) => v.total >= 2)
+    .map(([k, v]) => ({ acc: +k, wr: Math.round(v.wins / v.total * 100), n: v.total }))
+    .sort((a, b) => a.acc - b.acc);
+  // Find the accuracy floor where win rate first exceeds 50%
+  const winFloor = accWinCorr.find(b => b.wr >= 50);
+
+  // ── Time of day performance ───────────────────────────────────────────────
+  const hourBuckets = {};
+  aimGames.forEach(m => {
+    if (!m.startTime) return;
+    const localH = (new Date(m.startTime).getUTCHours() + Math.round(tzOff / 60) + 24) % 24;
+    const bucket = localH < 6 ? 'Late Night (12–6am)' : localH < 12 ? 'Morning (6–12pm)' : localH < 18 ? 'Afternoon (12–6pm)' : 'Evening (6–12am)';
+    if (!hourBuckets[bucket]) hourBuckets[bucket] = [];
+    hourBuckets[bucket].push(gameAcc(m));
+  });
+  const timeOfDay = Object.entries(hourBuckets)
+    .filter(([, arr]) => arr.length >= 3)
+    .map(([label, arr]) => ({ label, avgAcc: +mean(arr).toFixed(1), n: arr.length }))
+    .sort((a, b) => b.avgAcc - a.avgAcc);
+
+  // ── Consistency score 0–100 ───────────────────────────────────────────────
+  // Weighted: accuracy level 30pts, variance 25pts, headshot rate 25pts, SPK 20pts
+  const accScore = Math.min(30, Math.max(0, (avgAcc - 30) / 30 * 30));
+  const sdScore  = Math.min(25, Math.max(0, (1 - accSd / 15) * 25));
+  const hsScore  = Math.min(25, Math.max(0, (avgHs - 20) / 40 * 25));
+  const spkScore = Math.min(20, Math.max(0, (1 - (avgSpk - 5) / 15) * 20));
+  const consistencyScore = Math.round(accScore + sdScore + hsScore + spkScore);
+
+  // ── Build recommendations ─────────────────────────────────────────────────
+  const recs = [];
+  const note = (cat, title, body, severity = 'info', priority = 5) => recs.push({ cat, title, body, severity, priority });
+
+  // 1. Sensitivity vs 60fps (priority 1 — biggest impact)
+  const MAX_SENS_60FPS = 5;
+  if (sensH > MAX_SENS_60FPS) {
+    const sug = Math.max(sensH - 1, MAX_SENS_60FPS);
+    note('Sensitivity', `H-Sensitivity ${sensH} is high for 60fps`,
+      `At 60fps each frame takes 16.7ms to render. High sensitivity maps large stick deflections to big angular jumps between frames, making micro-corrections unpredictable. Most 60fps players perform best at 4–5H. Your accuracy of ${avgAcc.toFixed(1)}% ${avgAcc < 43 ? `supports lowering — try ${sug}H first.` : `is reasonable, but you may find ${sug}H even cleaner on a 60" TV.`}`,
+      avgAcc < 43 ? 'warn' : 'info', 1);
+  } else if (sensH < 3 && avgAcc < 42 && avgHs > 40) {
+    note('Sensitivity', `H-Sensitivity ${sensH} may be too low`,
+      `Your headshot rate (${avgHs.toFixed(0)}%) is decent but overall accuracy (${avgAcc.toFixed(1)}%) is low — you're precise when still but missing strafing targets. Try raising H-Sensitivity by 1 to improve lateral tracking.`,
+      'warn', 1);
+  }
+
+  if (Math.abs(sensH - sensV) > 1) {
+    note('Sensitivity', `H/V sensitivity gap (${sensH}H vs ${sensV}V)`,
+      `A gap larger than 1 between axes can cause aim to feel "sticky" vertically or horizontally. Most players use V = H or V = H−1. Consider bringing them closer together.`,
+      'info', 2);
+  }
+
+  // 2. Deadzone analysis (priority 2)
+  if (iDead > 0.12) {
+    const closePart = closeAcc != null
+      ? ` Your close-range accuracy (${closeAcc.toFixed(1)}%) ${closeAcc < avgAcc - 5 ? 'drops vs your overall average — consistent with a large deadzone masking micro-adjustments in CQB.' : 'holds up — but you may still feel sluggishness on slow tracking shots.'}`
+      : '';
+    note('Deadzone', `Inner Deadzone ${(iDead * 100).toFixed(0)}% is large`,
+      `A large inner deadzone creates a dead spot where small stick movements do nothing — fine micro-adjustments and slow tracking shots feel unresponsive. Try reducing to 5–8% (0.05–0.08). If your stick drifts at lower values, try 3–5% first.${closePart}`,
+      iDead > 0.15 ? 'warn' : 'info', 2);
+  } else if (iDead < 0.03 && accSd > 8) {
+    note('Deadzone', `Inner Deadzone ${(iDead * 100).toFixed(0)}% may be too low`,
+      `Very low inner deadzone with high game-to-game accuracy variance (±${accSd.toFixed(1)}%) can mean stick drift is bleeding into your aim when you think you're still. Try 3–5% and watch if consistency improves.`,
+      'info', 2);
+  }
+
+  if (oDead > 0.12) {
+    note('Deadzone', `Outer Deadzone ${(oDead * 100).toFixed(0)}% limits max turn speed`,
+      `Above ~10% outer deadzone you may never reach full rotation speed — 180° snap-turns feel slow and you'll get outmaneuvered by flankers. Try reducing to 5–8% (0.05–0.08).`,
+      'warn', 2);
+  }
+
+  // 3. Acceleration (priority 3)
+  if (accel > 2) {
+    note('Sensitivity', `Acceleration ${accel} adds unpredictable ramping at 60fps`,
+      `Acceleration ramps speed as you push the stick further. At 120fps the ramp feels smooth; at 60fps the frames between ramp steps are visible as stuttery over-rotation. For 60fps, 0–1 acceleration is almost universally preferred — it makes aim predictable and consistent.`,
+      'warn', 3);
+  }
+
+  // 4. FOV (priority 4)
+  if (fovVal > 100 && screenAngleDeg < 30) {
+    note('FOV', `FOV ${fovVal}° is high for your ${vDist}ft viewing distance`,
+      `From ${vDist}ft your 60" TV subtends ~${screenAngleDeg.toFixed(0)}° of your horizontal vision. At game FOV ${fovVal}° targets are quite small — each pixel of stick error is amplified. Try 90–95° for better target size and aim feel at this distance.`,
+      'info', 4);
+  } else if (fovVal < 90 && screenAngleDeg > 35) {
+    note('FOV', `FOV ${fovVal}° is conservative — you can safely go higher`,
+      `Your 60" TV at ${vDist}ft gives ~${screenAngleDeg.toFixed(0)}° of real horizontal vision. FOV ${fovVal}° leaves peripheral awareness on the table. Bumping to 95–100° adds game awareness without meaningfully shrinking targets.`,
+      'info', 4);
+  }
+
+  // 5. Deadzone type (priority 5)
+  if (deadzoneType === 'axial') {
+    note('Deadzone', 'Axial deadzone can feel notchy on diagonal tracking',
+      `Axial deadzone applies independently per axis — precise for pure horizontal/vertical aim but can feel "notchy" when tracking targets that strafe diagonally. Radial (circular) deadzone generally feels smoother for 360° tracking in Halo.`,
+      'info', 5);
+  }
+
+  // 6. Consistency from accSd (priority 2)
+  if (accSd > 10) {
+    note('Consistency', `High accuracy variance ±${accSd.toFixed(1)}% game-to-game`,
+      `Large swings in per-game accuracy usually mean something external is affecting your input — stick drift, inconsistent grip pressure, or fatigue. Both too-large and too-small inner deadzones can cause this. Check your sticks with a deadzone visualizer app.`,
+      'warn', 2);
+  }
+
+  // 7. Session warm-up (priority 3)
+  if (warmupDelta !== null && warmupDelta > 4) {
+    note('Session', `Cold-aim drop: ~${warmupDelta.toFixed(1)}% accuracy in your first game`,
+      `Your first game of each session runs ${warmupDelta.toFixed(1)}% lower accuracy than the rest of that session — you need a warm-up period. This makes your settings feel inconsistent cold. Either treat your first game as a throw-away warm-up, or lower sensitivity by 1 so the cost of cold aim is smaller.`,
+      'info', 3);
+  }
+
+  // 8. Session fatigue (priority 3)
+  if (fatigueDelta !== null && fatigueDelta < -4) {
+    note('Session', `Fatigue drop: ~${Math.abs(fatigueDelta).toFixed(1)}% accuracy late in sessions`,
+      `Your accuracy drops ~${Math.abs(fatigueDelta).toFixed(1)}% by the end of long sessions. Fatigue causes your grip to loosen, which can make high sensitivity feel out of control. Consider capping ranked sessions at ${avgSessionLen ? avgSessionLen - 2 : 6} games, or taking a 10-minute break halfway through.`,
+      'info', 3);
+  }
+
+  // 9. Map type gap (priority 2)
+  if (closeMapAcc !== null && openMapAcc !== null && Math.abs(closeMapAcc - openMapAcc) > 5) {
+    if (closeMapAcc < openMapAcc - 5) {
+      note('Map Profile', `CQB accuracy (${closeMapAcc}%) vs open-map (${openMapAcc}%) — gap of ${(openMapAcc - closeMapAcc).toFixed(1)}%`,
+        `You aim better on open maps than in close-quarters. In CQB the inner deadzone limits fast micro-corrections, or your sensitivity is too high for the snap-tracking required at close range. Try reducing inner deadzone to 3–6% and see if Streets/Empyrean feel more responsive.`,
+        'info', 2);
+    } else {
+      note('Map Profile', `Open-map accuracy (${openMapAcc}%) trails CQB (${closeMapAcc}%) — gap of ${(closeMapAcc - openMapAcc).toFixed(1)}%`,
+        `You aim better in close-quarters than on open maps. Long-range strafe tracking requires more consistent lateral tracking — your sensitivity may be too low to track targets strafing at distance. Try raising H-Sensitivity by 1 to improve strafe-following on Aquarius/Recharge.`,
+        'info', 2);
+    }
+  }
+
+  // Sort recommendations by priority (warnings first within same priority)
+  recs.sort((a, b) => a.priority - b.priority || (b.severity === 'warn' ? 1 : 0) - (a.severity === 'warn' ? 1 : 0));
+
+  // ── Summary ───────────────────────────────────────────────────────────────
+  const issues = recs.filter(r => r.severity === 'warn').length;
+  const topRec = recs[0];
+  const summary = issues === 0
+    ? `Settings look solid for 60fps play on a 60" TV. Accuracy (${avgAcc.toFixed(1)}%) and headshot rate (${avgHs.toFixed(0)}%) are consistent with these settings. Consistency score: ${consistencyScore}/100.`
+    : `${issues} warning${issues > 1 ? 's' : ''} flagged. Start with ${topRec ? topRec.cat.toLowerCase() : 'sensitivity'} first — it has the highest impact. Change one setting, play 10+ games, then re-analyze. Consistency score: ${consistencyScore}/100.`;
+
+  res.json({
+    ok: true,
+    games: aimGames.length,
+    consistencyScore,
+    stats: {
+      avgAccuracy:  +avgAcc.toFixed(1),
+      accuracySd:   +accSd.toFixed(1),
+      avgHsRate:    +avgHs.toFixed(1),
+      avgSpk:       +avgSpk.toFixed(1),
+      closeAccuracy: closeAcc != null ? +closeAcc.toFixed(1) : null,
+      screenAngle:  +screenAngleDeg.toFixed(1),
+      closeMapAcc, openMapAcc,
+      closeMapCount: closeMapG.length,
+      openMapCount:  openMapG.length,
+    },
+    session: { warmupDelta, fatigueDelta, avgSessionLen },
+    accWinCorr,
+    winFloor: winFloor ? winFloor.acc : null,
+    timeOfDay,
+    recommendations: recs,
+    summary,
+  });
+});
+
+// Calibration page (hidden — requires ?key=CALIBRATE_KEY in URL)
+app.get('/calibrate', (req, res) => {
+  if (req.query.key !== CAL_KEY) return res.status(404).send('Not found');
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fragr // aim calibration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0d0f12;--surface:#151820;--surface2:#1c2030;--border:#262d3d;--text:#e8eaf0;--muted:#8a8a9a;--muted2:#555870;--accent:#4fc3f7;--gold:#f59e0b;--win:#4caf50;--loss:#ef5350}
+  body{background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;min-height:100vh;padding:32px 20px}
+  .wrap{max-width:760px;margin:0 auto}
+  .logo{font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--accent);letter-spacing:2px;margin-bottom:4px}
+  .sub{font-size:10px;color:var(--muted2);letter-spacing:2px;text-transform:uppercase;margin-bottom:28px}
+  h2{font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;color:var(--muted2);text-transform:uppercase;margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px}
+  label{display:block;font-size:9px;letter-spacing:1.5px;color:var(--muted2);text-transform:uppercase;margin-bottom:5px}
+  input,select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px;padding:8px 10px;border-radius:4px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  input:disabled{opacity:.4;cursor:not-allowed}
+  .hint{font-size:9px;color:var(--muted2);margin-top:3px}
+  .btn{width:100%;background:var(--accent);color:#0d0f12;font-family:Rajdhani,sans-serif;font-weight:700;font-size:15px;letter-spacing:2px;text-transform:uppercase;padding:12px;border:none;border-radius:5px;cursor:pointer;margin-top:8px}
+  .btn:hover{filter:brightness(1.1)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .context-box{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:6px;padding:14px 16px;margin-bottom:24px;font-size:10px;color:var(--muted);line-height:1.7}
+  .context-box strong{color:var(--gold)}
+  #out{margin-top:28px}
+  .stat-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:11px}
+  .stat-row:last-child{border:none}
+  .stat-label{color:var(--muted)}
+  .stat-val{font-weight:600}
+  .rec{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:14px 16px;margin-bottom:12px}
+  .rec.warn{border-left:3px solid var(--gold)}
+  .rec.info{border-left:3px solid var(--accent)}
+  .rec-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .rec-cat{font-size:8px;letter-spacing:2px;color:var(--muted2);text-transform:uppercase}
+  .rec-pri{font-size:8px;color:var(--muted2)}
+  .rec-title{font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;margin-bottom:6px}
+  .rec.warn .rec-title{color:var(--gold)}
+  .rec.info .rec-title{color:var(--accent)}
+  .rec-body{font-size:10px;color:var(--muted);line-height:1.7}
+  .summary-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:20px;font-size:11px;color:var(--text);line-height:1.6}
+  .score-ring{display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:50%;border:3px solid;font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;flex-shrink:0}
+  .err{color:var(--loss);font-size:11px;margin-top:12px}
+  .section-head{font-size:9px;letter-spacing:2px;color:var(--muted2);text-transform:uppercase;margin:20px 0 10px}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .bar-wrap{height:6px;background:var(--surface2);border-radius:3px;margin-top:4px}
+  .bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+  .bucket-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:10px}
+  .bucket-acc{color:var(--muted);width:56px;flex-shrink:0}
+  .bucket-bar-wrap{flex:1;height:5px;background:var(--surface2);border-radius:3px}
+  .bucket-bar{height:100%;border-radius:3px}
+  .bucket-wr{width:36px;text-align:right;flex-shrink:0;font-weight:600}
+  .bucket-n{width:28px;text-align:right;flex-shrink:0;color:var(--muted2);font-size:9px}
+  .pro-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:10px}
+  .pro-row:last-child{border:none}
+  .pro-label{color:var(--muted)}
+  .pro-val{color:var(--gold);font-weight:600}
+  .pro-yours{color:var(--accent)}
+  .tod-row{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:10px}
+  .tod-row:last-child{border:none}
+  .tod-label{color:var(--muted);min-width:160px}
+  .tod-bar-wrap{flex:1;height:5px;background:var(--surface2);border-radius:3px}
+  .tod-bar{height:100%;border-radius:3px;background:var(--accent)}
+  .tod-val{color:var(--text);font-weight:600;min-width:38px;text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">fragr</div>
+  <div class="sub">// aim calibration · personal</div>
+
+  <div class="context-box">
+    <strong>Setup context locked in:</strong> 60fps · 60" TV · controller<br>
+    Analysis uses your last 100 tracked games. The more accurate your settings below, the better the recommendations.
+  </div>
+
+  <h2>Player</h2>
+  <div style="margin-bottom:20px">
+    <label>Gamertag</label>
+    <input id="gt" type="text" placeholder="your Xbox gamertag" autocomplete="off">
+    <div class="hint">Must have been searched on fragr at least once</div>
+  </div>
+
+  <h2>Look Sensitivity</h2>
+  <div class="grid">
+    <div>
+      <label>Horizontal Sensitivity</label>
+      <input id="sensH" type="number" min="1" max="10" step="1" value="3">
+      <div class="hint">1–10 · Halo default: 3</div>
+    </div>
+    <div>
+      <label>Vertical Sensitivity</label>
+      <input id="sensV" type="number" min="1" max="10" step="1" value="3">
+      <div class="hint">1–10 · Halo default: 3</div>
+    </div>
+  </div>
+  <div style="margin-bottom:20px">
+    <label>Acceleration (0–5)</label>
+    <input id="accel" type="number" min="0" max="5" step="1" value="0">
+    <div class="hint">0 = linear · higher = ramps as you push stick further</div>
+  </div>
+
+  <h2>Deadzones</h2>
+  <div class="grid">
+    <div>
+      <label>Inner Deadzone</label>
+      <input id="innerDead" type="number" min="0" max="1" step="0.01" value="0.08">
+      <div class="hint">0.00–1.00 · default ~0.08</div>
+    </div>
+    <div>
+      <label>Outer Deadzone</label>
+      <input id="outerDead" type="number" min="0" max="1" step="0.01" value="0.08">
+      <div class="hint">0.00–1.00 · default ~0.08</div>
+    </div>
+  </div>
+  <div style="margin-bottom:20px">
+    <label>Deadzone Type</label>
+    <select id="deadzoneType">
+      <option value="radial">Radial — circular, smoother 360° tracking</option>
+      <option value="axial">Axial — cross-shaped, sharper H/V axis control</option>
+    </select>
+  </div>
+
+  <h2>Display</h2>
+  <div class="grid3">
+    <div>
+      <label>Field of View</label>
+      <input id="fov" type="number" min="78" max="120" step="1" value="78">
+      <div class="hint">78–120 · console default: 78</div>
+    </div>
+    <div>
+      <label>Viewing Distance (ft)</label>
+      <input id="viewDist" type="number" min="3" max="20" step="0.5" value="8">
+      <div class="hint">How far you sit from the TV</div>
+    </div>
+    <div>
+      <label>TV Size</label>
+      <input value='60" · locked' disabled>
+      <div class="hint">60" diagonal · 16:9</div>
+    </div>
+  </div>
+
+  <button class="btn" id="runBtn" onclick="runAnalysis()">Analyze My Settings</button>
+  <div id="out"></div>
+</div>
+
+<script>
+const KEY = '${CAL_KEY}';
+
+// Pro HCS reference settings (competitive average)
+const PRO = {
+  'H Sensitivity':   { val: '3–4', note: 'most use 3' },
+  'V Sensitivity':   { val: '3–4', note: 'V = H or H−1' },
+  'Inner Deadzone':  { val: '0–5%', note: 'avg ~3%' },
+  'Outer Deadzone':  { val: '0–5%', note: 'avg ~3%' },
+  'Acceleration':    { val: '0', note: 'all use linear' },
+  'FOV':             { val: '90–100°', note: '' },
+  'Deadzone Type':   { val: 'Radial', note: 'majority' },
+};
+
+async function runAnalysis() {
+  const btn = document.getElementById('runBtn');
+  const out = document.getElementById('out');
+  const gt  = document.getElementById('gt').value.trim();
+  if (!gt) { out.innerHTML = '<div class="err">Enter your gamertag.</div>'; return; }
+  btn.disabled = true;
+  out.innerHTML = '<div style="color:var(--muted);font-size:11px;margin-top:16px"><span class="spin"></span>Analyzing your games...</div>';
+  try {
+    const r = await fetch('/api/calibrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: KEY,
+        gamertag:     gt,
+        sensitivityH: parseFloat(document.getElementById('sensH').value),
+        sensitivityV: parseFloat(document.getElementById('sensV').value),
+        acceleration: parseFloat(document.getElementById('accel').value),
+        innerDead:    parseFloat(document.getElementById('innerDead').value),
+        outerDead:    parseFloat(document.getElementById('outerDead').value),
+        deadzoneType: document.getElementById('deadzoneType').value,
+        fov:          parseFloat(document.getElementById('fov').value),
+        viewingDist:  parseFloat(document.getElementById('viewDist').value),
+        tzOffset:     new Date().getTimezoneOffset() * -1, // minutes from UTC
+      })
+    });
+    const d = await r.json();
+    if (!d.ok) { out.innerHTML = '<div class="err">Error: ' + (d.error || 'Unknown') + '</div>'; btn.disabled = false; return; }
+    renderResults(d);
+  } catch(e) {
+    out.innerHTML = '<div class="err">Request failed: ' + e.message + '</div>';
+  }
+  btn.disabled = false;
+}
+
+function scoreColor(n) {
+  return n >= 70 ? 'var(--win)' : n >= 45 ? 'var(--gold)' : 'var(--loss)';
+}
+
+function renderResults(d) {
+  const s = d.stats;
+  const warns = d.recommendations.filter(r => r.severity === 'warn').length;
+  const sc = d.consistencyScore;
+  let h = '';
+
+  // ── Summary + Consistency Score ──────────────────────────────────────────
+  h += '<div class="section-head">Summary · ' + d.games + ' games analyzed</div>';
+  h += '<div class="summary-box" style="display:flex;gap:16px;align-items:center">';
+  h += '<div class="score-ring" style="border-color:' + scoreColor(sc) + ';color:' + scoreColor(sc) + '">' + sc + '</div>';
+  h += '<div><div style="font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">CONSISTENCY SCORE / 100</div>';
+  h += '<div style="font-size:11px;line-height:1.6">' + d.summary + '</div></div>';
+  h += '</div>';
+
+  // ── Your Aim Profile ─────────────────────────────────────────────────────
+  h += '<div class="section-head">Aim Profile</div>';
+  h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:20px">';
+  h += statRow('Avg Accuracy', s.avgAccuracy + '%', s.avgAccuracy >= 50 ? 'var(--win)' : s.avgAccuracy >= 42 ? 'var(--gold)' : 'var(--loss)');
+  h += statRow('Accuracy Variance', '±' + s.accuracySd + '% game-to-game', s.accuracySd <= 6 ? 'var(--win)' : s.accuracySd <= 10 ? 'var(--gold)' : 'var(--loss)');
+  h += statRow('Avg Headshot Rate', s.avgHsRate + '% of kills', s.avgHsRate >= 45 ? 'var(--win)' : s.avgHsRate >= 32 ? 'var(--gold)' : 'var(--loss)');
+  h += statRow('Avg Shots / Kill', s.avgSpk.toFixed(1), s.avgSpk <= 7 ? 'var(--win)' : s.avgSpk <= 9 ? 'var(--gold)' : 'var(--loss)');
+  if (s.closeAccuracy != null) h += statRow('Melee-Heavy Game Accuracy', s.closeAccuracy + '%', s.closeAccuracy >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
+  if (s.closeMapAcc != null)   h += statRow('Close-Map Accuracy (' + s.closeMapCount + 'g)', s.closeMapAcc + '%', s.closeMapAcc >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
+  if (s.openMapAcc != null)    h += statRow('Open-Map Accuracy (' + s.openMapCount + 'g)', s.openMapAcc + '%', s.openMapAcc >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
+  h += statRow('Screen Angle (TV at ' + document.getElementById('viewDist').value + 'ft)', s.screenAngle + '° horizontal', 'var(--accent)');
+  h += '</div>';
+
+  // ── Session Analysis ─────────────────────────────────────────────────────
+  const sess = d.session;
+  if (sess && (sess.warmupDelta !== null || sess.fatigueDelta !== null)) {
+    h += '<div class="section-head">Session Pattern</div>';
+    h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:20px">';
+    if (sess.warmupDelta !== null) {
+      const wColor = sess.warmupDelta > 4 ? 'var(--gold)' : 'var(--win)';
+      h += statRow('Cold-Start Penalty (first game)', (sess.warmupDelta > 0 ? '-' : '+') + Math.abs(sess.warmupDelta) + '% vs session avg', wColor);
+    }
+    if (sess.fatigueDelta !== null) {
+      const fColor = sess.fatigueDelta < -4 ? 'var(--gold)' : 'var(--win)';
+      h += statRow('Late-Session Drift (last third)', (sess.fatigueDelta >= 0 ? '+' : '') + sess.fatigueDelta + '% vs early session', fColor);
+    }
+    if (sess.avgSessionLen !== null) {
+      h += statRow('Avg Session Length', sess.avgSessionLen + ' games', 'var(--muted)');
+    }
+    h += '</div>';
+  }
+
+  // ── Accuracy → Win Rate Correlation ──────────────────────────────────────
+  if (d.accWinCorr && d.accWinCorr.length >= 3) {
+    h += '<div class="section-head">Accuracy → Win Rate</div>';
+    h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:8px">';
+    if (d.winFloor !== null) {
+      h += '<div style="font-size:10px;color:var(--text);margin-bottom:10px">Win rate crosses 50% at <strong style="color:var(--win)">' + d.winFloor + '%+ accuracy</strong> — that\'s your target floor.</div>';
+    }
+    const maxWr = Math.max(...d.accWinCorr.map(b => b.wr));
+    d.accWinCorr.forEach(function(b) {
+      const wrColor = b.wr >= 55 ? 'var(--win)' : b.wr >= 45 ? 'var(--gold)' : 'var(--loss)';
+      h += '<div class="bucket-row">';
+      h += '<div class="bucket-acc">' + b.acc + '–' + (b.acc + 4) + '%</div>';
+      h += '<div class="bucket-bar-wrap"><div class="bucket-bar" style="width:' + (b.wr) + '%;background:' + wrColor + '"></div></div>';
+      h += '<div class="bucket-wr" style="color:' + wrColor + '">' + b.wr + '%</div>';
+      h += '<div class="bucket-n">' + b.n + 'g</div>';
+      h += '</div>';
+    });
+    h += '<div style="margin-top:8px;font-size:9px;color:var(--muted2)">Win rate per accuracy bucket · bar = win %</div>';
+    h += '</div>';
+  }
+
+  // ── Time of Day ───────────────────────────────────────────────────────────
+  if (d.timeOfDay && d.timeOfDay.length >= 2) {
+    h += '<div class="section-head">Performance by Time of Day</div>';
+    h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:20px">';
+    const maxTod = Math.max(...d.timeOfDay.map(t => t.avgAcc));
+    d.timeOfDay.forEach(function(t, i) {
+      const isBest = i === 0;
+      h += '<div class="tod-row">';
+      h += '<div class="tod-label" style="color:' + (isBest ? 'var(--text)' : 'var(--muted)') + '">' + t.label + (isBest ? ' ★' : '') + '</div>';
+      h += '<div class="tod-bar-wrap"><div class="tod-bar" style="width:' + Math.round(t.avgAcc / maxTod * 100) + '%;opacity:' + (isBest ? '1' : '0.5') + '"></div></div>';
+      h += '<div class="tod-val" style="color:' + (isBest ? 'var(--win)' : 'var(--muted)') + '">' + t.avgAcc + '%</div>';
+      h += '<div style="font-size:9px;color:var(--muted2);min-width:24px;text-align:right">' + t.n + 'g</div>';
+      h += '</div>';
+    });
+    h += '<div style="margin-top:8px;font-size:9px;color:var(--muted2)">Times shown in your local timezone · schedule ranked sessions during your peak window</div>';
+    h += '</div>';
+  }
+
+  // ── 60fps Context ─────────────────────────────────────────────────────────
+  h += '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--muted2);border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:10px;color:var(--muted);line-height:1.7">';
+  h += '<strong style="color:var(--text)">60fps context:</strong> Each frame renders every 16.7ms — stick corrections only register at frame boundaries, not continuously. This makes fine micro-adjustments inherently less smooth than at 120fps, which is why lower sensitivity and smaller deadzones help more at 60. ';
+  h += 'Also check your TV\'s <strong style="color:var(--gold)">Game Mode</strong> — non-game-mode TVs add 30–100ms of input lag on top of the 16.7ms frame time.';
+  h += '</div>';
+
+  // ── Pro Settings Reference ────────────────────────────────────────────────
+  const yourSettings = {
+    'H Sensitivity':  document.getElementById('sensH').value,
+    'V Sensitivity':  document.getElementById('sensV').value,
+    'Inner Deadzone': Math.round(parseFloat(document.getElementById('innerDead').value) * 100) + '%',
+    'Outer Deadzone': Math.round(parseFloat(document.getElementById('outerDead').value) * 100) + '%',
+    'Acceleration':   document.getElementById('accel').value,
+    'FOV':            document.getElementById('fov').value + '°',
+    'Deadzone Type':  document.getElementById('deadzoneType').value.charAt(0).toUpperCase() + document.getElementById('deadzoneType').value.slice(1),
+  };
+  h += '<div class="section-head">Pro Settings Reference (HCS competitive average)</div>';
+  h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:20px">';
+  h += '<div style="display:grid;grid-template-columns:1fr auto auto;gap:0;margin-bottom:6px">';
+  h += '<div style="font-size:8px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Setting</div>';
+  h += '<div style="font-size:8px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;text-align:right;margin-right:16px">Pro Avg</div>';
+  h += '<div style="font-size:8px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;text-align:right">Yours</div>';
+  h += '</div>';
+  Object.entries(PRO).forEach(function(entry) {
+    const k = entry[0], v = entry[1];
+    h += '<div class="pro-row">';
+    h += '<div class="pro-label">' + k + (v.note ? ' <span style="color:var(--muted2);font-size:9px">(' + v.note + ')</span>' : '') + '</div>';
+    h += '<div style="display:flex;gap:16px">';
+    h += '<div class="pro-val">' + v.val + '</div>';
+    h += '<div class="pro-yours">' + (yourSettings[k] || '—') + '</div>';
+    h += '</div></div>';
+  });
+  h += '</div>';
+
+  // ── Prioritized Recommendations ───────────────────────────────────────────
+  if (d.recommendations.length) {
+    h += '<div class="section-head">Recommendations — fix in this order (' + d.recommendations.length + ' · ' + warns + ' warning' + (warns !== 1 ? 's' : '') + ')</div>';
+    d.recommendations.forEach(function(rec, i) {
+      h += '<div class="rec ' + rec.severity + '">';
+      h += '<div class="rec-meta"><div class="rec-cat">' + rec.cat + '</div><div class="rec-pri">#' + (i + 1) + ' priority</div></div>';
+      h += '<div class="rec-title">' + rec.title + '</div>';
+      h += '<div class="rec-body">' + rec.body + '</div>';
+      h += '</div>';
+    });
+  } else {
+    h += '<div style="color:var(--win);font-size:11px;margin-top:4px">✓ No issues flagged — settings look good for your setup.</div>';
+  }
+
+  document.getElementById('out').innerHTML = h;
+}
+
+function statRow(label, val, color) {
+  return '<div class="stat-row"><span class="stat-label">' + label + '</span><span class="stat-val" style="color:' + color + '">' + val + '</span></div>';
+}
+</script>
+</body>
+</html>`);
+});
+
 // Start token auto-refresh (requires MS_REFRESH_TOKEN env var)
 startAutoRefresh();
 

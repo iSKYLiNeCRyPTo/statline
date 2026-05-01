@@ -404,8 +404,10 @@ function renderPerformanceBaseline(allMatches, tier) {
       var zNote  = zone && zone.sdNote ? zone.sdNote : null;
       // Show gap to pro avg
       var gap = s.val!=null&&s.pro!=null ? (s.hi ? s.pro - s.val : s.val - s.pro) : null;
+      // gap > 0 means you're below pro (need to improve) → show as negative e.g. "-0.5 vs pro"
+      // gap < 0 means you're above pro → show as positive e.g. "+0.3 vs pro"
       var gapStr = gap!=null && Math.abs(gap)>0.005
-        ? (gap>0?'+':'')+(-gap).toFixed(s.key==='WIN %'||s.key==='ACCURACY'?1:2)+(s.key==='WIN %'||s.key==='ACCURACY'?'%':'') + ' vs pro'
+        ? (gap<0?'+':'-')+Math.abs(gap).toFixed(s.key==='WIN %'||s.key==='ACCURACY'?1:2)+(s.key==='WIN %'||s.key==='ACCURACY'?'%':'') + ' vs pro'
         : gap!=null ? 'at pro avg' : '';
 
       html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+zColor+';border-radius:6px;padding:10px 12px">';
