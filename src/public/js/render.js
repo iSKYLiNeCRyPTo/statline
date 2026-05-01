@@ -183,14 +183,16 @@ function renderPerformanceBaseline(allMatches, tier) {
                    'Performing right around what the system expects';
 
   // ── Bar chart ──────────────────────────────────────────────────────────────
-  var chartGames = scored.slice(0,35).reverse();
+  var _isMobile = window.innerWidth < 768;
+  var chartGames = scored.slice(0, _isMobile ? 40 : 100).reverse();
   var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
   var HALF=44; // half chart height in px — taller for readability
   // Band represents ±0.4 normalized score units ("on par" zone).
   // Floored at 13px so outlier games don't shrink it into invisibility.
   var BAND=Math.max(13, Math.round(HALF*0.4/maxAbs));
+  // Bar width: scale down as game count grows so all bars fit without wrapping
+  var _bMaxW = chartGames.length<=40 ? 14 : chartGames.length<=70 ? 9 : 6;
 
-  var _isMobile = window.innerWidth < 768;
   var barsHtml = chartGames.map(function(g,_bi){
     var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
     var barH    = Math.max(3, Math.round(Math.abs(clamped)/maxAbs*HALF));
@@ -206,7 +208,7 @@ function renderPerformanceBaseline(allMatches, tier) {
       : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px;opacity:0.85';
     var tipAttr = tip.replace(/"/g,'&quot;');
     var touchAttr = _isMobile ? ' ontouchstart="_pbTip(this);event.preventDefault()" ' : '';
-    return '<div style="flex:1;min-width:5px;max-width:16px;height:'+(HALF*2)+'px;position:relative;cursor:default" title="'+tipAttr+'" data-tip="'+tipAttr+'"'+touchAttr+'>'
+    return '<div style="flex:1;min-width:3px;max-width:'+_bMaxW+'px;height:'+(HALF*2)+'px;position:relative;cursor:default" title="'+tipAttr+'" data-tip="'+tipAttr+'"'+touchAttr+'>'
          +  '<div style="'+barCss+'"></div>'
          +'</div>';
   }).join('');
@@ -226,7 +228,7 @@ function renderPerformanceBaseline(allMatches, tier) {
   // ── Chart ──────────────────────────────────────────────────────────────────
   html += '<div style="background:var(--surface2);border-radius:6px;padding:12px 14px 10px;margin-bottom:14px">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES</span>';
+  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES <span style="font-size:8px;letter-spacing:0;color:var(--muted2);opacity:0.7">(of '+scored.length+' scored)</span></span>';
   html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">older ← · → newer</span>';
   html += '</div>';
 
@@ -1791,7 +1793,7 @@ function render(){
     // Auto-size bars: narrow when many games
     var _bw=sparkSample.length<=30?8:sparkSample.length<=60?5:3;
     var _bg=1; // gap between bars
-    var sparkW=sparkSample.length*(_bw+_bg),sparkH=40;
+    var sparkW=sparkSample.length*(_bw+_bg),sparkH=52;
     var sparkBars=sparkSample.map(function(m,i){
       var v=m.deaths>0?(m.kills+(m.assists||0)*0.3)/m.deaths:(m.kills+(m.assists||0)*0.3);
       var h=Math.max(2,Math.round((v/sparkMax)*sparkH));
@@ -1801,7 +1803,10 @@ function render(){
     // Avg KDA line
     var avgKdaY=Math.round((1-kdaMean/sparkMax)*sparkH);
     avgKdaY=Math.max(1,Math.min(sparkH-1,avgKdaY));
-    var sparkSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+sparkW+' '+sparkH+'" width="'+sparkW+'" height="'+sparkH+'" style="display:block;border-radius:3px;overflow:hidden;max-width:100%;height:auto">'+sparkBars+'<line x1="0" y1="'+avgKdaY+'" x2="'+sparkW+'" y2="'+avgKdaY+'" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,2"/></svg>';
+    // Use width:100% so the sparkline fills its flex container on desktop instead of sitting as
+    // a narrow fixed-width strip. The viewBox + preserveAspectRatio="none" stretches bars
+    // horizontally to fill available space; height is kept fixed so bars don't become too tall.
+    var sparkSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+sparkW+' '+sparkH+'" preserveAspectRatio="none" style="display:block;border-radius:3px;overflow:hidden;width:100%;height:'+sparkH+'px">'+sparkBars+'<line x1="0" y1="'+avgKdaY+'" x2="'+sparkW+'" y2="'+avgKdaY+'" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,2"/></svg>';
 
     html+=sectionHead('Consistency Score','KDA variance across '+validMs.length+' games');
     html+='<div class="consistency-card" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:24px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
@@ -2278,22 +2283,27 @@ function render(){
     // Legend
     html+='<div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">'
       +'Per-Game &nbsp;<span style="color:var(--win)">■ Dealt</span> &nbsp;<span style="color:var(--loss)">■ Taken</span>'
+      +' &nbsp;<span style="color:var(--muted2);font-size:8px;text-transform:none">(larger behind, smaller in front)</span>'
       +'</div>';
 
-    // Stacked bar chart — dealt on top, taken below, both grow from center
-    var barH=_isMobile?48:80;
-    html+='<div style="display:flex;align-items:flex-end;gap:2px;height:'+(barH*2+4)+'px;margin-bottom:16px">';
+    // Overlay bar chart — both bars grow from the same baseline.
+    // The larger bar renders behind (full width, lower opacity) and the smaller bar
+    // sits in front (slightly inset, higher opacity) so both are always visible.
+    var barH=_isMobile?80:120;
+    html+='<div style="display:flex;align-items:flex-end;gap:2px;height:'+barH+'px;margin-bottom:16px">';
     dmgSample.forEach(function(m){
       var d=m.damageDealt||0,t=m.damageTaken||0;
-      var dh=Math.round((d/maxVal)*barH);
-      var th=Math.round((t/maxVal)*barH);
-      html+='<div style="display:flex;flex-direction:column;flex:1;min-width:0;gap:2px" title="'+(m.mapName||'')+'&#10;Dealt: '+Math.round(d).toLocaleString()+'&#10;Taken: '+Math.round(t).toLocaleString()+'">'
-        +'<div style="display:flex;flex-direction:column;justify-content:flex-end;height:'+barH+'px">'
-        +'<div style="width:100%;height:'+dh+'px;background:var(--win);border-radius:2px 2px 0 0;opacity:0.85"></div>'
-        +'</div>'
-        +'<div style="height:'+barH+'px">'
-        +'<div style="width:100%;height:'+th+'px;background:var(--loss);border-radius:0 0 2px 2px;opacity:0.75"></div>'
-        +'</div>'
+      var dh=Math.max(2,Math.round((d/maxVal)*barH));
+      var th=Math.max(2,Math.round((t/maxVal)*barH));
+      // Decide which is bigger — goes behind at full width; smaller goes in front, slightly inset
+      var bigH,bigColor,smlH,smlColor;
+      if(d>=t){bigH=dh;bigColor='var(--win)';smlH=th;smlColor='var(--loss)';}
+      else{bigH=th;bigColor='var(--loss)';smlH=dh;smlColor='var(--win)';}
+      html+='<div style="position:relative;flex:1;min-width:0;height:'+barH+'px" title="'+(m.mapName||'')+'&#10;Dealt: '+Math.round(d).toLocaleString()+'&#10;Taken: '+Math.round(t).toLocaleString()+'">'
+        // Back bar: larger value, full width, dimmer
+        +'<div style="position:absolute;bottom:0;left:0;right:0;height:'+bigH+'px;background:'+bigColor+';border-radius:2px 2px 0 0;opacity:0.45"></div>'
+        // Front bar: smaller value, 1px inset each side so back bar peeks around it, brighter
+        +'<div style="position:absolute;bottom:0;left:1px;right:1px;height:'+smlH+'px;background:'+smlColor+';border-radius:2px 2px 0 0;opacity:0.9"></div>'
         +'</div>';
     });
     html+='</div>';

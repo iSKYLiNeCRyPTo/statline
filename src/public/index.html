@@ -412,7 +412,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   /* ── Playstyle Fingerprint + Consistency Score ── */
   /* On mobile force SVG to fill full card width so the pentagon uses all available space */
   .fingerprint-card svg{width:100% !important;height:auto !important}
-  .consistency-card svg{max-width:100%;height:auto}
+  /* Consistency sparkline already uses width:100% — just ensure it doesn't overflow on mobile */
+  .consistency-card svg{max-width:100%}
   /* Big consistency score number — shrink slightly so it doesn't crowd */
   .cons-score-num{font-size:48px !important}
 }

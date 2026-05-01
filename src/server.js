@@ -1098,21 +1098,115 @@ app.post('/api/admin/pro-players', express.json(), async (req, res) => {
   const { gamertag, label } = req.body || {};
   if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
   try {
-    // Look up xuid from cache or snapshot table — player must have been searched at least once
+    // 1. Check in-memory cache
     const cached = await getFromCache(gamertag);
     let xuid = cached && cached.xuid;
+    let canonicalGt = (cached && cached.gamertag) || gamertag;
+    // 2. Try snapshot table
     if (!xuid) {
-      // Try snapshot table
       const db = await getXuidDb();
       if (db) {
-        const r = await db.query('SELECT xuid FROM player_snapshots WHERE LOWER(gamertag)=LOWER($1) LIMIT 1', [gamertag]);
-        if (r.rows.length) xuid = r.rows[0].xuid;
+        const r = await db.query('SELECT xuid, gamertag FROM player_snapshots WHERE LOWER(gamertag)=LOWER($1) LIMIT 1', [gamertag]);
+        if (r.rows.length) { xuid = r.rows[0].xuid; canonicalGt = r.rows[0].gamertag || gamertag; }
       }
     }
-    if (!xuid) return res.status(404).json({ error: 'Player not found — search them on fragr first so their stats are on record.' });
-    const canonicalGt = (cached && cached.gamertag) || gamertag;
+    // 3. Auto-lookup via Halo API — no pre-search required
+    if (!xuid) {
+      console.log(`[Admin/addPro] XUID not cached for "${gamertag}" — fetching from Halo API`);
+      const stats = await fetchPlayerStats(gamertag);
+      if (stats && stats.xuid) { xuid = stats.xuid; canonicalGt = stats.gamertag || gamertag; }
+    }
+    if (!xuid) return res.status(404).json({ error: `Could not resolve XUID for "${gamertag}" — check the gamertag spelling.` });
     await addProPlayer(xuid, canonicalGt, label || null);
-    res.json({ success: true, xuid, gamertag: canonicalGt });
+    res.json({ success: true, xuid, gamertag: canonicalGt, autoFetched: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: refresh all pro snapshots ──────────────────────────────────────────
+// Fetches fresh match history for every tracked pro and saves their snapshot.
+// Runs sequentially with a 3s gap between players to avoid hammering the API.
+// Returns immediately with { queued: n } — progress is visible via loadProPlayers().
+app.post('/api/admin/refresh-pros', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const pros = await getProPlayers();
+    if (!pros.length) return res.json({ queued: 0 });
+    res.json({ queued: pros.length });
+    // Fire and forget — runs after response is sent
+    (async () => {
+      const PVE     = ['firefight','gruntpocalypse','attrition','pve'];
+      const BAD_MAPS= ['launch site','yuletide','octagon','aimbotz'];
+      // Minimum thresholds for a valid pro snapshot.
+      // Below these = wrong account, inactive, smurf, or bad data — skip snapshot save.
+      const MIN_RANKED_MATCHES = 10;  // need at least 10 ranked games to be useful
+      const MIN_KD             = 0.7; // below 0.7 K/D is not pro-level, likely wrong account
+      const MIN_ACCURACY       = 28;  // below 28% accuracy is unreliable / non-competitive
+      const MIN_AVG_KILLS      = 5;   // below 5 avg kills per game is a data red flag
+
+      for (const pro of pros) {
+        try {
+          console.log(`[Admin/refreshPros] Fetching ${pro.gamertag}…`);
+          const playerStats = await fetchPlayerStats(pro.gamertag);
+          const histData    = await fetchMatchHistory(playerStats.xuid, pro.gamertag, 100, () => {});
+          const matches = (histData.matches || []).filter(m => {
+            if (m.isCustom) return false;
+            if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
+            if (m.mapName  && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
+            return true;
+          }).slice(0, 100);
+
+          // ── Validate data quality before saving snapshot ──────────────────
+          const rankedMs = matches.filter(m => m.isRanked && (m.outcome===2||m.outcome===3) && m.kills!=null);
+          if (rankedMs.length < MIN_RANKED_MATCHES) {
+            console.warn(`[Admin/refreshPros] ⚠ SKIP ${pro.gamertag} — only ${rankedMs.length} ranked matches (need ${MIN_RANKED_MATCHES}). Player may be inactive or gamertag may have changed.`);
+            await saveToCache(pro.gamertag, { ...playerStats, recentMatches: matches, allMatches: matches });
+            await new Promise(r => setTimeout(r, 3000)); continue;
+          }
+
+          // Compute quick inline stats from ranked matches to sanity-check
+          const totK  = rankedMs.reduce((s,m) => s+(m.kills||0), 0);
+          const totD  = rankedMs.reduce((s,m) => s+(m.deaths||0), 1); // floor at 1
+          const totW  = rankedMs.filter(m => m.outcome===2).length;
+          const accMs = rankedMs.filter(m => m.shotsHit!=null && m.shotsFired>0);
+          const kd    = totK / totD;
+          const winPct= totW / rankedMs.length * 100;
+          const acc   = accMs.length ? accMs.reduce((s,m) => s+m.shotsHit/m.shotsFired*100, 0)/accMs.length : null;
+          const avgK  = totK / rankedMs.length;
+
+          const flags = [];
+          if (kd     < MIN_KD)          flags.push(`K/D ${kd.toFixed(2)} < ${MIN_KD}`);
+          if (acc!=null && acc < MIN_ACCURACY) flags.push(`acc ${acc.toFixed(1)}% < ${MIN_ACCURACY}%`);
+          if (avgK   < MIN_AVG_KILLS)   flags.push(`avg kills ${avgK.toFixed(1)} < ${MIN_AVG_KILLS}`);
+
+          if (flags.length) {
+            console.warn(`[Admin/refreshPros] ⚠ SKIP ${pro.gamertag} — stats below pro threshold: ${flags.join(', ')}. Check gamertag or account activity.`);
+            // Cache the fetch so we don't re-hit the API, but don't save to snapshot pool
+            await saveToCache(pro.gamertag, { ...playerStats, recentMatches: matches, allMatches: matches });
+            await new Promise(r => setTimeout(r, 3000)); continue;
+          }
+
+          // Borderline warning — save but flag it
+          const warnings = [];
+          if (kd     < 1.0)  warnings.push(`K/D ${kd.toFixed(2)} (below 1.0 — low for pro)`);
+          if (winPct < 45)   warnings.push(`win rate ${winPct.toFixed(0)}% (below 45%)`);
+          if (acc!=null && acc < 40) warnings.push(`accuracy ${acc.toFixed(1)}% (below 40%)`);
+          if (warnings.length) {
+            console.warn(`[Admin/refreshPros] ⚠ WARN ${pro.gamertag} — borderline stats (saving anyway): ${warnings.join(', ')}`);
+          }
+
+          const result = { ...playerStats, recentMatches: matches, allMatches: matches };
+          await savePlayerSnapshot(result);
+          await saveToCache(pro.gamertag, result);
+          console.log(`[Admin/refreshPros] ✓ ${pro.gamertag} — ${rankedMs.length} ranked games · K/D ${kd.toFixed(2)} · acc ${acc!=null?acc.toFixed(1)+'%':'n/a'}`);
+        } catch(e) {
+          console.warn(`[Admin/refreshPros] ✗ ${pro.gamertag} — ${e.message}`);
+        }
+        // 3-second gap between players to respect API rate limits
+        await new Promise(r => setTimeout(r, 3000));
+      }
+      console.log('[Admin/refreshPros] All pros refreshed.');
+    })();
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1157,6 +1251,8 @@ app.get('/api/admin', (req, res) => {
     <input id="pro-gt" placeholder="Gamertag..." style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:180px;box-sizing:border-box">
     <input id="pro-label" placeholder="Label (optional, e.g. OpTic Snakebite)" style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:260px;box-sizing:border-box">
     <button class="action-btn" onclick="addPro()">add pro</button>
+    <button class="action-btn" onclick="seedPros()" id="seed-pros-btn">＋ seed known pros</button>
+    <button class="action-btn warn" onclick="refreshAllPros()" id="refresh-pros-btn">↻ refresh all stats</button>
     <span id="pro-msg" style="font-size:10px;color:#555"></span>
   </div>
   <div id="pro-panel" style="font-size:11px;margin-bottom:24px">Loading...</div>
@@ -1253,7 +1349,7 @@ app.get('/api/admin', (req, res) => {
         var html='<table style="width:auto;font-size:11px"><thead><tr>'
           +'<th>GAMERTAG</th><th>LABEL</th><th>RANK</th>'
           +'<th>K/D</th><th>WIN%</th><th>ACC%</th><th>K/G</th>'
-          +'<th>LAST SEARCHED</th><th>ADDED</th><th></th>'
+          +'<th>QUALITY</th><th>LAST SEARCHED</th><th>ADDED</th><th></th>'
           +'</tr></thead><tbody>';
         var unsearched=[];
         rows.forEach(function(p){
@@ -1270,7 +1366,15 @@ app.get('/api/admin', (req, res) => {
             lastSearched='<span style="color:#f44336">never searched</span>';
             unsearched.push(p.gamertag);
           }
-          html+='<tr style="'+(noSnap?'opacity:0.6':'')+'">'
+          // Flag rows whose stats are below the pro-quality threshold used in getProStats()
+          // These snapshots are excluded from the benchmark aggregate — surface that here.
+          var qualityFlags=[];
+          if(p.kd!=null&&parseFloat(p.kd)<0.7)   qualityFlags.push('K/D '+parseFloat(p.kd).toFixed(2)+' < 0.7');
+          if(p.avg_kills!=null&&parseFloat(p.avg_kills)<5) qualityFlags.push('avg kills '+parseFloat(p.avg_kills).toFixed(1)+' < 5');
+          if(p.accuracy!=null&&parseFloat(p.accuracy)<28)  qualityFlags.push('acc '+parseFloat(p.accuracy).toFixed(1)+'% < 28%');
+          var isBorderline=p.kd!=null&&(parseFloat(p.kd)<1.0||(p.win_rate!=null&&parseFloat(p.win_rate)<45)||(p.accuracy!=null&&parseFloat(p.accuracy)<40));
+          var rowStyle=qualityFlags.length?'background:rgba(244,67,54,0.07)':noSnap?'opacity:0.6':'';
+          html+='<tr style="'+rowStyle+'">'
             +'<td style="color:#00d4ff">'+p.gamertag+'</td>'
             +'<td style="color:#ffc107">'+(p.label||'—')+'</td>'
             +'<td class="muted">'+rank+'</td>'
@@ -1278,6 +1382,11 @@ app.get('/api/admin', (req, res) => {
             +'<td>'+(p.win_rate!=null?parseFloat(p.win_rate).toFixed(1)+'%':'—')+'</td>'
             +'<td>'+(p.accuracy!=null?parseFloat(p.accuracy).toFixed(1)+'%':'—')+'</td>'
             +'<td>'+(p.avg_kills!=null?parseFloat(p.avg_kills).toFixed(1):'—')+'</td>'
+            +'<td>'+(qualityFlags.length
+              ? '<span style="color:#f44336" title="Excluded from pro aggregate: '+qualityFlags.join(', ')+'">✗ excluded</span>'
+              : isBorderline && p.kd!=null
+                ? '<span style="color:#ffc107" title="Saved but borderline — check logs">⚠ borderline</span>'
+                : p.kd!=null ? '<span style="color:#4caf50">✓ ok</span>' : '<span style="color:#555">—</span>')+'</td>'
             +'<td'+staleCell+'>'+lastSearched+'</td>'
             +'<td class="muted">'+added+'</td>'
             +'<td><button class="action-btn danger" style="font-size:10px;padding:2px 7px" data-pro-xuid="'+p.xuid+'" data-pro-gt="'+p.gamertag.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">remove</button></td>'
@@ -1318,6 +1427,172 @@ app.get('/api/admin', (req, res) => {
       .then(function(r){return r.json();})
       .then(function(d){if(d.success)loadProPlayers();else alert('Error: '+(d.error||'unknown'));})
       .catch(function(e){alert('Error: '+e.message);});
+  }
+
+  // Known HCS/competitive pros — gamertag → label
+  var KNOWN_PROS=[
+    {gt:'Fragxr Stark',    label:'HCS Pro'},
+    {gt:'bubu dubu',       label:'HCS Pro'},
+    {gt:'RyaNoob Nerds',   label:'HCS Pro'},
+    {gt:'Royal 2',         label:'HCS Pro'},
+    {gt:'pznguin',         label:'HCS Pro'},
+    {gt:'Falcated',        label:'HCS Pro'},
+    {gt:'Bound',           label:'HCS Pro'},
+    {gt:'MQSE',            label:'HCS Pro'},
+    {gt:'The Eco Smith',   label:'HCS Pro'},
+    {gt:'Tapping Buttons', label:'HCS Pro'},
+    {gt:'r Sica',          label:'HCS Pro'},
+    {gt:'SLGzz',           label:'HCS Pro'},
+    {gt:'Trippy',          label:'HCS Pro'},
+    {gt:'Noblc',           label:'HCS Pro'},
+    {gt:'Rorzch',          label:'HCS Pro'},
+    {gt:'KingJay JSDescendant', label:'HCS Pro'},
+    {gt:'Druk RN',         label:'HCS Pro'},
+    {gt:'Mr Soul Snipe',   label:'HCS Pro'},
+    {gt:'Taulek',          label:'HCS Pro'},
+    {gt:'Envore',          label:'HCS Pro'},
+    {gt:'Suppressecl',     label:'HCS Pro'},
+    {gt:'Strikeyy',        label:'HCS Pro'},
+    {gt:'Barcode AK',      label:'HCS Pro'},
+    {gt:'Piggy EX',        label:'HCS Pro'},
+    {gt:'leuor',           label:'HCS Pro'},
+    {gt:'Preecisionn',     label:'HCS Pro'},
+    {gt:'Swayz',           label:'HCS Pro'},
+    {gt:'yakzn',           label:'HCS Pro'},
+    {gt:'Cearion',         label:'HCS Pro'},
+    {gt:'Scoobmeistr',     label:'HCS Pro'},
+    {gt:'svspector',       label:'HCS Pro'},
+    {gt:'flubs',           label:'HCS Pro'},
+    {gt:'aPG',             label:'HCS Pro'},
+    {gt:'l3astosS',        label:'HCS Pro'},
+    {gt:'FR IceKid',       label:'HCS Pro'},
+    {gt:'Zovay',           label:'HCS Pro'},
+    {gt:'wryceDOTexe',     label:'HCS Pro'},
+    {gt:'Knuqkles',        label:'HCS Pro'},
+    {gt:'Wutum',           label:'HCS Pro'},
+    {gt:'rrayni',          label:'HCS Pro'},
+    {gt:'Kamp',            label:'HCS Pro'},
+    {gt:'kaos clx',        label:'HCS Pro'},
+    {gt:'Guwmy',           label:'HCS Pro'},
+    {gt:'Ryscu',           label:'HCS Pro'},
+    {gt:'Mop2Clutch',      label:'HCS Pro'},
+    {gt:'jezkko',          label:'HCS Pro'},
+    {gt:'Dysectorr',       label:'HCS Pro'},
+    {gt:'ObnoxiuzZ',       label:'HCS Pro'},
+    {gt:'Little gatorz',   label:'HCS Pro'},
+    {gt:'Fate ZD',         label:'HCS Pro'},
+    {gt:'Bandamonium',     label:'HCS Pro'},
+    {gt:'Perzecute',       label:'HCS Pro'},
+    {gt:'JaggedCloud',     label:'HCS Pro'},
+    {gt:'k3llz',           label:'HCS Pro'},
+    {gt:'Frenzydxm',       label:'HCS Pro'},
+    {gt:'IamsarEX',        label:'HCS Pro'},
+    {gt:'MOUSECOP07',      label:'HCS Pro'},
+    {gt:'iiBez',           label:'HCS Pro'},
+    {gt:'Merkin 50z',      label:'HCS Pro'},
+    {gt:'Whsspprr',        label:'HCS Pro'},
+    {gt:'PROJECTROCK',     label:'HCS Pro'},
+    {gt:'CKsned',          label:'HCS Pro'},
+    {gt:'StonedJourner',   label:'HCS Pro'},
+    {gt:'AJAY5120',        label:'HCS Pro'},
+    {gt:'Mighty XL2546',   label:'HCS Pro'},
+    {gt:'Pinchy',          label:'HCS Pro'},
+    {gt:'Dxnt Jxmp',       label:'HCS Pro'},
+    {gt:'PYRO092',         label:'HCS Pro'},
+    {gt:'the suspcnse',    label:'HCS Pro'},
+    {gt:'iTF JFive',       label:'HCS Pro'},
+    {gt:'pitBvll x',       label:'HCS Pro'},
+    {gt:'JonnySwalsh',     label:'HCS Pro'},
+    {gt:'Snqga',           label:'HCS Pro'},
+    {gt:'RaneWater',       label:'HCS Pro'},
+    {gt:'Rebel1152',       label:'HCS Pro'},
+    {gt:'tomjpr',          label:'HCS Pro'},
+    {gt:'not Pr0M',        label:'HCS Pro'},
+    {gt:'Infiini',         label:'HCS Pro'},
+    {gt:'Fennvc',          label:'HCS Pro'},
+    {gt:'Sune',            label:'HCS Pro'},
+    {gt:'Mapogo Nono',     label:'HCS Pro'},
+    {gt:'I Buddaah I',     label:'HCS Pro'},
+    {gt:'Uleashedude',     label:'HCS Pro'},
+    {gt:'MisTer Baldo',    label:'HCS Pro'},
+    {gt:'i7948',           label:'HCS Pro'},
+    {gt:'RQMPAGE JT',      label:'HCS Pro'},
+    {gt:'Mifoushi',        label:'HCS Pro'},
+    {gt:'Audacity AQ',     label:'HCS Pro'},
+    {gt:'Constences',      label:'HCS Pro'},
+    {gt:'Meatsyyy',        label:'HCS Pro'},
+    {gt:'Jyon 001',        label:'HCS Pro'},
+    {gt:'FiDG3TZ',         label:'HCS Pro'},
+    {gt:'Frcnzied',        label:'HCS Pro'},
+    {gt:'zJayoo',          label:'HCS Pro'},
+    {gt:'BBuffed',         label:'HCS Pro'},
+    {gt:'TasteyFluff',     label:'HCS Pro'},
+    {gt:'uPenguinu',       label:'HCS Pro'},
+    {gt:'being03',         label:'HCS Pro'},
+    {gt:'Tuckze',          label:'HCS Pro'},
+    {gt:'Elamite',         label:'HCS Pro'},
+    {gt:'Spetter',         label:'HCS Pro'},
+    {gt:'UHL Wxsh',        label:'HCS Pro'},
+    {gt:'Mjonir',          label:'HCS Pro'},
+    {gt:'sNeilk',          label:'HCS Pro'},
+    {gt:'CrazyMiller',     label:'HCS Pro'},
+    {gt:'Awake HCS',       label:'HCS Pro'},
+    {gt:'Nebvlx',          label:'HCS Pro'},
+    {gt:'Cruvu',           label:'HCS Pro'},
+    {gt:'Euzey',           label:'HCS Pro'},
+    {gt:'Morgans6744',     label:'HCS Pro'},
+    {gt:'YNOT B RECKLESS', label:'HCS Pro'},
+    {gt:'Avucy',           label:'HCS Pro'},
+    {gt:'Xuzeyy',          label:'HCS Pro'},
+  ];
+
+  function seedPros(){
+    var btn=document.getElementById('seed-pros-btn');
+    var msg=document.getElementById('pro-msg');
+    if(!confirm('Add '+KNOWN_PROS.length+' known HCS pros? Any already tracked will be skipped.'))return;
+    btn.disabled=true;btn.textContent='adding…';
+    msg.style.color='#ffc107';msg.textContent='adding pros one by one (auto-fetching XUIDs)…';
+    var added=0,failed=[];
+    function next(i){
+      if(i>=KNOWN_PROS.length){
+        btn.disabled=false;btn.textContent='＋ seed known pros';
+        msg.style.color=failed.length?'#ffc107':'#4caf50';
+        msg.textContent='Done — '+added+' added'+(failed.length?' · failed: '+failed.join(', '):'');
+        loadProPlayers();
+        return;
+      }
+      var p=KNOWN_PROS[i];
+      fetch('/api/admin/pro-players?pass=${pass}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gamertag:p.gt,label:p.label})})
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(d.success){added++;}else{failed.push(p.gt+'('+d.error+')');}
+          msg.textContent='('+(i+1)+'/'+KNOWN_PROS.length+') '+p.gt+(d.success?' ✓':' ✗');
+          setTimeout(function(){next(i+1);},1500); // 1.5s between adds to not spam the Halo API
+        })
+        .catch(function(){failed.push(p.gt);setTimeout(function(){next(i+1);},1500);});
+    }
+    next(0);
+  }
+
+  function refreshAllPros(){
+    var btn=document.getElementById('refresh-pros-btn');
+    var msg=document.getElementById('pro-msg');
+    btn.disabled=true;btn.textContent='refreshing…';
+    msg.style.color='#ffc107';msg.textContent='fetching fresh stats for all pros — this takes ~3s per player, runs in background';
+    fetch('/api/admin/refresh-pros?pass=${pass}',{method:'POST'})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error){msg.style.color='#f44336';msg.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='↻ refresh all stats';return;}
+        msg.style.color='#ffc107';msg.textContent='Queued '+d.queued+' pros — stats will update over the next ~'+(d.queued*3)+'s. Reload the table to see progress.';
+        // Poll loadProPlayers every 10s for 3 minutes to show updates as they come in
+        var polls=0,maxPolls=Math.ceil(d.queued*3/10)+3;
+        var iv=setInterval(function(){
+          loadProPlayers();
+          polls++;
+          if(polls>=maxPolls){clearInterval(iv);btn.disabled=false;btn.textContent='↻ refresh all stats';msg.textContent='Refresh complete.';}
+        },10000);
+      })
+      .catch(function(e){msg.style.color='#f44336';msg.textContent=e.message;btn.disabled=false;btn.textContent='↻ refresh all stats';});
   }
 
   function loadCache(){

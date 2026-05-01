@@ -298,6 +298,11 @@ async function getProPlayers() {
 async function getProStats() {
   const db = await getDb();
   if (!db) return null;
+  // Quality filter: only include snapshots that look like legitimate pro-level play.
+  // Thresholds match the refresh-pros validation in server.js:
+  //   K/D >= 0.7, accuracy >= 28% (or null — not all matches record accuracy), avg_kills >= 5
+  // This prevents inactive accounts, wrong gamertags, or smurf-level data from
+  // skewing the pro aggregate used for benchmarks and aim thresholds.
   const res = await db.query(`
     SELECT s.kd, s.win_rate, s.accuracy, s.avg_kills, s.csr_tier, s.csr_value, s.ts,
            p.gamertag
@@ -305,7 +310,11 @@ async function getProStats() {
     JOIN LATERAL (
       SELECT kd, win_rate, accuracy, avg_kills, csr_tier, csr_value, ts
       FROM player_snapshots
-      WHERE xuid = p.xuid AND kd IS NOT NULL
+      WHERE xuid = p.xuid
+        AND kd        IS NOT NULL
+        AND kd        >= 0.7
+        AND avg_kills >= 5
+        AND (accuracy IS NULL OR accuracy >= 28)
       ORDER BY ts DESC LIMIT 1
     ) s ON true
   `);
