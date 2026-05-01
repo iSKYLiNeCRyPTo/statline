@@ -5,7 +5,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists } = require('./halo');
 const { startAutoRefresh } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -448,6 +448,7 @@ app.get('/api/rank-comparison', async (req, res) => {
     const peerRows = await getSnapshotsByRank(tier, subTier, csrValue);
     const next = getNextRank(tier, subTier, csrValue);
     const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier, next.csrValue) : [];
+    const proStats = await getProStats();
 
     // Label for next Onyx band
     const nextOnyxLow  = next && next.tier === 'Onyx' ? Math.min(Math.floor((next.csrValue || 1500) / 100) * 100, 1900) : null;
@@ -472,11 +473,20 @@ app.get('/api/rank-comparison', async (req, res) => {
         label: nextOnyxLabel || (next.tier === 'Onyx' ? 'Onyx' : `${next.tier} ${next.subTier}`),
         ...computeGroupStats(nextRows, null),
       } : null,
+      pro: proStats,
     });
   } catch(e) {
     console.error('[rank-comparison]', e.message);
     res.json({ available: false, reason: 'error' });
   }
+});
+
+// Public pro stats — used by the client to calibrate analysis zones
+app.get('/api/pro-stats', async (req, res) => {
+  try {
+    const stats = await getProStats();
+    res.json({ ok: true, stats: stats || null });
+  } catch(e) { res.json({ ok: false, stats: null }); }
 });
 
 // Playlist discovery — fetches the player's 25 most recent matches and returns
@@ -1038,7 +1048,48 @@ app.get('/api/admin/feedback', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Admin: search log UI ──────────────────────────────────────────────────────
+/// ── Admin: pro player management ─────────────────────────────────────────────
+app.get('/api/admin/pro-players', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  try { res.json(await getProPlayers()); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/pro-players', express.json(), async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  const { gamertag, label } = req.body || {};
+  if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
+  try {
+    // Look up xuid from cache or snapshot table — player must have been searched at least once
+    const cached = await getFromCache(gamertag);
+    let xuid = cached && cached.xuid;
+    if (!xuid) {
+      // Try snapshot table
+      const db = await getXuidDb();
+      if (db) {
+        const r = await db.query('SELECT xuid FROM player_snapshots WHERE LOWER(gamertag)=LOWER($1) LIMIT 1', [gamertag]);
+        if (r.rows.length) xuid = r.rows[0].xuid;
+      }
+    }
+    if (!xuid) return res.status(404).json({ error: 'Player not found — search them on fragr first so their stats are on record.' });
+    const canonicalGt = (cached && cached.gamertag) || gamertag;
+    await addProPlayer(xuid, canonicalGt, label || null);
+    res.json({ success: true, xuid, gamertag: canonicalGt });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/pro-players', express.json(), async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  const { xuid } = req.body || {};
+  if (!xuid) return res.status(400).json({ error: 'xuid required' });
+  try { await removeProPlayer(xuid); res.json({ success: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+/ ── Admin: search log UI ──────────────────────────────────────────────────────
 app.get('/api/admin', (req, res) => {
   const pass = req.query.pass || '';
   const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
@@ -1064,6 +1115,14 @@ app.get('/api/admin', (req, res) => {
   <div id="disc-result" style="font-size:11px;margin-bottom:24px;display:none">
     <table style="width:auto;font-size:11px"><thead><tr><th>PLAYLIST ID</th><th>NAME</th><th>EXP</th><th>MATCHES (of 25)</th></tr></thead><tbody id="disc-tbody"></tbody></table>
   </div>
+  <h2>// pro players <span style="color:#555;font-size:9px;font-weight:normal">— used as benchmark reference in rank comparison</span></h2>
+  <div class="action-row">
+    <input id="pro-gt" placeholder="Gamertag..." style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:180px;box-sizing:border-box">
+    <input id="pro-label" placeholder="Label (optional, e.g. OpTic Snakebite)" style="background:#0d1425;border:1px solid #1a2035;color:#fff;padding:6px 12px;border-radius:4px;font-family:inherit;width:260px;box-sizing:border-box">
+    <button class="action-btn" onclick="addPro()">add pro</button>
+    <span id="pro-msg" style="font-size:10px;color:#555"></span>
+  </div>
+  <div id="pro-panel" style="font-size:11px;margin-bottom:24px">Loading...</div>
   <div class="summary" id="summary">Loading...</div>
   <h2>// active cache</h2>
   <div id="cache-panel" style="font-size:11px;color:#555;margin-bottom:16px">Loading...</div>
@@ -1146,6 +1205,61 @@ app.get('/api/admin', (req, res) => {
       .catch(function(e){tbody.innerHTML='<tr><td colspan="4" style="color:#f44336">'+e.message+'</td></tr>';});
   }
 
+  function loadProPlayers(){
+    var el=document.getElementById('pro-panel');
+    el.innerHTML='<span class="muted">loading...</span>';
+    fetch('/api/admin/pro-players?pass=${pass}')
+      .then(function(r){return r.json();})
+      .then(function(rows){
+        if(!rows.length){el.innerHTML='<span class="muted">no pro players added yet</span>';return;}
+        el.innerHTML='<table style="width:auto;font-size:11px"><thead><tr><th>GAMERTAG</th><th>LABEL</th><th>RANK</th><th>K/D</th><th>WIN%</th><th>ACC%</th><th>K/G</th><th>ADDED</th><th></th></tr></thead><tbody>'
+          +rows.map(function(p){
+            var rank=p.csr_tier?(p.csr_tier+(p.csr_value?' '+p.csr_value:'')):'—';
+            var added=p.added_at?new Date(p.added_at).toLocaleDateString():'';
+            return'<tr>'
+              +'<td style="color:#00d4ff">'+p.gamertag+'</td>'
+              +'<td style="color:#ffc107">'+(p.label||'—')+'</td>'
+              +'<td class="muted">'+rank+'</td>'
+              +'<td>'+(p.kd!=null?parseFloat(p.kd).toFixed(2):'—')+'</td>'
+              +'<td>'+(p.win_rate!=null?parseFloat(p.win_rate).toFixed(1)+'%':'—')+'</td>'
+              +'<td>'+(p.accuracy!=null?parseFloat(p.accuracy).toFixed(1)+'%':'—')+'</td>'
+              +'<td>'+(p.avg_kills!=null?parseFloat(p.avg_kills).toFixed(1):'—')+'</td>'
+              +'<td class="muted">'+added+'</td>'
+              +'<td><button class="action-btn danger" style="font-size:10px;padding:2px 7px" onclick="removePro(\''+p.xuid+'\',\''+p.gamertag.replace(/'/g,"\\'")+'\')"  >remove</button></td>'
+              +'</tr>';
+          }).join('')+'</tbody></table>';
+      })
+      .catch(function(e){el.innerHTML='<span class="muted">error: '+e.message+'</span>';});
+  }
+
+  function addPro(){
+    var gt=(document.getElementById('pro-gt').value||'').trim();
+    var label=(document.getElementById('pro-label').value||'').trim();
+    var msg=document.getElementById('pro-msg');
+    if(!gt){msg.style.color='#f44336';msg.textContent='enter a gamertag';return;}
+    msg.style.color='#555';msg.textContent='adding...';
+    fetch('/api/admin/pro-players?pass=${pass}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gamertag:gt,label:label||null})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.success){
+          msg.style.color='#4caf50';msg.textContent=d.gamertag+' added';
+          document.getElementById('pro-gt').value='';document.getElementById('pro-label').value='';
+          loadProPlayers();
+        } else {
+          msg.style.color='#f44336';msg.textContent=d.error||'error';
+        }
+      })
+      .catch(function(e){msg.style.color='#f44336';msg.textContent=e.message;});
+  }
+
+  function removePro(xuid,gt){
+    if(!confirm('Remove '+gt+' from pro players?'))return;
+    fetch('/api/admin/pro-players?pass=${pass}',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({xuid:xuid})})
+      .then(function(r){return r.json();})
+      .then(function(d){if(d.success)loadProPlayers();else alert('Error: '+(d.error||'unknown'));})
+      .catch(function(e){alert('Error: '+e.message);});
+  }
+
   function loadCache(){
     fetch('/api/admin/cache-status?pass=${pass}').then(function(r){return r.json();}).then(function(d){
       var el=document.getElementById('cache-panel');
@@ -1215,7 +1329,7 @@ app.get('/api/admin', (req, res) => {
       }).join(''):'<tr><td colspan="4" class="muted">No feedback yet</td></tr>';
     }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="4" class="muted">Failed to load</td></tr>';});
   }
-  loadData();loadFeedback();loadCache();setInterval(loadData,30000);setInterval(loadFeedback,60000);setInterval(loadCache,15000);
+  loadData();loadFeedback();loadCache();loadProPlayers();setInterval(loadData,30000);setInterval(loadFeedback,60000);setInterval(loadCache,15000);
   function renderRows(rows){
     document.getElementById('tbody').innerHTML=rows.map(function(s){
       var cached=String(s.cached);

@@ -314,6 +314,100 @@ function renderPerformanceBaseline(allMatches, tier) {
     html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 4px 4px 0;padding:10px 14px">'+interp+'</div>';
   }
 
+  // ── Pro comparison panel ────────────────────────────────────────────────────
+  // Only renders when pro players have been marked in admin — gives a realistic
+  // ceiling grounded in actual top-player performance, not theoretical perfection.
+  if(proStats && proStats.count > 0){
+    // Compute player's rolling averages from the same match sample used by the chart
+    var _validGames = games.filter(function(m){return m.kills!=null&&m.deaths!=null;});
+    var _pKd   = _validGames.length ? _validGames.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0)/_validGames.length : null;
+    var _pAcc  = _validGames.filter(function(m){return m.accuracy!=null;}).length>=5
+                   ? _validGames.filter(function(m){return m.accuracy!=null;}).reduce(function(s,m){return s+parseFloat(m.accuracy);},0)
+                     / _validGames.filter(function(m){return m.accuracy!=null;}).length
+                   : null;
+    var _pWr   = _validGames.length ? _validGames.filter(function(m){return m.outcome===2;}).length/_validGames.length*100 : null;
+    var _pKpg  = _validGames.length ? _validGames.reduce(function(s,m){return s+m.kills;},0)/_validGames.length : null;
+
+    // Zone thresholds based on pro std dev scaled by rank.
+    // If pros have a std dev of X, acceptable deviation for this rank = X * multiplier.
+    // Multiplier: Onyx=1.5, Diamond=2, Platinum=2.5, Gold=3, Silver/Bronze=3.5
+    // Falls back to fixed % bands (10/25/40) when std dev data isn't available yet.
+    var _rankMult = {Onyx:1.5, Diamond:2, Platinum:2.5, Gold:3, Silver:3.5, Bronze:3.5}[tier] || 2.5;
+    function _proZone(val, proVal, proSd, higherIsBetter){
+      if(val==null||proVal==null||proVal===0) return null;
+      var gap = higherIsBetter ? proVal - val : val - proVal; // positive = you're behind
+      if(proSd != null){
+        // SD-based bands: within 1× pro SD = pro-level, within multiplier× = solid, within 2×multiplier = developing
+        var band1 = proSd;
+        var band2 = proSd * _rankMult;
+        var band3 = proSd * _rankMult * 2;
+        if(gap <= band1)  return {label:'Pro-level', color:'var(--win)',    sdNote: '≤1× pro SD'};
+        if(gap <= band2)  return {label:'Solid',      color:'var(--accent)', sdNote: '≤'+_rankMult+'× pro SD'};
+        if(gap <= band3)  return {label:'Developing', color:'var(--gold)',   sdNote: '≤'+((_rankMult*2).toFixed(0))+'× pro SD'};
+        return                   {label:'Needs work', color:'var(--loss)',   sdNote: '>'+((_rankMult*2).toFixed(0))+'× pro SD'};
+      }
+      // Fallback: fixed ratio bands when < 2 pros tracked
+      var ratio = higherIsBetter ? val/proVal : proVal/val;
+      if(ratio>=0.90) return {label:'Pro-level', color:'var(--win)',    sdNote:null};
+      if(ratio>=0.75) return {label:'Solid',      color:'var(--accent)', sdNote:null};
+      if(ratio>=0.60) return {label:'Developing', color:'var(--gold)',   sdNote:null};
+      return                  {label:'Needs work', color:'var(--loss)',   sdNote:null};
+    }
+
+    var _proStats = [
+      {key:'K/D',      val:_pKd,  pro:proStats.kd,        sd:proStats.kd_sd,        hi:true},
+      {key:'WIN %',    val:_pWr,  pro:proStats.win_rate,   sd:proStats.win_rate_sd,  hi:true},
+      {key:'ACCURACY', val:_pAcc, pro:proStats.accuracy,   sd:proStats.accuracy_sd,  hi:true},
+      {key:'K/G',      val:_pKpg, pro:proStats.avg_kills,  sd:proStats.avg_kills_sd, hi:true},
+    ];
+
+    var _hasSd = proStats.kd_sd != null; // true once ≥2 pros tracked
+    html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">';
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
+    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--gold);letter-spacing:1.5px">★ PRO REFERENCE · '+proStats.count+' pro'+(proStats.count!==1?'s':'')+' tracked</div>';
+    if(_hasSd) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">deviation bands scaled '+_rankMult+'× pro SD for '+(tier||'your rank')+'</div>';
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">';
+
+    _proStats.forEach(function(s){
+      var zone = _proZone(s.val, s.pro, s.sd, s.hi);
+      var fmt = function(v,k){
+        if(v==null) return '—';
+        if(k==='K/D'||k==='K/G') return parseFloat(v).toFixed(2);
+        return parseFloat(v).toFixed(1)+'%';
+      };
+      var youFmt = fmt(s.val, s.key);
+      var proFmt = fmt(s.pro, s.key);
+      var zColor = zone ? zone.color : 'var(--muted2)';
+      var zLabel = zone ? zone.label : '—';
+      var zNote  = zone && zone.sdNote ? zone.sdNote : null;
+      // Show gap to pro avg
+      var gap = s.val!=null&&s.pro!=null ? (s.hi ? s.pro - s.val : s.val - s.pro) : null;
+      var gapStr = gap!=null && Math.abs(gap)>0.005
+        ? (gap>0?'+':'')+(-gap).toFixed(s.key==='WIN %'||s.key==='ACCURACY'?1:2)+(s.key==='WIN %'||s.key==='ACCURACY'?'%':'') + ' vs pro'
+        : gap!=null ? 'at pro avg' : '';
+
+      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+zColor+';border-radius:6px;padding:10px 12px">';
+      html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">'+s.key+'</div>';
+      html += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px">';
+      html += '<span style="font-size:17px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+youFmt+'</span>';
+      html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">you</span>';
+      html += '</div>';
+      html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--gold);margin-bottom:4px">pro avg: '+proFmt+(s.sd!=null?' ±'+fmt(s.sd,s.key):'')+'</div>';
+      html += '<div style="font-size:9px;font-weight:600;color:'+zColor+'">'+zLabel+'</div>';
+      if(zNote) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:1px">'+zNote+'</div>';
+      else if(gapStr) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:1px">'+gapStr+'</div>';
+      html += '</div>';
+    });
+
+    html += '</div>';
+    var _footerNote = _hasSd
+      ? 'Zones: 1× pro SD = Pro-level · '+_rankMult+'× = Solid · '+(_rankMult*2).toFixed(0)+'× = Developing · beyond = Needs work'
+      : 'Add a 2nd pro player to enable SD-based deviation bands';
+    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:8px">'+_footerNote+' · based on '+_validGames.length+' recent games</div>';
+    html += '</div>';
+  }
+
   return html;
 }
 

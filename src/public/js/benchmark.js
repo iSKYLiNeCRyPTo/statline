@@ -33,37 +33,42 @@
     return 'Bottom 25%';
   }
 
-  function renderRow(key, playerVal, peerAvg, peerPct, nextAvg) {
+  function renderRow(key, playerVal, peerAvg, peerPct, nextAvg, proAvg) {
     var label = STAT_LABELS[key];
     var youStr = fmtVal(key, playerVal);
     var peerStr = fmtVal(key, peerAvg);
     var nextStr = nextAvg != null ? fmtVal(key, nextAvg) : null;
+    var proStr  = proAvg  != null ? fmtVal(key, proAvg)  : null;
     var pct = peerPct != null ? peerPct : null;
     var barColor = pct != null ? pctColor(pct) : 'var(--muted2)';
     var barWidth = pct != null ? Math.max(3, pct) : 50;
     var badge = pct != null ? pctLabel(pct) : '';
 
-    // Delta hint toward next rank
+    // Delta hint — show gap to pro avg if available, otherwise next rank
+    var deltaTarget = proAvg != null ? proAvg : nextAvg;
+    var deltaLabel  = proAvg != null ? 'vs pro' : 'vs next rank';
     var deltaHtml = '';
-    if (nextAvg != null && playerVal != null) {
-      var diff = parseFloat(nextAvg) - parseFloat(playerVal);
+    if (deltaTarget != null && playerVal != null) {
+      var diff = parseFloat(deltaTarget) - parseFloat(playerVal);
       if (Math.abs(diff) > 0.01) {
         var sign = diff > 0 ? '+' : '';
         var diffStr = sign + diff.toFixed(key === 'win_rate' || key === 'accuracy' ? 1 : 2) + STAT_UNITS[key];
-        var needColor = diff > 0 ? 'var(--loss)' : 'var(--win)'; // red if you need to improve, green if already above
-        deltaHtml = '<span style="font-size:9px;color:' + needColor + ';font-family:Share Tech Mono,monospace;margin-left:4px" title="difference from next rank avg">' + diffStr + '</span>';
+        var needColor = diff > 0 ? 'var(--loss)' : 'var(--win)';
+        deltaHtml = '<span style="font-size:9px;color:' + needColor + ';font-family:Share Tech Mono,monospace;margin-left:4px" title="' + deltaLabel + '">' + diffStr + '</span>';
       } else {
         deltaHtml = '<span style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;margin-left:4px">✓</span>';
       }
     }
 
+    var hasPro = proStr != null;
+    var cols = hasPro ? '80px 1fr 58px 58px' : '80px 1fr 70px';
     var h = '';
-    h += '<div style="display:grid;grid-template-columns:80px 1fr 70px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">';
+    h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">';
 
     // Stat label + your value
     h += '<div>';
     h += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">' + label + '</div>';
-    h += '<div style="font-size:15px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">' + youStr + '</div>';
+    h += '<div style="font-size:15px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">' + youStr + deltaHtml + '</div>';
     h += '</div>';
 
     // Progress bar + peer context
@@ -74,16 +79,21 @@
     h += '</div>';
     h += '<div style="height:5px;background:var(--surface2);border-radius:3px;position:relative;overflow:visible">';
     h += '<div style="height:100%;width:' + barWidth + '%;background:' + barColor + ';border-radius:3px;transition:width 0.6s ease;max-width:100%"></div>';
-    // Marker at 50%
     h += '<div style="position:absolute;top:-2px;left:50%;width:1px;height:9px;background:var(--border2);transform:translateX(-50%)"></div>';
     h += '</div>';
     h += '</div>';
 
+    // Pro column
+    if (hasPro) {
+      h += '<div style="text-align:right">';
+      h += '<div style="font-size:13px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">' + proStr + '</div>';
+      h += '</div>';
+    }
+
     // Next rank column
     h += '<div style="text-align:right">';
     if (nextStr) {
-      h += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">next rank</div>';
-      h += '<div style="font-size:13px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--muted)">' + nextStr + deltaHtml + '</div>';
+      h += '<div style="font-size:13px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--muted)">' + nextStr + '</div>';
     }
     h += '</div>';
 
@@ -99,6 +109,7 @@
     var playlist = data.playlist || '';
     var isArena = data.isArena;
     var allPlaylists = data.allPlaylists || [];
+    var pro = data.pro || null; // pro player aggregate stats
 
     var h = '';
     // Header
@@ -108,11 +119,9 @@
     h += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--accent);margin-top:2px">';
     h += rank.display + ' · ' + peers.count + ' players tracked';
     h += '</div>';
-    // Always show which playlist the benchmark is based on
     h += '<div style="margin-top:4px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
     h += 'benchmarking vs <span style="color:' + (isArena ? 'var(--accent)' : 'var(--gold)') + '">' + playlist + '</span> peers';
     h += '</div>';
-    // If not Arena, show what their Arena rank actually is so context is clear
     if (!isArena) {
       var arenaEntry = allPlaylists.find(function(p) { return p.label === 'Ranked Arena'; });
       if (arenaEntry) {
@@ -130,25 +139,32 @@
     }
     h += '</div>';
 
-    // Column headers for next rank area
-    h += '<div style="display:grid;grid-template-columns:80px 1fr 70px;gap:10px;margin-bottom:2px">';
+    // Column headers
+    var hasPro = pro && pro.count > 0;
+    var cols = hasPro ? '80px 1fr 58px 58px' : '80px 1fr 70px';
+    h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;margin-bottom:2px">';
     h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase">YOUR STAT</div>';
     h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:center">RANK PERCENTILE</div>';
-    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">' + (next ? next.label.toUpperCase() + ' AVG' : '') + '</div>';
+    if (hasPro) {
+      h += '<div style="font-size:8px;color:var(--gold);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">PRO AVG</div>';
+    }
+    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">' + (next ? next.label.toUpperCase() : '') + '</div>';
     h += '</div>';
 
     // Stat rows
     STAT_ORDER.forEach(function (key) {
       var playerVal = player[key];
-      var peerAvg   = peers.avg   ? peers.avg[key]         : null;
+      var peerAvg   = peers.avg        ? peers.avg[key]         : null;
       var peerPct   = peers.percentiles ? peers.percentiles[key] : null;
-      var nextAvg   = next && next.avg ? next.avg[key] : null;
-      h += renderRow(key, playerVal, peerAvg, peerPct, nextAvg);
+      var nextAvg   = next && next.avg  ? next.avg[key]          : null;
+      var proAvg    = hasPro            ? pro[key]               : null;
+      h += renderRow(key, playerVal, peerAvg, peerPct, nextAvg, proAvg);
     });
 
-    // Footer note
-    h += '<div style="margin-top:10px;font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:right">';
-    h += 'Based on players searched in the last 30 days';
+    // Footer
+    h += '<div style="margin-top:10px;font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);display:flex;justify-content:space-between">';
+    h += '<span>Based on players searched in the last 30 days</span>';
+    if (hasPro) h += '<span style="color:var(--gold)">★ ' + pro.count + ' pro' + (pro.count !== 1 ? 's' : '') + ' tracked</span>';
     h += '</div>';
 
     return h;

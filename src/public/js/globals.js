@@ -1,4 +1,6 @@
 var playerData=null,data=null,medalMeta={},expandedMatches={},fullMatchCache={},MEDAL_SHEET='/api/medal-sheet',selectedPlayer=0,searchData=null,searchMode=false,activeTab='overview',matchHistoryPage=1,matchHistoryData=null,matchHistoryLoading=false;
+var proStats=null; // aggregate stats from marked pro players — loaded once at startup
+fetch('/api/pro-stats').then(function(r){return r.json();}).then(function(d){if(d.ok&&d.stats)proStats=d.stats;}).catch(function(){});
 var _searchToken = 0; // incremented on every new doSearch — stale searches self-cancel
 
 // ── Auto-refresh polling ─────────────────────────────────────────────────────
