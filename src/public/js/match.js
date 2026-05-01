@@ -397,14 +397,21 @@ function analyzeConnectionQuality(m, modeBaselines) {
   var _hsRateOk = m.weaponStats && m.kills > 0 && (m.weaponStats.headshots / m.kills) >= 0.40;
   var _conservativePlay = _deathsWellBelow && _hsRateOk;
 
+  // If kills are at or above MMR expectation in a harder lobby, the accuracy dip is explained
+  // by opponent quality (faster movement, better evasion) — not a connection issue.
+  // A real connection problem suppresses kills AND accuracy simultaneously; exceeding kill
+  // expectation while accuracy dips rules out lag as the cause.
+  var _killsAboveExpected = m.expectedKills != null && m.kills >= m.expectedKills;
+  var _suppressAccBad = _killsAboveExpected && _mmrGap > 100;
+
   // ── POOR CONNECTION signals ──────────────────────────────────────────
   // Accuracy well below your norm — thresholds widened for harder lobbies
   var _adjAccBandStrong = _accBandStrong + _lobbyAccGrace;
   var _adjAccBandMild   = _accBandMild   + _lobbyAccGrace;
-  if(!_isObjMode&&accDelta!=null&&accDelta<=-_adjAccBandStrong){
+  if(!_suppressAccBad&&!_isObjMode&&accDelta!=null&&accDelta<=-_adjAccBandStrong){
     signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% vs your '+blOverall.avgAcc.toFixed(1)+'% avg ('+accDelta.toFixed(1)+'%) — well below your baseline'+_proAccNote+_lobbyNote});
     score-=3;
-  } else if(!_isObjMode&&accDelta!=null&&accDelta<=-_adjAccBandMild){
+  } else if(!_suppressAccBad&&!_isObjMode&&accDelta!=null&&accDelta<=-_adjAccBandMild){
     signals.push({bad:true,msg:'Accuracy '+acc.toFixed(1)+'% ('+accDelta.toFixed(1)+'% below your overall avg) — off your baseline'+_proAccNote+_lobbyNote});
     score-=2;
   }
