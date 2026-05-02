@@ -1770,7 +1770,8 @@ const CAL_KEY = process.env.CALIBRATE_KEY || 'calibrate';
 // Analysis endpoint — POST with settings JSON, returns recommendations
 app.post('/api/calibrate', express.json(), async (req, res) => {
   const { key, gamertag, sensitivityH, sensitivityV, innerDead, outerDead, fov,
-          deadzoneType, viewingDist, acceleration, tzOffset } = req.body || {};
+          deadzoneType, viewingDist, acceleration, tzOffset,
+          inputCurve, zoomSens, sprintLook, vibration } = req.body || {};
   if (key !== CAL_KEY) return res.status(401).json({ error: 'Unauthorized' });
   if (!gamertag) return res.status(400).json({ error: 'Gamertag required' });
 
@@ -1807,14 +1808,18 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   const closeAcc   = closeGames.length >= 3 ? mean(closeGames.map(gameAcc)) : null;
 
   // ── Settings ──────────────────────────────────────────────────────────────
-  const sensH  = parseFloat(sensitivityH) || 3;
-  const sensV  = parseFloat(sensitivityV) || 3;
-  const iDead  = parseFloat(innerDead)    || 0.0;
-  const oDead  = parseFloat(outerDead)    || 0.0;
-  const fovVal = parseFloat(fov)          || 78;
-  const accel  = parseFloat(acceleration) || 0;
-  const vDist  = parseFloat(viewingDist)  || 8;   // feet
-  const tzOff  = typeof tzOffset === 'number' ? tzOffset : 0; // minutes offset from UTC
+  const sensH       = parseFloat(sensitivityH) || 3;
+  const sensV       = parseFloat(sensitivityV) || 3;
+  const iDead       = parseFloat(innerDead)    || 0.0;
+  const oDead       = parseFloat(outerDead)    || 0.0;
+  const fovVal      = parseFloat(fov)          || 78;
+  const accel       = parseFloat(acceleration) || 0;
+  const vDist       = parseFloat(viewingDist)  || 8;   // feet
+  const tzOff       = typeof tzOffset === 'number' ? tzOffset : 0; // minutes offset from UTC
+  const curveVal    = (inputCurve  || 'linear').toLowerCase();
+  const zoomSensVal = parseFloat(zoomSens)  || 1.0;
+  const sprintVal   = parseFloat(sprintLook)|| 1.0;
+  const vibOn       = (vibration || 'off').toLowerCase() === 'on';
   const TV_IN  = 60;
   const tvWidthIn     = TV_IN * (16 / Math.sqrt(16**2 + 9**2));
   const screenAngleDeg = 2 * Math.atan((tvWidthIn / 2) / (vDist * 12)) * (180 / Math.PI);
@@ -1885,6 +1890,22 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
     .filter(([, arr]) => arr.length >= 3)
     .map(([label, arr]) => ({ label, avgAcc: +mean(arr).toFixed(1), n: arr.length }))
     .sort((a, b) => b.avgAcc - a.avgAcc);
+
+  // ── Scoped weapon accuracy (for zoom sens analysis) ──────────────────────
+  // Weapons that require zooming to be effective: BR, Commando, Sniper, Stalker, Skewer
+  const SCOPED_WEAPONS = ['battle rifle','br75','commando','vk78','sniper','s7 sniper','stalker rifle','skewer','campaign sniper'];
+  const scopedGames = aimGames.filter(m => {
+    if (!m.weaponStats || !m.weaponStats.topWeapon) return false;
+    const w = (m.weaponStats.topWeapon || '').toLowerCase();
+    return SCOPED_WEAPONS.some(s => w.includes(s));
+  });
+  const scopedAcc   = scopedGames.length  >= 4 ? +mean(scopedGames.map(gameAcc)).toFixed(1)  : null;
+  const unscopedGames = aimGames.filter(m => {
+    if (!m.weaponStats || !m.weaponStats.topWeapon) return false;
+    const w = (m.weaponStats.topWeapon || '').toLowerCase();
+    return !SCOPED_WEAPONS.some(s => w.includes(s));
+  });
+  const unscopedAcc = unscopedGames.length >= 4 ? +mean(unscopedGames.map(gameAcc)).toFixed(1) : null;
 
   // ── Consistency score 0–100 ───────────────────────────────────────────────
   // Weighted: accuracy level 30pts, variance 25pts, headshot rate 25pts, SPK 20pts
@@ -1996,6 +2017,48 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
     }
   }
 
+  // 10. Look Input Curve
+  if (curveVal === 'classic') {
+    note('Input Curve', 'Classic input curve adds inconsistency',
+      `Classic curve applies an ease-in at low stick deflection and ease-out near max, making tiny micro-adjustments feel mushy and flick aim feel unpredictable. Linear gives you a 1:1 stick-to-camera response — every position on the stick is consistent. Every HCS pro uses Linear. Go to Settings → Controller → Look Input Curve and switch to Linear.`,
+      'warn', 1);
+  }
+
+  // 11. Vibration
+  if (vibOn) {
+    note('Controller', 'Turn vibration off for competitive play',
+      `Controller vibration fires during explosions, gunfire hits, and melee — which means your thumbs are being physically jolted during the moments you most need precision tracking. Even small vibrations cause involuntary micro-inputs that show up as aim drift. Go to Settings → Controller → Vibration and turn it off. This is a free consistency gain.`,
+      'warn', 2);
+  }
+
+  // 12. Zoom sensitivity
+  if (zoomSensVal > 0.0) {
+    if (scopedAcc !== null && unscopedAcc !== null) {
+      const scopedGap = unscopedAcc - scopedAcc;
+      if (scopedGap > 6 && zoomSensVal > 0.7) {
+        note('Zoom Sensitivity', `Scoped accuracy (${scopedAcc}%) trails hip-fire (${unscopedAcc}%) by ${scopedGap.toFixed(1)}%`,
+          `When zoomed in, your accuracy drops significantly vs hip-fire. At zoom multiplier ${zoomSensVal.toFixed(2)}, scoped sensitivity may be too fast — you're overshooting targets when the view snaps in. Try reducing Zoom Sensitivity Multiplier to 0.6–0.75 so scoped shots feel more controlled. Settings → Controller → Zoom Sensitivity Multiplier.`,
+          'warn', 2);
+      } else if (scopedGap < -5 && zoomSensVal < 0.6) {
+        note('Zoom Sensitivity', `Hip-fire accuracy (${unscopedAcc}%) trails scoped (${scopedAcc}%) — zoom sens may be too slow`,
+          `Your scoped accuracy is actually better than hip-fire, which can mean your zoom sensitivity is set conservatively enough that you're more precise when scoped. This is fine — but if hip-fire tracking feels too fast relative to scoped, a slight increase of zoom multiplier toward 0.7–0.8 can balance the feel. Settings → Controller → Zoom Sensitivity Multiplier.`,
+          'info', 4);
+      } else if (scopedAcc !== null) {
+        // No major gap — just note the setting for reference
+        note('Zoom Sensitivity', `Zoom sensitivity ${zoomSensVal.toFixed(2)} — scoped accuracy looks consistent`,
+          `Your scoped accuracy (${scopedAcc}%) is within ${Math.abs(scopedGap).toFixed(1)}% of hip-fire (${unscopedAcc}%) — zoom sensitivity looks appropriate for your playstyle. No change needed.`,
+          'info', 6);
+      }
+    }
+  }
+
+  // 13. Relative look speed while sprinting
+  if (sprintVal < 0.9) {
+    note('Sprint Look Speed', `Sprint look speed ${sprintVal.toFixed(2)} — muscle memory mismatch`,
+      `When Relative Look Speed While Sprinting is below 1.0, your camera turns slower while sprinting than while walking. This means your muscle memory for snap-turns works differently depending on whether you came out of a sprint — a subtle inconsistency that shows up in close-range fights where sprinting into a corner is common. Set this to 1.0 in Settings → Controller → Relative Look Speed While Sprinting for consistent camera response at all speeds.`,
+      sprintVal < 0.7 ? 'warn' : 'info', 3);
+  }
+
   // Sort recommendations by priority (warnings first within same priority)
   recs.sort((a, b) => a.priority - b.priority || (b.severity === 'warn' ? 1 : 0) - (a.severity === 'warn' ? 1 : 0));
 
@@ -2020,6 +2083,8 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
       closeMapAcc, openMapAcc,
       closeMapCount: closeMapG.length,
       openMapCount:  openMapG.length,
+      scopedAcc, unscopedAcc,
+      scopedCount: scopedGames.length,
     },
     session: { warmupDelta, fatigueDelta, avgSessionLen },
     accWinCorr,
@@ -2156,6 +2221,38 @@ app.get('/calibrate', (req, res) => {
     <input type="hidden" id="deadzoneType" value="radial">
   </div>
 
+  <h2>Input Curve &amp; Controller</h2>
+  <div class="grid">
+    <div>
+      <label>Look Input Curve</label>
+      <select id="inputCurve">
+        <option value="linear">Linear</option>
+        <option value="classic">Classic</option>
+      </select>
+      <div class="hint">Settings → Controller → Look Input Curve</div>
+    </div>
+    <div>
+      <label>Zoom Sensitivity Multiplier</label>
+      <input id="zoomSens" type="number" min="0.1" max="1.0" step="0.05" value="1.0">
+      <div class="hint">0.10–1.00 · default 1.0 · Settings → Controller</div>
+    </div>
+  </div>
+  <div class="grid">
+    <div>
+      <label>Relative Look Speed While Sprinting</label>
+      <input id="sprintLook" type="number" min="0" max="1" step="0.05" value="1.0">
+      <div class="hint">0.00–1.00 · default 1.0 · Settings → Controller</div>
+    </div>
+    <div>
+      <label>Vibration</label>
+      <select id="vibration">
+        <option value="off">Off</option>
+        <option value="on">On</option>
+      </select>
+      <div class="hint">Settings → Controller · competitive players use Off</div>
+    </div>
+  </div>
+
   <h2>Display</h2>
   <div class="grid3">
     <div>
@@ -2190,12 +2287,16 @@ const KEY = '${CAL_KEY}';
 
 // Pro HCS reference settings (competitive average)
 const PRO = {
-  'H Sensitivity':   { val: '3–4', note: 'most use 3' },
-  'V Sensitivity':   { val: '3–4', note: 'V = H or H−1' },
-  'Inner Deadzone':  { val: '0–5%', note: 'avg ~3%' },
-  'Outer Deadzone':  { val: '0–5%', note: 'avg ~3%' },
-  'Acceleration':    { val: '0', note: 'all use linear' },
-  'FOV':             { val: '90–100°', note: '' },
+  'H Sensitivity':      { val: '3–4', note: 'most use 3' },
+  'V Sensitivity':      { val: '3–4', note: 'V = H or H−1' },
+  'Inner Deadzone':     { val: '0–5%', note: 'avg ~3%' },
+  'Outer Deadzone':     { val: '0–5%', note: 'avg ~3%' },
+  'Acceleration':       { val: '0', note: 'all use linear' },
+  'FOV':                { val: '90–100°', note: '' },
+  'Input Curve':        { val: 'Linear', note: 'universal' },
+  'Zoom Sensitivity':   { val: '0.75–1.0', note: 'varies by style' },
+  'Sprint Look Speed':  { val: '1.0', note: 'all pros use 1.0' },
+  'Vibration':          { val: 'Off', note: 'universal' },
 };
 
 async function runAnalysis() {
@@ -2228,6 +2329,10 @@ async function runAnalysis() {
         deadzoneType: document.getElementById('deadzoneType').value,
         fov:          parseFloat(document.getElementById('fov').value),
         viewingDist:  parseFloat(document.getElementById('viewDist').value),
+        inputCurve:   document.getElementById('inputCurve').value,
+        zoomSens:     parseFloat(document.getElementById('zoomSens').value),
+        sprintLook:   parseFloat(document.getElementById('sprintLook').value),
+        vibration:    document.getElementById('vibration').value,
         tzOffset:     new Date().getTimezoneOffset() * -1, // minutes from UTC
       })
     });
@@ -2266,8 +2371,10 @@ function renderResults(d) {
   h += statRow('Avg Headshot Rate', s.avgHsRate + '% of kills', s.avgHsRate >= 45 ? 'var(--win)' : s.avgHsRate >= 32 ? 'var(--gold)' : 'var(--loss)');
   h += statRow('Avg Shots / Kill', s.avgSpk.toFixed(1), s.avgSpk <= 7 ? 'var(--win)' : s.avgSpk <= 9 ? 'var(--gold)' : 'var(--loss)');
   if (s.closeAccuracy != null) h += statRow('Melee-Heavy Game Accuracy', s.closeAccuracy + '%', s.closeAccuracy >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
-  if (s.closeMapAcc != null)   h += statRow('Close-Map Accuracy (' + s.closeMapCount + 'g)', s.closeMapAcc + '%', s.closeMapAcc >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
-  if (s.openMapAcc != null)    h += statRow('Open-Map Accuracy (' + s.openMapCount + 'g)', s.openMapAcc + '%', s.openMapAcc >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
+  if (s.scopedAcc != null)    h += statRow('Scoped Weapon Accuracy (' + s.scopedCount + 'g)', s.scopedAcc + '%', s.scopedAcc >= s.avgAccuracy - 4 ? 'var(--win)' : s.scopedAcc >= s.avgAccuracy - 8 ? 'var(--gold)' : 'var(--loss)');
+  if (s.unscopedAcc != null)  h += statRow('Hip-Fire Accuracy', s.unscopedAcc + '%', s.unscopedAcc >= s.avgAccuracy - 4 ? 'var(--win)' : 'var(--gold)');
+  if (s.closeMapAcc != null)  h += statRow('Close-Map Accuracy (' + s.closeMapCount + 'g)', s.closeMapAcc + '%', s.closeMapAcc >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
+  if (s.openMapAcc != null)   h += statRow('Open-Map Accuracy (' + s.openMapCount + 'g)', s.openMapAcc + '%', s.openMapAcc >= s.avgAccuracy - 3 ? 'var(--win)' : 'var(--gold)');
   h += statRow('Screen Angle (TV at ' + document.getElementById('viewDist').value + 'ft)', s.screenAngle + '° horizontal', 'var(--accent)');
   h += '</div>';
 
@@ -2337,13 +2444,16 @@ function renderResults(d) {
 
   // ── Pro Settings Reference ────────────────────────────────────────────────
   const yourSettings = {
-    'H Sensitivity':  document.getElementById('sensH').value,
-    'V Sensitivity':  document.getElementById('sensV').value,
-    'Inner Deadzone': Math.round(parseFloat(document.getElementById('innerDead').value) * 100) + '%',
-    'Outer Deadzone': Math.round(parseFloat(document.getElementById('outerDead').value) * 100) + '%',
-    'Acceleration':   document.getElementById('accel').value,
-    'FOV':            document.getElementById('fov').value + '°',
-    'Deadzone Type':  document.getElementById('deadzoneType').value.charAt(0).toUpperCase() + document.getElementById('deadzoneType').value.slice(1),
+    'H Sensitivity':     document.getElementById('sensH').value,
+    'V Sensitivity':     document.getElementById('sensV').value,
+    'Inner Deadzone':    Math.round(parseFloat(document.getElementById('innerDead').value) * 100) + '%',
+    'Outer Deadzone':    Math.round(parseFloat(document.getElementById('outerDead').value) * 100) + '%',
+    'Acceleration':      document.getElementById('accel').value,
+    'FOV':               document.getElementById('fov').value + '°',
+    'Input Curve':       document.getElementById('inputCurve').options[document.getElementById('inputCurve').selectedIndex].text,
+    'Zoom Sensitivity':  document.getElementById('zoomSens').value,
+    'Sprint Look Speed': document.getElementById('sprintLook').value,
+    'Vibration':         document.getElementById('vibration').options[document.getElementById('vibration').selectedIndex].text,
   };
   h += '<div class="section-head">Pro Settings Reference (HCS competitive average)</div>';
   h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:20px">';

@@ -186,16 +186,18 @@ function renderPerformanceBaseline(allMatches, tier) {
   var _isMobile = window.innerWidth < 768;
   var chartGames = scored.slice(0, _isMobile ? 40 : 100).reverse();
   var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
-  var HALF=44; // half chart height in px — taller for readability
+  var HALF=_isMobile?50:72; // half chart height in px — taller for readability
   // Band represents ±0.4 normalized score units ("on par" zone).
-  // Floored at 13px so outlier games don't shrink it into invisibility.
-  var BAND=Math.max(13, Math.round(HALF*0.4/maxAbs));
+  // Floored so the "on par" band is always visible even when outliers compress scale.
+  var BAND=Math.max(_isMobile?13:18, Math.round(HALF*0.4/maxAbs));
   // Bar width: scale down as game count grows so all bars fit without wrapping
-  var _bMaxW = chartGames.length<=40 ? 14 : chartGames.length<=70 ? 9 : 6;
+  var _bMaxW = _isMobile
+    ? (chartGames.length<=40 ? 14 : chartGames.length<=70 ? 9 : 6)
+    : (chartGames.length<=40 ? 20 : chartGames.length<=70 ? 13 : 9);
 
   var barsHtml = chartGames.map(function(g,_bi){
     var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
-    var barH    = Math.max(3, Math.round(Math.abs(clamped)/maxAbs*HALF));
+    var barH    = Math.max(4, Math.round(Math.abs(clamped)/maxAbs*HALF));
     var color   = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
     var lobby   = g.isUnderdog?'underdog (harder lobby)':g.isFav?'favored (easier lobby)':'even lobby';
     // Tooltip: plain English, correct direction for deaths
