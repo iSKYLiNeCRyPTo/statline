@@ -2153,11 +2153,7 @@ app.get('/calibrate', (req, res) => {
     </div>
   </div>
   <div style="margin-bottom:20px">
-    <label>Deadzone Type</label>
-    <select id="deadzoneType">
-      <option value="radial">Radial — circular, smoother 360° tracking</option>
-      <option value="axial">Axial — cross-shaped, sharper H/V axis control</option>
-    </select>
+    <input type="hidden" id="deadzoneType" value="radial">
   </div>
 
   <h2>Display</h2>
@@ -2186,6 +2182,12 @@ app.get('/calibrate', (req, res) => {
 <script>
 const KEY = '${CAL_KEY}';
 
+// Auto-populate gamertag from ?player= URL param
+(function(){
+  var p = new URLSearchParams(window.location.search).get('player');
+  if(p){ var el = document.getElementById('gt'); if(el) el.value = p; }
+})();
+
 // Pro HCS reference settings (competitive average)
 const PRO = {
   'H Sensitivity':   { val: '3–4', note: 'most use 3' },
@@ -2194,14 +2196,21 @@ const PRO = {
   'Outer Deadzone':  { val: '0–5%', note: 'avg ~3%' },
   'Acceleration':    { val: '0', note: 'all use linear' },
   'FOV':             { val: '90–100°', note: '' },
-  'Deadzone Type':   { val: 'Radial', note: 'majority' },
 };
 
 async function runAnalysis() {
   const btn = document.getElementById('runBtn');
   const out = document.getElementById('out');
   const gt  = document.getElementById('gt').value.trim();
-  if (!gt) { out.innerHTML = '<div class="err">Enter your gamertag.</div>'; return; }
+  if (!gt) {
+    var gtEl = document.getElementById('gt');
+    gtEl.style.borderColor = 'var(--loss)';
+    gtEl.focus();
+    setTimeout(function(){ gtEl.style.borderColor = ''; }, 2000);
+    out.innerHTML = '<div class="err" style="font-size:13px;padding:10px 14px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.3);border-radius:6px;margin-top:12px">⚠ Enter your gamertag above first.</div>';
+    out.scrollIntoView({behavior:'smooth',block:'nearest'});
+    return;
+  }
   btn.disabled = true;
   out.innerHTML = '<div style="color:var(--muted);font-size:11px;margin-top:16px"><span class="spin"></span>Analyzing your games...</div>';
   try {
