@@ -1775,8 +1775,29 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   if (key !== CAL_KEY) return res.status(401).json({ error: 'Unauthorized' });
   if (!gamertag) return res.status(400).json({ error: 'Gamertag required' });
 
-  const player = await getFromCache(gamertag);
-  if (!player) return res.json({ ok: false, error: 'Player not in cache — search them on fragr first.' });
+  // Try cache first; if expired or missing, do a live fetch so calibration
+  // works at any time without needing a recent search on the main app.
+  let player = await getFromCache(gamertag);
+  if (!player) {
+    console.log('[Calibrate] Cache miss for', gamertag, '— fetching live from Halo API');
+    try {
+      const playerStats = await fetchPlayerStats(gamertag);
+      const histData    = await fetchMatchHistory(playerStats.xuid, gamertag, 100, () => {});
+      const PVE      = ['firefight','gruntpocalypse','attrition','pve'];
+      const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
+      const filteredMatches = (histData.matches || []).filter(m => {
+        if (m.isCustom) return false;
+        if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
+        if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
+        return true;
+      }).slice(0, 100);
+      player = { ...playerStats, allMatches: filteredMatches, recentMatches: filteredMatches };
+      await saveToCache(gamertag, player);
+    } catch(fetchErr) {
+      console.error('[Calibrate] Live fetch failed:', fetchErr.message);
+      return res.json({ ok: false, error: 'Could not load player data — check that "' + gamertag + '" is a valid Xbox gamertag and has played Halo Infinite.' });
+    }
+  }
 
   const matches = (player.allMatches || player.recentMatches || [])
     .filter(m => m && m.kills != null && !m.isCustom);
@@ -2313,7 +2334,7 @@ async function runAnalysis() {
     return;
   }
   btn.disabled = true;
-  out.innerHTML = '<div style="color:var(--muted);font-size:11px;margin-top:16px"><span class="spin"></span>Analyzing your games...</div>';
+  out.innerHTML = '<div style="color:var(--muted);font-size:11px;margin-top:16px"><span class="spin"></span>Loading your match data — this may take 10–15s if not recently searched…</div>';
   try {
     const r = await fetch('/api/calibrate', {
       method: 'POST',
