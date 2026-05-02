@@ -2335,6 +2335,7 @@ async function runAnalysis() {
   }
   btn.disabled = true;
   out.innerHTML = '<div style="color:var(--muted);font-size:11px;margin-top:16px"><span class="spin"></span>Loading your match data — this may take 10–15s if not recently searched…</div>';
+  out.scrollIntoView({behavior:'smooth',block:'start'});
   try {
     const r = await fetch('/api/calibrate', {
       method: 'POST',
@@ -2358,10 +2359,16 @@ async function runAnalysis() {
       })
     });
     const d = await r.json();
-    if (!d.ok) { out.innerHTML = '<div class="err">Error: ' + (d.error || 'Unknown') + '</div>'; btn.disabled = false; return; }
+    if (!d.ok) {
+      out.innerHTML = '<div style="font-size:13px;padding:12px 16px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.3);border-radius:6px;color:var(--loss)">⚠ ' + (d.error || 'Unknown error') + '</div>';
+      out.scrollIntoView({behavior:'smooth',block:'start'});
+      btn.disabled = false;
+      return;
+    }
     renderResults(d);
   } catch(e) {
-    out.innerHTML = '<div class="err">Request failed: ' + e.message + '</div>';
+    out.innerHTML = '<div style="font-size:13px;padding:12px 16px;background:rgba(224,80,80,0.08);border:1px solid rgba(224,80,80,0.3);border-radius:6px;color:var(--loss)">⚠ Request failed: ' + e.message + '</div>';
+    out.scrollIntoView({behavior:'smooth',block:'start'});
   }
   btn.disabled = false;
 }
@@ -2508,7 +2515,9 @@ function renderResults(d) {
     h += '<div style="color:var(--win);font-size:11px;margin-top:4px">✓ No issues flagged — settings look good for your setup.</div>';
   }
 
-  document.getElementById('out').innerHTML = h;
+  const outEl = document.getElementById('out');
+  outEl.innerHTML = h;
+  outEl.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function statRow(label, val, color) {
