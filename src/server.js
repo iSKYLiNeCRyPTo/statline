@@ -1769,9 +1769,9 @@ const CAL_KEY = process.env.CALIBRATE_KEY || 'calibrate';
 
 // Analysis endpoint — POST with settings JSON, returns recommendations
 app.post('/api/calibrate', express.json(), async (req, res) => {
-  const { key, gamertag, sensitivityH, sensitivityV, innerDead, outerDead, fov,
+  const { key, gamertag, sensitivityH, sensitivityV, innerDead, outerDead, axialDead, fov,
           deadzoneType, viewingDist, acceleration, tzOffset,
-          inputCurve, zoomSens, sprintLook, vibration } = req.body || {};
+          zoomSens, sprintLook, vibration } = req.body || {};
   if (key !== CAL_KEY) return res.status(401).json({ error: 'Unauthorized' });
   if (!gamertag) return res.status(400).json({ error: 'Gamertag required' });
 
@@ -1837,7 +1837,7 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   const accel       = parseFloat(acceleration) || 0;
   const vDist       = parseFloat(viewingDist)  || 8;   // feet
   const tzOff       = typeof tzOffset === 'number' ? tzOffset : 0; // minutes offset from UTC
-  const curveVal    = (inputCurve  || 'linear').toLowerCase();
+  const axialDeadVal = parseFloat(axialDead) >= 0 ? parseFloat(axialDead) : 0.20;
   const zoomSensVal = parseFloat(zoomSens)  || 1.0;
   const sprintVal   = parseFloat(sprintLook)|| 1.0;
   const vibOn       = (vibration || 'off').toLowerCase() === 'on';
@@ -1938,7 +1938,7 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
 
   // ── Build recommendations ─────────────────────────────────────────────────
   const recs = [];
-  const note = (cat, title, body, severity = 'info', priority = 5) => recs.push({ cat, title, body, severity, priority });
+  const note = (cat, title, body, severity = 'info', priority = 5, change = null) => recs.push({ cat, title, body, severity, priority, change });
 
   // 1. Sensitivity vs 60fps (priority 1 — biggest impact)
   const MAX_SENS_60FPS = 5;
@@ -1946,17 +1946,17 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
     const sug = Math.max(sensH - 1, MAX_SENS_60FPS);
     note('Sensitivity', `H-Sensitivity ${sensH} is high for 60fps`,
       `At 60fps each frame takes 16.7ms to render. High sensitivity maps large stick deflections to big angular jumps between frames, making micro-corrections unpredictable. Most 60fps players perform best at 4–5H. Your accuracy of ${avgAcc.toFixed(1)}% ${avgAcc < 43 ? `supports lowering — try ${sug}H first.` : `is reasonable, but you may find ${sug}H even cleaner on a 60" TV.`}`,
-      avgAcc < 43 ? 'warn' : 'info', 1);
+      avgAcc < 43 ? 'warn' : 'info', 1, `H-Sensitivity: ${sensH} → ${sug}`);
   } else if (sensH < 3 && avgAcc < 42 && avgHs > 40) {
     note('Sensitivity', `H-Sensitivity ${sensH} may be too low`,
       `Your headshot rate (${avgHs.toFixed(0)}%) is decent but overall accuracy (${avgAcc.toFixed(1)}%) is low — you're precise when still but missing strafing targets. Try raising H-Sensitivity by 1 to improve lateral tracking.`,
-      'warn', 1);
+      'warn', 1, `H-Sensitivity: ${sensH} → ${sensH + 1}`);
   }
 
   if (Math.abs(sensH - sensV) > 1) {
     note('Sensitivity', `H/V sensitivity gap (${sensH}H vs ${sensV}V)`,
       `A gap larger than 1 between axes can cause aim to feel "sticky" vertically or horizontally. Most players use V = H or V = H−1. Consider bringing them closer together.`,
-      'info', 2);
+      'info', 2, `V-Sensitivity: ${sensV} → ${sensH} or ${sensH - 1}`);
   }
 
   // 2. Deadzone analysis (priority 2)
@@ -1964,37 +1964,37 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
     const closePart = closeAcc != null
       ? ` Your close-range accuracy (${closeAcc.toFixed(1)}%) ${closeAcc < avgAcc - 5 ? 'drops vs your overall average — consistent with a large deadzone masking micro-adjustments in CQB.' : 'holds up — but you may still feel sluggishness on slow tracking shots.'}`
       : '';
-    note('Deadzone', `Inner Deadzone ${(iDead * 100).toFixed(0)}% is large`,
-      `A large inner deadzone creates a dead spot where small stick movements do nothing — fine micro-adjustments and slow tracking shots feel unresponsive. Try reducing to 5–8% (0.05–0.08). If your stick drifts at lower values, try 3–5% first.${closePart}`,
-      iDead > 0.15 ? 'warn' : 'info', 2);
+    note('Deadzone', `Center Deadzone ${(iDead * 100).toFixed(0)}% is large`,
+      `A large center deadzone creates a dead spot where small stick movements do nothing — fine micro-adjustments and slow tracking shots feel unresponsive. Try reducing to 5–8% (0.05–0.08). If your stick drifts at lower values, try 3–5% first.${closePart}`,
+      iDead > 0.15 ? 'warn' : 'info', 2, `Center Deadzone: ${(iDead * 100).toFixed(0)}% → 5–8%`);
   } else if (iDead < 0.03 && accSd > 8) {
-    note('Deadzone', `Inner Deadzone ${(iDead * 100).toFixed(0)}% may be too low`,
-      `Very low inner deadzone with high game-to-game accuracy variance (±${accSd.toFixed(1)}%) can mean stick drift is bleeding into your aim when you think you're still. Try 3–5% and watch if consistency improves.`,
-      'info', 2);
+    note('Deadzone', `Center Deadzone ${(iDead * 100).toFixed(0)}% may be too low`,
+      `Very low center deadzone with high game-to-game accuracy variance (±${accSd.toFixed(1)}%) can mean stick drift is bleeding into your aim when you think you're still. Try 3–5% and watch if consistency improves.`,
+      'info', 2, `Center Deadzone: ${(iDead * 100).toFixed(0)}% → 3–5%`);
   }
 
   if (oDead > 0.12) {
-    note('Deadzone', `Outer Deadzone ${(oDead * 100).toFixed(0)}% limits max turn speed`,
-      `Above ~10% outer deadzone you may never reach full rotation speed — 180° snap-turns feel slow and you'll get outmaneuvered by flankers. Try reducing to 5–8% (0.05–0.08).`,
-      'warn', 2);
+    note('Deadzone', `Max Input Threshold ${(oDead * 100).toFixed(0)}% limits max turn speed`,
+      `Above ~10% max input threshold you may never reach full rotation speed — 180° snap-turns feel slow and you'll get outmaneuvered by flankers. Try reducing to 5–8% (0.05–0.08).`,
+      'warn', 2, `Max Input Threshold: ${(oDead * 100).toFixed(0)}% → 5–8%`);
   }
 
   // 3. Acceleration (priority 3)
   if (accel > 2) {
     note('Sensitivity', `Acceleration ${accel} adds unpredictable ramping at 60fps`,
       `Acceleration ramps speed as you push the stick further. At 120fps the ramp feels smooth; at 60fps the frames between ramp steps are visible as stuttery over-rotation. For 60fps, 0–1 acceleration is almost universally preferred — it makes aim predictable and consistent.`,
-      'warn', 3);
+      'warn', 3, `Acceleration: ${accel} → 0`);
   }
 
   // 4. FOV (priority 4)
   if (fovVal > 100 && screenAngleDeg < 30) {
     note('FOV', `FOV ${fovVal}° is high for your ${vDist}ft viewing distance`,
       `From ${vDist}ft your 60" TV subtends ~${screenAngleDeg.toFixed(0)}° of your horizontal vision. At game FOV ${fovVal}° targets are quite small — each pixel of stick error is amplified. Try 90–95° for better target size and aim feel at this distance.`,
-      'info', 4);
+      'info', 4, `FOV: ${fovVal}° → 90–95°`);
   } else if (fovVal < 90 && screenAngleDeg > 35) {
     note('FOV', `FOV ${fovVal}° is conservative — you can safely go higher`,
       `Your 60" TV at ${vDist}ft gives ~${screenAngleDeg.toFixed(0)}° of real horizontal vision. FOV ${fovVal}° leaves peripheral awareness on the table. Bumping to 95–100° adds game awareness without meaningfully shrinking targets.`,
-      'info', 4);
+      'info', 4, `FOV: ${fovVal}° → 95–100°`);
   }
 
   // 5. Deadzone type (priority 5)
@@ -2007,49 +2007,49 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   // 6. Consistency from accSd (priority 2)
   if (accSd > 10) {
     note('Consistency', `High accuracy variance ±${accSd.toFixed(1)}% game-to-game`,
-      `Large swings in per-game accuracy usually mean something external is affecting your input — stick drift, inconsistent grip pressure, or fatigue. Both too-large and too-small inner deadzones can cause this. Check your sticks with a deadzone visualizer app.`,
-      'warn', 2);
+      `Large swings in per-game accuracy usually mean something external is affecting your input — stick drift, inconsistent grip pressure, or fatigue. Both too-large and too-small center deadzones can cause this. Check your sticks with a deadzone visualizer app.`,
+      'warn', 2, 'Check sticks for drift · adjust Center Deadzone to 3–8%');
   }
 
   // 7. Session warm-up (priority 3)
   if (warmupDelta !== null && warmupDelta > 4) {
     note('Session', `Cold-aim drop: ~${warmupDelta.toFixed(1)}% accuracy in your first game`,
       `Your first game of each session runs ${warmupDelta.toFixed(1)}% lower accuracy than the rest of that session — you need a warm-up period. This makes your settings feel inconsistent cold. Either treat your first game as a throw-away warm-up, or lower sensitivity by 1 so the cost of cold aim is smaller.`,
-      'info', 3);
+      'info', 3, `Play 1 warm-up game before ranked · or try H-Sensitivity: ${sensH} → ${sensH - 1}`);
   }
 
   // 8. Session fatigue (priority 3)
   if (fatigueDelta !== null && fatigueDelta < -4) {
     note('Session', `Fatigue drop: ~${Math.abs(fatigueDelta).toFixed(1)}% accuracy late in sessions`,
       `Your accuracy drops ~${Math.abs(fatigueDelta).toFixed(1)}% by the end of long sessions. Fatigue causes your grip to loosen, which can make high sensitivity feel out of control. Consider capping ranked sessions at ${avgSessionLen ? avgSessionLen - 2 : 6} games, or taking a 10-minute break halfway through.`,
-      'info', 3);
+      'info', 3, `Cap sessions at ${avgSessionLen ? avgSessionLen - 2 : 6} games · take breaks`);
   }
 
   // 9. Map type gap (priority 2)
   if (closeMapAcc !== null && openMapAcc !== null && Math.abs(closeMapAcc - openMapAcc) > 5) {
     if (closeMapAcc < openMapAcc - 5) {
       note('Map Profile', `CQB accuracy (${closeMapAcc}%) vs open-map (${openMapAcc}%) — gap of ${(openMapAcc - closeMapAcc).toFixed(1)}%`,
-        `You aim better on open maps than in close-quarters. In CQB the inner deadzone limits fast micro-corrections, or your sensitivity is too high for the snap-tracking required at close range. Try reducing inner deadzone to 3–6% and see if Streets/Empyrean feel more responsive.`,
-        'info', 2);
+        `You aim better on open maps than in close-quarters. In CQB the center deadzone limits fast micro-corrections, or your sensitivity is too high for the snap-tracking required at close range. Try reducing center deadzone to 3–6% and see if Streets/Empyrean feel more responsive.`,
+        'info', 2, `Center Deadzone: ${(iDead * 100).toFixed(0)}% → 3–6%`);
     } else {
       note('Map Profile', `Open-map accuracy (${openMapAcc}%) trails CQB (${closeMapAcc}%) — gap of ${(closeMapAcc - openMapAcc).toFixed(1)}%`,
         `You aim better in close-quarters than on open maps. Long-range strafe tracking requires more consistent lateral tracking — your sensitivity may be too low to track targets strafing at distance. Try raising H-Sensitivity by 1 to improve strafe-following on Aquarius/Recharge.`,
-        'info', 2);
+        'info', 2, `H-Sensitivity: ${sensH} → ${sensH + 1}`);
     }
   }
 
-  // 10. Look Input Curve
-  if (curveVal === 'classic') {
-    note('Input Curve', 'Classic input curve adds inconsistency',
-      `Classic curve applies an ease-in at low stick deflection and ease-out near max, making tiny micro-adjustments feel mushy and flick aim feel unpredictable. Linear gives you a 1:1 stick-to-camera response — every position on the stick is consistent. Every HCS pro uses Linear. Go to Settings → Controller → Look Input Curve and switch to Linear.`,
-      'warn', 1);
+  // 10. Axial Deadzone
+  if (axialDeadVal > 0.15) {
+    note('Deadzone', `Axial Deadzone ${(axialDeadVal * 100).toFixed(0)}% limits diagonal tracking`,
+      'Axial deadzone creates a dead band on purely horizontal and vertical stick movement. Above ~15% it starts killing diagonal aim — turns feel like they snap to cardinal directions rather than moving smoothly. Most pros run 0–10%. Try dropping to 10% and see if diagonal tracking feels cleaner.',
+      axialDeadVal > 0.25 ? 'warn' : 'info', 2, `Axial Deadzone: ${(axialDeadVal * 100).toFixed(0)}% → 10%`);
   }
 
   // 11. Vibration
   if (vibOn) {
     note('Controller', 'Turn vibration off for competitive play',
       `Controller vibration fires during explosions, gunfire hits, and melee — which means your thumbs are being physically jolted during the moments you most need precision tracking. Even small vibrations cause involuntary micro-inputs that show up as aim drift. Go to Settings → Controller → Vibration and turn it off. This is a free consistency gain.`,
-      'warn', 2);
+      'warn', 2, 'Vibration: On → Off');
   }
 
   // 12. Zoom sensitivity
@@ -2059,11 +2059,11 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
       if (scopedGap > 6 && zoomSensVal > 0.7) {
         note('Zoom Sensitivity', `Scoped accuracy (${scopedAcc}%) trails hip-fire (${unscopedAcc}%) by ${scopedGap.toFixed(1)}%`,
           `When zoomed in, your accuracy drops significantly vs hip-fire. At zoom multiplier ${zoomSensVal.toFixed(2)}, scoped sensitivity may be too fast — you're overshooting targets when the view snaps in. Try reducing Zoom Sensitivity Multiplier to 0.6–0.75 so scoped shots feel more controlled. Settings → Controller → Zoom Sensitivity Multiplier.`,
-          'warn', 2);
+          'warn', 2, `Zoom Sensitivity: ${zoomSensVal.toFixed(2)} → 0.60–0.75`);
       } else if (scopedGap < -5 && zoomSensVal < 0.6) {
         note('Zoom Sensitivity', `Hip-fire accuracy (${unscopedAcc}%) trails scoped (${scopedAcc}%) — zoom sens may be too slow`,
           `Your scoped accuracy is actually better than hip-fire, which can mean your zoom sensitivity is set conservatively enough that you're more precise when scoped. This is fine — but if hip-fire tracking feels too fast relative to scoped, a slight increase of zoom multiplier toward 0.7–0.8 can balance the feel. Settings → Controller → Zoom Sensitivity Multiplier.`,
-          'info', 4);
+          'info', 4, `Zoom Sensitivity: ${zoomSensVal.toFixed(2)} → 0.70–0.80`);
       } else if (scopedAcc !== null) {
         // No major gap — just note the setting for reference
         note('Zoom Sensitivity', `Zoom sensitivity ${zoomSensVal.toFixed(2)} — scoped accuracy looks consistent`,
@@ -2077,7 +2077,7 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   if (sprintVal < 0.9) {
     note('Sprint Look Speed', `Sprint look speed ${sprintVal.toFixed(2)} — muscle memory mismatch`,
       `When Relative Look Speed While Sprinting is below 1.0, your camera turns slower while sprinting than while walking. This means your muscle memory for snap-turns works differently depending on whether you came out of a sprint — a subtle inconsistency that shows up in close-range fights where sprinting into a corner is common. Set this to 1.0 in Settings → Controller → Relative Look Speed While Sprinting for consistent camera response at all speeds.`,
-      sprintVal < 0.7 ? 'warn' : 'info', 3);
+      sprintVal < 0.7 ? 'warn' : 'info', 3, `Sprint Look Speed: ${sprintVal.toFixed(2)} → 1.00`);
   }
 
   // Sort recommendations by priority (warnings first within same priority)
@@ -2226,43 +2226,38 @@ app.get('/calibrate', (req, res) => {
   </div>
 
   <h2>Deadzones</h2>
-  <div class="grid">
+  <div class="grid3">
     <div>
-      <label>Inner Deadzone</label>
+      <label>Center Deadzone</label>
       <input id="innerDead" type="number" min="0" max="1" step="0.01" value="0.08">
-      <div class="hint">0.00–1.00 · default ~0.08</div>
+      <div class="hint">0.00–1.00 · default ~0.08 · Settings → Controller</div>
     </div>
     <div>
-      <label>Outer Deadzone</label>
+      <label>Max Input Threshold</label>
       <input id="outerDead" type="number" min="0" max="1" step="0.01" value="0.08">
-      <div class="hint">0.00–1.00 · default ~0.08</div>
+      <div class="hint">0.00–1.00 · default ~0.08 · Settings → Controller</div>
+    </div>
+    <div>
+      <label>Axial Deadzone</label>
+      <input id="axialDead" type="number" min="0" max="1" step="0.01" value="0.20">
+      <div class="hint">0.00–1.00 · default ~0.20 · Settings → Controller</div>
     </div>
   </div>
   <div style="margin-bottom:20px">
     <input type="hidden" id="deadzoneType" value="radial">
   </div>
 
-  <h2>Input Curve &amp; Controller</h2>
-  <div class="grid">
-    <div>
-      <label>Look Input Curve</label>
-      <select id="inputCurve">
-        <option value="linear">Linear</option>
-        <option value="classic">Classic</option>
-      </select>
-      <div class="hint">Settings → Controller → Look Input Curve</div>
-    </div>
+  <h2>Controller</h2>
+  <div class="grid3">
     <div>
       <label>Zoom Sensitivity Multiplier</label>
       <input id="zoomSens" type="number" min="0.1" max="1.0" step="0.05" value="1.0">
-      <div class="hint">0.10–1.00 · default 1.0 · Settings → Controller</div>
+      <div class="hint">0.10–1.00 · default 1.0</div>
     </div>
-  </div>
-  <div class="grid">
     <div>
       <label>Relative Look Speed While Sprinting</label>
       <input id="sprintLook" type="number" min="0" max="1" step="0.05" value="1.0">
-      <div class="hint">0.00–1.00 · default 1.0 · Settings → Controller</div>
+      <div class="hint">0.00–1.00 · default 1.0</div>
     </div>
     <div>
       <label>Vibration</label>
@@ -2270,7 +2265,7 @@ app.get('/calibrate', (req, res) => {
         <option value="off">Off</option>
         <option value="on">On</option>
       </select>
-      <div class="hint">Settings → Controller · competitive players use Off</div>
+      <div class="hint">Settings → Controller · pros use Off</div>
     </div>
   </div>
 
@@ -2310,11 +2305,11 @@ const KEY = '${CAL_KEY}';
 const PRO = {
   'H Sensitivity':      { val: '3–4', note: 'most use 3' },
   'V Sensitivity':      { val: '3–4', note: 'V = H or H−1' },
-  'Inner Deadzone':     { val: '0–5%', note: 'avg ~3%' },
-  'Outer Deadzone':     { val: '0–5%', note: 'avg ~3%' },
+  'Center Deadzone':    { val: '0–5%', note: 'avg ~3%' },
+  'Max Input Threshold':{ val: '0–5%', note: 'avg ~3%' },
+  'Axial Deadzone':     { val: '0–10%', note: 'lower = better diagonal tracking' },
   'Acceleration':       { val: '0', note: 'all use linear' },
   'FOV':                { val: '90–100°', note: '' },
-  'Input Curve':        { val: 'Linear', note: 'universal' },
   'Zoom Sensitivity':   { val: '0.75–1.0', note: 'varies by style' },
   'Sprint Look Speed':  { val: '1.0', note: 'all pros use 1.0' },
   'Vibration':          { val: 'Off', note: 'universal' },
@@ -2348,10 +2343,10 @@ async function runAnalysis() {
         acceleration: parseFloat(document.getElementById('accel').value),
         innerDead:    parseFloat(document.getElementById('innerDead').value),
         outerDead:    parseFloat(document.getElementById('outerDead').value),
+        axialDead:    parseFloat(document.getElementById('axialDead').value),
         deadzoneType: document.getElementById('deadzoneType').value,
         fov:          parseFloat(document.getElementById('fov').value),
         viewingDist:  parseFloat(document.getElementById('viewDist').value),
-        inputCurve:   document.getElementById('inputCurve').value,
         zoomSens:     parseFloat(document.getElementById('zoomSens').value),
         sprintLook:   parseFloat(document.getElementById('sprintLook').value),
         vibration:    document.getElementById('vibration').value,
@@ -2474,11 +2469,11 @@ function renderResults(d) {
   const yourSettings = {
     'H Sensitivity':     document.getElementById('sensH').value,
     'V Sensitivity':     document.getElementById('sensV').value,
-    'Inner Deadzone':    Math.round(parseFloat(document.getElementById('innerDead').value) * 100) + '%',
-    'Outer Deadzone':    Math.round(parseFloat(document.getElementById('outerDead').value) * 100) + '%',
+    'Center Deadzone':    Math.round(parseFloat(document.getElementById('innerDead').value) * 100) + '%',
+    'Max Input Threshold':Math.round(parseFloat(document.getElementById('outerDead').value) * 100) + '%',
+    'Axial Deadzone':     Math.round(parseFloat(document.getElementById('axialDead').value) * 100) + '%',
     'Acceleration':      document.getElementById('accel').value,
     'FOV':               document.getElementById('fov').value + '°',
-    'Input Curve':       document.getElementById('inputCurve').options[document.getElementById('inputCurve').selectedIndex].text,
     'Zoom Sensitivity':  document.getElementById('zoomSens').value,
     'Sprint Look Speed': document.getElementById('sprintLook').value,
     'Vibration':         document.getElementById('vibration').options[document.getElementById('vibration').selectedIndex].text,
@@ -2505,9 +2500,18 @@ function renderResults(d) {
   if (d.recommendations.length) {
     h += '<div class="section-head">Recommendations — fix in this order (' + d.recommendations.length + ' · ' + warns + ' warning' + (warns !== 1 ? 's' : '') + ')</div>';
     d.recommendations.forEach(function(rec, i) {
+      var isWarn = rec.severity === 'warn';
+      var accentColor = isWarn ? 'var(--gold)' : 'var(--accent)';
       h += '<div class="rec ' + rec.severity + '">';
       h += '<div class="rec-meta"><div class="rec-cat">' + rec.cat + '</div><div class="rec-pri">#' + (i + 1) + ' priority</div></div>';
       h += '<div class="rec-title">' + rec.title + '</div>';
+      if (rec.change) {
+        h += '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border:1px solid ' + accentColor + ';border-radius:4px;padding:6px 12px;margin:8px 0 10px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;color:' + accentColor + '">';
+        h += '<span style="font-size:9px;letter-spacing:1.5px;opacity:0.7;text-transform:uppercase">SET THIS</span>';
+        h += '<span style="color:var(--muted2)">|</span>';
+        h += rec.change;
+        h += '</div>';
+      }
       h += '<div class="rec-body">' + rec.body + '</div>';
       h += '</div>';
     });
