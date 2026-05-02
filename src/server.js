@@ -2430,7 +2430,7 @@ function renderResults(d) {
     h += '<div class="section-head">Accuracy → Win Rate</div>';
     h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 16px;margin-bottom:8px">';
     if (d.winFloor !== null) {
-      h += '<div style="font-size:10px;color:var(--text);margin-bottom:10px">Win rate crosses 50% at <strong style="color:var(--win)">' + d.winFloor + '%+ accuracy</strong> — that\'s your target floor.</div>';
+      h += '<div style="font-size:10px;color:var(--text);margin-bottom:10px">Win rate crosses 50% at <strong style="color:var(--win)">' + d.winFloor + '%+ accuracy</strong> — that\\'s your target floor.</div>';
     }
     const maxWr = Math.max(...d.accWinCorr.map(b => b.wr));
     d.accWinCorr.forEach(function(b) {
@@ -2467,7 +2467,7 @@ function renderResults(d) {
   // ── 60fps Context ─────────────────────────────────────────────────────────
   h += '<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--muted2);border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:10px;color:var(--muted);line-height:1.7">';
   h += '<strong style="color:var(--text)">60fps context:</strong> Each frame renders every 16.7ms — stick corrections only register at frame boundaries, not continuously. This makes fine micro-adjustments inherently less smooth than at 120fps, which is why lower sensitivity and smaller deadzones help more at 60. ';
-  h += 'Also check your TV\'s <strong style="color:var(--gold)">Game Mode</strong> — non-game-mode TVs add 30–100ms of input lag on top of the 16.7ms frame time.';
+  h += 'Also check your TV\\'s <strong style="color:var(--gold)">Game Mode</strong> — non-game-mode TVs add 30–100ms of input lag on top of the 16.7ms frame time.';
   h += '</div>';
 
   // ── Pro Settings Reference ────────────────────────────────────────────────
