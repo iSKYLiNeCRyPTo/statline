@@ -2229,18 +2229,18 @@ app.get('/calibrate', (req, res) => {
   <div class="grid3">
     <div>
       <label>Center Deadzone</label>
-      <input id="innerDead" type="number" min="0" max="1" step="0.01" value="0.08">
-      <div class="hint">0.00–1.00 · default ~0.08 · Settings → Controller</div>
+      <input id="innerDead" type="number" min="0" max="100" step="0.5" value="8">
+      <div class="hint">0–100 in 0.5 steps · default ~8 · Settings → Controller</div>
     </div>
     <div>
       <label>Max Input Threshold</label>
-      <input id="outerDead" type="number" min="0" max="1" step="0.01" value="0.08">
-      <div class="hint">0.00–1.00 · default ~0.08 · Settings → Controller</div>
+      <input id="outerDead" type="number" min="0" max="100" step="0.5" value="8">
+      <div class="hint">0–100 in 0.5 steps · default ~8 · Settings → Controller</div>
     </div>
     <div>
       <label>Axial Deadzone</label>
-      <input id="axialDead" type="number" min="0" max="1" step="0.01" value="0.20">
-      <div class="hint">0.00–1.00 · default ~0.20 · Settings → Controller</div>
+      <input id="axialDead" type="number" min="0" max="100" step="0.5" value="20">
+      <div class="hint">0–100 in 0.5 steps · default ~20 · Settings → Controller</div>
     </div>
   </div>
   <div style="margin-bottom:20px">
@@ -2341,9 +2341,9 @@ async function runAnalysis() {
         sensitivityH: parseFloat(document.getElementById('sensH').value),
         sensitivityV: parseFloat(document.getElementById('sensV').value),
         acceleration: parseFloat(document.getElementById('accel').value),
-        innerDead:    parseFloat(document.getElementById('innerDead').value),
-        outerDead:    parseFloat(document.getElementById('outerDead').value),
-        axialDead:    parseFloat(document.getElementById('axialDead').value),
+        innerDead:    parseFloat(document.getElementById('innerDead').value) / 100,
+        outerDead:    parseFloat(document.getElementById('outerDead').value) / 100,
+        axialDead:    parseFloat(document.getElementById('axialDead').value) / 100,
         deadzoneType: document.getElementById('deadzoneType').value,
         fov:          parseFloat(document.getElementById('fov').value),
         viewingDist:  parseFloat(document.getElementById('viewDist').value),
@@ -2469,9 +2469,9 @@ function renderResults(d) {
   const yourSettings = {
     'H Sensitivity':     document.getElementById('sensH').value,
     'V Sensitivity':     document.getElementById('sensV').value,
-    'Center Deadzone':    Math.round(parseFloat(document.getElementById('innerDead').value) * 100) + '%',
-    'Max Input Threshold':Math.round(parseFloat(document.getElementById('outerDead').value) * 100) + '%',
-    'Axial Deadzone':     Math.round(parseFloat(document.getElementById('axialDead').value) * 100) + '%',
+    'Center Deadzone':    document.getElementById('innerDead').value + '%',
+    'Max Input Threshold':document.getElementById('outerDead').value + '%',
+    'Axial Deadzone':     document.getElementById('axialDead').value + '%',
     'Acceleration':      document.getElementById('accel').value,
     'FOV':               document.getElementById('fov').value + '°',
     'Zoom Sensitivity':  document.getElementById('zoomSens').value,
