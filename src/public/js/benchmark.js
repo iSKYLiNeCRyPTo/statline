@@ -54,46 +54,46 @@
         var sign = diff > 0 ? '+' : '';
         var diffStr = sign + diff.toFixed(key === 'win_rate' || key === 'accuracy' ? 1 : 2) + STAT_UNITS[key];
         var needColor = diff > 0 ? 'var(--loss)' : 'var(--win)';
-        deltaHtml = '<span style="font-size:9px;color:' + needColor + ';font-family:Share Tech Mono,monospace;margin-left:4px" title="' + deltaLabel + '">' + diffStr + '</span>';
+        deltaHtml = '<span style="font-size:11px;color:' + needColor + ';font-family:Share Tech Mono,monospace;margin-left:4px" title="' + deltaLabel + '">' + diffStr + '</span>';
       } else {
-        deltaHtml = '<span style="font-size:9px;color:var(--win);font-family:Share Tech Mono,monospace;margin-left:4px">✓</span>';
+        deltaHtml = '<span style="font-size:11px;color:var(--win);font-family:Share Tech Mono,monospace;margin-left:4px">✓</span>';
       }
     }
 
     var hasPro = proStr != null;
-    var cols = hasPro ? '80px 1fr 58px 58px' : '80px 1fr 70px';
+    var cols = hasPro ? '90px 1fr 64px 64px' : '90px 1fr 80px';
     var h = '';
-    h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">';
+    h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">';
 
     // Stat label + your value
     h += '<div>';
-    h += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">' + label + '</div>';
-    h += '<div style="font-size:15px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">' + youStr + deltaHtml + '</div>';
+    h += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">' + label + '</div>';
+    h += '<div style="font-size:17px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">' + youStr + deltaHtml + '</div>';
     h += '</div>';
 
     // Progress bar + peer context
     h += '<div>';
-    h += '<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
-    h += '<span style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">peer avg: ' + peerStr + '</span>';
-    if (badge) h += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:' + barColor + '">' + badge + ' (' + pct + 'th)</span>';
+    h += '<div style="display:flex;justify-content:space-between;margin-bottom:5px">';
+    h += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted)">peer avg: ' + peerStr + '</span>';
+    if (badge) h += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:' + barColor + '">' + badge + ' (' + pct + 'th)</span>';
     h += '</div>';
-    h += '<div style="height:5px;background:var(--surface2);border-radius:3px;position:relative;overflow:visible">';
+    h += '<div style="height:6px;background:var(--surface2);border-radius:3px;position:relative;overflow:visible">';
     h += '<div style="height:100%;width:' + barWidth + '%;background:' + barColor + ';border-radius:3px;transition:width 0.6s ease;max-width:100%"></div>';
-    h += '<div style="position:absolute;top:-2px;left:50%;width:1px;height:9px;background:var(--border2);transform:translateX(-50%)"></div>';
+    h += '<div style="position:absolute;top:-2px;left:50%;width:1px;height:10px;background:var(--border2);transform:translateX(-50%)"></div>';
     h += '</div>';
     h += '</div>';
 
     // Pro column
     if (hasPro) {
       h += '<div style="text-align:right">';
-      h += '<div style="font-size:13px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">' + proStr + '</div>';
+      h += '<div style="font-size:15px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">' + proStr + '</div>';
       h += '</div>';
     }
 
     // Next rank column
     h += '<div style="text-align:right">';
     if (nextStr) {
-      h += '<div style="font-size:13px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--muted)">' + nextStr + '</div>';
+      h += '<div style="font-size:15px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--muted)">' + nextStr + '</div>';
     }
     h += '</div>';
 
@@ -116,52 +116,52 @@
 
     var h = '';
     // Header
-    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">';
     h += '<div>';
-    h += '<div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted2);font-family:Share Tech Mono,monospace">Rank Benchmark</div>';
-    h += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--accent);margin-top:2px">';
+    h += '<div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted2);font-family:Share Tech Mono,monospace">Rank Benchmark</div>';
+    h += '<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:var(--accent);margin-top:3px">';
     h += rank.display + ' · ' + peers.count + ' player' + (peers.count !== 1 ? 's' : '') + ' tracked';
     h += '</div>';
-    h += '<div style="margin-top:4px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
+    h += '<div style="margin-top:4px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
     h += 'benchmarking vs <span style="color:' + (isArena ? 'var(--accent)' : 'var(--gold)') + '">' + playlist + '</span> peers';
     h += '</div>';
     if (!isArena) {
       var arenaEntry = allPlaylists.find(function(p) { return p.label === 'Ranked Arena'; });
       if (arenaEntry) {
-        h += '<div style="margin-top:2px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--gold)">';
+        h += '<div style="margin-top:3px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--gold)">';
         h += '⚠ Ranked Arena (' + arenaEntry.display + ') is the primary competitive metric';
         h += '</div>';
       }
     }
     // Low peer count warning
     if (lowData) {
-      h += '<div style="margin-top:4px;font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
+      h += '<div style="margin-top:4px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
       h += '⚠ Small sample (' + peers.count + ' peers) — percentiles less reliable';
       h += '</div>';
     }
     h += '</div>';
     if (next) {
       h += '<div style="text-align:right">';
-      h += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">target</div>';
-      h += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted)">' + next.label + '</div>';
+      h += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Target</div>';
+      h += '<div style="font-size:13px;font-family:Share Tech Mono,monospace;color:var(--muted)">' + next.label + '</div>';
       h += '</div>';
     }
     h += '</div>';
 
     // Column headers
     var hasPro = pro && pro.count > 0;
-    var cols = hasPro ? '80px 1fr 58px 58px' : '80px 1fr 70px';
-    h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;margin-bottom:2px">';
+    var cols = hasPro ? '90px 1fr 64px 64px' : '90px 1fr 80px';
+    h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:12px;margin-bottom:3px">';
     // Show stat source in the "YOUR STAT" column header
     var yourStatLabel = statsSource === 'recent' && statsGames
       ? 'YOUR STAT <span style="color:var(--muted2);font-weight:400">last ' + statsGames + 'g</span>'
       : 'YOUR STAT <span style="color:var(--muted2);font-weight:400">career</span>';
-    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase">' + yourStatLabel + '</div>';
-    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:center">RANK PERCENTILE</div>';
+    h += '<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase">' + yourStatLabel + '</div>';
+    h += '<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:center">RANK PERCENTILE</div>';
     if (hasPro) {
-      h += '<div style="font-size:8px;color:var(--gold);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">PRO AVG</div>';
+      h += '<div style="font-size:10px;color:var(--gold);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">PRO AVG</div>';
     }
-    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">' + (next ? next.label.toUpperCase() : '') + '</div>';
+    h += '<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">' + (next ? next.label.toUpperCase() : '') + '</div>';
     h += '</div>';
 
     // Stat rows
@@ -175,7 +175,7 @@
     });
 
     // Footer
-    h += '<div style="margin-top:10px;font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);display:flex;justify-content:space-between">';
+    h += '<div style="margin-top:10px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);display:flex;justify-content:space-between">';
     h += '<span>Peers: players searched in the last 30 days</span>';
     if (hasPro) h += '<span style="color:var(--gold)">★ ' + pro.count + ' pro' + (pro.count !== 1 ? 's' : '') + ' tracked</span>';
     h += '</div>';
@@ -187,7 +187,7 @@
     var msg = reason === 'not_cached'  ? 'Search a player to see rank data.' :
               reason === 'no_csr'      ? 'No ranked CSR data — play ranked matches first.' :
               'Not enough data yet. Check back as more players search this rank.';
-    return '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:16px 0">'
+    return '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:16px 0">'
          + '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
          + msg + '</div>';
   }
@@ -198,7 +198,7 @@
     if (!csr || !Object.keys(csr).length) { el.style.display = 'none'; return; }
 
     // Show skeleton while loading
-    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:12px 0;color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:11px">'
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:12px 0;color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:12px">'
       + '<div style="width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>'
       + 'Loading rank comparison…</div>';
 

@@ -1658,29 +1658,15 @@ app.get('/api/admin', (req, res) => {
       return fetch('/api/admin/refresh-pros?pass=${pass}',{method:'POST'});
     }).then(function(r){return r.json();})
     .then(function(d){
-        if(d.error){msg.style.color='#f44336';msg.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='↻ refresh all stats';return;}
-        msg.style.color='#ffc107';msg.textContent='Queued '+d.queued+' pros — stats will update over the next ~'+(d.queued*3)+'s. Reload the table to see progress.';
-        var polls=0,maxPolls=Math.ceil(d.queued*3/10)+3;
-        var iv=setInterval(function(){
-          loadProPlayers();polls++;
-          if(polls>=maxPolls){clearInterval(iv);btn.disabled=false;btn.textContent='↻ refresh all stats';msg.textContent='Refresh complete.';}
-        },10000);
-      })
-      .catch(function(e){msg.style.color='#f44336';msg.textContent='✗ '+e.message+'. Use "check token" to diagnose.';btn.disabled=false;btn.textContent='↻ refresh all stats';});
-  }
-      .then(function(r){return r.json();})
-      .then(function(d){
-        if(d.error){msg.style.color='#f44336';msg.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='↻ refresh all stats';return;}
-        msg.style.color='#ffc107';msg.textContent='Queued '+d.queued+' pros — stats will update over the next ~'+(d.queued*3)+'s. Reload the table to see progress.';
-        // Poll loadProPlayers every 10s for 3 minutes to show updates as they come in
-        var polls=0,maxPolls=Math.ceil(d.queued*3/10)+3;
-        var iv=setInterval(function(){
-          loadProPlayers();
-          polls++;
-          if(polls>=maxPolls){clearInterval(iv);btn.disabled=false;btn.textContent='↻ refresh all stats';msg.textContent='Refresh complete.';}
-        },10000);
-      })
-      .catch(function(e){msg.style.color='#f44336';msg.textContent=e.message;btn.disabled=false;btn.textContent='↻ refresh all stats';});
+      if(d.error){msg.style.color='#f44336';msg.textContent='Error: '+d.error;btn.disabled=false;btn.textContent='↻ refresh all stats';return;}
+      msg.style.color='#ffc107';msg.textContent='Queued '+d.queued+' pros — stats will update over the next ~'+(d.queued*3)+'s. Reload the table to see progress.';
+      var polls=0,maxPolls=Math.ceil(d.queued*3/10)+3;
+      var iv=setInterval(function(){
+        loadProPlayers();polls++;
+        if(polls>=maxPolls){clearInterval(iv);btn.disabled=false;btn.textContent='↻ refresh all stats';msg.textContent='Refresh complete.';}
+      },10000);
+    })
+    .catch(function(e){msg.style.color='#f44336';msg.textContent='✗ '+e.message+'. Use "check token" to diagnose.';btn.disabled=false;btn.textContent='↻ refresh all stats';});
   }
 
   function loadCache(){
@@ -1774,11 +1760,6 @@ app.get('/api/admin', (req, res) => {
   }
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(function(r){return r.gamertag.toLowerCase().includes(q);}):allRows);}
 </script></body></html>`);
-});
-
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── Aim Calibration ───────────────────────────────────────────────────────────
@@ -2396,6 +2377,11 @@ function statRow(label, val, color) {
 </script>
 </body>
 </html>`);
+});
+
+// Catch-all — must come AFTER all explicit routes (including /calibrate)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start token auto-refresh (requires MS_REFRESH_TOKEN env var)

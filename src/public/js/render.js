@@ -228,8 +228,8 @@ function renderPerformanceBaseline(allMatches, tier) {
   // ── Chart ──────────────────────────────────────────────────────────────────
   html += '<div style="background:var(--surface2);border-radius:6px;padding:12px 14px 10px;margin-bottom:14px">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES <span style="font-size:8px;letter-spacing:0;color:var(--muted2);opacity:0.7">(of '+scored.length+' scored)</span></span>';
-  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">older ← · → newer</span>';
+  html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES <span style="font-size:10px;letter-spacing:0;color:var(--muted2);opacity:0.7">(of '+scored.length+' scored)</span></span>';
+  html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">older ← · → newer</span>';
   html += '</div>';
 
   html += '<div style="height:'+(HALF*2)+'px;position:relative;margin-bottom:4px">';
@@ -245,11 +245,11 @@ function renderPerformanceBaseline(allMatches, tier) {
   // Scale legend below chart
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">';
   html += '<div style="display:flex;align-items:center;gap:6px">';
-  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--loss);opacity:0.8"></span><span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Below</span>';
-  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--border2)"></span><span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">On par</span>';
-  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--win);opacity:0.8"></span><span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Above</span>';
+  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--loss);opacity:0.8"></span><span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Below</span>';
+  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--border2)"></span><span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">On par</span>';
+  html += '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--win);opacity:0.8"></span><span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Above</span>';
   html += '</div>';
-  html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Calibrated for '+(tier||'your rank')+' variance</span>';
+  html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">Calibrated for '+(tier||'your rank')+' variance</span>';
   html += '</div>';
   // Tap-detail panel (mobile only) — filled by _pbTip() when a bar is touched
   if(_isMobile){
@@ -258,22 +258,22 @@ function renderPerformanceBaseline(allMatches, tier) {
   html += '</div>';
 
   // ── Stat cards ─────────────────────────────────────────────────────────────
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:12px">';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:12px">';
 
   // Avg score
-  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+scoreColor+';border-radius:6px;padding:12px 14px">';
-  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AVG SCORE</div>';
-  html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+scoreColor+';line-height:1">'+(avgScore>=0?'+':'')+avgScore.toFixed(2)+'</div>';
-  html += '<div style="font-size:10px;font-weight:600;color:'+scoreColor+';margin-top:2px;margin-bottom:4px">'+scoreLabel+'</div>';
-  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+scoreDesc+'</div>';
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+scoreColor+';border-radius:6px;padding:14px 16px">';
+  html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AVG SCORE</div>';
+  html += '<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+scoreColor+';line-height:1">'+(avgScore>=0?'+':'')+avgScore.toFixed(2)+'</div>';
+  html += '<div style="font-size:12px;font-weight:600;color:'+scoreColor+';margin-top:3px;margin-bottom:5px">'+scoreLabel+'</div>';
+  html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+scoreDesc+'</div>';
   html += '</div>';
 
   // Consistency
-  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+conColor+';border-radius:6px;padding:12px 14px">';
-  html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">CONSISTENCY</div>';
-  html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+conColor+';line-height:1">'+conLabel+'</div>';
-  html += '<div style="font-size:10px;font-weight:600;color:'+conColor+';margin-top:2px;margin-bottom:4px">across '+n+' games</div>';
-  html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+conDesc+'</div>';
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+conColor+';border-radius:6px;padding:14px 16px">';
+  html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">CONSISTENCY</div>';
+  html += '<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+conColor+';line-height:1">'+conLabel+'</div>';
+  html += '<div style="font-size:12px;font-weight:600;color:'+conColor+';margin-top:3px;margin-bottom:5px">across '+n+' games</div>';
+  html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+conDesc+'</div>';
   html += '</div>';
 
   // Underdog (min 5 games for meaningful sample)
@@ -283,11 +283,11 @@ function renderPerformanceBaseline(allMatches, tier) {
     var udDesc  = avgUD>0.4?'Performs better vs tougher opponents than vs even ones':
                   avgUD<-0.4?'Numbers dip when the lobby skill goes up — work on staying disciplined':
                   'Holds your own in harder lobbies';
-    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+udColor+';border-radius:6px;padding:12px 14px">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AS UNDERDOG</div>';
-    html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+udColor+';line-height:1">'+(avgUD>=0?'+':'')+avgUD.toFixed(2)+'</div>';
-    html += '<div style="font-size:10px;font-weight:600;color:'+udColor+';margin-top:2px;margin-bottom:4px">'+udLabel+' · '+underdogs.length+' games</div>';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+udDesc+'</div>';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+udColor+';border-radius:6px;padding:14px 16px">';
+    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AS UNDERDOG</div>';
+    html += '<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+udColor+';line-height:1">'+(avgUD>=0?'+':'')+avgUD.toFixed(2)+'</div>';
+    html += '<div style="font-size:12px;font-weight:600;color:'+udColor+';margin-top:3px;margin-bottom:5px">'+udLabel+' · '+underdogs.length+' games</div>';
+    html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+udDesc+'</div>';
     html += '</div>';
   }
 
@@ -298,11 +298,11 @@ function renderPerformanceBaseline(allMatches, tier) {
     var fvDesc  = avgFV>0.4?'Makes the most of easier matchups':
                   avgFV<-0.4?'Should be winning these more convincingly — check if you\'re playing too passively':
                   'Consistent output whether favored or not';
-    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+fvColor+';border-radius:6px;padding:12px 14px">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AS FAVORITE</div>';
-    html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+fvColor+';line-height:1">'+(avgFV>=0?'+':'')+avgFV.toFixed(2)+'</div>';
-    html += '<div style="font-size:10px;font-weight:600;color:'+fvColor+';margin-top:2px;margin-bottom:4px">'+fvLabel+' · '+favs.length+' games</div>';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+fvDesc+'</div>';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+fvColor+';border-radius:6px;padding:14px 16px">';
+    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">AS FAVORITE</div>';
+    html += '<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+fvColor+';line-height:1">'+(avgFV>=0?'+':'')+avgFV.toFixed(2)+'</div>';
+    html += '<div style="font-size:12px;font-weight:600;color:'+fvColor+';margin-top:3px;margin-bottom:5px">'+fvLabel+' · '+favs.length+' games</div>';
+    html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+fvDesc+'</div>';
     html += '</div>';
   }
 
@@ -314,11 +314,11 @@ function renderPerformanceBaseline(allMatches, tier) {
     var trDesc  = trendDelta>0.3?'Recent games trending above your prior form':
                   trendDelta<-0.3?'Recent games falling below your prior form':
                   'No meaningful change in recent form';
-    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+trColor+';border-radius:6px;padding:12px 14px">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">TREND</div>';
-    html += '<div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+trColor+';line-height:1">'+trIcon+' '+trLabel+'</div>';
-    html += '<div style="font-size:10px;font-weight:600;color:'+trColor+';margin-top:2px;margin-bottom:4px">'+(trendDelta>=0?'+':'')+trendDelta.toFixed(2)+' vs prior '+older.length+' games</div>';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+trDesc+'</div>';
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+trColor+';border-radius:6px;padding:14px 16px">';
+    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:6px">TREND</div>';
+    html += '<div style="font-size:24px;font-weight:700;font-family:Rajdhani,sans-serif;color:'+trColor+';line-height:1">'+trIcon+' '+trLabel+'</div>';
+    html += '<div style="font-size:12px;font-weight:600;color:'+trColor+';margin-top:3px;margin-bottom:5px">'+(trendDelta>=0?'+':'')+trendDelta.toFixed(2)+' vs prior '+older.length+' games</div>';
+    html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.4">'+trDesc+'</div>';
     html += '</div>';
   }
 
@@ -334,7 +334,7 @@ function renderPerformanceBaseline(allMatches, tier) {
   if(!interp && avgScore>0.4 && stdDev>1.8) interp = 'Strong average but high variance — your ceiling is real, but the floor is costing you CSR. Cutting your worst games matters more than improving your best.';
   if(!interp && avgScore<-0.3 && stdDev<1.0) interp = 'Consistent, but consistently below baseline. This points to a mechanical or positioning gap rather than bad luck — try reviewing your deaths per game.';
   if(interp){
-    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 4px 4px 0;padding:10px 14px">'+interp+'</div>';
+    html += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 4px 4px 0;padding:12px 16px">'+interp+'</div>';
   }
 
   // ── Pro comparison panel ────────────────────────────────────────────────────
@@ -389,12 +389,12 @@ function renderPerformanceBaseline(allMatches, tier) {
     var _unsearchedWarn = proStats.unsearched && proStats.unsearched > 0;
     html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">';
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
-    html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--gold);letter-spacing:1.5px">★ PRO REFERENCE · '+proStats.count+' pro'+(proStats.count!==1?'s':'')+' tracked</div>';
-    if(_hasSd) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">deviation bands scaled '+_rankMult+'× pro SD for '+(tier||'your rank')+'</div>';
-    if(_staleWarning) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--gold)" title="Pro stats refresh when each player is searched on fragr">⚠ data '+proStats.oldestDays+'d old — re-search pros to refresh</div>';
-    if(_unsearchedWarn) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)">'+proStats.unsearched+' added pro'+(proStats.unsearched!==1?'s':'')+' not yet searched</div>';
+    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--gold);letter-spacing:1.5px">★ PRO REFERENCE · '+proStats.count+' pro'+(proStats.count!==1?'s':'')+' tracked</div>';
+    if(_hasSd) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">deviation bands scaled '+_rankMult+'× pro SD for '+(tier||'your rank')+'</div>';
+    if(_staleWarning) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--gold)" title="Pro stats refresh when each player is searched on fragr">⚠ data '+proStats.oldestDays+'d old — re-search pros to refresh</div>';
+    if(_unsearchedWarn) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">'+proStats.unsearched+' added pro'+(proStats.unsearched!==1?'s':'')+' not yet searched</div>';
     html += '</div>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">';
 
     _proStats.forEach(function(s){
       var zone = _proZone(s.val, s.pro, s.sd, s.hi);
@@ -416,16 +416,16 @@ function renderPerformanceBaseline(allMatches, tier) {
         ? (gap<0?'+':'-')+Math.abs(gap).toFixed(s.key==='WIN %'||s.key==='ACCURACY'?1:2)+(s.key==='WIN %'||s.key==='ACCURACY'?'%':'') + ' vs pro'
         : gap!=null ? 'at pro avg' : '';
 
-      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+zColor+';border-radius:6px;padding:10px 12px">';
-      html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">'+s.key+'</div>';
-      html += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px">';
-      html += '<span style="font-size:17px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+youFmt+'</span>';
-      html += '<span style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2)">you</span>';
+      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+zColor+';border-radius:6px;padding:12px 14px">';
+      html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:5px">'+s.key+'</div>';
+      html += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px">';
+      html += '<span style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+youFmt+'</span>';
+      html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">you</span>';
       html += '</div>';
-      html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--gold);margin-bottom:4px">pro avg: '+proFmt+(s.sd!=null?' ±'+fmt(s.sd,s.key):'')+'</div>';
-      html += '<div style="font-size:9px;font-weight:600;color:'+zColor+'">'+zLabel+'</div>';
-      if(zNote) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:1px">'+zNote+'</div>';
-      else if(gapStr) html += '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:1px">'+gapStr+'</div>';
+      html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--gold);margin-bottom:4px">pro avg: '+proFmt+(s.sd!=null?' ±'+fmt(s.sd,s.key):'')+'</div>';
+      html += '<div style="font-size:11px;font-weight:600;color:'+zColor+'">'+zLabel+'</div>';
+      if(zNote) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px">'+zNote+'</div>';
+      else if(gapStr) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px">'+gapStr+'</div>';
       html += '</div>';
     });
 
@@ -433,7 +433,7 @@ function renderPerformanceBaseline(allMatches, tier) {
     var _footerNote = _hasSd
       ? 'Zones: 1× pro SD = Pro-level · '+_rankMult+'× = Solid · '+(_rankMult*2).toFixed(0)+'× = Developing · beyond = Needs work'
       : 'Add a 2nd pro player to enable SD-based deviation bands';
-    html += '<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:8px">'+_footerNote+' · based on '+_validGames.length+' recent games</div>';
+    html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:8px">'+_footerNote+' · based on '+_validGames.length+' recent games</div>';
     html += '</div>';
   }
 

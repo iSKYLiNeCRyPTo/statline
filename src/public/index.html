@@ -417,6 +417,58 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   /* Big consistency score number — shrink slightly so it doesn't crowd */
   .cons-score-num{font-size:48px !important}
 }
+
+/* ── Desktop readability enhancements ─────────────────────────────────────── */
+@media(min-width:1024px){
+  /* Max-width container so content doesn't stretch edge-to-edge on wide screens */
+  .cmd-content{padding:28px 48px;max-width:1480px;margin:0 auto}
+
+  /* Stat cards — bigger labels and values */
+  .stat-label{font-size:11px;letter-spacing:1.2px}
+  .stat-value{font-size:32px}
+  .stat-sub{font-size:12px}
+
+  /* Section headers */
+  .section-label{font-size:14px;letter-spacing:2.5px}
+
+  /* CSR cards */
+  .csr-tier{font-size:22px}
+  .csr-detail{font-size:12px}
+  .csr-bar-labels{font-size:11px}
+  .stat-row{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+
+  /* Hero panel */
+  .hero-sub{font-size:14px}
+  .hero-name{font-size:44px}
+  .win-bar-label{font-size:11px}
+
+  /* Sidebar text */
+  .sidebar-nav-item{font-size:12px;padding:10px 12px}
+  .sidebar-mini-stat{font-size:11px;padding:4px 0}
+  .sidebar-gt{font-size:13px}
+  .sidebar-rank{font-size:10px}
+
+  /* Match cards */
+  .match-mode{font-size:14px}
+  .match-sub{font-size:11px}
+  .match-kda-big{font-size:18px}
+  .match-kda-sub{font-size:11px}
+  .match-time{font-size:11px}
+  .match-csr{font-size:12px}
+
+  /* Tables */
+  .weapon-table{font-size:13px}
+  .weapon-table th{font-size:12px}
+  .weapon-table td{padding:9px 10px}
+  .mode-table{font-size:13px}
+  .mode-table th{font-size:12px}
+  .mode-table td{padding:9px 10px}
+  .mode-name{font-size:14px}
+
+  /* Filter row */
+  .filter-btn{font-size:13px;padding:6px 14px}
+  .filter-count{font-size:11px}
+}
 </style>
 </head>
 <body>
