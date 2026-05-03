@@ -1771,7 +1771,7 @@ const CAL_KEY = process.env.CALIBRATE_KEY || 'calibrate';
 app.post('/api/calibrate', express.json(), async (req, res) => {
   const { key, gamertag, sensitivityH, sensitivityV, innerDead, outerDead, axialDead, fov,
           deadzoneType, viewingDist, acceleration, tzOffset,
-          zoomSens, sprintLook, vibration } = req.body || {};
+          zoomSens, vibration } = req.body || {};
   if (key !== CAL_KEY) return res.status(401).json({ error: 'Unauthorized' });
   if (!gamertag) return res.status(400).json({ error: 'Gamertag required' });
 
@@ -1839,8 +1839,7 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   const tzOff       = typeof tzOffset === 'number' ? tzOffset : 0; // minutes offset from UTC
   const axialDeadVal = parseFloat(axialDead) >= 0 ? parseFloat(axialDead) : 0.20;
   const zoomSensVal = parseFloat(zoomSens)  || 1.0;
-  const sprintVal   = parseFloat(sprintLook)|| 1.0;
-  const vibOn       = (vibration || 'off').toLowerCase() === 'on';
+const vibOn       = (vibration || 'off').toLowerCase() === 'on';
   const TV_IN  = 60;
   const tvWidthIn     = TV_IN * (16 / Math.sqrt(16**2 + 9**2));
   const screenAngleDeg = 2 * Math.atan((tvWidthIn / 2) / (vDist * 12)) * (180 / Math.PI);
@@ -1982,8 +1981,8 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
   // 3. Acceleration (priority 3)
   if (accel > 2) {
     note('Sensitivity', `Acceleration ${accel} adds unpredictable ramping at 60fps`,
-      `Acceleration ramps speed as you push the stick further. At 120fps the ramp feels smooth; at 60fps the frames between ramp steps are visible as stuttery over-rotation. For 60fps, 0–1 acceleration is almost universally preferred — it makes aim predictable and consistent.`,
-      'warn', 3, `Acceleration: ${accel} → 0`);
+      `Acceleration ramps speed as you push the stick further. At 120fps the ramp feels smooth; at 60fps the frames between ramp steps are visible as stuttery over-rotation. For 60fps, 1–2 acceleration is almost universally preferred — it makes aim predictable and consistent.`,
+      'warn', 3, `Acceleration: ${accel} → 1`);
   }
 
   // 4. FOV (priority 4)
@@ -2073,11 +2072,22 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
     }
   }
 
-  // 13. Relative look speed while sprinting
-  if (sprintVal < 0.9) {
-    note('Sprint Look Speed', `Sprint look speed ${sprintVal.toFixed(2)} — muscle memory mismatch`,
-      `When Relative Look Speed While Sprinting is below 1.0, your camera turns slower while sprinting than while walking. This means your muscle memory for snap-turns works differently depending on whether you came out of a sprint — a subtle inconsistency that shows up in close-range fights where sprinting into a corner is common. Set this to 1.0 in Settings → Controller → Relative Look Speed While Sprinting for consistent camera response at all speeds.`,
-      sprintVal < 0.7 ? 'warn' : 'info', 3, `Sprint Look Speed: ${sprintVal.toFixed(2)} → 1.00`);
+
+  // ── Stretch goals for consistent players ─────────────────────────────────
+  const isConsistent = accSd <= 7 && avgAcc >= 44;
+  const hasWarningSens = recs.some(r => r.cat === 'Sensitivity' && r.severity === 'warn');
+  const hasWarningFov  = recs.some(r => r.cat === 'FOV'         && r.severity === 'warn');
+
+  if (isConsistent && !hasWarningSens && sensH <= 3) {
+    note('Stretch Goal', `Consistent aim — consider trying sensitivity ${sensH + 1}`,
+      `Your accuracy variance (±${accSd.toFixed(1)}%) is low and accuracy (${avgAcc.toFixed(1)}%) is solid — your current sensitivity is dialed in. If you want more — faster snap-turns, quicker target acquisition — you have the consistency to absorb a +1 bump. Try H-Sensitivity ${sensH + 1} for 15–20 games and see if it clicks without hurting accuracy.`,
+      'info', 7, `H-Sensitivity: ${sensH} → ${sensH + 1} (optional — you have headroom)`);
+  }
+
+  if (isConsistent && !hasWarningFov && fovVal < 95) {
+    note('Stretch Goal', `Consistent aim — consider bumping FOV to ${Math.min(fovVal + 5, 100)}°`,
+      `With low accuracy variance (±${accSd.toFixed(1)}%) you're not losing fights to shaky aim — you might be losing them to awareness. Bumping FOV from ${fovVal}° to ${Math.min(fovVal + 5, 100)}° widens your peripheral view without meaningfully shrinking targets at this sensitivity. Worth a test.`,
+      'info', 7, `FOV: ${fovVal}° → ${Math.min(fovVal + 5, 100)}° (optional)`);
   }
 
   // Sort recommendations by priority (warnings first within same priority)
@@ -2220,9 +2230,9 @@ app.get('/calibrate', (req, res) => {
     </div>
   </div>
   <div style="margin-bottom:20px">
-    <label>Acceleration (0–5)</label>
-    <input id="accel" type="number" min="0" max="5" step="1" value="0">
-    <div class="hint">0 = linear · higher = ramps as you push stick further</div>
+    <label>Acceleration (1–5)</label>
+    <input id="accel" type="number" min="1" max="5" step="1" value="1">
+    <div class="hint">1 = linear · higher = ramps as you push stick further</div>
   </div>
 
   <h2>Deadzones</h2>
@@ -2253,11 +2263,6 @@ app.get('/calibrate', (req, res) => {
       <label>Zoom Sensitivity Multiplier</label>
       <input id="zoomSens" type="number" min="0.1" max="1.0" step="0.05" value="1.0">
       <div class="hint">0.10–1.00 · default 1.0</div>
-    </div>
-    <div>
-      <label>Relative Look Speed While Sprinting</label>
-      <input id="sprintLook" type="number" min="0" max="1" step="0.05" value="1.0">
-      <div class="hint">0.00–1.00 · default 1.0</div>
     </div>
     <div>
       <label>Vibration</label>
@@ -2308,11 +2313,10 @@ const PRO = {
   'Center Deadzone':    { val: '0–5%', note: 'avg ~3%' },
   'Max Input Threshold':{ val: '0–5%', note: 'avg ~3%' },
   'Axial Deadzone':     { val: '0–10%', note: 'lower = better diagonal tracking' },
-  'Acceleration':       { val: '0', note: 'all use linear' },
+  'Acceleration':       { val: '1', note: 'all use linear' },
   'FOV':                { val: '90–100°', note: '' },
   'Zoom Sensitivity':   { val: '0.75–1.0', note: 'varies by style' },
-  'Sprint Look Speed':  { val: '1.0', note: 'all pros use 1.0' },
-  'Vibration':          { val: 'Off', note: 'universal' },
+'Vibration':          { val: 'Off', note: 'universal' },
 };
 
 async function runAnalysis() {
@@ -2348,7 +2352,6 @@ async function runAnalysis() {
         fov:          parseFloat(document.getElementById('fov').value),
         viewingDist:  parseFloat(document.getElementById('viewDist').value),
         zoomSens:     parseFloat(document.getElementById('zoomSens').value),
-        sprintLook:   parseFloat(document.getElementById('sprintLook').value),
         vibration:    document.getElementById('vibration').value,
         tzOffset:     new Date().getTimezoneOffset() * -1, // minutes from UTC
       })
@@ -2475,7 +2478,6 @@ function renderResults(d) {
     'Acceleration':      document.getElementById('accel').value,
     'FOV':               document.getElementById('fov').value + '°',
     'Zoom Sensitivity':  document.getElementById('zoomSens').value,
-    'Sprint Look Speed': document.getElementById('sprintLook').value,
     'Vibration':         document.getElementById('vibration').options[document.getElementById('vibration').selectedIndex].text,
   };
   h += '<div class="section-head">Pro Settings Reference (HCS competitive average)</div>';
