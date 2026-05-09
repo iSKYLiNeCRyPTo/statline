@@ -26,24 +26,43 @@ async function doSearch(gt, isRefresh, force){
     var pct=Math.round((activeIdx/5)*100);
     var p=_loadPlayer;
 
-    // Step dots
-    var dotsHtml='<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">';
-    _loadSteps.forEach(function(step,i){
-      var done=i<activeIdx,active=i===activeIdx,label=step.label;
-      if(active&&i===1&&matchProgress) label='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
-      var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
-      var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
-      var labelHtml=(active&&i===4)
+    // Step dots — desktop shows all steps; mobile shows only the active step as one line
+    var dotsHtml;
+    if(_lsMobile){
+      // Find the active step and render it as a single status line (like the refresh page)
+      var _activeStep=_loadSteps[activeIdx]||null;
+      var _activeLabel=_activeStep?_activeStep.label:'';
+      if(activeIdx===1&&matchProgress) _activeLabel='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
+      var _activeLabelHtml=(activeIdx===4)
         ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-        :(active&&i===2)
+        :(activeIdx===2)
         ?'Skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-        :label+(done?' ✓':'');
-      dotsHtml+='<div style="display:flex;align-items:center;gap:10px">'
-        +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
-        +'<div '+(active&&i===1?'id="_lc_step2lbl" ':'')+' style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
-        +'</div>';
-    });
-    dotsHtml+='</div>';
+        :_activeLabel+'<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>';
+      dotsHtml=_activeStep
+        ?'<div style="display:flex;align-items:center;gap:8px;margin-top:16px">'
+          +'<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;box-shadow:0 0 6px var(--accent);flex-shrink:0"></div>'
+          +'<div '+(activeIdx===1?'id="_lc_step2lbl" ':'')+' style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+_activeLabelHtml+'</div>'
+          +'</div>'
+        :'';
+    } else {
+      dotsHtml='<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">';
+      _loadSteps.forEach(function(step,i){
+        var done=i<activeIdx,active=i===activeIdx,label=step.label;
+        if(active&&i===1&&matchProgress) label='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
+        var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
+        var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
+        var labelHtml=(active&&i===4)
+          ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+          :(active&&i===2)
+          ?'Skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+          :label+(done?' ✓':'');
+        dotsHtml+='<div style="display:flex;align-items:center;gap:10px">'
+          +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
+          +'<div '+(active&&i===1?'id="_lc_step2lbl" ':'')+' style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+textColor+';transition:color 0.3s">'+labelHtml+'</div>'
+          +'</div>';
+      });
+      dotsHtml+='</div>';
+    }
 
     var leftHtml;
     if(p){
@@ -326,6 +345,9 @@ async function doSearch(gt, isRefresh, force){
       playerData=fullD.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
+      // Clear stale fullMatchCache so render() uses fresh data from the API response
+      // rather than the old cached match list. loadFullMatches() will repopulate it.
+      delete fullMatchCache[_canonicalGt];
       activeTab='overview'; render();
       // Start background poller — checks every 90s for new matches without requiring a manual refresh
       var _allM=fullD.player.allMatches||fullD.player.recentMatches||[];

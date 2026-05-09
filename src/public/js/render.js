@@ -339,106 +339,6 @@ function renderPerformanceBaseline(allMatches, tier) {
     html += '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--muted);line-height:1.6;background:var(--surface2);border-left:3px solid var(--accent);border-radius:0 4px 4px 0;padding:12px 16px">'+interp+'</div>';
   }
 
-  // ── Pro comparison panel ────────────────────────────────────────────────────
-  // Only renders when pro players have been marked in admin — gives a realistic
-  // ceiling grounded in actual top-player performance, not theoretical perfection.
-  if(proStats && proStats.count > 0){
-    // Compute player's rolling averages from the same match sample used by the chart
-    var _validGames = games.filter(function(m){return m.kills!=null&&m.deaths!=null;});
-    var _pKd   = _validGames.length ? _validGames.reduce(function(s,m){return s+(m.deaths>0?m.kills/m.deaths:m.kills);},0)/_validGames.length : null;
-    var _pAcc  = _validGames.filter(function(m){return m.accuracy!=null;}).length>=5
-                   ? _validGames.filter(function(m){return m.accuracy!=null;}).reduce(function(s,m){return s+parseFloat(m.accuracy);},0)
-                     / _validGames.filter(function(m){return m.accuracy!=null;}).length
-                   : null;
-    var _pWr   = _validGames.length ? _validGames.filter(function(m){return m.outcome===2;}).length/_validGames.length*100 : null;
-    var _pKpg  = _validGames.length ? _validGames.reduce(function(s,m){return s+m.kills;},0)/_validGames.length : null;
-
-    // Zone thresholds based on pro std dev scaled by rank.
-    // If pros have a std dev of X, acceptable deviation for this rank = X * multiplier.
-    // Multiplier: Onyx=1.5, Diamond=2, Platinum=2.5, Gold=3, Silver/Bronze=3.5
-    // Falls back to fixed % bands (10/25/40) when std dev data isn't available yet.
-    var _rankMult = {Onyx:1.5, Diamond:2, Platinum:2.5, Gold:3, Silver:3.5, Bronze:3.5}[tier] || 2.5;
-    function _proZone(val, proVal, proSd, higherIsBetter){
-      if(val==null||proVal==null||proVal===0) return null;
-      var gap = higherIsBetter ? proVal - val : val - proVal; // positive = you're behind
-      if(proSd != null){
-        // SD-based bands: within 1× pro SD = pro-level, within multiplier× = solid, within 2×multiplier = developing
-        var band1 = proSd;
-        var band2 = proSd * _rankMult;
-        var band3 = proSd * _rankMult * 2;
-        if(gap <= band1)  return {label:'Pro-level', color:'var(--win)',    sdNote: '≤1× pro SD'};
-        if(gap <= band2)  return {label:'Solid',      color:'var(--accent)', sdNote: '≤'+_rankMult+'× pro SD'};
-        if(gap <= band3)  return {label:'Developing', color:'var(--gold)',   sdNote: '≤'+((_rankMult*2).toFixed(0))+'× pro SD'};
-        return                   {label:'Needs work', color:'var(--loss)',   sdNote: '>'+((_rankMult*2).toFixed(0))+'× pro SD'};
-      }
-      // Fallback: fixed ratio bands when < 2 pros tracked
-      var ratio = higherIsBetter ? val/proVal : proVal/val;
-      if(ratio>=0.90) return {label:'Pro-level', color:'var(--win)',    sdNote:null};
-      if(ratio>=0.75) return {label:'Solid',      color:'var(--accent)', sdNote:null};
-      if(ratio>=0.60) return {label:'Developing', color:'var(--gold)',   sdNote:null};
-      return                  {label:'Needs work', color:'var(--loss)',   sdNote:null};
-    }
-
-    var _proStats = [
-      {key:'K/D',      val:_pKd,  pro:proStats.kd,        sd:proStats.kd_sd,        hi:true},
-      {key:'WIN %',    val:_pWr,  pro:proStats.win_rate,   sd:proStats.win_rate_sd,  hi:true},
-      {key:'ACCURACY', val:_pAcc, pro:proStats.accuracy,   sd:proStats.accuracy_sd,  hi:true},
-      {key:'K/G',      val:_pKpg, pro:proStats.avg_kills,  sd:proStats.avg_kills_sd, hi:true},
-    ];
-
-    var _hasSd = proStats.kd_sd != null; // true once ≥2 pros tracked
-    var _staleWarning = proStats.oldestDays != null && proStats.oldestDays > 7;
-    var _unsearchedWarn = proStats.unsearched && proStats.unsearched > 0;
-    html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">';
-    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">';
-    html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--gold);letter-spacing:1.5px">★ PRO REFERENCE · '+proStats.count+' pro'+(proStats.count!==1?'s':'')+' tracked</div>';
-    if(_hasSd) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">deviation bands scaled '+_rankMult+'× pro SD for '+(tier||'your rank')+'</div>';
-    if(_staleWarning) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--gold)" title="Pro stats refresh when each player is searched on fragr">⚠ data '+proStats.oldestDays+'d old — re-search pros to refresh</div>';
-    if(_unsearchedWarn) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2)">'+proStats.unsearched+' added pro'+(proStats.unsearched!==1?'s':'')+' not yet searched</div>';
-    html += '</div>';
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">';
-
-    _proStats.forEach(function(s){
-      var zone = _proZone(s.val, s.pro, s.sd, s.hi);
-      var fmt = function(v,k){
-        if(v==null) return '—';
-        if(k==='K/D'||k==='K/G') return parseFloat(v).toFixed(2);
-        return parseFloat(v).toFixed(1)+'%';
-      };
-      var youFmt = fmt(s.val, s.key);
-      var proFmt = fmt(s.pro, s.key);
-      var zColor = zone ? zone.color : 'var(--muted2)';
-      var zLabel = zone ? zone.label : '—';
-      var zNote  = zone && zone.sdNote ? zone.sdNote : null;
-      // Show gap to pro avg
-      var gap = s.val!=null&&s.pro!=null ? (s.hi ? s.pro - s.val : s.val - s.pro) : null;
-      // gap > 0 means you're below pro (need to improve) → show as negative e.g. "-0.5 vs pro"
-      // gap < 0 means you're above pro → show as positive e.g. "+0.3 vs pro"
-      var gapStr = gap!=null && Math.abs(gap)>0.005
-        ? (gap<0?'+':'-')+Math.abs(gap).toFixed(s.key==='WIN %'||s.key==='ACCURACY'?1:2)+(s.key==='WIN %'||s.key==='ACCURACY'?'%':'') + ' vs pro'
-        : gap!=null ? 'at pro avg' : '';
-
-      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+zColor+';border-radius:6px;padding:12px 14px">';
-      html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;margin-bottom:5px">'+s.key+'</div>';
-      html += '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:3px">';
-      html += '<span style="font-size:20px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+youFmt+'</span>';
-      html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">you</span>';
-      html += '</div>';
-      html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--gold);margin-bottom:4px">pro avg: '+proFmt+(s.sd!=null?' ±'+fmt(s.sd,s.key):'')+'</div>';
-      html += '<div style="font-size:11px;font-weight:600;color:'+zColor+'">'+zLabel+'</div>';
-      if(zNote) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px">'+zNote+'</div>';
-      else if(gapStr) html += '<div style="font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px">'+gapStr+'</div>';
-      html += '</div>';
-    });
-
-    html += '</div>';
-    var _footerNote = _hasSd
-      ? 'Zones: 1× pro SD = Pro-level · '+_rankMult+'× = Solid · '+(_rankMult*2).toFixed(0)+'× = Developing · beyond = Needs work'
-      : 'Add a 2nd pro player to enable SD-based deviation bands';
-    html += '<div style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:8px">'+_footerNote+' · based on '+_validGames.length+' recent games</div>';
-    html += '</div>';
-  }
-
   return html;
 }
 
@@ -1371,10 +1271,9 @@ function render(){
 
       // Row 2 — accuracy, CSR, headshot rate, damage ratio
       html+='<div class="mapexp-stats-row">';
-      var _proAccRef = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy) ? proStats.accuracy : null;
-      // Map accuracy color thresholds: 0.83× pro = green (close to pro level), 0.67× pro = red (noticeably below pro)
-      var _accGreenThr = _proAccRef ? Math.round(_proAccRef * 0.83) : 50;
-      var _accRedThr   = _proAccRef ? Math.round(_proAccRef * 0.67) : 40;
+      // Map accuracy color thresholds
+      var _accGreenThr = 50;
+      var _accRedThr   = 40;
       html+=_mStat('ACCURACY',_mapAcc!=null?_mapAcc+'%':'—',_mapAcc!=null&&parseFloat(_mapAcc)>=_accGreenThr?'var(--win)':_mapAcc!=null&&parseFloat(_mapAcc)<_accRedThr?'var(--loss)':'var(--text)');
       html+=_mStat('HS FINISH %',_mapHsRate!=null?_mapHsRate+'%':'—',_mapHsRate!=null&&_mapHsRate>=50?'var(--win)':_mapHsRate!=null&&_mapHsRate<30?'var(--loss)':'var(--text)');
       html+=_mStat('DMG RATIO',dmgRatio,parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)');
@@ -2123,17 +2022,16 @@ function render(){
       // 0.63× pro avg = "deadzone" threshold (used below in close-range block) — this far below pro in melee-heavy games
       //                 is almost always a deadzone / stick drift issue, not a sensitivity issue.
       // Fallbacks (45 / 40 / 38) are used when no pro snapshot is on file.
-      var _proAccCtx = (typeof proStats!=='undefined'&&proStats&&proStats.accuracy) ? proStats : null;
-      var _solidAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.75) : 45;
-      var _lowAccThr   = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.67) : 40;
-      var _proAccSuffix = _proAccCtx ? ' (pro avg: '+_proAccCtx.accuracy.toFixed(1)+'%)' : '';
+      var _solidAccThr = 45;
+      var _lowAccThr   = 40;
+
       // High body accuracy but low headshots — shots landing body but not tracking to head → sens too high
       if(_acc>=_solidAccThr&&_hs<35){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Lowering Look Sensitivity','Accuracy ('+_acc.toFixed(1)+'%'+_proAccSuffix+') is solid but only '+_hs.toFixed(0)+'% of kills are headshot finishes — most Bandit kills should end with the headshot. You may be drifting to body level on the final shot. Try holding chin height through the whole burst so the finishing shot naturally lands on the head. If you feel like you\'re consistently overshooting past the head, try dropping sensitivity by 1.','var(--accent)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Lowering Look Sensitivity','Accuracy ('+_acc.toFixed(1)+'%) is solid but only '+_hs.toFixed(0)+'% of kills are headshot finishes — most Bandit kills should end with the headshot. You may be drifting to body level on the final shot. Try holding chin height through the whole burst so the finishing shot naturally lands on the head. If you feel like you\'re consistently overshooting past the head, try dropping sensitivity by 1.','var(--accent)'));
       }
       // Low accuracy overall but higher headshot % — only landing when almost stationary → sens too low / deadzone masking input
       else if(_acc<_lowAccThr&&_hs>=40){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Raising Look Sensitivity','Low accuracy ('+_acc.toFixed(1)+'%'+_proAccSuffix+') but solid headshot rate ('+_hs.toFixed(0)+'%) — you\'re precise when still but missing when targets strafe. With the Bandit this usually means sensitivity is too low to track lateral movement. Try raising look sensitivity by 1 or reducing your outer deadzone to improve strafe-tracking.','var(--accent)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14\"/></svg>','Try Raising Look Sensitivity','Low accuracy ('+_acc.toFixed(1)+'%) but solid headshot rate ('+_hs.toFixed(0)+'%) — you\'re precise when still but missing when targets strafe. With the Bandit this usually means sensitivity is too low to track lateral movement. Try raising look sensitivity by 1 or reducing your outer deadzone to improve strafe-tracking.','var(--accent)'));
       }
     }
 
@@ -2141,9 +2039,9 @@ function render(){
     var _meleeHeavy=_aimGames.filter(function(m){return m.weaponStats&&m.kills>0&&m.weaponStats.melee/m.kills>0.25&&_durSecs(m)>=180;});
     if(_meleeHeavy.length>=5){
       var _meleeAcc=_meleeHeavy.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_meleeHeavy.length;
-      var _deadzoneAccThr = _proAccCtx ? Math.round(_proAccCtx.accuracy * 0.63) : 38; // 0.63× pro avg — see threshold rationale above
+      var _deadzoneAccThr = 38;
       if(_meleeAcc<_deadzoneAccThr){
-        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Check Your Inner Deadzone','In close-range fights you finish with melee '+Math.round(_meleeHeavy.length/_aimGames.length*100)+'% of the time, but your accuracy in those games is only '+_meleeAcc.toFixed(1)+'%'+(_proAccCtx?' (pro avg: '+_proAccCtx.accuracy.toFixed(1)+'%)':'')+'. A large inner deadzone can cause sluggish micro-adjustments at close range — try reducing it by 5-10% in Halo\'s controller settings.','var(--gold)'));
+        insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>','Check Your Inner Deadzone','In close-range fights you finish with melee '+Math.round(_meleeHeavy.length/_aimGames.length*100)+'% of the time, but your accuracy in those games is only '+_meleeAcc.toFixed(1)+'%. A large inner deadzone can cause sluggish micro-adjustments at close range — try reducing it by 5-10% in Halo\'s controller settings.','var(--gold)'));
       }
     }
 
@@ -2346,25 +2244,6 @@ function render(){
   html+=renderObjectiveStats(matches);
   html+='</div>'; // end stats tab
 
-  // Overall baseline for fingerprint radar — computed from all available matches
-  var _fpBaseline=(function(){
-    var _am=allMatches.filter(function(m){return m.kills!=null&&m.deaths!=null;});
-    var n=_am.length||1;
-    var k=_am.reduce(function(s,m){return s+(m.kills||0);},0)/n;
-    var d=_am.reduce(function(s,m){return s+(m.deaths||0);},0)/n;
-    var w=_am.filter(function(m){return m.outcome===2;}).length/n*100;
-    // Damage ratio: dealt/taken — >1 means you're winning fights on average
-    var _dmgM=_am.filter(function(m){return m.damageDealt>0&&m.damageTaken>0;});
-    var dmgRatio=_dmgM.length?_dmgM.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgM.length:1;
-    // Accuracy: average shot accuracy across matches where it's recorded
-    var _accM=_am.filter(function(m){return m.accuracy!=null;});
-    var acc=_accM.length?_accM.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/_accM.length:50;
-    // Headshot finish rate: headshots / kills (only matches where kills > 0)
-    var _hsM=_am.filter(function(m){return m.kills>0&&m.weaponStats;});
-    var hsPct=_hsM.length?_hsM.reduce(function(s,m){return s+(m.weaponStats.headshots||0)/m.kills*100;},0)/_hsM.length:0;
-    return {kpg:k,dpg:d,dmgRatio:dmgRatio,acc:acc,hsPct:hsPct};
-  })();
-
   // OPPONENTS TAB
   html+='<div class="tab-panel'+(activeTab==='opponents'?' active':'')+'" data-tab="opponents">';
   (function(){
@@ -2382,82 +2261,6 @@ function render(){
       }).join('');
     }
 
-    // ── Fingerprint radar: normalize a raw stat to 0-100 ────────────────────
-    function _nfp(val,max){return Math.max(0,Math.min(100,Math.round((val/max)*100)));}
-
-    // Convert stats → [frag,surv,dmg,aim,hs] 0-100 array
-    // FRAG: kills/game (ceiling 18)
-    // SURV: inverse deaths/game (ceiling 14 deaths = 0, 0 deaths = 100)
-    // DMG:  damage dealt/taken ratio (ceiling 2.0 = dominant)
-    // AIM:  shot accuracy % (ceiling 70%)
-    // HS:   headshot finish rate % (ceiling 80%)
-    function _fpArr(kpg,dpg,dmgRatio,acc,hsPct){
-      return [
-        _nfp(kpg,18),              // FRAG
-        100-_nfp(dpg,14),          // SURV (inverted)
-        _nfp(dmgRatio,2.0),        // DMG
-        _nfp(acc,70),              // AIM
-        _nfp(hsPct,80)             // HS
-      ];
-    }
-
-    // ── Mini pentagon radar SVG ──────────────────────────────────────────────
-    // overallArr / rivalArr: [frag,surv,dmg,aim,hs] each 0-100
-    // accent: color for the vs-rival polygon
-    function _miniRadar(overallArr,rivalArr,accent){
-      var CX=60,CY=62,R=42;
-      var axes=['FRAG','SURV','DMG','AIM','HS'];
-      var N=5;
-      // Axis angles: start at top (-90°), clockwise
-      function _angle(i){return -Math.PI/2+i*(2*Math.PI/N);}
-      function _pt(val,i){
-        var r=val/100*R;
-        var a=_angle(i);
-        return {x:+(CX+r*Math.cos(a)).toFixed(2),y:+(CY+r*Math.sin(a)).toFixed(2)};
-      }
-      function _ptStr(val,i){var p=_pt(val,i);return p.x+','+p.y;}
-      // Grid lines
-      var gridSvg='';
-      [0.25,0.5,0.75,1].forEach(function(pct){
-        var pts=[0,1,2,3,4].map(function(i){
-          var a=_angle(i);var r=pct*R;
-          return (+(CX+r*Math.cos(a)).toFixed(2))+','+(+(CY+r*Math.sin(a)).toFixed(2));
-        }).join(' ');
-        gridSvg+='<polygon points="'+pts+'" fill="none" stroke="rgba(255,255,255,'+(pct===1?'0.08':'0.04')+')" stroke-width="'+(pct===1?'0.8':'0.5')+'"/>';
-      });
-      // Axis spokes
-      var spokesSvg=[0,1,2,3,4].map(function(i){
-        var a=_angle(i);
-        var x2=+(CX+R*Math.cos(a)).toFixed(2),y2=+(CY+R*Math.sin(a)).toFixed(2);
-        return '<line x1="'+CX+'" y1="'+CY+'" x2="'+x2+'" y2="'+y2+'" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>';
-      }).join('');
-      // Axis labels
-      var labelSvg=[0,1,2,3,4].map(function(i){
-        var a=_angle(i);var lr=R+9;
-        var lx=+(CX+lr*Math.cos(a)).toFixed(1),ly=+(CY+lr*Math.sin(a)).toFixed(1);
-        var anchor=Math.cos(a)>0.3?'start':Math.cos(a)<-0.3?'end':'middle';
-        return '<text x="'+lx+'" y="'+ly+'" font-size="6.5" fill="rgba(255,255,255,0.35)" font-family="monospace" text-anchor="'+anchor+'" dominant-baseline="middle">'+axes[i]+'</text>';
-      }).join('');
-      // Overall polygon (blue)
-      var oPts=overallArr.map(function(v,i){return _ptStr(v,i);}).join(' ');
-      // Rival polygon (accent)
-      var rPts=rivalArr.map(function(v,i){return _ptStr(v,i);}).join(' ');
-      return '<svg viewBox="0 0 120 128" width="120" height="128" style="display:block;margin:0 auto">'
-        +gridSvg+spokesSvg
-        // Rival polygon drawn first (sits underneath — shows your stats vs this rival)
-        +'<polygon points="'+rPts+'" fill="'+accent+'" fill-opacity="0.45" stroke="'+accent+'" stroke-width="1.2" stroke-linejoin="round"/>'
-        // Overall polygon drawn on top (semi-transparent so rival shows through where it extends further)
-        +'<polygon points="'+oPts+'" fill="rgba(56,138,221,0.55)" stroke="rgba(56,138,221,0.9)" stroke-width="1.5" stroke-linejoin="round"/>'
-        // Dots at each rival axis tip
-        +rivalArr.map(function(v,i){var p=_pt(v,i);return'<circle cx="'+p.x+'" cy="'+p.y+'" r="2" fill="'+accent+'" opacity="0.9"/>';}).join('')
-        // Colour legend
-        +'<rect x="4" y="118" width="7" height="4" rx="1" fill="rgba(56,138,221,0.75)"/>'
-        +'<text x="13" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">Overall</text>'
-        +'<rect x="50" y="118" width="7" height="4" rx="1" fill="'+accent+'"/>'
-        +'<text x="59" y="122" font-size="6" fill="rgba(255,255,255,0.4)" font-family="monospace" dominant-baseline="middle">vs Rival</text>'
-        +labelSvg
-        +'</svg>';
-    }
 
     // ── Helper: their K/D vs you ─────────────────────────────────────────────
     function _theirKd(r){
@@ -2506,19 +2309,6 @@ function render(){
         ?'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
         :'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 
-      // Build fingerprint arrays
-      var _b=_fpBaseline;
-      var _oArr=_fpArr(_b.kpg,_b.dpg,_b.dmgRatio,_b.acc,_b.hsPct);
-      // Rival-game stats: my performance in games where this rival appeared
-      var _rN=r.total||1;
-      var _rKpg=r.myKills/_rN;
-      var _rDpg=r.myDeaths/_rN;
-      var _rDmgRatio=r.myDmgTaken>0?r.myDmgDealt/r.myDmgTaken:1;
-      var _rAcc=r.myAccGames>0?r.myAccSum/r.myAccGames:_b.acc;
-      var _rHsPct=r.myKills>0?r.myHeadshots/r.myKills*100:_b.hsPct;
-      var _rArr=_fpArr(_rKpg,_rDpg,_rDmgRatio,_rAcc,_rHsPct);
-      var _radar=_miniRadar(_oArr,_rArr,accent);
-
       // W/L split bar proportions
       var _winPct=r.total>0?Math.round(r.wins/r.total*100):50;
       var _lossPct=r.total>0?Math.round(r.losses/r.total*100):50;
@@ -2541,16 +2331,6 @@ function render(){
         +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+_gtQ+'" '
         +'style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.28')+';padding:2px;line-height:1;flex-shrink:0" '
         +'title="'+(_rFav?'Remove favorite':'Add favorite')+'">'+_starSvg+'</span>'
-        +'</div>'
-        // Fingerprint radar — the main comparison graphic
-        +_radar
-        // Axis legend
-        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 8px;margin:6px 2px 0;padding:5px 6px;background:var(--surface2);border-radius:5px">'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">FRAG</span> kills/game</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">SURV</span> deaths (inv)</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">DMG</span> dmg dealt/taken</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2)"><span style="color:rgba(255,255,255,0.55)">AIM</span> accuracy</div>'
-        +'<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:var(--muted2);grid-column:1/-1"><span style="color:rgba(255,255,255,0.55)">HS</span> headshot finish rate</div>'
         +'</div>'
         // W/L split bar
         +'<div style="display:flex;align-items:center;gap:5px;margin-top:10px;margin-bottom:3px">'
