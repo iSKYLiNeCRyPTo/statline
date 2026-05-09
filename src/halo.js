@@ -7,21 +7,51 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const { createClient } = require('redis');
 let _redisClient = null;
 let _redisConnecting = false;
+let _redisDisabledUntil = 0;       // epoch ms — don't retry before this time
+const REDIS_COOLDOWN = 5 * 60 * 1000; // 5 min cooldown after giving up
 
 async function getRedis() {
   if (_redisClient && _redisClient.isOpen) return _redisClient;
   if (_redisConnecting) return null;
   if (!process.env.REDIS_URL) return null;
+  if (Date.now() < _redisDisabledUntil) return null; // cooling down
 
   _redisConnecting = true;
+  let _retryCount = 0;
+
   try {
+    const redisUrl = process.env.REDIS_URL;
+    const isTLS = redisUrl.startsWith('rediss://');
+
     _redisClient = createClient({
-      url: process.env.REDIS_URL,
-      socket: { reconnectStrategy: retries => Math.min(retries * 100, 3000) }
+      url: redisUrl,
+      socket: {
+        tls: isTLS,
+        rejectUnauthorized: false,
+        reconnectStrategy: retries => {
+          _retryCount = retries;
+          if (retries >= 4) {
+            console.warn('[Redis] Max retries reached — disabling for 5 min, using in-memory cache');
+            _redisDisabledUntil = Date.now() + REDIS_COOLDOWN;
+            _redisClient = null;
+            _redisConnecting = false;
+            return new Error('Redis: max retries exceeded');
+          }
+          return Math.min(retries * 1000, 4000);
+        }
+      }
     });
-    _redisClient.on('error', err => console.error('[Redis] Error:', err.message));
-    _redisClient.on('connect', () => console.log('[Redis] Connected'));
+
+    // Suppress per-reconnect error spam — only log unique messages
+    let _lastErrMsg = '';
+    _redisClient.on('error', err => {
+      if (err.message === _lastErrMsg) return;
+      _lastErrMsg = err.message;
+      console.warn('[Redis] Error:', err.message);
+    });
+    _redisClient.on('connect', () => { _lastErrMsg = ''; console.log('[Redis] Connected'); });
     _redisClient.on('end', () => { _redisClient = null; _redisConnecting = false; });
+
     await _redisClient.connect();
     _redisConnecting = false;
     return _redisClient;
@@ -29,6 +59,7 @@ async function getRedis() {
     console.warn('[Redis] Failed to connect — falling back to in-memory:', e.message);
     _redisClient = null;
     _redisConnecting = false;
+    _redisDisabledUntil = Date.now() + REDIS_COOLDOWN;
     return null;
   }
 }
