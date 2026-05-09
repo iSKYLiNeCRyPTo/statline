@@ -2600,10 +2600,6 @@ function render(){
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
   scheduleEmblemRetry();
-  // Inject advanced stats (clutch + map chart + K/D trend) into overview tab
-  setTimeout(function(){
-    if(p&&p.coach&&p.coach.trend) renderCoach(p.coach);
-  },0);
   // Populate rank benchmark card async (benchmark.js)
   setTimeout(function(){
     if(p&&p.gamertag&&p.csr&&window.loadRankBenchmark)window.loadRankBenchmark(p.gamertag,p.csr);
@@ -2616,62 +2612,6 @@ function render(){
   }, 0);
 }
 loadStats();
-
-// ── Halo DNA ───────────────────────────────────────────────────────────────
-// ── Improvement Coach ──────────────────────────────────────────────────────
-function renderCoach(coach) {
-  if (!coach) return;
-
-  var overviewPanel = document.querySelector('[data-tab-panel="overview"], #tab-overview, .tab-panel[data-tab="overview"]');
-  if (!overviewPanel) overviewPanel = document.querySelector('.tab-panel.active') || document.getElementById('app');
-  if (!overviewPanel) return;
-
-  var old = document.getElementById('coach-card');
-  if (old) old.parentNode.removeChild(old);
-
-  var trendColor = coach.trend === 'improving' ? 'var(--win,#4CAF82)' : coach.trend === 'declining' ? 'var(--loss,#ef4444)' : 'var(--muted)';
-
-  var strengthsHtml  = (coach.strengths||[]).length  ? coach.strengths.map(function(s){ return '<li>' + s + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
-  var weaknessesHtml = (coach.weaknesses||[]).length ? coach.weaknesses.map(function(w){ return '<li>' + w + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
-  var tipsHtml = (coach.tips||[]).length ? '<strong style="color:#4CAF82">Coach Tips:</strong><br>' + coach.tips.map(function(t){ return '• ' + t; }).join('<br>') : '';
-
-  // Build the change line only when we have real numeric values
-  var changeHtml = '';
-  var kdc = parseFloat(coach.kdChange), wrc = parseFloat(coach.wrChange);
-  if (!isNaN(kdc) && !isNaN(wrc)) {
-    changeHtml = '<br><small style="color:#888;font-size:12px">K/D ' + (kdc >= 0 ? '↑' : '↓') + ' ' + Math.abs(kdc).toFixed(2) +
-                 ' &nbsp;|&nbsp; WR ' + (wrc >= 0 ? '↑' : '↓') + ' ' + Math.abs(wrc).toFixed(1) + '%</small>';
-  }
-
-  var card = document.createElement('div');
-  card.id = 'coach-card';
-  card.className = 'stat-card';
-  card.style.cssText = 'grid-column:span 3;margin-top:12px;margin-bottom:24px';
-  card.innerHTML =
-    '<div class="stat-label"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> IMPROVEMENT COACH</div>' +
-    '<div id="coach-overall" style="font-size:18px;line-height:1.4;margin:12px 0;color:' + trendColor + '">' +
-      coach.overall + changeHtml +
-    '</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">' +
-      '<div>' +
-        '<div class="stat-label" style="font-size:11px">STRENGTHS</div>' +
-        '<ul style="padding-left:18px;margin:8px 0;line-height:1.5">' + strengthsHtml + '</ul>' +
-      '</div>' +
-      '<div>' +
-        '<div class="stat-label" style="font-size:11px">FOCUS AREAS</div>' +
-        '<ul style="padding-left:18px;margin:8px 0;line-height:1.5">' + weaknessesHtml + '</ul>' +
-      '</div>' +
-    '</div>' +
-    '<div style="margin-top:16px;font-size:13px;color:#aaa">' + tipsHtml + '</div>';
-
-  // Insert directly after the daily session block if present; otherwise append
-  var sessionBlock = document.getElementById('daily-session-block');
-  if (sessionBlock && sessionBlock.parentNode) {
-    sessionBlock.parentNode.insertBefore(card, sessionBlock.nextSibling);
-  } else {
-    overviewPanel.appendChild(card);
-  }
-}
 
 window.addEventListener('popstate', function(e){
   var params=new URLSearchParams(window.location.search);

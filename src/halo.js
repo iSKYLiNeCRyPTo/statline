@@ -87,6 +87,17 @@ let clearanceInFlight = null;
 let clearanceFailedAt = 0;      // timestamp of last all-attempts failure
 const CLEARANCE_FAIL_COOLDOWN = 5 * 60 * 1000; // 5 minutes before retrying after total failure
 
+// Called by tokenRefresh after a new Spartan token is issued — wipes the old
+// clearance so the next request fetches a fresh one bound to the new token.
+function resetClearanceCache() {
+  cachedClearance = null;
+  clearanceFetchedAt = 0;
+  clearanceInFlight = null;
+  clearanceFailedAt = 0;
+  getRedis().then(r => r && r.del('clearanceToken')).catch(() => {});
+  console.log('[Clearance] Cache reset after Spartan token refresh');
+}
+
 // Match IDs that the skill API permanently 404s — skip on all future fetches
 const _deadSkillMatchIds = new Set();
 const DEAD_SKILL_MAX = 2000; // cap to prevent unbounded growth
@@ -711,9 +722,9 @@ async function fetchPlayerStats(gamertag) {
 
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
 async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null, stopAtMatchId = null) {
-  const TARGET   = 100;  // desired valid (non-custom/PvE) matches
-  const BATCH    = 25;  // matches per API call (API max is 25)
-  const MAX_SCAN = 500; // give up after scanning this many raw matches (raised from 250 — players with lots of social/PvE matches need more runway)
+  const TARGET   = 250;  // desired valid (non-custom/PvE) matches
+  const BATCH    = 25;   // matches per API call (API max is 25)
+  const MAX_SCAN = 1000; // give up after scanning this many raw matches
 
   const headers = getAuthHeaders();
   const rivalStats = {};   // keyed by rawXuid — resolved to gamertag later
@@ -1097,9 +1108,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   const victimsList = [...rivals].filter(r=>r.wins>r.losses).sort((a,b)=>b.wins-a.wins||a.losses-b.losses).slice(0,15);
 
   const advancedStats = computeAdvancedStats(results);
-  const coach = generateImprovementCoach(results, advancedStats);
-  const haloDNA = generateHaloDNA(results, advancedStats, coach);
-  return { matches: results, advancedStats, coach, haloDNA, rivals, nemesisList, victimsList };
+  const haloDNA = generateHaloDNA(results, advancedStats, null);
+  return { matches: results, advancedStats, haloDNA, rivals, nemesisList, victimsList };
 }
 
 // Fetch skill data (MMR, expected K/D) for ranked matches in the background.
@@ -1294,77 +1304,6 @@ function computeAdvancedStats(matches) {
 }
 
 // ====================== IMPROVEMENT COACH ======================
-function generateImprovementCoach(matches, advancedStats) {
-  if (!matches || matches.length < 10) {
-    return {
-      overall: "Not enough matches to analyze yet. Keep grinding!",
-      strengths: [],
-      weaknesses: [],
-      tips: [],
-      trend: "neutral"
-    };
-  }
-
-  const recent = matches.slice(0, 30);   // last 30 matches
-  const older  = matches.slice(30, 80);  // before that
-
-  const calcKD = (ms) => {
-    let k = 0, d = 0;
-    ms.forEach(m => { k += m.kills || 0; d += m.deaths || 0; });
-    return d > 0 ? k / d : k;
-  };
-
-  // outcome === 2 is a win in our data (numeric from Halo API)
-  const calcWR = (ms) => ms.filter(m => m.outcome === 2).length / ms.length * 100;
-
-  const recentKD = calcKD(recent);
-  const olderKD  = older.length ? calcKD(older)  : recentKD;
-  const recentWR = calcWR(recent);
-  const olderWR  = older.length ? calcWR(older)  : recentWR;
-
-  const kdChange = recentKD - olderKD;
-  const wrChange = recentWR - olderWR;
-
-  let trend = "neutral";
-  let overall = "";
-
-  if (kdChange > 0.3 || wrChange > 8) {
-    trend = "improving";
-    overall = "You're on a strong upward trend! Keep this momentum.";
-  } else if (kdChange < -0.25 || wrChange < -8) {
-    trend = "declining";
-    overall = "Slight dip in performance. Totally normal — let's fix it.";
-  } else {
-    overall = "You're playing consistently. Time to push for the next level.";
-  }
-
-  const strengths  = [];
-  const weaknesses = [];
-  const tips       = [];
-
-  if (recentKD > 1.4) strengths.push("Strong slayer");
-  if (recentWR > 65)  strengths.push("High win rate");
-  if (advancedStats && advancedStats.clutchKD !== "—" && parseFloat(advancedStats.clutchKD) > 1.6)
-    strengths.push("Clutch monster");
-
-  if (recentKD < 0.9) weaknesses.push("Struggling to win fights");
-  if (recentWR < 45)  weaknesses.push("Low win rate");
-
-  if (kdChange < -0.2) tips.push("Focus on positioning — dying less will raise your K/D fast.");
-  if (wrChange < -5)   tips.push("Play more to your team's objective, not just frags.");
-  tips.push("Try warming up in Custom Games before ranked.");
-
-  return {
-    overall,
-    trend,
-    kdChange: kdChange.toFixed(2),
-    wrChange: wrChange.toFixed(1),
-    strengths:  strengths.slice(0, 3),
-    weaknesses: weaknesses.slice(0, 3),
-    tips:       tips.slice(0, 4)
-  };
-}
-
 // ====================== HALO DNA ======================
 function generateHaloDNA(matches, advancedStats, coach) {
   if (!matches || matches.length < 10) {
@@ -1431,6 +1370,6 @@ module.exports = {
   getRedis,
   discoverPlaylists,
   computeAdvancedStats,
-  generateImprovementCoach,
   generateHaloDNA,
+  resetClearanceCache,
 };

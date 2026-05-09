@@ -171,9 +171,12 @@ async function savePlayerSnapshot(player) {
       snapWinRate   = wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null;
       snapAccuracy  = accGames.length ? parseFloat((accGames.reduce((s, m) => s + parseFloat(m.accuracy), 0) / accGames.length).toFixed(1)) : null;
       snapAvgKills  = parseFloat((totalKills / mValid.length).toFixed(1));
-      snapMatchesPlayed = mValid.length;
-      snapWins      = wins;
-      snapLosses    = wlMatches.length - wins;
+      // Prefer career total from service record so the leaderboard shows real game counts,
+      // not just our cached sample size. Fall back to sample length if not available.
+      const _s = player.stats || {};
+      snapMatchesPlayed = _s.matchesPlayed || mValid.length;
+      snapWins      = _s.wins   || wins;
+      snapLosses    = _s.losses || (wlMatches.length - wins);
     } else {
       // Fall back to career API stats
       const s = player.stats || {};
@@ -370,12 +373,15 @@ async function getLeaderboardData(limit = 50) {
     if (!db) return { kd: [], winRate: [], csr: [] };
 
     // One row per player (most recent snapshot only), filtered for quality
+    // kd < 15 and win_rate < 95 filter out obvious stat manipulators / cheaters
     const base = `
       SELECT DISTINCT ON (xuid)
         gamertag, kd, win_rate, accuracy, avg_kills,
         csr_tier, csr_subtier, csr_value, matches_played, wins, losses, ts
       FROM player_snapshots
-      WHERE kd IS NOT NULL AND kd > 0 AND matches_played >= 10
+      WHERE kd IS NOT NULL AND kd > 0 AND kd < 15
+        AND (win_rate IS NULL OR win_rate < 95)
+        AND matches_played >= 25
       ORDER BY xuid, ts DESC
     `;
 
@@ -385,9 +391,9 @@ async function getLeaderboardData(limit = 50) {
       [limit]
     );
 
-    // Top by Win Rate (min 20 matches)
+    // Top by Win Rate (min 50 matches to prevent small-sample flukes)
     const wrRes = await db.query(
-      `SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 20 ORDER BY win_rate DESC LIMIT $1`,
+      `SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 50 ORDER BY win_rate DESC LIMIT $1`,
       [limit]
     );
 

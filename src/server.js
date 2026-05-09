@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateImprovementCoach, generateHaloDNA } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
@@ -103,8 +103,8 @@ setInterval(() => {
 
 // --- Search cache (Redis-primary, in-memory fallback) ---
 const searchCache = {}; // gamertag.lower -> { data, fetchedAt }
-const CACHE_TTL = 60 * 60 * 1000; // 60 minutes
-const CACHE_TTL_SECONDS = 3600;    // Redis TTL in seconds
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours (incrementals keep data fresh)
+const CACHE_TTL_SECONDS = 86400;        // Redis TTL in seconds
 const _searchProgress = {}; // gamertag.lower -> { step, valid, total, ts }
 
 async function getFromCache(gamertag) {
@@ -289,14 +289,21 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
         if (filteredNew.length > 0) {
           const existing = cached.allMatches || cached.recentMatches || [];
-          const merged = [...filteredNew, ...existing].slice(0, 100);
+          const merged = [...filteredNew, ...existing].slice(0, 250);
           const advancedStats = computeAdvancedStats(merged);
-          const coach = generateImprovementCoach(merged, advancedStats);
-          const haloDNA = generateHaloDNA(merged, advancedStats, coach);
-          const updated = { ...cached, allMatches: merged, recentMatches: merged, advancedStats, coach, haloDNA };
+          const haloDNA = generateHaloDNA(merged, advancedStats, null);
+          // Refresh player stats (CSR, service record) — fast, just 2-3 API calls
+          const freshStats = await fetchPlayerStats(gamertag).catch(() => null);
+          const updated = {
+            ...(freshStats || cached),
+            allMatches: merged,
+            recentMatches: merged,
+            advancedStats,
+            haloDNA,
+          };
           await saveToCache(gamertag, updated);
           logSearch(gamertag, req.headers['user-agent'], 'incremental', true, null);
-          console.log(`[Incremental] ${filteredNew.length} new matches for ${gamertag}`);
+          console.log(`[Incremental] ${filteredNew.length} new matches + fresh stats for ${gamertag}`);
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
         // No new matches — fall through to cached response below
@@ -315,11 +322,10 @@ app.get('/api/search', rateLimit, async (req, res) => {
         .then(() => saveToCache(gamertag, cached))
         .catch(e => console.warn('[SkillBG/cached] skill fetch failed:', e.message)), 1000);
     }
-    if (_allM.length >= 10 && (!cached.coach || !cached.haloDNA)) {
+    if (_allM.length >= 10 && !cached.haloDNA) {
       try {
         const _adv = cached.advancedStats || computeAdvancedStats(_allM);
-        if (!cached.coach)    cached.coach    = generateImprovementCoach(_allM, _adv);
-        if (!cached.haloDNA)  cached.haloDNA  = generateHaloDNA(_allM, _adv, cached.coach);
+        cached.haloDNA = generateHaloDNA(_allM, _adv, null);
         saveToCache(gamertag, cached).catch(() => {});
       } catch(e) { /* non-fatal */ }
     }
@@ -352,13 +358,13 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
   const searchPromise = (async () => {
     try {
-      _searchProgress[key] = { step: 1, valid: 0, total: 100, ts: Date.now() };
+      _searchProgress[key] = { step: 1, valid: 0, total: 250, ts: Date.now() };
       const playerStats = await fetchPlayerStats(gamertag);
-      _searchProgress[key] = { step: 2, valid: 0, total: 100, ts: Date.now() };
-      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 100, (valid, scanned, total, retrying) => {
+      _searchProgress[key] = { step: 2, valid: 0, total: 250, ts: Date.now() };
+      const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 250, (valid, scanned, total, retrying) => {
         _searchProgress[key] = { step: 2, valid, scanned, total, retrying: retrying || null, ts: Date.now() };
       });
-      _searchProgress[key] = { step: 3, valid: 100, total: 100, ts: Date.now() };
+      _searchProgress[key] = { step: 3, valid: 250, total: 250, ts: Date.now() };
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
       const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
       const matches = (histData.matches || []).filter(m => {
@@ -366,7 +372,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
         return true;
-      }).slice(0, 100);
+      }).slice(0, 250);
       const result = {
         ...playerStats,
         recentMatches: matches,
@@ -375,7 +381,6 @@ app.get('/api/search', rateLimit, async (req, res) => {
         nemesisList: histData.nemesisList || [],
         victimsList: histData.victimsList || [],
         advancedStats: histData.advancedStats || {},
-        coach: histData.coach || null,
         haloDNA: histData.haloDNA || null,
       };
       await saveToCache(gamertag, result);
@@ -435,7 +440,17 @@ app.get('/api/latest-match', async (req, res) => {
     const xuid = entry && entry.data && entry.data.xuid;
     if (!xuid) return res.json({ ok: false, reason: 'not_cached' });
 
-    // Rate-limit: reuse the last check result for 60s to avoid hammering Waypoint
+    // Rate-limit: reuse the last check result for 60s — try Redis first, fall back to memory
+    const _lmRedis = await getRedis().catch(() => null);
+    if (_lmRedis) {
+      try {
+        const _lmRaw = await _lmRedis.get('latestmatch:' + key);
+        if (_lmRaw) {
+          const _lmParsed = JSON.parse(_lmRaw);
+          return res.json({ ok: true, matchId: _lmParsed.matchId, startTime: _lmParsed.startTime, fromCache: true });
+        }
+      } catch(e) { /* fall through to memory */ }
+    }
     const lastCheck = _latestMatchCheckCache[key];
     if (lastCheck && Date.now() - lastCheck.checkedAt < LATEST_CHECK_TTL) {
       return res.json({ ok: true, matchId: lastCheck.matchId, startTime: lastCheck.startTime, fromCache: true });
@@ -453,15 +468,20 @@ app.get('/api/latest-match', async (req, res) => {
     const latestMatchId = latestWay ? latestWay.MatchId : null;
     const latestStartTime = latestWay ? latestWay.MatchInfo?.StartTime : null;
 
-    // Cache the result
+    // Persist result to Redis (60s TTL) and memory
+    if (_lmRedis) {
+      _lmRedis.set('latestmatch:' + key, JSON.stringify({ matchId: latestMatchId, startTime: latestStartTime }), { EX: 60 })
+        .catch(() => {});
+    }
     _latestMatchCheckCache[key] = { matchId: latestMatchId, startTime: latestStartTime, checkedAt: Date.now() };
 
-    // If the new matchId differs from what's in the player cache, invalidate the
-    // server cache so the next force-refresh pulls fresh data from Waypoint
+    // If the new matchId differs from what's in the player cache, bust the cache
+    // so the next /api/search picks up new matches via the incremental path
     const cachedMatches = entry.data.allMatches || entry.data.recentMatches || [];
     const cachedLatestId = cachedMatches[0] ? cachedMatches[0].matchId : null;
     if (latestMatchId && latestMatchId !== cachedLatestId) {
-      delete searchCache[key]; // bust cache so next /api/search?force=1 fetches fresh
+      delete searchCache[key];
+      if (_lmRedis) _lmRedis.del('player:' + key).catch(() => {});
     }
 
     res.json({ ok: true, matchId: latestMatchId, startTime: latestStartTime });
@@ -891,6 +911,11 @@ async function getXblPeopleToken() {
     const msBody = `client_id=${CLIENT_ID}&refresh_token=${encodeURIComponent(refreshToken)}&grant_type=refresh_token&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(SCOPE)}`;
     const msData = await post('login.live.com', '/oauth20_token.srf', { 'Content-Type': 'application/x-www-form-urlencoded' }, msBody);
     if (!msData.access_token) return null;
+    // Persist rotated refresh token so it isn't lost
+    if (msData.refresh_token && msData.refresh_token !== process.env.MS_REFRESH_TOKEN) {
+      process.env.MS_REFRESH_TOKEN = msData.refresh_token;
+      getRedis().then(r => r && r.set('msRefreshToken', msData.refresh_token)).catch(() => {});
+    }
     // Step 2: XBL token
     const xblData = await post('user.auth.xboxlive.com', '/user/authenticate',
       { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -2347,4 +2372,23 @@ function renderResults(d) {
 `);
 });
 
-app.listen(PORT, () => console.log('fragr listening on port ' + PORT));
+app.listen(PORT, () => {
+  console.log('fragr listening on port ' + PORT);
+
+  // On startup: pull the latest rotated refresh token from Redis.
+  // Redis may have a newer token than the env var (rotated on a previous run that
+  // was then redeployed/restarted, wiping the ephemeral file).
+  getRedis().then(async r => {
+    if (!r) return;
+    try {
+      const saved = await r.get('msRefreshToken');
+      if (saved && saved !== process.env.MS_REFRESH_TOKEN) {
+        process.env.MS_REFRESH_TOKEN = saved;
+        console.log('[TokenRefresh] Loaded rotated refresh token from Redis');
+      }
+    } catch(e) { console.warn('[TokenRefresh] Redis token load failed:', e.message); }
+  }).catch(() => {});
+
+  // Start the auto-refresh scheduler, wired to Redis persistence + clearance reset
+  startAutoRefresh({ getRedis, onRefreshed: resetClearanceCache });
+});
