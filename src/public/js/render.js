@@ -2602,7 +2602,6 @@ function render(){
   scheduleEmblemRetry();
   // Inject advanced stats (clutch + map chart + K/D trend) into overview tab
   setTimeout(function(){
-    if(p&&p.advancedStats&&(p.advancedStats.totalAnalyzed||p.advancedStats.topMaps)) renderAdvancedStats(p.advancedStats);
     if(p&&p.coach&&p.coach.trend) renderCoach(p.coach);
     if(p&&p.haloDNA&&p.haloDNA.title&&p.haloDNA.title!=='Recruit') renderHaloDNA(p.haloDNA);
   },0);
@@ -2618,123 +2617,6 @@ function render(){
   }, 0);
 }
 loadStats();
-
-// ── Advanced Stats: Clutch Rating + Map Chart + K/D Trend ──────────────────
-function renderAdvancedStats(adv) {
-  if (!adv || !adv.topMaps) return;
-
-  // Find the overview tab panel to append into
-  var overviewPanel = document.querySelector('[data-tab-panel="overview"], #tab-overview, .tab-panel[data-tab="overview"]');
-  if (!overviewPanel) {
-    overviewPanel = document.querySelector('.tab-panel.active') || document.getElementById('app');
-  }
-  if (!overviewPanel) return;
-
-  // Remove any previous advanced stats block
-  var old = document.getElementById('advanced-row');
-  if (old) old.parentNode.removeChild(old);
-
-  var sec = document.createElement('div');
-  sec.id = 'advanced-row';
-  sec.className = 'stat-row';
-  sec.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:20px;margin-bottom:24px';
-  sec.innerHTML =
-    '<div class="stat-card">' +
-      '<div class="stat-label">CLUTCH RATING</div>' +
-      '<div class="stat-value accent" id="clutch-kd" style="font-size:42px;font-weight:700;color:var(--accent)">—</div>' +
-      '<div id="clutch-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>' +
-    '</div>' +
-    '<div class="stat-card" style="grid-column:span 2">' +
-      '<div class="stat-label">MAP PERFORMANCE · TOP 6</div>' +
-      '<canvas id="mapWinChart" style="display:block;width:100%;height:130px"></canvas>' +
-    '</div>' +
-    '<div class="stat-card" style="grid-column:span 2">' +
-      '<div class="stat-label">K/D TREND (LAST 20)</div>' +
-      '<canvas id="kdTrendChart" style="display:block;width:100%;height:130px"></canvas>' +
-    '</div>';
-
-  overviewPanel.appendChild(sec);
-
-  // Clutch
-  document.getElementById('clutch-kd').textContent = adv.clutchKD || '—';
-  document.getElementById('clutch-sub').textContent = (adv.clutchGames || 0) + ' clutch situations';
-
-  // Destroy old charts if they exist
-  if (window.mapWinChart) { window.mapWinChart.destroy(); window.mapWinChart = null; }
-  if (window.kdTrendChart) { window.kdTrendChart.destroy(); window.kdTrendChart = null; }
-
-  function _drawAdvCharts() {
-    // Map Win Rate Bar Chart
-    if (adv.topMaps && adv.topMaps.length) {
-      var mapCtx = document.getElementById('mapWinChart');
-      if (mapCtx) {
-        window.mapWinChart = new window.Chart(mapCtx, {
-          type: 'bar',
-          data: {
-            labels: adv.topMaps.slice(0,6).map(function(m){ return m.name.length > 11 ? m.name.substring(0,11) + '…' : m.name; }),
-            datasets: [{
-              label: 'Win %',
-              data: adv.topMaps.slice(0,6).map(function(m){ return parseFloat(m.winRate) || 0; }),
-              backgroundColor: 'rgba(56,138,221,0.75)',
-              borderColor: '#378ADD',
-              borderWidth: 1.5
-            }]
-          },
-          options: {
-            responsive: false,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-              y: { beginAtZero: true, max: 100, ticks: { color: '#8899aa', font: { size: 9 }, stepSize: 20 }, grid: { color: 'rgba(255,255,255,0.04)' } }
-            }
-          }
-        });
-      }
-    }
-
-    // K/D Trend Line
-    if (adv.kdHistory && adv.kdHistory.length) {
-      var trendCtx = document.getElementById('kdTrendChart');
-      if (trendCtx) {
-        window.kdTrendChart = new window.Chart(trendCtx, {
-          type: 'line',
-          data: {
-            labels: adv.kdHistory.map(function(_, i){ return i + 1; }),
-            datasets: [{
-              label: 'K/D',
-              data: adv.kdHistory.map(function(h){ return parseFloat(h.kd) || 0; }),
-              borderColor: '#4CAF82',
-              backgroundColor: 'rgba(76,175,130,0.1)',
-              tension: 0.4,
-              pointRadius: 2.5,
-              borderWidth: 2.5
-            }]
-          },
-          options: {
-            responsive: false,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-              y: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
-            }
-          }
-        });
-      }
-    }
-  }
-
-  // If Chart.js is already loaded, draw immediately; otherwise load it then draw
-  if (window.Chart) {
-    _drawAdvCharts();
-  } else {
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-    s.onload = _drawAdvCharts;
-    document.head.appendChild(s);
-  }
-}
 
 // ── Halo DNA ───────────────────────────────────────────────────────────────
 function renderHaloDNA(dna) {

@@ -1417,4 +1417,6 @@ module.exports = {
   getRedis,
   discoverPlaylists,
   computeAdvancedStats,
+  generateImprovementCoach,
+  generateHaloDNA,
 };

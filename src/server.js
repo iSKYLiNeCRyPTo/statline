@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateImprovementCoach, generateHaloDNA } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
@@ -269,6 +269,15 @@ app.get('/api/search', rateLimit, async (req, res) => {
       setTimeout(() => fetchAndApplySkillData(cached.xuid, _allM)
         .then(() => saveToCache(gamertag, cached))
         .catch(e => console.warn('[SkillBG/cached] skill fetch failed:', e.message)), 1000);
+    }
+    // Backfill coach + haloDNA if missing from old cache entries
+    if (_allM.length >= 10 && (!cached.coach || !cached.haloDNA)) {
+      try {
+        const _adv = cached.advancedStats || computeAdvancedStats(_allM);
+        if (!cached.coach)    cached.coach    = generateImprovementCoach(_allM, _adv);
+        if (!cached.haloDNA)  cached.haloDNA  = generateHaloDNA(_allM, _adv, cached.coach);
+        saveToCache(gamertag, cached).catch(() => {});
+      } catch(e) { /* non-fatal */ }
     }
     logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
     return res.json({ success: true, player: cached, cached: true });
