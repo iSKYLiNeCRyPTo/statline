@@ -259,9 +259,54 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
   // Check cache (skip if force refresh requested)
   const forceRefresh = req.query.force === '1';
+  const key = gamertag.toLowerCase().trim();
   const cached = await getFromCache(gamertag);
   if (cached && !forceRefresh) {
-    // Re-trigger skill enrichment in background if the cached data is missing skill pills
+    const newestCachedId = (cached.allMatches || cached.recentMatches || [])[0]?.matchId;
+
+    // ── Incremental fetch: only pull matches newer than what we have ──────────
+    if (newestCachedId && cached.xuid) {
+      try {
+        _searchProgress[key] = { step: 2, valid: 0, total: 25, ts: Date.now() };
+        const newHistData = await fetchMatchHistory(
+          cached.xuid, gamertag, 100,
+          (valid, scanned, total, retrying) => {
+            _searchProgress[key] = { step: 2, valid, scanned, total, retrying: retrying || null, ts: Date.now() };
+          },
+          newestCachedId
+        );
+        setTimeout(() => { delete _searchProgress[key]; }, 10000);
+
+        const rawNew = newHistData.matches || [];
+        const PVE = ['firefight','gruntpocalypse','attrition','pve'];
+        const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
+        const filteredNew = rawNew.filter(m => {
+          if (m.isCustom) return false;
+          if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
+          if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
+          return true;
+        });
+
+        if (filteredNew.length > 0) {
+          const existing = cached.allMatches || cached.recentMatches || [];
+          const merged = [...filteredNew, ...existing].slice(0, 100);
+          const advancedStats = computeAdvancedStats(merged);
+          const coach = generateImprovementCoach(merged, advancedStats);
+          const haloDNA = generateHaloDNA(merged, advancedStats, coach);
+          const updated = { ...cached, allMatches: merged, recentMatches: merged, advancedStats, coach, haloDNA };
+          await saveToCache(gamertag, updated);
+          logSearch(gamertag, req.headers['user-agent'], 'incremental', true, null);
+          console.log(`[Incremental] ${filteredNew.length} new matches for ${gamertag}`);
+          return res.json({ success: true, player: updated, newMatches: filteredNew.length });
+        }
+        // No new matches — fall through to cached response below
+      } catch(e) {
+        console.warn(`[Incremental] failed for ${gamertag}, returning cache:`, e.message);
+        setTimeout(() => { delete _searchProgress[key]; }, 10000);
+      }
+    }
+
+    // Return cached (no new matches, or no newestCachedId to anchor on)
     const _allM = cached.allMatches || cached.recentMatches || [];
     const _ranked = _allM.filter(m => m.isRanked && m.matchId);
     const _withSkill = _ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
@@ -270,7 +315,6 @@ app.get('/api/search', rateLimit, async (req, res) => {
         .then(() => saveToCache(gamertag, cached))
         .catch(e => console.warn('[SkillBG/cached] skill fetch failed:', e.message)), 1000);
     }
-    // Backfill coach + haloDNA if missing from old cache entries
     if (_allM.length >= 10 && (!cached.coach || !cached.haloDNA)) {
       try {
         const _adv = cached.advancedStats || computeAdvancedStats(_allM);
@@ -284,7 +328,6 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 
   // Deduplicate concurrent searches
-  const key = gamertag.toLowerCase().trim();
   if (searchInFlight[key]) {
     try {
       const result = await searchInFlight[key];

@@ -710,7 +710,7 @@ async function fetchPlayerStats(gamertag) {
 }
 
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
-async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null) {
+async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null, stopAtMatchId = null) {
   const TARGET   = 100;  // desired valid (non-custom/PvE) matches
   const BATCH    = 25;  // matches per API call (API max is 25)
   const MAX_SCAN = 500; // give up after scanning this many raw matches (raised from 250 — players with lots of social/PvE matches need more runway)
@@ -751,7 +751,19 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
     const rawBatch = data.Results || [];
     if (!rawBatch.length) { stopReason = 'no more history'; break; }
 
-    const fetchedDetails = await fetchConcurrent(rawBatch, async (m) => {
+    // Incremental fetch: trim batch at the known boundary match — skip fetching
+    // details for matches we already have in cache
+    let hitStop = false;
+    let batchToProcess = rawBatch;
+    if (stopAtMatchId) {
+      const stopIdx = rawBatch.findIndex(m => m.MatchId === stopAtMatchId);
+      if (stopIdx !== -1) {
+        batchToProcess = rawBatch.slice(0, stopIdx); // only the new ones
+        hitStop = true;
+      }
+    }
+
+    const fetchedDetails = await fetchConcurrent(batchToProcess, async (m) => {
       try {
         const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
         const md = r.ok ? await r.json() : null;
@@ -761,7 +773,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
 
     start += BATCH;
     // Brief pause between batches to avoid bursting halostats rate limit
-    if (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN) {
+    if (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN && !hitStop) {
       await sleep(200);
     }
 
@@ -987,6 +999,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
       results.push({ matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, gameMode: null, kills:0,deaths:0,assists:0,damageDealt:0,damageTaken:0 });
     }
     } // end for fetchedDetails
+
+    if (hitStop) { stopReason = 'incremental stop'; break; }
 
     const validNow = results.filter(r => !r.isCustom).length;
     console.log(`[MatchFetch] scanned=${start} valid=${validNow}/${TARGET} for ${gamertag}`);
