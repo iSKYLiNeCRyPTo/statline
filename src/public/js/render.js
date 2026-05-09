@@ -99,7 +99,6 @@ function renderObjectiveStats(matches){
 }
 
 // Touch handler for performance baseline chart bars (mobile)
-// Shows tap detail in the panel below the chart; dismisses on second tap
 function _pbTip(el){
   var panel = document.getElementById('_pbTipPanel');
   if(!panel) return;
@@ -110,6 +109,45 @@ function _pbTip(el){
   panel.textContent = tip;
   panel.style.display = 'block';
   panel._srcEl = el;
+}
+
+// Toggle handler for performance baseline chart (last 20 / 50 / all)
+function _pbSetLimit(lim){
+  var sc = window._pbAllScored;
+  var HALF = window._pbHALF || 72;
+  if(!sc || !sc.length) return;
+  window._pbLimit = lim;
+  var cg = sc.slice(0, lim).reverse();
+  var maxA = Math.max(1.5, Math.max.apply(null, cg.map(function(g){return Math.abs(g.ns);})));
+  var bMaxW = cg.length<=20?28:cg.length<=40?20:cg.length<=70?13:9;
+  var BAND  = Math.max(18, Math.round(HALF*0.4/maxA));
+  var barsHtml = cg.map(function(g){
+    var clamped = Math.max(-maxA, Math.min(maxA, g.ns));
+    var barH    = Math.max(4, Math.round(Math.abs(clamped)/maxA*HALF));
+    var color   = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
+    var lobby   = g.isUnderdog?'underdog (harder lobby)':g.isFav?'favored (easier lobby)':'even lobby';
+    var kAbs=Math.abs(g.killDelta), kDir=g.killDelta>=0?'above':'below';
+    var dAbs=Math.abs(g.deathDelta), dDir=g.deathDelta>=0?'fewer':'more';
+    var tip='Kills: '+kAbs.toFixed(1)+' '+kDir+' expected  ·  Deaths: '+dAbs.toFixed(1)+' '+dDir+' than expected  ·  '+lobby+'  ·  Score: '+(g.ns>=0?'+':'')+g.ns.toFixed(2);
+    var tipAttr=tip.replace(/"/g,'&quot;');
+    var barCss=clamped>=0
+      ? 'position:absolute;bottom:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:2px 2px 0 0;opacity:0.85'
+      : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px;opacity:0.85';
+    return '<div style="flex:1;min-width:3px;max-width:'+bMaxW+'px;height:'+(HALF*2)+'px;position:relative;cursor:default" title="'+tipAttr+'" data-tip="'+tipAttr+'">'
+         + '<div style="'+barCss+'"></div></div>';
+  }).join('');
+  var barsEl=document.getElementById('_pbBars');
+  var countEl=document.getElementById('_pbCount');
+  var bandEl=document.getElementById('_pbBand');
+  if(barsEl) barsEl.innerHTML=barsHtml;
+  if(countEl) countEl.textContent='LAST '+cg.length+' RANKED GAMES (of '+sc.length+' scored)';
+  if(bandEl){ bandEl.style.top=(HALF-BAND)+'px'; bandEl.style.height=(BAND*2)+'px'; }
+  document.querySelectorAll('._pbToggle').forEach(function(b){
+    var active=parseInt(b.getAttribute('data-lim'))===lim;
+    b.style.color=active?'var(--accent)':'var(--muted2)';
+    b.style.borderColor=active?'var(--accent)':'var(--border)';
+    b.style.background=active?'rgba(0,212,255,0.07)':'transparent';
+  });
 }
 
 // ── Performance Baseline ────────────────────────────────────────────────────
@@ -184,27 +222,28 @@ function renderPerformanceBaseline(allMatches, tier) {
 
   // ── Bar chart ──────────────────────────────────────────────────────────────
   var _isMobile = window.innerWidth < 768;
-  var chartGames = scored.slice(0, _isMobile ? 40 : 100).reverse();
+  var HALF=_isMobile?50:72;
+  var _defaultLim = _isMobile ? 40 : 50; // default to 50 on desktop — 100 was too dense
+  // Store scored data globally so _pbSetLimit can re-render without a full page refresh
+  window._pbAllScored = scored;
+  window._pbHALF = HALF;
+  window._pbLimit = _defaultLim;
+  var chartGames = scored.slice(0, _defaultLim).reverse();
   var maxAbs = Math.max(1.5, Math.max.apply(null, chartGames.map(function(g){return Math.abs(g.ns);})));
-  var HALF=_isMobile?50:72; // half chart height in px — taller for readability
   // Band represents ±0.4 normalized score units ("on par" zone).
-  // Floored so the "on par" band is always visible even when outliers compress scale.
   var BAND=Math.max(_isMobile?13:18, Math.round(HALF*0.4/maxAbs));
-  // Bar width: scale down as game count grows so all bars fit without wrapping
   var _bMaxW = _isMobile
-    ? (chartGames.length<=40 ? 14 : chartGames.length<=70 ? 9 : 6)
-    : (chartGames.length<=40 ? 20 : chartGames.length<=70 ? 13 : 9);
+    ? (chartGames.length<=40 ? 14 : 9)
+    : (chartGames.length<=20 ? 28 : chartGames.length<=40 ? 20 : chartGames.length<=70 ? 13 : 9);
 
-  var barsHtml = chartGames.map(function(g,_bi){
+  var barsHtml = chartGames.map(function(g){
     var clamped = Math.max(-maxAbs, Math.min(maxAbs, g.ns));
     var barH    = Math.max(4, Math.round(Math.abs(clamped)/maxAbs*HALF));
     var color   = clamped>0.3?'var(--win)':clamped<-0.3?'var(--loss)':'var(--border2)';
     var lobby   = g.isUnderdog?'underdog (harder lobby)':g.isFav?'favored (easier lobby)':'even lobby';
-    // Tooltip: plain English, correct direction for deaths
     var kAbs = Math.abs(g.killDelta), kDir = g.killDelta>=0?'above':'below';
     var dAbs = Math.abs(g.deathDelta), dDir = g.deathDelta>=0?'fewer':'more';
-    var scoreStr = (g.ns>=0?'+':'')+g.ns.toFixed(2);
-    var tip = 'Kills: '+kAbs.toFixed(1)+' '+kDir+' expected  ·  Deaths: '+dAbs.toFixed(1)+' '+dDir+' than expected  ·  '+lobby+'  ·  Score: '+scoreStr;
+    var tip = 'Kills: '+kAbs.toFixed(1)+' '+kDir+' expected  ·  Deaths: '+dAbs.toFixed(1)+' '+dDir+' than expected  ·  '+lobby+'  ·  Score: '+(g.ns>=0?'+':'')+g.ns.toFixed(2);
     var barCss = clamped>=0
       ? 'position:absolute;bottom:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:2px 2px 0 0;opacity:0.85'
       : 'position:absolute;top:'+HALF+'px;height:'+barH+'px;left:0;right:0;background:'+color+';border-radius:0 0 2px 2px;opacity:0.85';
@@ -228,20 +267,34 @@ function renderPerformanceBaseline(allMatches, tier) {
   html += '</div>';
 
   // ── Chart ──────────────────────────────────────────────────────────────────
+  // Toggle buttons (desktop only — mobile is already capped at 40)
+  var _toggleHtml = '';
+  if(!_isMobile && scored.length > 20){
+    var _limits = [20, 50];
+    if(scored.length > 50) _limits.push(scored.length);
+    var _btnBase = 'class="_pbToggle" style="font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:1px;padding:2px 7px;border-radius:3px;cursor:pointer;transition:all 0.15s;border:1px solid';
+    _toggleHtml = '<div style="display:flex;gap:4px;align-items:center">';
+    _limits.forEach(function(n){
+      var label = n >= scored.length ? 'all' : String(n);
+      var active = n === _defaultLim || (n >= scored.length && _defaultLim >= scored.length);
+      _toggleHtml += '<button '+_btnBase+' '+(active?'var(--accent)':'var(--border)')+';color:'+(active?'var(--accent)':'var(--muted2)')+';background:'+(active?'rgba(0,212,255,0.07)':'transparent')+'" data-lim="'+n+'" onclick="_pbSetLimit('+n+')">'+label+'</button>';
+    });
+    _toggleHtml += '</div>';
+  }
+
   html += '<div style="background:var(--surface2);border-radius:6px;padding:12px 14px 10px;margin-bottom:14px">';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-  html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES <span style="font-size:10px;letter-spacing:0;color:var(--muted2);opacity:0.7">(of '+scored.length+' scored)</span></span>';
-  html += '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">older ← · → newer</span>';
+  html += '<span id="_pbCount" style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px">LAST '+chartGames.length+' RANKED GAMES (of '+scored.length+' scored)</span>';
+  html += _toggleHtml || '<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">older ← · → newer</span>';
   html += '</div>';
 
   html += '<div style="height:'+(HALF*2)+'px;position:relative;margin-bottom:4px">';
-  // "On par" band — more visible
-  html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-BAND)+'px;height:'+(BAND*2)+'px;background:rgba(255,255,255,0.06);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);pointer-events:none"></div>';
+  // "On par" band
+  html += '<div id="_pbBand" style="position:absolute;left:0;right:0;top:'+(HALF-BAND)+'px;height:'+(BAND*2)+'px;background:rgba(255,255,255,0.06);border-top:1px dashed var(--border2);border-bottom:1px dashed var(--border2);pointer-events:none"></div>';
   // Center baseline
   html += '<div style="position:absolute;left:0;right:0;top:'+(HALF-1)+'px;height:1px;background:var(--border2)"></div>';
-  // "BASELINE" label — desktop only
   if(!_isMobile) html += '<div style="position:absolute;right:0;top:'+(HALF-9)+'px;font-size:7px;font-family:Share Tech Mono,monospace;color:var(--muted2);letter-spacing:1px;pointer-events:none">BASELINE</div>';
-  html += '<div style="display:flex;gap:2px;height:100%;align-items:flex-start">'+barsHtml+'</div>';
+  html += '<div id="_pbBars" style="display:flex;gap:2px;height:100%;align-items:flex-start">'+barsHtml+'</div>';
   html += '</div>';
 
   // Scale legend below chart
@@ -817,7 +870,8 @@ function render(){
     var sd=_validToday.reduce(function(a,m){return a+(m.deaths||0);},0);
     var sw=todayMatches.filter(function(m){return m.outcome===2;}).length;
     var sl=todayMatches.filter(function(m){return m.outcome===3;}).length;
-    var skd=sd>0?(sk/sd).toFixed(2):sk>0?String(sk):'—';
+    var skdNum=sd>0?(sk/sd):sk>0?sk:null;
+    var skd=skdNum!==null?skdNum.toFixed(2):'—';
     // Arena = any ranked mode with 'Arena' in name (includes "Ranked Arena: Slayer")
     // Slayer = only "Ranked Slayer" exactly (not Arena: Slayer)
     // Legacy = any ranked mode with 'Legacy' in name
@@ -828,8 +882,25 @@ function render(){
     var slayerDelta=slayerToday.reduce(function(a,m){return a+m.csrDelta;},0);
     var legacyDelta=legacyToday.reduce(function(a,m){return a+m.csrDelta;},0);
 
+    // 7-day baseline K/D — use matches from the past 7 days, excluding today
+    var _7dAgo=new Date(); _7dAgo.setDate(_7dAgo.getDate()-7);
+    var _baseMatches=allMatches.filter(function(m){
+      if(!m.startTime) return false;
+      var d=new Date(m.startTime);
+      return d>=_7dAgo && d.toDateString()!==todayStr && (m.outcome===2||m.outcome===3);
+    });
+    var _baseKDStr=null;
+    var _baseKDNum=null;
+    if(_baseMatches.length>=3){
+      var _bk=_baseMatches.reduce(function(a,m){return a+(m.kills||0);},0);
+      var _bd=_baseMatches.reduce(function(a,m){return a+(m.deaths||0);},0);
+      _baseKDNum=_bd>0?(_bk/_bd):_bk>0?_bk:null;
+      if(_baseKDNum!==null) _baseKDStr=_baseKDNum.toFixed(2);
+    }
+
     // Session fatigue — compare first half vs second half K/D
     var fatigueMsg='';var fatigueColor='var(--muted)';
+    var _isFatigued=false; var _isWarming=false;
     if(todayMatches.length>=4){
       var half=Math.floor(todayMatches.length/2);
       // matches are newest first — reverse for chronological
@@ -846,15 +917,16 @@ function render(){
       var earlyWR=Math.round(early.filter(function(m){return m.outcome===2;}).length/early.length*100);
       var lateWR=Math.round(late.filter(function(m){return m.outcome===2;}).length/late.length*100);
       if(drop>0.2){
+        _isFatigued=true;
         fatigueColor='var(--loss)';
-        // Only mention win rate direction if it also dropped; if it improved despite K/D drop, note that instead
         var _wrNote = lateWR < earlyWR
           ? ' and win rate from '+earlyWR+'% to '+lateWR+'%'
           : lateWR > earlyWR
             ? ' (win rate held at '+lateWR+'% despite the dip)'
             : '';
-        fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> Fatigue detected — K/D dropped from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+_wrNote+' as session progressed. Consider a break.';
+        fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> Fatigue detected — K/D dropped from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+_wrNote+' as session progressed.';
       } else if(lateKD>earlyKD+0.2){
+        _isWarming=true;
         fatigueColor='var(--win)';
         fatigueMsg='<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Warming up — K/D improved from '+earlyKD.toFixed(2)+' to '+lateKD.toFixed(2)+' through the session.';
       } else {
@@ -863,11 +935,39 @@ function render(){
       }
     }
 
-    // Consecutive loss streak today
+    // Consecutive loss streak today (most recent games first)
     var streak=0;
     for(var si=0;si<todayMatches.length;si++){
       if(todayMatches[si].outcome===3)streak++;
       else break;
+    }
+    // Win streak (most recent)
+    var winStreak=0;
+    for(var wi=0;wi<todayMatches.length;wi++){
+      if(todayMatches[wi].outcome===2)winStreak++;
+      else break;
+    }
+
+    // Stop/Go recommendation
+    var _stopGo='';
+    var _stopReason='';
+    if(streak>=3){
+      _stopGo='TAKE A BREAK';
+      _stopReason=streak+' consecutive losses. Step away for 15 minutes — grinding a streak rarely works out.';
+    } else if(_isFatigued && sl>sw){
+      _stopGo='TAKE A BREAK';
+      _stopReason='Your K/D is declining and you\'re losing more than winning today. A reset will serve you better than another queue.';
+    } else if(winStreak>=3 || _isWarming){
+      _stopGo='KEEP GOING';
+      _stopReason=winStreak>=3 ? winStreak+'-game win streak — you\'re in the zone, keep queueing.' : 'Your performance is trending upward this session.';
+    }
+
+    var _kdVsUsual='';
+    if(_baseKDStr&&skdNum!==null){
+      var _kdDiff=skdNum-_baseKDNum;
+      var _kdDiffStr=(_kdDiff>=0?'+':'')+_kdDiff.toFixed(2);
+      var _kdDiffColor=_kdDiff>=0.1?'var(--win)':_kdDiff<=-0.1?'var(--loss)':'var(--muted)';
+      _kdVsUsual='<span style="font-size:9px;color:'+_kdDiffColor+';font-family:Share Tech Mono,monospace;display:block;margin-top:1px">'+_kdDiffStr+' vs usual ('+_baseKDStr+')</span>';
     }
 
     html+='<div class="session-bar">';
@@ -875,15 +975,27 @@ function render(){
     html+='<div class="session-stats">';
     html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--accent)">'+sk+'</div><div class="session-stat-lbl">Kills</div></div>';
     html+='<div class="session-stat"><div class="session-stat-val">'+sd+'</div><div class="session-stat-lbl">Deaths</div></div>';
-    html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(parseFloat(skd)>=1?'var(--win)':'var(--loss)')+'">'+skd+'</div><div class="session-stat-lbl">K/D</div></div>';
+    html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(skdNum!==null&&skdNum>=1?'var(--win)':'var(--loss)')+'">'+skd+'</div><div class="session-stat-lbl">K/D'+_kdVsUsual+'</div></div>';
     html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--win)">'+sw+'W</div><div class="session-stat-lbl">Wins</div></div>';
     html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+sl+'L</div><div class="session-stat-lbl">Losses</div></div>';
     if(arenaToday.length){var ac=arenaDelta>=0?'+'+arenaDelta:String(arenaDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(arenaDelta>=0?'var(--win)':'var(--loss)')+'">'+ac+'</div><div class="session-stat-lbl">Arena CSR</div></div>';}
     if(slayerToday.length){var sc2=slayerDelta>=0?'+'+slayerDelta:String(slayerDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(slayerDelta>=0?'var(--win)':'var(--loss)')+'">'+sc2+'</div><div class="session-stat-lbl">Slayer CSR</div></div>';}
     if(legacyToday.length){var lc=legacyDelta>=0?'+'+legacyDelta:String(legacyDelta);html+='<div class="session-stat"><div class="session-stat-val" style="color:'+(legacyDelta>=0?'var(--win)':'var(--loss)')+'">'+lc+'</div><div class="session-stat-lbl">Legacy CSR</div></div>';}
-    if(streak>=3)html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--loss)">'+streak+'L</div><div class="session-stat-lbl">Streak <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-3px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg></div></div>';
     html+='</div>';
-    if(fatigueMsg)html+='<div style="margin-top:8px;padding:6px 10px;border-left:3px solid '+fatigueColor+';font-size:11px;font-family:Share Tech Mono,monospace;color:'+fatigueColor+';background:var(--surface2);border-radius:0 4px 4px 0">'+fatigueMsg+'</div>';
+    // Stop/Go callout — shown above fatigue note when present
+    if(_stopGo){
+      var _sgIsStop=_stopGo==='TAKE A BREAK';
+      var _sgBg=_sgIsStop?'rgba(255,61,87,0.08)':'rgba(0,200,120,0.08)';
+      var _sgBorder=_sgIsStop?'var(--loss)':'var(--win)';
+      var _sgLabel=_sgIsStop
+        ? '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg> '
+        : '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" style=\"vertical-align:-1px\"><polyline points=\"20 6 9 17 4 12\"/></svg> ';
+      html+='<div style="margin-top:8px;padding:7px 12px;background:'+_sgBg+';border:1px solid '+_sgBorder+';border-radius:4px;display:flex;align-items:center;gap:10px">'
+        +'<span style="font-size:10px;font-weight:700;font-family:Share Tech Mono,monospace;color:'+_sgBorder+';letter-spacing:1px;white-space:nowrap">'+_sgLabel+_stopGo+'</span>'
+        +'<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+_stopReason+'</span>'
+        +'</div>';
+    }
+    if(fatigueMsg)html+='<div style="margin-top:6px;padding:6px 10px;border-left:3px solid '+fatigueColor+';font-size:11px;font-family:Share Tech Mono,monospace;color:'+fatigueColor+';background:var(--surface2);border-radius:0 4px 4px 0">'+fatigueMsg+'</div>';
     html+='</div>';
   }
 
@@ -1092,6 +1204,12 @@ function render(){
       +'</div></div>';
   })();
 
+  // ── Rank Benchmark card (populated async by benchmark.js after render) ──────
+  if(p.csr&&Object.keys(p.csr).length){
+    html+=sectionHead('Rank Benchmark');
+    html+='<div id="rankBenchmarkCard" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px"></div>';
+  }
+
   // ── Performance Baseline ───────────────────────────────────────────────────
   (function(){
     // Resolve primary rank tier for sigma calibration
@@ -1107,11 +1225,53 @@ function render(){
     }
   })();
 
-  // ── Rank Benchmark card (populated async by benchmark.js after render) ──────
-  if(p.csr&&Object.keys(p.csr).length){
-    html+=sectionHead('Rank Benchmark');
-    html+='<div id="rankBenchmarkCard" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px"></div>';
-  }
+  // ── Win Condition ──────────────────────────────────────────────────────────
+  (function(){
+    var _wc=allMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&(m.kills!=null)&&(m.deaths!=null);});
+    if(_wc.length<10) return;
+    var _wcSample=_wc.slice(0,150);
+    var _pos=_wcSample.filter(function(m){return(m.kills||0)>=(m.deaths||0);});
+    var _neg=_wcSample.filter(function(m){return(m.kills||0)<(m.deaths||0);});
+    var _posWR=_pos.length?Math.round(_pos.filter(function(m){return m.outcome===2;}).length/_pos.length*100):null;
+    var _negWR=_neg.length?Math.round(_neg.filter(function(m){return m.outcome===2;}).length/_neg.length*100):null;
+    if(_posWR===null&&_negWR===null) return;
+    var _gap=(_posWR!==null&&_negWR!==null)?(_posWR-_negWR):null;
+    var _insight='';
+    if(_gap!==null){
+      if(_gap>=25) _insight='Strong correlation — going positive on K/D is a dominant win predictor for you. Staying alive matters as much as getting kills.';
+      else if(_gap>=12) _insight='Clear correlation — finishing with more kills than deaths meaningfully boosts your win rate. Survive the late game.';
+      else if(_gap>0) _insight='Modest correlation — K/D positivity nudges your win rate, but assists and objective play are likely bigger factors.';
+      else _insight='Weak K/D-to-win correlation. Your win rate is relatively independent of your personal K/D — role and objective contribution may be the real driver.';
+    }
+    html+=sectionHead('Win Condition','last '+_wcSample.length+' ranked games');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">';
+    html+='<div style="display:flex;gap:12px;margin-bottom:'+(_insight?'12':'0')+'px">';
+    if(_posWR!==null){
+      html+='<div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 12px;text-align:center">';
+      html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace;letter-spacing:1px;margin-bottom:6px">K/D POSITIVE</div>';
+      html+='<div style="font-size:28px;font-weight:700;color:var(--win);font-family:Share Tech Mono,monospace">'+_posWR+'%</div>';
+      html+='<div style="font-size:10px;color:var(--muted2);margin-top:4px">Win Rate &middot; '+_pos.length+' games</div>';
+      html+='</div>';
+    }
+    if(_negWR!==null){
+      html+='<div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 12px;text-align:center">';
+      html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace;letter-spacing:1px;margin-bottom:6px">K/D NEGATIVE</div>';
+      html+='<div style="font-size:28px;font-weight:700;color:var(--loss);font-family:Share Tech Mono,monospace">'+_negWR+'%</div>';
+      html+='<div style="font-size:10px;color:var(--muted2);margin-top:4px">Win Rate &middot; '+_neg.length+' games</div>';
+      html+='</div>';
+    }
+    if(_gap!==null){
+      var _gColor=_gap>=12?'var(--win)':_gap>=0?'var(--accent)':'var(--muted)';
+      html+='<div style="flex:0 0 auto;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px 12px;text-align:center;min-width:80px">';
+      html+='<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace;letter-spacing:1px;margin-bottom:6px">IMPACT</div>';
+      html+='<div style="font-size:28px;font-weight:700;color:'+_gColor+';font-family:Share Tech Mono,monospace">'+(_gap>0?'+':'')+_gap+'%</div>';
+      html+='<div style="font-size:10px;color:var(--muted2);margin-top:4px">WR difference</div>';
+      html+='</div>';
+    }
+    html+='</div>';
+    if(_insight) html+='<div style="padding:8px 12px;border-left:3px solid var(--accent);font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted);background:var(--surface2);border-radius:0 4px 4px 0">'+_insight+'</div>';
+    html+='</div>';
+  })();
 
   // Last 10 matches on overview — skip if in search mode (they have their own matches shown)
   if(displayMatches.length>0){
