@@ -2603,7 +2603,6 @@ function render(){
   // Inject advanced stats (clutch + map chart + K/D trend) into overview tab
   setTimeout(function(){
     if(p&&p.coach&&p.coach.trend) renderCoach(p.coach);
-    if(p&&p.haloDNA&&p.haloDNA.title&&p.haloDNA.title!=='Recruit') renderHaloDNA(p.haloDNA);
   },0);
   // Populate rank benchmark card async (benchmark.js)
   setTimeout(function(){
@@ -2619,39 +2618,6 @@ function render(){
 loadStats();
 
 // ── Halo DNA ───────────────────────────────────────────────────────────────
-function renderHaloDNA(dna) {
-  if (!dna) return;
-
-  var overviewPanel = document.querySelector('[data-tab-panel="overview"], #tab-overview, .tab-panel[data-tab="overview"]');
-  if (!overviewPanel) overviewPanel = document.querySelector('.tab-panel.active') || document.getElementById('app');
-  if (!overviewPanel) return;
-
-  var old = document.getElementById('dna-card');
-  if (old) old.parentNode.removeChild(old);
-
-  var traitsHtml = (dna.traits || []).map(function(t) {
-    return '<div style="background:rgba(55,138,221,0.15);color:#378ADD;padding:6px 14px;border-radius:999px;font-size:13px">' + t + '</div>';
-  }).join('');
-
-  var card = document.createElement('div');
-  card.id = 'dna-card';
-  card.className = 'stat-card';
-  card.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #378ADD;margin-bottom:24px';
-  card.innerHTML =
-    '<div style="display:flex;justify-content:center;margin-bottom:12px">' + dna.emoji + '</div>' +
-    '<div class="stat-label" style="text-align:center;font-size:22px;letter-spacing:2px;color:var(--text)">' + dna.title + '</div>' +
-    '<div style="text-align:center;margin:12px 0;font-size:15px;color:#ccc;line-height:1.4">' + dna.description + '</div>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px">' + traitsHtml + '</div>';
-
-  // Insert directly after the daily session block if present; otherwise top of panel
-  var sessionBlock = document.getElementById('daily-session-block');
-  if (sessionBlock && sessionBlock.parentNode) {
-    sessionBlock.parentNode.insertBefore(card, sessionBlock.nextSibling);
-  } else {
-    overviewPanel.insertBefore(card, overviewPanel.firstChild);
-  }
-}
-
 // ── Improvement Coach ──────────────────────────────────────────────────────
 function renderCoach(coach) {
   if (!coach) return;
@@ -2698,17 +2664,12 @@ function renderCoach(coach) {
     '</div>' +
     '<div style="margin-top:16px;font-size:13px;color:#aaa">' + tipsHtml + '</div>';
 
-  // Insert directly after DNA card if present; else after session block; else append
-  var dnaCard = document.getElementById('dna-card');
-  if (dnaCard && dnaCard.parentNode) {
-    dnaCard.parentNode.insertBefore(card, dnaCard.nextSibling);
+  // Insert directly after the daily session block if present; otherwise append
+  var sessionBlock = document.getElementById('daily-session-block');
+  if (sessionBlock && sessionBlock.parentNode) {
+    sessionBlock.parentNode.insertBefore(card, sessionBlock.nextSibling);
   } else {
-    var sessionBlock = document.getElementById('daily-session-block');
-    if (sessionBlock && sessionBlock.parentNode) {
-      sessionBlock.parentNode.insertBefore(card, sessionBlock.nextSibling);
-    } else {
-      overviewPanel.appendChild(card);
-    }
+    overviewPanel.appendChild(card);
   }
 }
 
