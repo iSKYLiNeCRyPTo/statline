@@ -2602,9 +2602,9 @@ function render(){
   scheduleEmblemRetry();
   // Inject advanced stats (clutch + map chart + K/D trend) into overview tab
   setTimeout(function(){
-    if(p&&p.advancedStats&&p.advancedStats.totalAnalyzed) renderAdvancedStats(p.advancedStats);
-    if(p&&p.coach) renderCoach(p.coach);
-    if(p&&p.haloDNA) renderHaloDNA(p.haloDNA);
+    if(p&&p.advancedStats&&(p.advancedStats.totalAnalyzed||p.advancedStats.topMaps)) renderAdvancedStats(p.advancedStats);
+    if(p&&p.coach&&p.coach.trend) renderCoach(p.coach);
+    if(p&&p.haloDNA&&p.haloDNA.title&&p.haloDNA.title!=='Recruit') renderHaloDNA(p.haloDNA);
   },0);
   // Populate rank benchmark card async (benchmark.js)
   setTimeout(function(){
@@ -2646,79 +2646,93 @@ function renderAdvancedStats(adv) {
     '</div>' +
     '<div class="stat-card" style="grid-column:span 2">' +
       '<div class="stat-label">MAP PERFORMANCE · TOP 6</div>' +
-      '<canvas id="mapWinChart" height="130"></canvas>' +
+      '<canvas id="mapWinChart" style="display:block;width:100%;height:130px"></canvas>' +
     '</div>' +
     '<div class="stat-card" style="grid-column:span 2">' +
       '<div class="stat-label">K/D TREND (LAST 20)</div>' +
-      '<canvas id="kdTrendChart" height="130"></canvas>' +
+      '<canvas id="kdTrendChart" style="display:block;width:100%;height:130px"></canvas>' +
     '</div>';
 
   overviewPanel.appendChild(sec);
 
   // Clutch
-  document.getElementById('clutch-kd').textContent = adv.clutchKD;
-  document.getElementById('clutch-sub').textContent = adv.clutchGames + ' clutch situations';
+  document.getElementById('clutch-kd').textContent = adv.clutchKD || '—';
+  document.getElementById('clutch-sub').textContent = (adv.clutchGames || 0) + ' clutch situations';
 
   // Destroy old charts if they exist
   if (window.mapWinChart) { window.mapWinChart.destroy(); window.mapWinChart = null; }
   if (window.kdTrendChart) { window.kdTrendChart.destroy(); window.kdTrendChart = null; }
 
-  // Map Win Rate Bar Chart
-  if (adv.topMaps && adv.topMaps.length && window.Chart) {
-    var mapCtx = document.getElementById('mapWinChart');
-    if (mapCtx) {
-      window.mapWinChart = new Chart(mapCtx, {
-        type: 'bar',
-        data: {
-          labels: adv.topMaps.slice(0,6).map(function(m){ return m.name.length > 11 ? m.name.substring(0,11) + '…' : m.name; }),
-          datasets: [{
-            label: 'Win %',
-            data: adv.topMaps.slice(0,6).map(function(m){ return m.winRate; }),
-            backgroundColor: 'rgba(56,138,221,0.75)',
-            borderColor: '#378ADD',
-            borderWidth: 1.5
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-            y: { beginAtZero: true, max: 100, ticks: { color: '#8899aa', font: { size: 9 }, stepSize: 20 }, grid: { color: 'rgba(255,255,255,0.04)' } }
+  function _drawAdvCharts() {
+    // Map Win Rate Bar Chart
+    if (adv.topMaps && adv.topMaps.length) {
+      var mapCtx = document.getElementById('mapWinChart');
+      if (mapCtx) {
+        window.mapWinChart = new window.Chart(mapCtx, {
+          type: 'bar',
+          data: {
+            labels: adv.topMaps.slice(0,6).map(function(m){ return m.name.length > 11 ? m.name.substring(0,11) + '…' : m.name; }),
+            datasets: [{
+              label: 'Win %',
+              data: adv.topMaps.slice(0,6).map(function(m){ return parseFloat(m.winRate) || 0; }),
+              backgroundColor: 'rgba(56,138,221,0.75)',
+              borderColor: '#378ADD',
+              borderWidth: 1.5
+            }]
+          },
+          options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+              y: { beginAtZero: true, max: 100, ticks: { color: '#8899aa', font: { size: 9 }, stepSize: 20 }, grid: { color: 'rgba(255,255,255,0.04)' } }
+            }
           }
-        }
-      });
+        });
+      }
+    }
+
+    // K/D Trend Line
+    if (adv.kdHistory && adv.kdHistory.length) {
+      var trendCtx = document.getElementById('kdTrendChart');
+      if (trendCtx) {
+        window.kdTrendChart = new window.Chart(trendCtx, {
+          type: 'line',
+          data: {
+            labels: adv.kdHistory.map(function(_, i){ return i + 1; }),
+            datasets: [{
+              label: 'K/D',
+              data: adv.kdHistory.map(function(h){ return parseFloat(h.kd) || 0; }),
+              borderColor: '#4CAF82',
+              backgroundColor: 'rgba(76,175,130,0.1)',
+              tension: 0.4,
+              pointRadius: 2.5,
+              borderWidth: 2.5
+            }]
+          },
+          options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+              y: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+            }
+          }
+        });
+      }
     }
   }
 
-  // K/D Trend Line
-  if (adv.kdHistory && adv.kdHistory.length && window.Chart) {
-    var trendCtx = document.getElementById('kdTrendChart');
-    if (trendCtx) {
-      window.kdTrendChart = new Chart(trendCtx, {
-        type: 'line',
-        data: {
-          labels: adv.kdHistory.map(function(_, i){ return i + 1; }),
-          datasets: [{
-            label: 'K/D',
-            data: adv.kdHistory.map(function(h){ return h.kd; }),
-            borderColor: '#4CAF82',
-            backgroundColor: 'rgba(76,175,130,0.1)',
-            tension: 0.4,
-            pointRadius: 2.5,
-            borderWidth: 2.5
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
-            y: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
-          }
-        }
-      });
-    }
+  // If Chart.js is already loaded, draw immediately; otherwise load it then draw
+  if (window.Chart) {
+    _drawAdvCharts();
+  } else {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+    s.onload = _drawAdvCharts;
+    document.head.appendChild(s);
   }
 }
 
@@ -2763,12 +2777,18 @@ function renderCoach(coach) {
   if (old) old.parentNode.removeChild(old);
 
   var trendColor = coach.trend === 'improving' ? 'var(--win,#4CAF82)' : coach.trend === 'declining' ? 'var(--loss,#ef4444)' : 'var(--muted)';
-  var kdDir  = parseFloat(coach.kdChange)  >= 0 ? '↑' : '↓';
-  var wrDir  = parseFloat(coach.wrChange)  >= 0 ? '↑' : '↓';
 
-  var strengthsHtml  = coach.strengths.length  ? coach.strengths.map(function(s){ return '<li>' + s + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
-  var weaknessesHtml = coach.weaknesses.length ? coach.weaknesses.map(function(w){ return '<li>' + w + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
-  var tipsHtml = coach.tips.length ? '<strong style="color:#4CAF82">Coach Tips:</strong><br>' + coach.tips.map(function(t){ return '• ' + t; }).join('<br>') : '';
+  var strengthsHtml  = (coach.strengths||[]).length  ? coach.strengths.map(function(s){ return '<li>' + s + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
+  var weaknessesHtml = (coach.weaknesses||[]).length ? coach.weaknesses.map(function(w){ return '<li>' + w + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
+  var tipsHtml = (coach.tips||[]).length ? '<strong style="color:#4CAF82">Coach Tips:</strong><br>' + coach.tips.map(function(t){ return '• ' + t; }).join('<br>') : '';
+
+  // Build the change line only when we have real numeric values
+  var changeHtml = '';
+  var kdc = parseFloat(coach.kdChange), wrc = parseFloat(coach.wrChange);
+  if (!isNaN(kdc) && !isNaN(wrc)) {
+    changeHtml = '<br><small style="color:#888;font-size:12px">K/D ' + (kdc >= 0 ? '↑' : '↓') + ' ' + Math.abs(kdc).toFixed(2) +
+                 ' &nbsp;|&nbsp; WR ' + (wrc >= 0 ? '↑' : '↓') + ' ' + Math.abs(wrc).toFixed(1) + '%</small>';
+  }
 
   var card = document.createElement('div');
   card.id = 'coach-card';
@@ -2777,8 +2797,7 @@ function renderCoach(coach) {
   card.innerHTML =
     '<div class="stat-label">🧠 IMPROVEMENT COACH</div>' +
     '<div id="coach-overall" style="font-size:18px;line-height:1.4;margin:12px 0;color:' + trendColor + '">' +
-      coach.overall + '<br>' +
-      '<small style="color:#888;font-size:12px">K/D ' + kdDir + ' ' + Math.abs(coach.kdChange) + ' &nbsp;|&nbsp; WR ' + wrDir + ' ' + Math.abs(coach.wrChange) + '%</small>' +
+      coach.overall + changeHtml +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">' +
       '<div>' +
