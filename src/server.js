@@ -2245,3 +2245,10 @@ function renderResults(d) {
   outEl.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
+</script>
+</body>
+</html>
+`);
+});
+
+app.listen(PORT, () => console.log('fragr listening on port ' + PORT));
