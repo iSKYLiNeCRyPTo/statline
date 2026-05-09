@@ -3,10 +3,34 @@ const { flushXuidCache } = require('./db');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// --- Redis (disabled — using in-memory cache only) ---
-// Uncomment and configure when Redis is working
+// --- Redis ---
+const { createClient } = require('redis');
+let _redisClient = null;
+let _redisConnecting = false;
+
 async function getRedis() {
-  return null; // in-memory only for now
+  if (_redisClient && _redisClient.isOpen) return _redisClient;
+  if (_redisConnecting) return null;
+  if (!process.env.REDIS_URL) return null;
+
+  _redisConnecting = true;
+  try {
+    _redisClient = createClient({
+      url: process.env.REDIS_URL,
+      socket: { reconnectStrategy: retries => Math.min(retries * 100, 3000) }
+    });
+    _redisClient.on('error', err => console.error('[Redis] Error:', err.message));
+    _redisClient.on('connect', () => console.log('[Redis] Connected'));
+    _redisClient.on('end', () => { _redisClient = null; _redisConnecting = false; });
+    await _redisClient.connect();
+    _redisConnecting = false;
+    return _redisClient;
+  } catch(e) {
+    console.warn('[Redis] Failed to connect — falling back to in-memory:', e.message);
+    _redisClient = null;
+    _redisConnecting = false;
+    return null;
+  }
 }
 
 // --- In-memory caches ---
@@ -1027,7 +1051,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null)
   const nemesisList = [...rivals].filter(r=>r.losses>r.wins).sort((a,b)=>b.losses-a.losses||a.wins-b.wins).slice(0,15);
   const victimsList = [...rivals].filter(r=>r.wins>r.losses).sort((a,b)=>b.wins-a.wins||a.losses-b.losses).slice(0,15);
 
-  return { matches: results, rivals, nemesisList, victimsList };
+  const advancedStats = computeAdvancedStats(results);
+  const coach = generateImprovementCoach(results, advancedStats);
+  const haloDNA = generateHaloDNA(results, advancedStats, coach);
+  return { matches: results, advancedStats, coach, haloDNA, rivals, nemesisList, victimsList };
 }
 
 // Fetch skill data (MMR, expected K/D) for ranked matches in the background.
@@ -1150,6 +1177,204 @@ async function discoverPlaylists(xuid, gamertag) {
   return playlists;
 }
 
+// === ADVANCED STATS COMPUTATION ===
+function computeAdvancedStats(matches) {
+  if (!matches || matches.length === 0) return {};
+
+  let totalKills = 0, totalDeaths = 0, totalAssists = 0;
+  let clutchKills = 0, clutchDeaths = 0, clutchGames = 0;
+  const mapStats = {};
+  const kdHistory = [];
+
+  matches.forEach((m) => {
+    const k = m.kills || 0;
+    const d = m.deaths || 0;
+    const a = m.assists || 0;
+
+    totalKills += k;
+    totalDeaths += d;
+    totalAssists += a;
+
+    // Clutch: close games (≤5 score diff) or big performance on loss
+    // outcome: 2 = win, 3 = loss (numeric from Halo API)
+    const scoreDiff = Math.abs((m.teamScore || 0) - (m.opponentScore || 0));
+    const isClutch = scoreDiff <= 5 || (m.outcome === 3 && k >= 15);
+
+    if (isClutch) {
+      clutchKills += k;
+      clutchDeaths += d;
+      clutchGames++;
+    }
+
+    // Map stats
+    if (m.mapName) {
+      const map = m.mapName;
+      if (!mapStats[map]) mapStats[map] = { wins: 0, losses: 0, kills: 0, deaths: 0, games: 0 };
+      mapStats[map].games++;
+      mapStats[map].kills += k;
+      mapStats[map].deaths += d;
+      if (m.outcome === 2) mapStats[map].wins++;
+      else if (m.outcome === 3) mapStats[map].losses++;
+    }
+
+    kdHistory.push({
+      kd: d > 0 ? Number((k / d).toFixed(2)) : k,
+      map: m.mapName || 'Unknown',
+      outcome: m.outcome === 2 ? 'W' : 'L'
+    });
+  });
+
+  const clutchKD = clutchGames > 3
+    ? (clutchKills / Math.max(clutchDeaths, 1)).toFixed(2)
+    : '—';
+
+  // Top maps by win rate
+  const topMaps = Object.entries(mapStats)
+    .map(([name, s]) => ({
+      name,
+      winRate: s.games ? Math.round((s.wins / s.games) * 100) : 0,
+      kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills.toFixed(1),
+      games: s.games
+    }))
+    .sort((a, b) => b.winRate - a.winRate)
+    .slice(0, 8);
+
+  return {
+    clutchKD,
+    clutchGames,
+    kdHistory: kdHistory.slice(-20).reverse(), // newest last
+    topMaps,
+    totalAnalyzed: matches.length
+  };
+}
+
+// ====================== IMPROVEMENT COACH ======================
+function generateImprovementCoach(matches, advancedStats) {
+  if (!matches || matches.length < 10) {
+    return {
+      overall: "Not enough matches to analyze yet. Keep grinding!",
+      strengths: [],
+      weaknesses: [],
+      tips: [],
+      trend: "neutral"
+    };
+  }
+
+  const recent = matches.slice(0, 30);   // last 30 matches
+  const older  = matches.slice(30, 80);  // before that
+
+  const calcKD = (ms) => {
+    let k = 0, d = 0;
+    ms.forEach(m => { k += m.kills || 0; d += m.deaths || 0; });
+    return d > 0 ? k / d : k;
+  };
+
+  // outcome === 2 is a win in our data (numeric from Halo API)
+  const calcWR = (ms) => ms.filter(m => m.outcome === 2).length / ms.length * 100;
+
+  const recentKD = calcKD(recent);
+  const olderKD  = older.length ? calcKD(older)  : recentKD;
+  const recentWR = calcWR(recent);
+  const olderWR  = older.length ? calcWR(older)  : recentWR;
+
+  const kdChange = recentKD - olderKD;
+  const wrChange = recentWR - olderWR;
+
+  let trend = "neutral";
+  let overall = "";
+
+  if (kdChange > 0.3 || wrChange > 8) {
+    trend = "improving";
+    overall = "You're on a strong upward trend! Keep this momentum.";
+  } else if (kdChange < -0.25 || wrChange < -8) {
+    trend = "declining";
+    overall = "Slight dip in performance. Totally normal — let's fix it.";
+  } else {
+    overall = "You're playing consistently. Time to push for the next level.";
+  }
+
+  const strengths  = [];
+  const weaknesses = [];
+  const tips       = [];
+
+  if (recentKD > 1.4) strengths.push("Strong slayer");
+  if (recentWR > 65)  strengths.push("High win rate");
+  if (advancedStats && advancedStats.clutchKD !== "—" && parseFloat(advancedStats.clutchKD) > 1.6)
+    strengths.push("Clutch monster");
+
+  if (recentKD < 0.9) weaknesses.push("Struggling to win fights");
+  if (recentWR < 45)  weaknesses.push("Low win rate");
+
+  if (kdChange < -0.2) tips.push("Focus on positioning — dying less will raise your K/D fast.");
+  if (wrChange < -5)   tips.push("Play more to your team's objective, not just frags.");
+  tips.push("Try warming up in Custom Games before ranked.");
+
+  return {
+    overall,
+    trend,
+    kdChange: kdChange.toFixed(2),
+    wrChange: wrChange.toFixed(1),
+    strengths:  strengths.slice(0, 3),
+    weaknesses: weaknesses.slice(0, 3),
+    tips:       tips.slice(0, 4)
+  };
+}
+
+// ====================== HALO DNA ======================
+function generateHaloDNA(matches, advancedStats, coach) {
+  if (!matches || matches.length < 10) {
+    return { title: "Recruit", emoji: "🪖", description: "Still loading your DNA...", traits: [] };
+  }
+
+  const totalMatches = matches.length;
+  // outcome === 2 is a win (numeric from Halo API)
+  const wins = matches.filter(m => m.outcome === 2).length;
+  const winRate = (wins / totalMatches) * 100;
+
+  // Use overall K/D from match data rather than clutchKD for archetype logic
+  let totalK = 0, totalD = 0;
+  matches.forEach(m => { totalK += m.kills || 0; totalD += m.deaths || 0; });
+  const avgKD = totalD > 0 ? totalK / totalD : totalK;
+
+  let archetype = "Balanced";
+  let emoji = "⚖️";
+  const traits = [];
+
+  if (avgKD > 1.8 && winRate > 65) {
+    archetype = "Demon Slayer";
+    emoji = "😈";
+    traits.push("Aggressive", "High Kill Power", "Clutch King");
+  } else if (avgKD > 1.5 && winRate > 55) {
+    archetype = "Map God";
+    emoji = "🗺️";
+    traits.push("Strong Map Control", "Consistent", "Team Player");
+  } else if (advancedStats && advancedStats.clutchKD !== "—" && parseFloat(advancedStats.clutchKD) > 1.7) {
+    archetype = "Clutch God";
+    emoji = "🛡️";
+    traits.push("Clutch Performer", "Mental Fortitude", "Comeback Artist");
+  } else if (winRate > 60) {
+    archetype = "Objective Beast";
+    emoji = "🎯";
+    traits.push("Objective Focused", "Win Rate Monster");
+  } else {
+    archetype = "Grinder";
+    emoji = "🔨";
+    traits.push("Consistent", "Improving", "Dedicated");
+  }
+
+  if (coach && coach.trend === "improving") traits.push("Rising Star");
+  if (avgKD < 0.9) traits.push("Underdog");
+
+  return {
+    title: archetype,
+    emoji: emoji,
+    description: `A true ${archetype.toLowerCase()}. ${winRate.toFixed(0)}% win rate with ${avgKD.toFixed(2)} K/D.`,
+    traits: traits.slice(0, 5),
+    winRate: winRate.toFixed(1),
+    matchesAnalyzed: totalMatches
+  };
+}
+
 module.exports = {
   fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken,
   getXuidToGamerpic: () => xuidToGamerpic, getEmblemPathCache: () => emblemPathCache,
@@ -1160,4 +1385,5 @@ module.exports = {
   resolveEmblemForXuid, markEmblemMissing,
   getRedis,
   discoverPlaylists,
+  computeAdvancedStats,
 };

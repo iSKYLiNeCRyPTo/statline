@@ -2600,6 +2600,12 @@ function render(){
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
   scheduleEmblemRetry();
+  // Inject advanced stats (clutch + map chart + K/D trend) into overview tab
+  setTimeout(function(){
+    if(p&&p.advancedStats&&p.advancedStats.totalAnalyzed) renderAdvancedStats(p.advancedStats);
+    if(p&&p.coach) renderCoach(p.coach);
+    if(p&&p.haloDNA) renderHaloDNA(p.haloDNA);
+  },0);
   // Populate rank benchmark card async (benchmark.js)
   setTimeout(function(){
     if(p&&p.gamertag&&p.csr&&window.loadRankBenchmark)window.loadRankBenchmark(p.gamertag,p.csr);
@@ -2612,6 +2618,182 @@ function render(){
   }, 0);
 }
 loadStats();
+
+// ── Advanced Stats: Clutch Rating + Map Chart + K/D Trend ──────────────────
+function renderAdvancedStats(adv) {
+  if (!adv || !adv.topMaps) return;
+
+  // Find the overview tab panel to append into
+  var overviewPanel = document.querySelector('[data-tab-panel="overview"], #tab-overview, .tab-panel[data-tab="overview"]');
+  if (!overviewPanel) {
+    overviewPanel = document.querySelector('.tab-panel.active') || document.getElementById('app');
+  }
+  if (!overviewPanel) return;
+
+  // Remove any previous advanced stats block
+  var old = document.getElementById('advanced-row');
+  if (old) old.parentNode.removeChild(old);
+
+  var sec = document.createElement('div');
+  sec.id = 'advanced-row';
+  sec.className = 'stat-row';
+  sec.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:20px;margin-bottom:24px';
+  sec.innerHTML =
+    '<div class="stat-card">' +
+      '<div class="stat-label">CLUTCH RATING</div>' +
+      '<div class="stat-value accent" id="clutch-kd" style="font-size:42px;font-weight:700;color:var(--accent)">—</div>' +
+      '<div id="clutch-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>' +
+    '</div>' +
+    '<div class="stat-card" style="grid-column:span 2">' +
+      '<div class="stat-label">MAP PERFORMANCE · TOP 6</div>' +
+      '<canvas id="mapWinChart" height="130"></canvas>' +
+    '</div>' +
+    '<div class="stat-card" style="grid-column:span 2">' +
+      '<div class="stat-label">K/D TREND (LAST 20)</div>' +
+      '<canvas id="kdTrendChart" height="130"></canvas>' +
+    '</div>';
+
+  overviewPanel.appendChild(sec);
+
+  // Clutch
+  document.getElementById('clutch-kd').textContent = adv.clutchKD;
+  document.getElementById('clutch-sub').textContent = adv.clutchGames + ' clutch situations';
+
+  // Destroy old charts if they exist
+  if (window.mapWinChart) { window.mapWinChart.destroy(); window.mapWinChart = null; }
+  if (window.kdTrendChart) { window.kdTrendChart.destroy(); window.kdTrendChart = null; }
+
+  // Map Win Rate Bar Chart
+  if (adv.topMaps && adv.topMaps.length && window.Chart) {
+    var mapCtx = document.getElementById('mapWinChart');
+    if (mapCtx) {
+      window.mapWinChart = new Chart(mapCtx, {
+        type: 'bar',
+        data: {
+          labels: adv.topMaps.slice(0,6).map(function(m){ return m.name.length > 11 ? m.name.substring(0,11) + '…' : m.name; }),
+          datasets: [{
+            label: 'Win %',
+            data: adv.topMaps.slice(0,6).map(function(m){ return m.winRate; }),
+            backgroundColor: 'rgba(56,138,221,0.75)',
+            borderColor: '#378ADD',
+            borderWidth: 1.5
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { beginAtZero: true, max: 100, ticks: { color: '#8899aa', font: { size: 9 }, stepSize: 20 }, grid: { color: 'rgba(255,255,255,0.04)' } }
+          }
+        }
+      });
+    }
+  }
+
+  // K/D Trend Line
+  if (adv.kdHistory && adv.kdHistory.length && window.Chart) {
+    var trendCtx = document.getElementById('kdTrendChart');
+    if (trendCtx) {
+      window.kdTrendChart = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+          labels: adv.kdHistory.map(function(_, i){ return i + 1; }),
+          datasets: [{
+            label: 'K/D',
+            data: adv.kdHistory.map(function(h){ return h.kd; }),
+            borderColor: '#4CAF82',
+            backgroundColor: 'rgba(76,175,130,0.1)',
+            tension: 0.4,
+            pointRadius: 2.5,
+            borderWidth: 2.5
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+            y: { ticks: { color: '#8899aa', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+          }
+        }
+      });
+    }
+  }
+}
+
+// ── Halo DNA ───────────────────────────────────────────────────────────────
+function renderHaloDNA(dna) {
+  if (!dna) return;
+
+  var overviewPanel = document.querySelector('[data-tab-panel="overview"], #tab-overview, .tab-panel[data-tab="overview"]');
+  if (!overviewPanel) overviewPanel = document.querySelector('.tab-panel.active') || document.getElementById('app');
+  if (!overviewPanel) return;
+
+  var old = document.getElementById('dna-card');
+  if (old) old.parentNode.removeChild(old);
+
+  var traitsHtml = (dna.traits || []).map(function(t) {
+    return '<div style="background:rgba(55,138,221,0.15);color:#378ADD;padding:6px 14px;border-radius:999px;font-size:13px">' + t + '</div>';
+  }).join('');
+
+  var card = document.createElement('div');
+  card.id = 'dna-card';
+  card.className = 'stat-card';
+  card.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #378ADD;margin-bottom:24px';
+  card.innerHTML =
+    '<div style="font-size:48px;text-align:center;margin-bottom:8px">' + dna.emoji + '</div>' +
+    '<div class="stat-label" style="text-align:center;font-size:22px;letter-spacing:2px;color:var(--text)">' + dna.title + '</div>' +
+    '<div style="text-align:center;margin:12px 0;font-size:15px;color:#ccc;line-height:1.4">' + dna.description + '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px">' + traitsHtml + '</div>';
+
+  // Insert at the top of the overview panel so it appears above other cards
+  overviewPanel.insertBefore(card, overviewPanel.firstChild);
+}
+
+// ── Improvement Coach ──────────────────────────────────────────────────────
+function renderCoach(coach) {
+  if (!coach) return;
+
+  var overviewPanel = document.querySelector('[data-tab-panel="overview"], #tab-overview, .tab-panel[data-tab="overview"]');
+  if (!overviewPanel) overviewPanel = document.querySelector('.tab-panel.active') || document.getElementById('app');
+  if (!overviewPanel) return;
+
+  var old = document.getElementById('coach-card');
+  if (old) old.parentNode.removeChild(old);
+
+  var trendColor = coach.trend === 'improving' ? 'var(--win,#4CAF82)' : coach.trend === 'declining' ? 'var(--loss,#ef4444)' : 'var(--muted)';
+  var kdDir  = parseFloat(coach.kdChange)  >= 0 ? '↑' : '↓';
+  var wrDir  = parseFloat(coach.wrChange)  >= 0 ? '↑' : '↓';
+
+  var strengthsHtml  = coach.strengths.length  ? coach.strengths.map(function(s){ return '<li>' + s + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
+  var weaknessesHtml = coach.weaknesses.length ? coach.weaknesses.map(function(w){ return '<li>' + w + '</li>'; }).join('') : '<li style="color:var(--muted2)">—</li>';
+  var tipsHtml = coach.tips.length ? '<strong style="color:#4CAF82">Coach Tips:</strong><br>' + coach.tips.map(function(t){ return '• ' + t; }).join('<br>') : '';
+
+  var card = document.createElement('div');
+  card.id = 'coach-card';
+  card.className = 'stat-card';
+  card.style.cssText = 'grid-column:span 3;margin-top:12px;margin-bottom:24px';
+  card.innerHTML =
+    '<div class="stat-label">🧠 IMPROVEMENT COACH</div>' +
+    '<div id="coach-overall" style="font-size:18px;line-height:1.4;margin:12px 0;color:' + trendColor + '">' +
+      coach.overall + '<br>' +
+      '<small style="color:#888;font-size:12px">K/D ' + kdDir + ' ' + Math.abs(coach.kdChange) + ' &nbsp;|&nbsp; WR ' + wrDir + ' ' + Math.abs(coach.wrChange) + '%</small>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">' +
+      '<div>' +
+        '<div class="stat-label" style="font-size:11px">STRENGTHS</div>' +
+        '<ul style="padding-left:18px;margin:8px 0;line-height:1.5">' + strengthsHtml + '</ul>' +
+      '</div>' +
+      '<div>' +
+        '<div class="stat-label" style="font-size:11px">FOCUS AREAS</div>' +
+        '<ul style="padding-left:18px;margin:8px 0;line-height:1.5">' + weaknessesHtml + '</ul>' +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-top:16px;font-size:13px;color:#aaa">' + tipsHtml + '</div>';
+
+  overviewPanel.appendChild(card);
+}
 
 window.addEventListener('popstate', function(e){
   var params=new URLSearchParams(window.location.search);

@@ -1,11 +1,12 @@
 require('dotenv').config();
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -60,6 +61,7 @@ async function logTab(gamertag, tab, seconds) {
 
 const app = express();
 app.set('trust proxy', 1); // trust Render's proxy for real IPs
+app.use(compression());
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -99,13 +101,31 @@ setInterval(() => {
   }
 }, 300000);
 
-// --- Search cache (Redis + in-memory) ---
+// --- Search cache (Redis-primary, in-memory fallback) ---
 const searchCache = {}; // gamertag.lower -> { data, fetchedAt }
 const CACHE_TTL = 60 * 60 * 1000; // 60 minutes
+const CACHE_TTL_SECONDS = 3600;    // Redis TTL in seconds
 const _searchProgress = {}; // gamertag.lower -> { step, valid, total, ts }
 
 async function getFromCache(gamertag) {
   const key = gamertag.toLowerCase().trim();
+
+  // Try Redis first
+  try {
+    const redis = await getRedis();
+    if (redis) {
+      const raw = await redis.get('player:' + key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        searchCache[key] = { data: parsed, fetchedAt: Date.now() }; // sync to memory
+        return parsed;
+      }
+    }
+  } catch(e) {
+    console.warn('[Cache] Redis get failed, falling back to memory:', e.message);
+  }
+
+  // Fallback: in-memory
   if (searchCache[key] && Date.now() - searchCache[key].fetchedAt < CACHE_TTL) {
     return searchCache[key].data;
   }
@@ -114,7 +134,16 @@ async function getFromCache(gamertag) {
 
 async function saveToCache(gamertag, data) {
   const key = gamertag.toLowerCase().trim();
+
+  // Always write to memory
   searchCache[key] = { data, fetchedAt: Date.now() };
+
+  // Write to Redis async (don't await — never block the response)
+  getRedis().then(redis => {
+    if (!redis) return;
+    redis.set('player:' + key, JSON.stringify(data), { EX: CACHE_TTL_SECONDS })
+      .catch(e => console.warn('[Cache] Redis set failed:', e.message));
+  }).catch(() => {});
 }
 
 // Deduplicate concurrent searches for the same gamertag
@@ -293,6 +322,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
         rivals: histData.rivals || [],
         nemesisList: histData.nemesisList || [],
         victimsList: histData.victimsList || [],
+        advancedStats: histData.advancedStats || {},
+        coach: histData.coach || null,
+        haloDNA: histData.haloDNA || null,
       };
       await saveToCache(gamertag, result);
       return result;
@@ -979,6 +1011,18 @@ app.get('/api/stats', async (req, res) => {
     const unique = new Set(_memSearchLog.filter(s=>s.success).map(s=>s.gamertag.toLowerCase())).size;
     res.json({ totalSearches: _memSearchLog.filter(s=>s.success).length, uniquePlayers: unique });
   } catch(e) { res.json({ totalSearches: 0, uniquePlayers: 0 }); }
+});
+
+// ── Leaderboard ──────────────────────────────────────────────────────────────
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const data = await getLeaderboardData(limit);
+    res.json(data);
+  } catch(e) {
+    console.error('[Leaderboard]', e.message);
+    res.status(500).json({ error: 'Failed to load leaderboard' });
+  }
 });
 
 // ── Tab analytics ────────────────────────────────────────────────────────────

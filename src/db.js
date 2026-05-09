@@ -363,4 +363,49 @@ async function getProStats() {
   };
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats };
+// Leaderboard: top N players per metric using most recent snapshot per player
+async function getLeaderboardData(limit = 50) {
+  try {
+    const db = await getDb();
+    if (!db) return { kd: [], winRate: [], csr: [] };
+
+    // One row per player (most recent snapshot only), filtered for quality
+    const base = `
+      SELECT DISTINCT ON (xuid)
+        gamertag, kd, win_rate, accuracy, avg_kills,
+        csr_tier, csr_subtier, csr_value, matches_played, wins, losses, ts
+      FROM player_snapshots
+      WHERE kd IS NOT NULL AND kd > 0 AND matches_played >= 10
+      ORDER BY xuid, ts DESC
+    `;
+
+    // Top by K/D
+    const kdRes = await db.query(
+      `SELECT * FROM (${base}) t WHERE kd IS NOT NULL ORDER BY kd DESC LIMIT $1`,
+      [limit]
+    );
+
+    // Top by Win Rate (min 20 matches)
+    const wrRes = await db.query(
+      `SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 20 ORDER BY win_rate DESC LIMIT $1`,
+      [limit]
+    );
+
+    // Top by CSR value
+    const csrRes = await db.query(
+      `SELECT * FROM (${base}) t WHERE csr_value IS NOT NULL AND csr_value > 0 ORDER BY csr_value DESC LIMIT $1`,
+      [limit]
+    );
+
+    return {
+      kd:      kdRes.rows,
+      winRate: wrRes.rows,
+      csr:     csrRes.rows
+    };
+  } catch(e) {
+    console.error('[DB] getLeaderboardData error:', e.message);
+    return { kd: [], winRate: [], csr: [] };
+  }
+}
+
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData };
