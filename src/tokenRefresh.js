@@ -1,8 +1,25 @@
 const https = require('https');
+const fs    = require('fs');
+const path  = require('path');
 
-const CLIENT_ID = '000000004C12AE6F';
-const REDIRECT  = 'https://login.live.com/oauth20_desktop.srf';
-const SCOPE     = 'Xboxlive.signin Xboxlive.offline_access';
+const CLIENT_ID    = '000000004C12AE6F';
+const REDIRECT     = 'https://login.live.com/oauth20_desktop.srf';
+const SCOPE        = 'Xboxlive.signin Xboxlive.offline_access';
+const TOKEN_FILE   = path.join(__dirname, '.refresh_token');  // persists across restarts
+
+// On startup, prefer token file over env var (file is always newer)
+function loadPersistedToken() {
+  try {
+    const saved = fs.readFileSync(TOKEN_FILE, 'utf8').trim();
+    if (saved) {
+      process.env.MS_REFRESH_TOKEN = saved;
+      console.log('[TokenRefresh] Loaded persisted refresh token from file');
+    }
+  } catch(e) {
+    // file doesn't exist yet — fall through to env var
+  }
+}
+loadPersistedToken();
 
 function post(hostname, path, headers, body) {
   return new Promise((resolve, reject) => {
@@ -35,10 +52,15 @@ async function refreshSpartanToken() {
   if (!msData.access_token) throw new Error('MS refresh failed: ' + JSON.stringify(msData));
   console.log('[TokenRefresh] ✓ Microsoft access token refreshed');
 
-  // Update refresh token in memory if a new one was issued
+  // Update refresh token if a new one was issued — save to file so it survives restarts
   if (msData.refresh_token && msData.refresh_token !== refreshToken) {
     process.env.MS_REFRESH_TOKEN = msData.refresh_token;
-    console.log('[TokenRefresh] Refresh token rotated (new one saved in memory)');
+    try {
+      fs.writeFileSync(TOKEN_FILE, msData.refresh_token, 'utf8');
+      console.log('[TokenRefresh] Refresh token rotated — persisted to file');
+    } catch(e) {
+      console.warn('[TokenRefresh] Could not persist refresh token to file:', e.message);
+    }
   }
 
   // Step 2: Xbox Live
