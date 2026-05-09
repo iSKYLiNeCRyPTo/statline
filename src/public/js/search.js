@@ -249,6 +249,7 @@ async function doSearch(gt, isRefresh, force){
     var url=new URL(window.location);url.searchParams.set('player',gt);window.history.pushState({},'',url);
     document.title=gt+' — fragr';
     var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
+    var cb=document.getElementById('compareBtn');if(cb)cb.style.display='inline-flex';var mcb=document.getElementById('mobileCompareBtn');if(mcb)mcb.style.display='flex';
     updateFavBtn();
 
     if(isRefresh){

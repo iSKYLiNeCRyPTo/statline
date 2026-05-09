@@ -967,7 +967,7 @@ function render(){
       var _kdDiff=skdNum-_baseKDNum;
       var _kdDiffStr=(_kdDiff>=0?'+':'')+_kdDiff.toFixed(2);
       var _kdDiffColor=_kdDiff>=0.1?'var(--win)':_kdDiff<=-0.1?'var(--loss)':'var(--muted)';
-      _kdVsUsual='<span style="font-size:9px;color:'+_kdDiffColor+';font-family:Share Tech Mono,monospace;display:block;margin-top:1px">'+_kdDiffStr+' vs usual ('+_baseKDStr+')</span>';
+      _kdVsUsual=' <span style="font-size:8px;color:'+_kdDiffColor+';font-family:Share Tech Mono,monospace;opacity:0.85">'+_kdDiffStr+'</span>';
     }
 
     html+='<div class="session-bar">';
