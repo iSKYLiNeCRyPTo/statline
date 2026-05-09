@@ -1354,7 +1354,7 @@ function generateImprovementCoach(matches, advancedStats) {
 // ====================== HALO DNA ======================
 function generateHaloDNA(matches, advancedStats, coach) {
   if (!matches || matches.length < 10) {
-    return { title: "Recruit", emoji: "🪖", description: "Still loading your DNA...", traits: [] };
+    return { title: "Recruit", emoji: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>', description: "Still loading your DNA...", traits: [] };
   }
 
   const totalMatches = matches.length;
@@ -1368,28 +1368,28 @@ function generateHaloDNA(matches, advancedStats, coach) {
   const avgKD = totalD > 0 ? totalK / totalD : totalK;
 
   let archetype = "Balanced";
-  let emoji = "⚖️";
+  let emoji = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
   const traits = [];
 
   if (avgKD > 1.8 && winRate > 65) {
     archetype = "Demon Slayer";
-    emoji = "😈";
+    emoji = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/></svg>';
     traits.push("Aggressive", "High Kill Power", "Clutch King");
   } else if (avgKD > 1.5 && winRate > 55) {
     archetype = "Map God";
-    emoji = "🗺️";
+    emoji = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>';
     traits.push("Strong Map Control", "Consistent", "Team Player");
   } else if (advancedStats && advancedStats.clutchKD !== "—" && parseFloat(advancedStats.clutchKD) > 1.7) {
     archetype = "Clutch God";
-    emoji = "🛡️";
+    emoji = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
     traits.push("Clutch Performer", "Mental Fortitude", "Comeback Artist");
   } else if (winRate > 60) {
     archetype = "Objective Beast";
-    emoji = "🎯";
+    emoji = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
     traits.push("Objective Focused", "Win Rate Monster");
   } else {
     archetype = "Grinder";
-    emoji = "🔨";
+    emoji = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
     traits.push("Consistent", "Improving", "Dedicated");
   }
 

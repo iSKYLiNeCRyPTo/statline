@@ -970,8 +970,8 @@ function render(){
       _kdVsUsual=' <span style="font-size:8px;color:'+_kdDiffColor+';font-family:Share Tech Mono,monospace;opacity:0.85">'+_kdDiffStr+'</span>';
     }
 
-    html+='<div class="session-bar">';
-    html+='<div class="session-label">⚡ Today<br><span style="font-size:11px;color:var(--muted2)">'+todayMatches.length+' games</span></div>';
+    html+='<div class="session-bar" id="daily-session-block">';
+    html+='<div class="session-label"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Today<br><span style="font-size:11px;color:var(--muted2)">'+todayMatches.length+' games</span></div>';
     html+='<div class="session-stats">';
     html+='<div class="session-stat"><div class="session-stat-val" style="color:var(--accent)">'+sk+'</div><div class="session-stat-lbl">Kills</div></div>';
     html+='<div class="session-stat"><div class="session-stat-val">'+sd+'</div><div class="session-stat-lbl">Deaths</div></div>';
@@ -2525,7 +2525,7 @@ function render(){
       if(archNemesis) html+=_heroCard(archNemesis,'var(--loss)','Arch-Nemesis','▼',archNemesis.losses+'L '+archNemesis.wins+'W · '+archNemesis.total+' encounters');
       if(topVictim) html+=_heroCard(topVictim,'var(--win)','Top Victim','▲',topVictim.wins+'W '+topVictim.losses+'L · '+topVictim.total+' encounters');
       if(mostPlayed&&(!archNemesis||mostPlayed.gamertag!==archNemesis.gamertag)&&(!topVictim||mostPlayed.gamertag!==topVictim.gamertag)){
-        html+=_heroCard(mostPlayed,'var(--accent)','Most Played','⚔',mostPlayed.total+' encounters · '+Math.round(mostPlayed.wins/mostPlayed.total*100)+'% wr');
+        html+=_heroCard(mostPlayed,'var(--accent)','Most Played','<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/></svg>',mostPlayed.total+' encounters · '+Math.round(mostPlayed.wins/mostPlayed.total*100)+'% wr');
       }
       html+='</div>';
     }
@@ -2638,13 +2638,18 @@ function renderHaloDNA(dna) {
   card.className = 'stat-card';
   card.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #378ADD;margin-bottom:24px';
   card.innerHTML =
-    '<div style="font-size:48px;text-align:center;margin-bottom:8px">' + dna.emoji + '</div>' +
+    '<div style="display:flex;justify-content:center;margin-bottom:12px">' + dna.emoji + '</div>' +
     '<div class="stat-label" style="text-align:center;font-size:22px;letter-spacing:2px;color:var(--text)">' + dna.title + '</div>' +
     '<div style="text-align:center;margin:12px 0;font-size:15px;color:#ccc;line-height:1.4">' + dna.description + '</div>' +
     '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px">' + traitsHtml + '</div>';
 
-  // Insert at the top of the overview panel so it appears above other cards
-  overviewPanel.insertBefore(card, overviewPanel.firstChild);
+  // Insert directly after the daily session block if present; otherwise top of panel
+  var sessionBlock = document.getElementById('daily-session-block');
+  if (sessionBlock && sessionBlock.parentNode) {
+    sessionBlock.parentNode.insertBefore(card, sessionBlock.nextSibling);
+  } else {
+    overviewPanel.insertBefore(card, overviewPanel.firstChild);
+  }
 }
 
 // ── Improvement Coach ──────────────────────────────────────────────────────
@@ -2677,7 +2682,7 @@ function renderCoach(coach) {
   card.className = 'stat-card';
   card.style.cssText = 'grid-column:span 3;margin-top:12px;margin-bottom:24px';
   card.innerHTML =
-    '<div class="stat-label">🧠 IMPROVEMENT COACH</div>' +
+    '<div class="stat-label"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> IMPROVEMENT COACH</div>' +
     '<div id="coach-overall" style="font-size:18px;line-height:1.4;margin:12px 0;color:' + trendColor + '">' +
       coach.overall + changeHtml +
     '</div>' +
@@ -2693,7 +2698,18 @@ function renderCoach(coach) {
     '</div>' +
     '<div style="margin-top:16px;font-size:13px;color:#aaa">' + tipsHtml + '</div>';
 
-  overviewPanel.appendChild(card);
+  // Insert directly after DNA card if present; else after session block; else append
+  var dnaCard = document.getElementById('dna-card');
+  if (dnaCard && dnaCard.parentNode) {
+    dnaCard.parentNode.insertBefore(card, dnaCard.nextSibling);
+  } else {
+    var sessionBlock = document.getElementById('daily-session-block');
+    if (sessionBlock && sessionBlock.parentNode) {
+      sessionBlock.parentNode.insertBefore(card, sessionBlock.nextSibling);
+    } else {
+      overviewPanel.appendChild(card);
+    }
+  }
 }
 
 window.addEventListener('popstate', function(e){
