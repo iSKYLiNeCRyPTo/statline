@@ -379,8 +379,8 @@ async function getLeaderboardData(limit = 50) {
         gamertag, kd, win_rate, accuracy, avg_kills,
         csr_tier, csr_subtier, csr_value, matches_played, wins, losses, ts
       FROM player_snapshots
-      WHERE kd IS NOT NULL AND kd > 0 AND kd < 15
-        AND (win_rate IS NULL OR win_rate < 95)
+      WHERE kd IS NOT NULL AND kd > 0 AND kd < 2
+        AND (win_rate IS NULL OR win_rate < 85)
         AND matches_played >= 25
       ORDER BY xuid, ts DESC
     `;
