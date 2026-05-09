@@ -115,8 +115,8 @@ function _recentWR(matches, n) {
   return r.filter(function(m) { return m.outcome === 2; }).length / r.length * 100;
 }
 
-// Build top-N map stats: [{map, wins, losses, kd, wr}]
-function _mapStats(matches, n) {
+// Map stats dict keyed by mapName: {map, games, wr, kd}
+function _mapStatsDict(matches) {
   var byMap = {};
   (matches || []).forEach(function(m) {
     if (!m.mapName || (m.outcome !== 2 && m.outcome !== 3)) return;
@@ -126,53 +126,131 @@ function _mapStats(matches, n) {
     byMap[k].kills  += m.kills  || 0;
     byMap[k].deaths += m.deaths || 0;
   });
-  return Object.values(byMap)
-    .filter(function(e) { return e.wins + e.losses >= 3; })
-    .sort(function(a, b) { return (b.wins + b.losses) - (a.wins + a.losses); })
-    .slice(0, n)
-    .map(function(e) {
-      var total = e.wins + e.losses;
-      return {
-        map: e.map,
-        games: total,
-        wr: Math.round(e.wins / total * 100),
-        kd: e.deaths > 0 ? (e.kills / e.deaths) : e.kills > 0 ? e.kills : 0
-      };
-    });
+  var out = {};
+  Object.keys(byMap).forEach(function(k) {
+    var e = byMap[k], total = e.wins + e.losses;
+    out[k] = { map: k, games: total, wr: Math.round(e.wins / total * 100),
+               kd: e.deaths > 0 ? e.kills / e.deaths : e.kills > 0 ? e.kills : 0 };
+  });
+  return out;
 }
 
-// Build mode win rates: [{mode, wr, games}] — simplified to Slayer vs Obj
+// Shared maps between two players, sorted by combined game count, min 3g each
+function _sharedMaps(myDict, theirDict, n) {
+  var shared = Object.keys(myDict).filter(function(k) {
+    return theirDict[k] && myDict[k].games >= 3 && theirDict[k].games >= 3;
+  });
+  shared.sort(function(a, b) {
+    return (myDict[b].games + theirDict[b].games) - (myDict[a].games + theirDict[a].games);
+  });
+  return shared.slice(0, n);
+}
+
+// Per-mode stats: [{mode, label, icon, wr, games, objKey, objAvg}]
 function _modeStats(matches) {
-  var SLAYER_RE = /slayer/i;
-  var OBJ_MODES = ['Oddball','CTF','Strongholds','King of the Hill','Land Grab','Stockpile','Extraction'];
-  var buckets = { Slayer: { w: 0, l: 0 }, Objective: { w: 0, l: 0 } };
+  var MODES = [
+    { key: 'Slayer',           re: /slayer/i,          obj: null },
+    { key: 'Oddball',          re: /oddball/i,         obj: 'timeAsCarrier',  objLabel: 'avg carry' },
+    { key: 'CTF',              re: /ctf|flag/i,        obj: 'flagCaptures',   objLabel: 'caps' },
+    { key: 'Strongholds',      re: /stronghold/i,      obj: 'captures',       objLabel: 'caps' },
+    { key: 'King of the Hill', re: /king.*hill|koth/i, obj: 'occupationTime', objLabel: 'hill time' },
+    { key: 'Land Grab',        re: /land.*grab/i,      obj: 'captures',       objLabel: 'caps' },
+    { key: 'Stockpile',        re: /stockpile/i,       obj: 'seedsDeposited', objLabel: 'seeds' },
+  ];
+  var buckets = {};
+  MODES.forEach(function(md) { buckets[md.key] = { w: 0, l: 0, objSum: 0, objCount: 0, def: md }; });
+
   (matches || []).forEach(function(m) {
     if (!m.gameMode || (m.outcome !== 2 && m.outcome !== 3)) return;
-    var isSlayer = SLAYER_RE.test(m.gameMode);
-    var isObj    = OBJ_MODES.some(function(mo) { return m.gameMode.indexOf(mo) > -1; });
-    var bucket = isSlayer ? 'Slayer' : isObj ? 'Objective' : null;
-    if (!bucket) return;
-    if (m.outcome === 2) buckets[bucket].w++; else buckets[bucket].l++;
+    var matched = null;
+    for (var i = 0; i < MODES.length; i++) {
+      if (MODES[i].re.test(m.gameMode)) { matched = MODES[i].key; break; }
+    }
+    if (!matched) return;
+    var b = buckets[matched];
+    if (m.outcome === 2) b.w++; else b.l++;
+    if (b.def.obj && m.objStats && m.objStats[b.def.obj] != null) {
+      var val = m.objStats[b.def.obj];
+      // Convert seconds to minutes for time fields
+      if (b.def.obj === 'timeAsCarrier' || b.def.obj === 'occupationTime') val = val / 60;
+      b.objSum += val; b.objCount++;
+    }
   });
-  return Object.keys(buckets).map(function(mode) {
-    var b = buckets[mode];
+
+  return MODES.map(function(md) {
+    var b = buckets[md.key];
     var total = b.w + b.l;
-    return total >= 3 ? { mode: mode, wr: Math.round(b.w / total * 100), games: total } : null;
+    if (total < 3) return null;
+    return {
+      mode:     md.key,
+      wr:       Math.round(b.w / total * 100),
+      games:    total,
+      objLabel: md.objLabel || null,
+      objAvg:   b.objCount >= 3 ? b.objSum / b.objCount : null
+    };
   }).filter(Boolean);
 }
 
 // Objective contribution score per game
-function _objScore(matches) {
-  var scored = (matches || []).filter(function(m) { return m.objStats; });
-  if (!scored.length) return null;
-  var total = scored.reduce(function(a, m) {
+// Recent accuracy (avg over last N games that have accuracy data)
+function _recentAcc(matches, n) {
+  var r = (matches || []).filter(function(m) { return m.accuracy != null; }).slice(0, n);
+  if (r.length < 3) return null;
+  return r.reduce(function(a, m) { return a + parseFloat(m.accuracy); }, 0) / r.length;
+}
+
+// Recent assists per game
+function _recentAst(matches, n) {
+  var r = (matches || []).filter(function(m) { return m.assists != null && (m.outcome === 2 || m.outcome === 3); }).slice(0, n);
+  if (r.length < 3) return null;
+  return r.reduce(function(a, m) { return a + (m.assists || 0); }, 0) / r.length;
+}
+
+// Recent damage ratio
+function _recentDmgRatio(matches, n) {
+  var r = (matches || []).filter(function(m) { return m.damageDealt > 300 && m.damageTaken > 300; }).slice(0, n);
+  if (r.length < 3) return null;
+  var dealt = r.reduce(function(a, m) { return a + m.damageDealt; }, 0);
+  var taken = r.reduce(function(a, m) { return a + m.damageTaken; }, 0);
+  return taken > 0 ? dealt / taken : null;
+}
+
+// Rich objective breakdown: {score, assists, flagCaps, flagGrabs, flagReturns, captures, secures, carryMins, seeds, objGames, totalGames}
+function _objBreakdown(matches) {
+  var all = (matches || []).filter(function(m) { return m.outcome === 2 || m.outcome === 3; });
+  if (!all.length) return null;
+  var objGames = all.filter(function(m) { return m.objStats; });
+  var out = { totalGames: all.length, objGames: objGames.length, score: 0,
+              assists: 0, assistGames: 0,
+              flagCaps: 0, flagGrabs: 0, flagReturns: 0,
+              captures: 0, secures: 0, carryMins: 0, seeds: 0 };
+  all.forEach(function(m) {
+    if (m.assists != null) { out.assists += m.assists || 0; out.assistGames++; }
+  });
+  objGames.forEach(function(m) {
     var o = m.objStats || {};
-    return a + (o.flagCaptures || 0) * 4 + (o.captures || 0) * 2
-             + (o.flagGrabs || 0) * 0.5 + (o.flagReturns || 0) * 0.5
-             + (o.secures || 0) * 0.5 + (o.seedsDeposited || 0) * 0.3
-             + Math.min((o.timeAsCarrier || 0) / 60, 3);
-  }, 0);
-  return total / scored.length;
+    out.flagCaps    += o.flagCaptures     || 0;
+    out.flagGrabs   += o.flagGrabs        || 0;
+    out.flagReturns += o.flagReturns      || 0;
+    out.captures    += o.captures         || 0;
+    out.secures     += o.secures          || 0;
+    out.carryMins   += (o.timeAsCarrier   || 0) / 60;
+    out.seeds       += o.seedsDeposited   || 0;
+    out.score += (o.flagCaptures || 0) * 4 + (o.captures || 0) * 2
+              + (o.flagGrabs || 0) * 0.5 + (o.flagReturns || 0) * 0.5
+              + (o.secures || 0) * 0.5   + (o.seedsDeposited || 0) * 0.3
+              + Math.min((o.timeAsCarrier || 0) / 60, 3);
+  });
+  out.scorePG      = objGames.length  ? out.score      / objGames.length  : 0;
+  out.assistsPG    = out.assistGames  ? out.assists     / out.assistGames  : 0;
+  out.flagCapsPG   = objGames.length  ? out.flagCaps    / objGames.length  : 0;
+  out.flagGrabsPG  = objGames.length  ? out.flagGrabs   / objGames.length  : 0;
+  out.flagRetPG    = objGames.length  ? out.flagReturns / objGames.length  : 0;
+  out.capturesPG   = objGames.length  ? out.captures    / objGames.length  : 0;
+  out.securesPG    = objGames.length  ? out.secures     / objGames.length  : 0;
+  out.carryPG      = objGames.length  ? out.carryMins   / objGames.length  : 0;
+  out.seedsPG      = objGames.length  ? out.seeds       / objGames.length  : 0;
+  return out;
 }
 
 // ── Main render ───────────────────────────────────────────────────────────────
@@ -210,11 +288,12 @@ function _renderComparison() {
   var theirRWR  = _recentWR(theirMatches, 20);
   var myTrend   = (myRKD   && myKD)   ? myRKD   - myKD   : null;
   var theirTrend = (theirRKD && theirKD) ? theirRKD - theirKD : null;
-  var myObj     = _objScore(myMatches);
-  var theirObj  = _objScore(theirMatches);
-  var myMaps    = _mapStats(myMatches, 5);
-  var theirMaps = _mapStats(theirMatches, 5);
-  var myModes   = _modeStats(myMatches);
+  var myObj      = _objBreakdown(myMatches);
+  var theirObj   = _objBreakdown(theirMatches);
+  var myMapDict  = _mapStatsDict(myMatches);
+  var thMapDict  = _mapStatsDict(theirMatches);
+  var sharedMaps = _sharedMaps(myMapDict, thMapDict, 6);
+  var myModes    = _modeStats(myMatches);
   var theirModes = _modeStats(theirMatches);
 
   // Core stat categories
@@ -229,7 +308,22 @@ function _renderComparison() {
   if (myCsrV && theirCsrV)  addCat('CSR',         myCsrV,   theirCsrV, function(v) { return Math.round(v) + ''; });
   if (myRKD  && theirRKD)   addCat('Recent K/D',  myRKD,    theirRKD,  function(v) { return v.toFixed(2); });
   if (myRWR  && theirRWR)   addCat('Recent WR',   myRWR,    theirRWR,  function(v) { return Math.round(v) + '%'; });
-  if (myObj  && theirObj)   addCat('Obj Score/g', myObj,    theirObj,  function(v) { return v.toFixed(1); });
+  if (myObj  && theirObj && myObj.scorePG && theirObj.scorePG)
+    addCat('Obj Score/g', myObj.scorePG, theirObj.scorePG, function(v) { return v.toFixed(1); });
+
+  // Trajectory vars
+  var myRAcc    = _recentAcc(myMatches, 20);
+  var theirRAcc = _recentAcc(theirMatches, 20);
+  var myRAst    = _recentAst(myMatches, 20);
+  var theirRAst = _recentAst(theirMatches, 20);
+  var myRDmg    = _recentDmgRatio(myMatches, 20);
+  var theirRDmg = _recentDmgRatio(theirMatches, 20);
+  var myCareerAcc  = parseFloat(ms.accuracy)   || 0;
+  var thCareerAcc  = parseFloat(ts.accuracy)   || 0;
+  var myCareerDmg  = parseFloat(ms.damageRatio)|| 0;
+  var thCareerDmg  = parseFloat(ts.damageRatio)|| 0;
+  var myCareerAst  = ms.assistsPerGame ? parseFloat(ms.assistsPerGame) : null;
+  var thCareerAst  = ts.assistsPerGame ? parseFloat(ts.assistsPerGame) : null;
 
   // Scoring
   var myWins = 0, theirWins = 0;
@@ -352,96 +446,180 @@ function _renderComparison() {
   });
   h += '</div>';
 
-  // ── Mode breakdown ────────────────────────────────────────────────────────
-  if (myModes.length && theirModes.length) {
+  // ── Mode breakdown (per mode, both players side by side) ─────────────────
+  var allModeNames = [];
+  myModes.concat(theirModes).forEach(function(m) { if (allModeNames.indexOf(m.mode) < 0) allModeNames.push(m.mode); });
+  if (allModeNames.length) {
     h += _sectionHead('MODE BREAKDOWN');
     h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">';
-    var allModeNames = [];
-    myModes.concat(theirModes).forEach(function(m) { if (allModeNames.indexOf(m.mode) < 0) allModeNames.push(m.mode); });
-    allModeNames.forEach(function(mode, i) {
+    var MODE_ICONS = {
+      'Slayer':           '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><line x1="18" y1="6" x2="6" y2="18"/><polyline points="8 6 18 6 18 16"/></svg>',
+      'Oddball':          '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><circle cx="12" cy="11" r="5"/><path d="M9 17v2M15 17v2"/></svg>',
+      'CTF':              '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+      'Strongholds':      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+      'King of the Hill': '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M2 19h20v2H2zM2 9l5 3 5-7 5 7 5-3v8H2z"/></svg>',
+      'Land Grab':        '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+      'Stockpile':        '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>'
+    };
+    var renderedModes = 0;
+    allModeNames.forEach(function(mode) {
       var myM    = myModes.find(function(m) { return m.mode === mode; });
       var theirM = theirModes.find(function(m) { return m.mode === mode; });
-      if (!myM && !theirM) return;
-      var myWR2    = myM    ? myM.wr    : null;
-      var theirWR2 = theirM ? theirM.wr : null;
-      var myLeads2 = myWR2 !== null && theirWR2 !== null ? myWR2 >= theirWR2 : myWR2 !== null;
-      var ICON = mode === 'Slayer'
-        ? '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><line x1="18" y1="6" x2="6" y2="18"/><polyline points="8 6 18 6 18 16"/></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
-      h += '<div style="padding:10px 14px' + (i > 0 ? ';border-top:1px solid var(--border)' : '') + '">';
+      // Only show row if both players have data for this mode
+      if (!myM || !theirM) return;
+      var myLeads = myM.wr >= theirM.wr;
+      var sum2 = myM.wr + theirM.wr || 1;
+      var myP  = Math.round(myM.wr / sum2 * 100);
+      var icon = MODE_ICONS[mode] || '';
+      // Obj detail string
+      var myObj2    = (myM.objAvg    != null) ? ' · ' + (myM.objLabel    === 'avg carry' ? myM.objAvg.toFixed(1)    + 'm' : myM.objAvg.toFixed(1))    : '';
+      var theirObj2 = (theirM.objAvg != null) ? ' · ' + (theirM.objLabel === 'avg carry' ? theirM.objAvg.toFixed(1) + 'm' : theirM.objAvg.toFixed(1)) : '';
+      h += '<div style="padding:10px 14px' + (renderedModes > 0 ? ';border-top:1px solid var(--border)' : '') + '">';
       h += '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">';
-      h += '<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:' + (myLeads2 ? 'var(--accent)' : 'var(--muted)') + '">' + (myWR2 !== null ? (myLeads2 ? '◆ ' : '') + myWR2 + '% <span style="font-size:9px;color:var(--muted2)">(' + (myM ? myM.games : 0) + 'g)</span>' : '—') + '</div>';
-      h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.6px;text-align:center;white-space:nowrap">' + ICON + ' ' + mode.toUpperCase() + '</div>';
-      h += '<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:' + (!myLeads2 ? '#f59e0b' : 'var(--muted)') + ';text-align:right">' + (theirWR2 !== null ? (!myLeads2 ? '◆ ' : '') + theirWR2 + '% <span style="font-size:9px;color:var(--muted2)">(' + (theirM ? theirM.games : 0) + 'g)</span>' : '—') + '</div>';
+      h += '<div><div style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:' + (myLeads ? 'var(--accent)' : 'var(--muted)') + '">' + (myLeads ? '◆ ' : '') + myM.wr + '%</div>'
+         + '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">' + myM.games + 'g' + myObj2 + '</div></div>';
+      h += '<div style="text-align:center">'
+         + '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.6px;white-space:nowrap">' + icon + ' ' + mode.toUpperCase() + '</div>'
+         + (myM.objLabel ? '<div style="font-size:7px;color:var(--muted2);font-family:Share Tech Mono,monospace;opacity:0.7;margin-top:1px">' + myM.objLabel + '</div>' : '')
+         + '</div>';
+      h += '<div style="text-align:right"><div style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:' + (!myLeads ? '#f59e0b' : 'var(--muted)') + '">' + (!myLeads ? '◆ ' : '') + theirM.wr + '%</div>'
+         + '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">' + theirObj2 + theirM.games + 'g</div></div>';
       h += '</div>';
-      if (myWR2 !== null && theirWR2 !== null) {
-        var sum2 = myWR2 + theirWR2;
-        var myP  = Math.round(myWR2 / sum2 * 100);
-        h += '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden">';
-        h += '<div style="width:' + myP + '%;background:' + (myLeads2 ? 'var(--accent)' : 'rgba(0,212,255,0.12)') + '"></div>';
-        h += '<div style="width:' + (100-myP) + '%;background:' + (!myLeads2 ? '#f59e0b' : 'rgba(245,158,11,0.12)') + '"></div>';
-        h += '</div>';
-      }
+      h += '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden">';
+      h += '<div style="width:' + myP + '%;background:' + (myLeads ? 'var(--accent)' : 'rgba(0,212,255,0.12)') + '"></div>';
+      h += '<div style="width:' + (100-myP) + '%;background:' + (!myLeads ? '#f59e0b' : 'rgba(245,158,11,0.12)') + '"></div>';
+      h += '</div></div>';
+      renderedModes++;
+    });
+    if (!renderedModes) h += '<div style="padding:12px 14px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace">Not enough shared mode data yet</div>';
+    h += '</div>';
+  }
+
+  // ── Map performance — shared maps only ────────────────────────────────────
+  if (sharedMaps.length) {
+    h += _sectionHead('MAP PERFORMANCE — SHARED MAPS');
+    h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">';
+    sharedMaps.forEach(function(mapName, i) {
+      var myM    = myMapDict[mapName];
+      var theirM = thMapDict[mapName];
+      var myLeads = myM.wr >= theirM.wr;
+      var sum3 = myM.wr + theirM.wr || 1;
+      var myP3 = Math.round(myM.wr / sum3 * 100);
+      h += '<div style="padding:10px 14px' + (i > 0 ? ';border-top:1px solid var(--border)' : '') + '">';
+      // Map name header
+      h += '<div style="font-size:9px;color:var(--muted);font-family:Share Tech Mono,monospace;letter-spacing:.5px;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + mapName + '</div>';
+      // WR row
+      h += '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:5px">';
+      h += '<div><div style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:' + (myLeads ? 'var(--accent)' : 'var(--muted)') + '">' + (myLeads ? '◆ ' : '') + myM.wr + '%</div>'
+         + '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">' + myM.kd.toFixed(2) + ' K/D · ' + myM.games + 'g</div></div>';
+      h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-align:center">WIN RATE</div>';
+      h += '<div style="text-align:right"><div style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:' + (!myLeads ? '#f59e0b' : 'var(--muted)') + '">' + (!myLeads ? '◆ ' : '') + theirM.wr + '%</div>'
+         + '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace">' + theirM.games + 'g · ' + theirM.kd.toFixed(2) + ' K/D</div></div>';
       h += '</div>';
+      h += '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden">';
+      h += '<div style="width:' + myP3 + '%;background:' + (myLeads ? 'var(--accent)' : 'rgba(0,212,255,0.12)') + '"></div>';
+      h += '<div style="width:' + (100-myP3) + '%;background:' + (!myLeads ? '#f59e0b' : 'rgba(245,158,11,0.12)') + '"></div>';
+      h += '</div></div>';
     });
     h += '</div>';
   }
 
-  // ── Map performance ───────────────────────────────────────────────────────
-  if (myMaps.length || theirMaps.length) {
-    h += _sectionHead('MAP PERFORMANCE');
+  // ── Trajectory ────────────────────────────────────────────────────────────
+  (function() {
+    // Build rows: [{label, myCareer, myRecent, thCareer, thRecent, fmt, pctThreshold}]
+    var tRows = [];
+    function addTRow(lbl, myC, myR, thC, thR, fmt, thresh) {
+      if (myR != null && thR != null && myC > 0 && thC > 0)
+        tRows.push({ lbl: lbl, myC: myC, myR: myR, thC: thC, thR: thR, fmt: fmt, thresh: thresh || 0.05 });
+    }
+    addTRow('K/D',          myKD,        myRKD,    theirKD,     theirRKD,  function(v) { return v.toFixed(2); },  0.05);
+    addTRow('Win Rate',     myWR,        myRWR,    theirWR,     theirRWR,  function(v) { return Math.round(v) + '%'; }, 3);
+    addTRow('Accuracy',     myCareerAcc, myRAcc,   thCareerAcc, theirRAcc, function(v) { return v.toFixed(1) + '%'; }, 1);
+    addTRow('Dmg Ratio',    myCareerDmg, myRDmg,   thCareerDmg, theirRDmg, function(v) { return v.toFixed(2); },  0.05);
+    if (myCareerAst && thCareerAst)
+      addTRow('Assists/g',  myCareerAst, myRAst,   thCareerAst, theirRAst, function(v) { return v.toFixed(1); },  0.3);
+    if (!tRows.length) return;
+
+    h += _sectionHead('TRAJECTORY — LAST 20 GAMES vs CAREER');
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
 
-    function _mapCard(maps, color, label) {
-      if (!maps.length) return '<div></div>';
-      var c = '';
-      c += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">';
-      c += '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:8px;color:' + color + ';font-family:Share Tech Mono,monospace;letter-spacing:1px">' + label + ' — TOP MAPS</div>';
-      maps.forEach(function(m, i) {
-        var wrColor = m.wr >= 60 ? 'var(--win)' : m.wr >= 45 ? 'var(--muted)' : 'var(--loss)';
-        var kdColor = m.kd >= 1.2 ? 'var(--win)' : m.kd >= 0.8 ? 'var(--muted)' : 'var(--loss)';
-        c += '<div style="padding:8px 12px' + (i > 0 ? ';border-top:1px solid var(--border)' : '') + '">';
-        c += '<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + m.map + '</div>';
-        c += '<div style="display:flex;gap:6px;align-items:center">';
-        c += '<div style="font-size:8px;color:' + wrColor + ';font-family:Share Tech Mono,monospace;background:rgba(255,255,255,0.04);padding:2px 5px;border-radius:3px">' + m.wr + '% WR</div>';
-        c += '<div style="font-size:8px;color:' + kdColor + ';font-family:Share Tech Mono,monospace;background:rgba(255,255,255,0.04);padding:2px 5px;border-radius:3px">' + m.kd.toFixed(2) + ' K/D</div>';
-        c += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-left:auto">' + m.games + 'g</div>';
+    function _tCard2(name, rows, col) {
+      var c = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+      c += '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:8px;color:' + col + ';font-family:Share Tech Mono,monospace;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + name + '</div>';
+      var isMe = col === 'var(--accent)';
+      rows.forEach(function(r, i) {
+        var career = isMe ? r.myC : r.thC;
+        var recent = isMe ? r.myR : r.thR;
+        if (recent == null) return;
+        var diff   = recent - career;
+        var rising = diff >  r.thresh;
+        var falling= diff < -r.thresh;
+        var arrow  = rising ? '↑' : falling ? '↓' : '→';
+        var dc     = rising ? 'var(--win)' : falling ? 'var(--loss)' : 'var(--muted)';
+        c += '<div style="padding:7px 12px;display:flex;align-items:center;gap:8px' + (i > 0 ? ';border-top:1px solid var(--border)' : '') + '">';
+        c += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;width:58px;flex-shrink:0">' + r.lbl + '</div>';
+        c += '<div style="font-family:Rajdhani,sans-serif;font-size:13px;color:var(--muted);min-width:32px">' + r.fmt(career) + '</div>';
+        c += '<div style="color:var(--muted2);font-size:10px">→</div>';
+        c += '<div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:' + dc + ';min-width:32px">' + r.fmt(recent) + '</div>';
+        c += '<div style="font-size:10px;color:' + dc + ';font-weight:700;margin-left:auto">' + arrow + '</div>';
         c += '</div>';
-        // mini WR bar
-        c += '<div style="margin-top:4px;height:3px;border-radius:2px;background:var(--surface2);overflow:hidden">';
-        c += '<div style="width:' + m.wr + '%;height:100%;background:' + wrColor + ';opacity:0.7"></div>';
-        c += '</div></div>';
       });
       c += '</div>';
       return c;
     }
 
-    h += _mapCard(myMaps,    'var(--accent)', me.gamertag);
-    h += _mapCard(theirMaps, '#f59e0b',       them.gamertag);
+    h += _tCard2(me.gamertag,   tRows, 'var(--accent)');
+    h += _tCard2(them.gamertag, tRows, '#f59e0b');
     h += '</div>';
-  }
+  })();
 
-  // ── Trajectory ────────────────────────────────────────────────────────────
-  if (myTrend !== null || theirTrend !== null) {
-    h += _sectionHead('TRAJECTORY — RECENT vs CAREER K/D');
-    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
-    function _tCard(name, career, recent, trend, col) {
-      if (!recent) return '<div></div>';
-      var dir = trend >  0.05 ? '↑ IMPROVING' : trend < -0.05 ? '↓ DECLINING' : '→ STEADY';
-      var dc  = trend >  0.05 ? 'var(--win)'  : trend < -0.05 ? 'var(--loss)' : 'var(--muted)';
-      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">'
-        + '<div style="font-size:8px;color:' + col + ';font-family:Share Tech Mono,monospace;letter-spacing:1px;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + name + '</div>'
-        + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-        + '<div><div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--muted)">' + career.toFixed(2) + '</div><div style="font-size:7px;color:var(--muted2);font-family:Share Tech Mono,monospace">CAREER</div></div>'
-        + '<div style="color:var(--muted2)">→</div>'
-        + '<div><div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:' + dc + '">' + recent.toFixed(2) + '</div><div style="font-size:7px;color:var(--muted2);font-family:Share Tech Mono,monospace">RECENT</div></div>'
-        + '<div style="font-size:8px;font-family:Share Tech Mono,monospace;color:' + dc + ';font-weight:700;margin-left:auto;white-space:nowrap">' + dir + '</div>'
-        + '</div></div>';
+  // ── Objective contribution breakdown ──────────────────────────────────────
+  (function() {
+    if (!myObj || !theirObj || !myObj.objGames || !theirObj.objGames) return;
+
+    // Rows to show: [label, myVal, thVal, fmt, show condition]
+    var oRows = [];
+    function addORow(lbl, myV, thV, fmt) {
+      if (myV > 0.01 || thV > 0.01) oRows.push({ lbl: lbl, myV: myV, thV: thV, fmt: fmt });
     }
-    h += _tCard(me.gamertag,   myKD,   myRKD,   myTrend,    'var(--accent)');
-    h += _tCard(them.gamertag, theirKD, theirRKD, theirTrend, '#f59e0b');
+    addORow('Assists/g',      myObj.assistsPG,   theirObj.assistsPG,   function(v) { return v.toFixed(1); });
+    addORow('Flag Caps/g',    myObj.flagCapsPG,   theirObj.flagCapsPG,  function(v) { return v.toFixed(2); });
+    addORow('Flag Grabs/g',   myObj.flagGrabsPG,  theirObj.flagGrabsPG, function(v) { return v.toFixed(2); });
+    addORow('Flag Ret./g',    myObj.flagRetPG,    theirObj.flagRetPG,   function(v) { return v.toFixed(2); });
+    addORow('Zone Caps/g',    myObj.capturesPG,   theirObj.capturesPG,  function(v) { return v.toFixed(2); });
+    addORow('Zone Sec./g',    myObj.securesPG,    theirObj.securesPG,   function(v) { return v.toFixed(2); });
+    addORow('Carry (min/g)',  myObj.carryPG,      theirObj.carryPG,     function(v) { return v.toFixed(1); });
+    addORow('Seeds/g',        myObj.seedsPG,      theirObj.seedsPG,     function(v) { return v.toFixed(2); });
+    if (!oRows.length) return;
+
+    h += _sectionHead('OBJECTIVE CONTRIBUTION');
+    h += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px">';
+
+    // Header row showing obj games count
+    h += '<div style="display:grid;grid-template-columns:auto 1fr auto 1fr;gap:0;padding:7px 14px;border-bottom:1px solid var(--border);align-items:center">';
+    h += '<div style="font-family:Rajdhani,sans-serif;font-size:12px;font-weight:700;color:var(--accent)">' + me.gamertag + '</div>';
+    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;padding-left:6px">' + myObj.objGames + ' obj games</div>';
+    h += '<div style="font-family:Rajdhani,sans-serif;font-size:12px;font-weight:700;color:#f59e0b;text-align:right">' + them.gamertag + '</div>';
+    h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-align:right;padding-right:0">' + theirObj.objGames + ' obj games</div>';
     h += '</div>';
-  }
+
+    oRows.forEach(function(r, i) {
+      var sum     = r.myV + r.thV || 1;
+      var myPct   = Math.round(r.myV / sum * 100);
+      var myLeads = r.myV >= r.thV;
+      h += '<div style="padding:9px 14px' + (i > 0 ? ';border-top:1px solid var(--border)' : '') + '">';
+      h += '<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:5px">';
+      h += '<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:' + (myLeads ? 'var(--accent)' : 'var(--muted)') + '">' + (myLeads ? '◆ ' : '') + r.fmt(r.myV) + '</div>';
+      h += '<div style="font-size:8px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.5px;text-align:center;white-space:nowrap">' + r.lbl + '</div>';
+      h += '<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:' + (!myLeads ? '#f59e0b' : 'var(--muted)') + ';text-align:right">' + r.fmt(r.thV) + (!myLeads ? ' ◆' : '') + '</div>';
+      h += '</div>';
+      h += '<div style="display:flex;height:4px;border-radius:2px;overflow:hidden">';
+      h += '<div style="width:' + myPct + '%;background:' + (myLeads ? 'var(--accent)' : 'rgba(0,212,255,0.12)') + '"></div>';
+      h += '<div style="width:' + (100-myPct) + '%;background:' + (!myLeads ? '#f59e0b' : 'rgba(245,158,11,0.12)') + '"></div>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+  })();
 
   // ── New comparison button ─────────────────────────────────────────────────
   h += '<div style="text-align:center;padding-bottom:8px">'
