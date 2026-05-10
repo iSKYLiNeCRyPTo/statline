@@ -387,8 +387,11 @@ async function doSearch(gt, isRefresh, force){
           if(!isCurrent())return;
           var _cc=fullMatchCache[_canonicalGt]||[];
           var _rk=_cc.filter(function(m){return m.isRanked;});
-          var _sk=_rk.filter(function(m){return m.expectedKills!=null;}).length;
-          if(_rk.length>0&&_sk>=_rk.length*0.95){return;} // already complete — skip
+          var _sk=_rk.filter(function(m){return m.expectedKills!=null||m.mmr!=null;}).length;
+          // Also check the 5 most recent ranked games — a single new game without skill data
+          // won't drop the aggregate below 95% (e.g. 1 of 250), but still needs enrichment.
+          var _recentMissing=_rk.slice(0,5).some(function(m){return m.expectedKills==null&&m.mmr==null;});
+          if(_rk.length>0&&_sk>=_rk.length*0.95&&!_recentMissing){return;} // already complete — skip
           _skillPollId=setInterval(_doSkillPoll,3000);
           _doSkillPoll();
         },3000);

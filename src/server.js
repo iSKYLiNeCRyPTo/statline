@@ -304,6 +304,15 @@ app.get('/api/search', rateLimit, async (req, res) => {
           await saveToCache(gamertag, updated);
           logSearch(gamertag, req.headers['user-agent'], 'incremental', true, null);
           console.log(`[Incremental] ${filteredNew.length} new matches + fresh stats for ${gamertag}`);
+          // Background: enrich new ranked matches with skill data (expectedKills, mmr, oppMmr)
+          // Same pattern as fresh search — wait 1s for rate-limit headroom then mutate + re-cache.
+          if (filteredNew.some(m => m.isRanked) && cached.xuid) {
+            setTimeout(() => {
+              fetchAndApplySkillData(cached.xuid, merged)
+                .then(() => saveToCache(gamertag, updated))
+                .catch(e => console.warn('[SkillBG/incremental] skill fetch failed:', e.message));
+            }, 1000);
+          }
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
         // No new matches — fall through to cached response below
