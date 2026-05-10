@@ -86,6 +86,22 @@
     .refresh-btn{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);border:1px solid var(--border);background:transparent;padding:5px 12px;border-radius:4px;cursor:pointer;letter-spacing:1px;transition:all .15s}
     .refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
 
+    /* ── Search bar ── */
+    .lb-search-wrap{position:relative;margin-bottom:12px}
+    .lb-search{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px 8px 34px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);letter-spacing:.5px;outline:none;transition:border-color .15s}
+    .lb-search::placeholder{color:var(--muted2)}
+    .lb-search:focus{border-color:var(--accent)}
+    .lb-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);pointer-events:none}
+    .lb-search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;line-height:1;display:none}
+    .lb-search-clear:hover{color:var(--text)}
+
+    /* ── Pagination ── */
+    .lb-pagination{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap}
+    .pg-btn{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);border:1px solid var(--border);background:transparent;padding:5px 10px;border-radius:4px;cursor:pointer;letter-spacing:.5px;transition:all .15s;min-width:32px}
+    .pg-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+    .pg-btn:disabled{opacity:0.3;cursor:default}
+    .pg-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(55,138,221,0.1)}
+
     @media(max-width:600px){
       .page{padding:16px 10px 40px}
       .lb-title{font-size:22px}
@@ -97,7 +113,7 @@
 <body>
 <div class="topbar">
   <a class="topbar-logo" href="/">// STATLINE</a>
-  <a class="topbar-back" href="/">← BACK</a>
+  <a class="topbar-back" id="backBtn" href="/">← BACK</a>
 </div>
 
 <div class="page">
@@ -116,6 +132,12 @@
     <button class="lb-tab" onclick="switchTab('csrLegacy', this)">RANKED LEGACY</button>
   </div>
 
+  <div class="lb-search-wrap">
+    <svg class="lb-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input class="lb-search" id="lbSearch" type="text" placeholder="Search gamertag..." oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
+    <button class="lb-search-clear" id="lbSearchClear" onclick="clearSearch()">✕</button>
+  </div>
+
   <div class="meta-bar">
     <div class="meta-count" id="meta-count">Loading...</div>
     <button class="refresh-btn" onclick="load()">↻ REFRESH</button>
@@ -127,15 +149,34 @@
 </div>
 
 <script>
-  // Apply theme from localStorage (matches main site)
+  // ── Theme ─────────────────────────────────────────────────────────────────
   (function(){
     var t = localStorage.getItem('fragrTheme');
     if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
   })();
 
-  var _data   = null;
-  var _tab    = 'csrArena';
+  // ── Back button — return to the player profile we came from ───────────────
+  (function(){
+    try {
+      var ref = document.referrer;
+      if (ref) {
+        var u = new URL(ref);
+        var player = u.searchParams.get('player');
+        if (player && (u.hostname === location.hostname || u.hostname === 'localhost')) {
+          document.getElementById('backBtn').href = '/?player=' + encodeURIComponent(player);
+        }
+      }
+    } catch(e) {}
+  })();
 
+  // ── State ─────────────────────────────────────────────────────────────────
+  var _data      = null;
+  var _tab       = 'csrArena';
+  var _page      = 1;
+  var _search    = '';
+  var PER_PAGE   = 250;
+
+  // ── Data load ─────────────────────────────────────────────────────────────
   async function load() {
     document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING LEADERBOARD DATA...</div>';
     document.getElementById('meta-count').textContent = 'Loading...';
@@ -151,29 +192,64 @@
     }
   }
 
+  // ── Tab switch ────────────────────────────────────────────────────────────
   function switchTab(tab, btn) {
     _tab = tab;
+    _page = 1;
     document.querySelectorAll('.lb-tab').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
     render();
   }
 
+  // ── Search ────────────────────────────────────────────────────────────────
+  function onSearch(val) {
+    _search = val.trim().toLowerCase();
+    _page = 1;
+    document.getElementById('lbSearchClear').style.display = _search ? 'block' : 'none';
+    render();
+  }
+
+  function clearSearch() {
+    document.getElementById('lbSearch').value = '';
+    onSearch('');
+  }
+
+  // ── Go to page ────────────────────────────────────────────────────────────
+  function goPage(p) {
+    _page = p;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
   function render() {
     if (!_data) return;
-    var rows = _data[_tab] || [];
+    var allRows = _data[_tab] || [];
     var panel = document.getElementById('lb-panel');
 
-    if (!rows.length) {
-      panel.innerHTML =
-        '<div class="lb-empty">' +
-        '<div class="lb-empty-title">No data yet</div>' +
-        '<div class="lb-empty-sub">Search players on Statline to populate the leaderboard</div>' +
-        '</div>';
+    // Filter by search (uses global rank positions, not filtered index)
+    var filtered = _search
+      ? allRows.filter(function(p){ return p.gamertag.toLowerCase().indexOf(_search) !== -1; })
+      : allRows;
+
+    if (!filtered.length) {
+      panel.innerHTML = allRows.length
+        ? '<div class="lb-empty"><div class="lb-empty-title">No match</div><div class="lb-empty-sub">No players found for "' + esc(_search) + '"</div></div>'
+        : '<div class="lb-empty"><div class="lb-empty-title">No data yet</div><div class="lb-empty-sub">Search players on Statline to populate the leaderboard</div></div>';
       document.getElementById('meta-count').textContent = '0 PLAYERS';
       return;
     }
 
-    document.getElementById('meta-count').textContent = rows.length + ' PLAYERS';
+    // Pagination
+    var totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    _page = Math.min(_page, totalPages);
+    var start = (_page - 1) * PER_PAGE;
+    var pageRows = filtered.slice(start, start + PER_PAGE);
+
+    var countLabel = _search
+      ? filtered.length + ' MATCH' + (filtered.length !== 1 ? 'ES' : '') + ' · ' + allRows.length + ' TOTAL'
+      : allRows.length + ' PLAYERS';
+    document.getElementById('meta-count').textContent = countLabel;
 
     var html = '<table class="lb-table"><thead><tr>' +
       '<th style="width:40px">#</th>' +
@@ -182,17 +258,18 @@
       '<th class="right">CSR</th><th class="right hide-mobile">K/D</th><th class="right hide-mobile">WIN %</th>' +
       '</tr></thead><tbody>';
 
-    rows.forEach(function(p, i) {
-      var pos  = i + 1;
-      var rankClass = pos <= 3 ? ' top3 rank-' + pos : '';
-      var medal = pos === 1
-        ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,215,0,0.18);color:#FFD700;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">1</span>'
-        : pos === 2
-        ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(192,192,192,0.18);color:#C0C0C0;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">2</span>'
-        : pos === 3
-        ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(205,127,50,0.18);color:#CD7F32;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">3</span>'
+    pageRows.forEach(function(p, i) {
+      // Use global rank position (position in full allRows array)
+      var pos = allRows.indexOf(p) + 1;
+      var rankClass = pos <= 3 && !_search ? ' top3 rank-' + pos : '';
+      var medal = !_search && pos <= 3
+        ? (pos === 1
+          ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,215,0,0.18);color:#FFD700;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">1</span>'
+          : pos === 2
+          ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(192,192,192,0.18);color:#C0C0C0;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">2</span>'
+          : '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(205,127,50,0.18);color:#CD7F32;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">3</span>')
         : pos;
-      var tier  = p.csr_tier || '';
+      var tier = p.csr_tier || '';
       var tierBadge = tier
         ? '<span class="tier-badge tier-' + tier + '">' + tier.toUpperCase() + (p.csr_subtier ? ' ' + p.csr_subtier : '') + '</span>'
         : '<span class="tier-badge">—</span>';
@@ -201,15 +278,32 @@
       html += '<td class="rank-num">' + medal + '</td>';
       html += '<td><a class="gt-link" href="/?player=' + encodeURIComponent(p.gamertag) + '">' + esc(p.gamertag) + '</a></td>';
       html += '<td class="hide-mobile" style="text-align:right">' + tierBadge + '</td>';
-
       html += '<td class="stat-val stat-csr">' + (p.csr_value || '—') + '</td>';
       html += '<td class="stat-val stat-kd hide-mobile">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
       html += '<td class="stat-val stat-wr hide-mobile">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
-
       html += '</tr>';
     });
 
     html += '</tbody></table>';
+
+    // Pagination controls
+    if (totalPages > 1) {
+      html += '<div class="lb-pagination">';
+      html += '<button class="pg-btn" onclick="goPage(' + (_page - 1) + ')"' + (_page <= 1 ? ' disabled' : '') + '>‹</button>';
+      // Show up to 7 page buttons, windowed around current page
+      var pStart = Math.max(1, _page - 3);
+      var pEnd   = Math.min(totalPages, pStart + 6);
+      pStart = Math.max(1, pEnd - 6);
+      if (pStart > 1) html += '<button class="pg-btn" onclick="goPage(1)">1</button>' + (pStart > 2 ? '<span style="color:var(--muted2);padding:0 4px;font-family:Share Tech Mono,monospace;font-size:10px">…</span>' : '');
+      for (var pi = pStart; pi <= pEnd; pi++) {
+        html += '<button class="pg-btn' + (pi === _page ? ' active' : '') + '" onclick="goPage(' + pi + ')">' + pi + '</button>';
+      }
+      if (pEnd < totalPages) html += (pEnd < totalPages - 1 ? '<span style="color:var(--muted2);padding:0 4px;font-family:Share Tech Mono,monospace;font-size:10px">…</span>' : '') + '<button class="pg-btn" onclick="goPage(' + totalPages + ')">' + totalPages + '</button>';
+      html += '<button class="pg-btn" onclick="goPage(' + (_page + 1) + ')"' + (_page >= totalPages ? ' disabled' : '') + '>›</button>';
+      html += '<span style="color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:10px;margin-left:8px">Page ' + _page + ' of ' + totalPages + '</span>';
+      html += '</div>';
+    }
+
     panel.innerHTML = html;
   }
 
