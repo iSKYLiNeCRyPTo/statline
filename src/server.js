@@ -5,13 +5,6 @@ const cors = require('cors');
 const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
-const { secrets: authSecrets, checkAdminPass, checkCalibrateKey, requireAdminJson, requireAdminText } = require('./auth');
-
-// Validate secret env vars at startup; throws and aborts the process if
-// ADMIN_PASS / CALIBRATE_KEY are missing or set to known-unsafe defaults
-// (see auth.js). This must run before any route handler closes over
-// secret state.
-authSecrets();
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
 const _memSearchLog = [];
@@ -305,7 +298,8 @@ app.get('/api/token-status', (req, res) => {
 
 // Live API connectivity test — actually hits the Halo API so admin knows if auth is working
 app.get('/api/admin/test-api', async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
   try {
     // Use a known-stable public gamertag as the canary — just needs profile lookup, no match fetch
     await fetchPlayerStats('Ninja');
@@ -320,7 +314,8 @@ app.get('/api/admin/test-api', async (req, res) => {
 
 // Force-trigger a Spartan token refresh on demand (same flow as the scheduled auto-refresh)
 app.post('/api/admin/refresh-token', async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
   if (!process.env.MS_REFRESH_TOKEN) {
     return res.status(400).json({ ok: false, error: 'MS_REFRESH_TOKEN is not set — cannot auto-refresh. Set it in your env vars.' });
   }
@@ -1188,7 +1183,7 @@ app.get('/api/stats', async (req, res) => {
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 1000, 5000);
+    const limit = parseInt(req.query.limit) || 100000;
     const data = await getLeaderboardData(limit);
     res.json(data);
   } catch(e) {
@@ -1207,7 +1202,8 @@ app.post('/api/analytics/tab', async (req, res) => {
 
 // ── Admin: search log JSON ───────────────────────────────────────────────────
 app.get('/api/admin/searches', async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).send('Unauthorized');
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
   try {
     const db = await getDb();
     let searches = [], tabStats = [];
@@ -1257,7 +1253,8 @@ app.post('/api/feedback', express.json(), async (req, res) => {
 
 // ── Admin: cache status ───────────────────────────────────────────────────────
 app.get('/api/admin/cache-status', (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).send('Unauthorized');
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
   const entries = Object.entries(searchCache).map(([k, v]) => ({
     gamertag: v.data?.gamertag || k,
     cachedAt: new Date(v.fetchedAt).toISOString(),
@@ -1271,7 +1268,8 @@ app.get('/api/admin/cache-status', (req, res) => {
 
 // ── Admin: clear player cache ─────────────────────────────────────────────────
 app.post('/api/admin/clear-cache', express.json(), (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).send('Unauthorized');
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
   const { gamertag } = req.body || {};
   if (gamertag) {
     const key = gamertag.toLowerCase().trim();
@@ -1289,7 +1287,8 @@ app.post('/api/admin/clear-cache', express.json(), (req, res) => {
 
 // ── Admin: delete searches by gamertag ────────────────────────────────────────
 app.post('/api/admin/delete-searches', express.json(), async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).send('Unauthorized');
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
   const { gamertags } = req.body || {};
   if (!Array.isArray(gamertags) || !gamertags.length) return res.status(400).json({ error: 'gamertags array required' });
   const lower = gamertags.map(g => g.toLowerCase());
@@ -1315,7 +1314,8 @@ app.post('/api/admin/delete-searches', express.json(), async (req, res) => {
 });
 
 app.get('/api/admin/feedback', async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).send('Unauthorized');
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).send('Unauthorized');
   try {
     const db = await getDb();
     if (db) {
@@ -1328,13 +1328,15 @@ app.get('/api/admin/feedback', async (req, res) => {
 
 /// ── Admin: pro player management ─────────────────────────────────────────────
 app.get('/api/admin/pro-players', async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
   try { res.json(await getProPlayers()); }
   catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/admin/pro-players', express.json(), async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
   const { gamertag, label } = req.body || {};
   if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
   try {
@@ -1367,7 +1369,8 @@ app.post('/api/admin/pro-players', express.json(), async (req, res) => {
 // Runs sequentially with a 3s gap between players to avoid hammering the API.
 // Returns immediately with { queued: n } — progress is visible via loadProPlayers().
 app.post('/api/admin/refresh-pros', async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const pros = await getProPlayers();
     if (!pros.length) return res.json({ queued: 0 });
@@ -1450,7 +1453,8 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
 });
 
 app.delete('/api/admin/pro-players', express.json(), async (req, res) => {
-  if (!checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
   const { xuid } = req.body || {};
   if (!xuid) return res.status(400).json({ error: 'xuid required' });
   try { await removeProPlayer(xuid); res.json({ success: true }); }
@@ -1459,7 +1463,9 @@ app.delete('/api/admin/pro-players', express.json(), async (req, res) => {
 
 // ── Admin: search log UI ──────────────────────────────────────────────────────
 app.get('/api/admin', (req, res) => {
-  if (!checkAdminPass(req)) {
+  const pass = req.query.pass || '';
+  const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
+  if (pass !== ADMIN_PASS) {
     return res.send(`<!DOCTYPE html><html><body style="font-family:monospace;background:#0a0f1a;color:#ccc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><form method="get"><input name="pass" type="password" placeholder="Password" style="padding:8px;background:#1a2035;border:1px solid #333;color:#fff;border-radius:4px;margin-right:8px"><button type="submit" style="padding:8px 16px;background:#00d4ff;color:#000;border:none;border-radius:4px;cursor:pointer">Enter</button></form></body></html>`);
   }
   res.send(`<!DOCTYPE html><html><head><title>fragr // analytics</title>
@@ -1471,7 +1477,7 @@ app.get('/api/admin', (req, res) => {
     <button class="action-btn warn" onclick="forceRefreshToken()" id="force-token-btn">↻ refresh token</button>
     <button class="action-btn danger" onclick="clearAllCache()">clear all cache</button>
     <button class="action-btn" onclick="loadCache()">refresh cache view</button>
-    <a href="/calibrate?key=${encodeURIComponent(authSecrets().CALIBRATE_KEY)}" target="_blank" class="action-btn" style="text-decoration:none">aim calibration ↗</a>
+    <a href="/calibrate?key=${CAL_KEY}" target="_blank" class="action-btn" style="text-decoration:none">aim calibration ↗</a>
     <span id="token-status" style="font-size:11px;color:#555"></span>
   </div>
   <h2>// playlist discovery</h2>
@@ -1687,14 +1693,16 @@ app.get('/api/admin', (req, res) => {
 });
 
 // ── Aim Calibration ───────────────────────────────────────────────────────────
-// Personal hidden page — protected by CALIBRATE_KEY env var (validated at startup, no fallback)
+// Personal hidden page — protected by CALIBRATE_KEY env var (default: 'calibrate')
+
+const CAL_KEY = process.env.CALIBRATE_KEY || 'calibrate';
 
 // Analysis endpoint — POST with settings JSON, returns recommendations
 app.post('/api/calibrate', express.json(), async (req, res) => {
   const { key, gamertag, sensitivityH, sensitivityV, innerDead, outerDead, axialDead, fov,
           deadzoneType, viewingDist, acceleration, tzOffset,
           zoomSens, vibration } = req.body || {};
-  if (!checkCalibrateKey(key)) return res.status(401).json({ error: 'Unauthorized' });
+  if (key !== CAL_KEY) return res.status(401).json({ error: 'Unauthorized' });
   if (!gamertag) return res.status(400).json({ error: 'Gamertag required' });
 
   // Try cache first; if expired or missing, do a live fetch so calibration
@@ -2050,7 +2058,7 @@ const vibOn       = (vibration || 'off').toLowerCase() === 'on';
 
 // Calibration page (hidden — requires ?key=CALIBRATE_KEY in URL)
 app.get('/calibrate', (req, res) => {
-  if (!checkCalibrateKey(req.query.key)) return res.status(404).send('Not found');
+  if (req.query.key !== CAL_KEY) return res.status(404).send('Not found');
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2220,7 +2228,7 @@ app.get('/calibrate', (req, res) => {
 </div>
 
 <script>
-const KEY = ${JSON.stringify(req.query.key)};
+const KEY = '${CAL_KEY}';
 
 // Auto-populate gamertag from ?player= URL param
 (function(){
