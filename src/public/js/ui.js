@@ -39,7 +39,7 @@ function loadMatchHistory(page){
     matchHistoryLoading=true;
     var container=document.getElementById('matchHistoryContainer');
     if(container)container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading match history...</p></div>';
-    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+(page||1)+'&perPage=100';
+    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page=1&perPage=250';
     // Render immediately from searchData if available, fetch API in background
     var _sImmediate=searchData.allMatches||searchData.recentMatches||[];
     if(_sImmediate.length>0){
@@ -78,20 +78,30 @@ function loadMatchHistory(page){
   var p=getAllPlayers()[selectedPlayer]||{};
   var gt=p.gamertag;
   if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
+
+  // Prefer the full match cache (populated by loadFullMatches with perPage=250)
+  // This avoids a separate API call that would return fewer matches and shrink pagination
+  var _cachedMatches=fullMatchCache[gt];
+  if(_cachedMatches&&_cachedMatches.length>0){
+    var _cd={matches:_cachedMatches,page:1,totalPages:Math.max(1,Math.ceil(_cachedMatches.length/25)),total:_cachedMatches.length,_gamertag:gt};
+    matchHistoryData=_cd;
+    matchHistoryLoading=false;
+    renderMatchHistory(_cd,matchHistoryData._clientPage||1);
+    return;
+  }
+
   container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading page '+matchHistoryPage+'...</p></div>';
   var _mhTimeout=setTimeout(function(){
     if(!matchHistoryLoading)return;
     matchHistoryLoading=false;
-    // Check if fullMatchCache has data we can use
-    var _fmc=fullMatchCache[gt]||null;
     var fb=getAllPlayers()[selectedPlayer];
-    var fbM=(_fmc&&_fmc.length>0)?_fmc:(fb&&(fb.allMatches||fb.recentMatches)||[]);
-    if(fbM.length>0){matchHistoryData={matches:fbM,page:1,totalPages:1,total:fbM.length,_gamertag:gt};renderMatchHistory(matchHistoryData);}
+    var fbM=fb&&(fb.allMatches||fb.recentMatches)||[];
+    if(fbM.length>0){matchHistoryData={matches:fbM,page:1,totalPages:Math.max(1,Math.ceil(fbM.length/25)),total:fbM.length,_gamertag:gt};renderMatchHistory(matchHistoryData);}
     else{container.innerHTML='<div class="error-card">Match history unavailable — try refreshing</div>';}
   },5000);
-  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page='+matchHistoryPage+'&perPage=100';
-  // If we already have matches in memory for this player, render them immediately
-  // then update in the background from the API
+  // Fetch full history (matches the perPage used by loadFullMatches)
+  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page=1&perPage=250';
+  // If we already have some matches in memory, render them immediately while the full fetch loads
   var _existing=getAllPlayers()[selectedPlayer];
   var _existingMatches=_existing&&(_existing.allMatches||_existing.recentMatches)||[];
   if(_existingMatches.length>0){
@@ -99,9 +109,11 @@ function loadMatchHistory(page){
     matchHistoryData=_d;
     matchHistoryLoading=false;
     renderMatchHistory(_d);
-    // Still fetch in background to get any newer matches, but don't show spinner
+    // Fetch full history in background to expand pagination
     fetch(url).then(function(r){return r.json();}).then(function(d){
       if(d.matches&&d.matches.length>0){
+        d.matches._fetchedAt=Date.now();
+        fullMatchCache[gt]=d.matches;
         d._gamertag=gt;
         matchHistoryData=d;
         renderMatchHistory(d,matchHistoryData._clientPage||1);
@@ -110,22 +122,25 @@ function loadMatchHistory(page){
     return;
   }
   fetch(url).then(function(r){return r.json();}).then(function(d){
-    // If API returns empty, fall back to in-memory matches
+    clearTimeout(_mhTimeout);
     if(!d.matches||d.matches.length===0){
       var fb=getAllPlayers()[selectedPlayer];
       var fbM=fb&&(fb.allMatches||fb.recentMatches)||[];
-      if(fbM.length>0){d={matches:fbM,page:1,totalPages:1,total:fbM.length};}
+      if(fbM.length>0){d={matches:fbM,page:1,totalPages:Math.max(1,Math.ceil(fbM.length/25)),total:fbM.length};}
+    } else {
+      d.matches._fetchedAt=Date.now();
+      fullMatchCache[gt]=d.matches;
     }
     d._gamertag=gt;
     matchHistoryData=d;
     matchHistoryLoading=false;
     renderMatchHistory(d);
   }).catch(function(e){
-    // On error, fall back to in-memory matches
+    clearTimeout(_mhTimeout);
     var fb=getAllPlayers()[selectedPlayer];
     var fbM=fb&&(fb.allMatches||fb.recentMatches)||[];
     if(fbM.length>0){
-      var _fd={matches:fbM,page:1,totalPages:1,total:fbM.length,_gamertag:gt};
+      var _fd={matches:fbM,page:1,totalPages:Math.max(1,Math.ceil(fbM.length/25)),total:fbM.length,_gamertag:gt};
       matchHistoryData=_fd;
       matchHistoryLoading=false;
       renderMatchHistory(_fd);
@@ -140,7 +155,7 @@ function renderMatchHistory(d,clientPage){
   var container=document.getElementById('matchHistoryContainer');
   if(!container)return;
   var allMatches=d.matches||[];
-  var PER_PAGE=25; // 4 pages of 25 = 100 games
+  var PER_PAGE=25; // full history paginated — all loaded matches shown
   var page=clientPage||1;
   var totalPages=Math.max(1,Math.ceil(allMatches.length/PER_PAGE));
   page=Math.min(page,totalPages);

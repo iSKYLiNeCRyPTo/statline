@@ -80,7 +80,7 @@ async function loadFullMatches(gamertag, force, bannerLabel){
   };
   try{
     _showBanner();
-    var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=2000');
+    var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=250');
     var d=await res.json();
     _hideBanner();
     if(d.matches&&d.matches.length>0){

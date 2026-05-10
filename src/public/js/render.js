@@ -643,13 +643,19 @@ function render(){
   var _rawMatches=_fullMatches.filter(filterMatch);
   var matches=_rawMatches;
   var allMatches=_rawMatches;
-  var displayMatches=_rawMatches; // same 25 matches
+  var displayMatches=_rawMatches;
   var filtered=displayMatches;
+  // Last 100 ranked games — used for all non-lifetime stats
+  // If fewer than 100 ranked games exist, fall back to last 100 games of any type
+  var _allRanked=_rawMatches.filter(function(m){return m.isRanked;});
+  var _usingRankedOnly=_allRanked.length>=100;
+  var statMatches=_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100);
+  var _statLabel=_usingRankedOnly?'ranked games':'games';
   // Compute nemeses/victims/teammates from current match data
   var nemeses, victims;
   var _rivalMap={};
   var _mateMap={};
-  _rawMatches.forEach(function(m){
+  statMatches.forEach(function(m){
     if(!m.teams) return;
     var myTeam=m.teams.find(function(t){return t.players&&t.players.some(function(pl){return pl.gamertag&&pl.gamertag.toLowerCase()===p.gamertag.toLowerCase();});});
     if(!myTeam) return;
@@ -703,13 +709,13 @@ function render(){
   var _topMates=Object.values(_mateMap).filter(function(r){return r.games>=2;}).sort(function(a,b){return b.games-a.games;}).slice(0,8);
   var _freqAll=_sorted.filter(function(r){return r.total>=3;}).slice(0,20);
 
-  // Compute mode baselines — use allMatches with strict quality filters, trimmed mean
+  // Compute mode baselines — use statMatches (last 100 ranked) with strict quality filters, trimmed mean
   (function(){
     function _gdsR(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
     function _validBL(m){var s=_gdsR(m);return s>=180&&m.damageDealt>=300&&m.damageTaken>=300&&(m.outcome===2||m.outcome===3);}
     function _avgR(arr){return arr.length?arr.reduce(function(a,b){return a+b;},0)/arr.length:0;}
     function _trimR(arr){if(arr.length<6)return _avgR(arr);var s=arr.slice().sort(function(a,b){return a-b;});var cut=Math.max(1,Math.floor(s.length*0.1));return _avgR(s.slice(cut,s.length-cut));}
-    var _vM=(allMatches||displayMatches).filter(_validBL);
+    var _vM=statMatches.filter(_validBL);
     var _bk={};
     _vM.forEach(function(m){
       var mode=m.gameMode||'Unknown';
@@ -841,7 +847,7 @@ function render(){
   for(var si=0;si<matches.length;si++){var mo=matches[si].outcome;if(si===0){streakChar=mo===2?'W':mo===3?'L':'D';}var mc=mo===2?'W':mo===3?'L':'D';if(mc===streakChar)streak++;else break;}
   var streakDots=matches.slice(0,_formCount).map(function(m){var oc=m.outcome===2?'w':m.outcome===3?'l':'d';var lbl=m.outcome===2?'W':m.outcome===3?'L':'D';return'<div class="streak-dot '+oc+'">'+lbl+'</div>';}).join('');
   function _drSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
-  var _dmgMatches=matches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_drSecs(m)>=180;});
+  var _dmgMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_drSecs(m)>=180;});
   var totalDealt=_dmgMatches.reduce(function(a,m){return a+(m.damageDealt||0);},0);
   var totalTaken=_dmgMatches.reduce(function(a,m){return a+(m.damageTaken||0);},0);
   var dmgRatio=totalTaken>0?(totalDealt/totalTaken).toFixed(2):'—';
@@ -1218,7 +1224,7 @@ function render(){
     var _tier=null;
     for(var _i=0;_i<_plPref.length;_i++){if(_csr[_plPref[_i]]&&_csr[_plPref[_i]].tier){_tier=_csr[_plPref[_i]].tier;break;}}
     if(!_tier){var _ks=Object.keys(_csr);for(var _j=0;_j<_ks.length;_j++){if(_csr[_ks[_j]]&&_csr[_ks[_j]].tier){_tier=_csr[_ks[_j]].tier;break;}}}
-    var _baseHtml=renderPerformanceBaseline(allMatches,_tier);
+    var _baseHtml=renderPerformanceBaseline(statMatches,_tier);
     if(_baseHtml){
       html+=sectionHead('Performance Baseline','lobby-adjusted');
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">'+_baseHtml+'</div>';
@@ -1227,9 +1233,9 @@ function render(){
 
   // ── Win Condition ──────────────────────────────────────────────────────────
   (function(){
-    var _wc=allMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&(m.kills!=null)&&(m.deaths!=null);});
+    var _wc=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&(m.kills!=null)&&(m.deaths!=null);});
     if(_wc.length<10) return;
-    var _wcSample=_wc.slice(0,150);
+    var _wcSample=_wc; // statMatches is already capped at 100 ranked games
     var _pos=_wcSample.filter(function(m){return(m.kills||0)>=(m.deaths||0);});
     var _neg=_wcSample.filter(function(m){return(m.kills||0)<(m.deaths||0);});
     var _posWR=_pos.length?Math.round(_pos.filter(function(m){return m.outcome===2;}).length/_pos.length*100):null;
@@ -1243,7 +1249,7 @@ function render(){
       else if(_gap>0) _insight='Modest correlation — K/D positivity nudges your win rate, but assists and objective play are likely bigger factors.';
       else _insight='Weak K/D-to-win correlation. Your win rate is relatively independent of your personal K/D — role and objective contribution may be the real driver.';
     }
-    html+=sectionHead('Win Condition','last '+_wcSample.length+' ranked games');
+    html+=sectionHead('Win Condition','last '+_wcSample.length+' '+_statLabel);
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">';
     html+='<div style="display:flex;gap:12px;margin-bottom:'+(_insight?'12':'0')+'px">';
     if(_posWR!==null){
@@ -1298,7 +1304,7 @@ function render(){
   // Build rich per-map data including mode breakdown and streaks
   var mapData={};
   function _mapDurSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
-  allMatches.forEach(function(m){
+  statMatches.forEach(function(m){
     var map=m.mapName||'Unknown';
     if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,
       accGames:0,accTotal:0,csrGames:0,csrTotal:0,hsKills:0,totalKillsHs:0,
@@ -1343,7 +1349,7 @@ function render(){
     var _qualMaps=mapRows.filter(function(e){return e.count>=2;});
     var bestMapWR=_qualMaps.length?Math.max.apply(null,_qualMaps.map(function(e){return e.wins/e.count;})):-1;
     var worstMapWR=_qualMaps.length?Math.min.apply(null,_qualMaps.map(function(e){return e.wins/e.count;})):2;
-    html+=sectionHead('By Map', allMatches.length+' games');
+    html+=sectionHead('By Map', statMatches.length+' '+_statLabel);
     html+='<div style="display:flex;flex-direction:column;gap:6px">';
     mapRows.forEach(function(e,idx){
       var wr=Math.round((e.wins/e.count)*100);
@@ -1627,7 +1633,7 @@ function render(){
 
     // By Mode section
     var modeData={};
-    allMatches.forEach(function(m){
+    statMatches.forEach(function(m){
       var mode=(m.gameMode||'Unknown').replace(/Ranked Arena:/i,'').replace(/Ranked /i,'').trim();
       if(!modeData[mode])modeData[mode]={mode:mode,wins:0,losses:0,kills:0,deaths:0,count:0};
       var md=modeData[mode];md.count++;md.kills+=m.kills||0;md.deaths+=m.deaths||0;
@@ -1637,7 +1643,7 @@ function render(){
     if(modeRows.length){
       var bestMWR2=Math.max.apply(null,modeRows.map(function(m){return m.wins/m.count;}));
       var worstMWR2=Math.min.apply(null,modeRows.map(function(m){return m.wins/m.count;}));
-      html+=sectionHead('By Game Mode', allMatches.length+' games');
+      html+=sectionHead('By Game Mode', statMatches.length+' '+_statLabel);
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden"><table class="mode-table"><thead><tr><th>Mode</th><th style="text-align:right">Games</th><th style="text-align:right">W</th><th style="text-align:right">L</th><th style="text-align:right">Win%</th><th style="text-align:right">K/D</th></tr></thead><tbody>';
       modeRows.forEach(function(md){
         var wr=Math.round((md.wins/md.count)*100);
@@ -1708,7 +1714,7 @@ function render(){
   // ── PLAYSTYLE FINGERPRINT + CONSISTENCY SCORE ─────────────────────────────────
   (function(){
     function _fpSecs(m){var s=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;}
-    var validMs=allMatches.filter(function(m){return m.kills!=null&&_fpSecs(m)>=180;});
+    var validMs=statMatches.filter(function(m){return m.kills!=null&&_fpSecs(m)>=180;});
     if(validMs.length<10) return;
 
     var totalK=validMs.reduce(function(a,m){return a+(m.kills||0);},0);
@@ -1896,7 +1902,7 @@ function render(){
   // Kill breakdown
   (function(){
     function _durSecs(m){if(!m.duration)return 999;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):999;}
-    var _kbSample=displayMatches.slice(0,100);
+    var _kbSample=statMatches;
     var totalHS=0,totalMelee=0,totalGrenades=0,totalPower=0,totalKillsSample=0,totalDeathsSample=0,kbWins=0,kbLosses=0,kbDraws=0;
     var totalShotsFired=0,totalShotsHit=0;
     _kbSample.forEach(function(m){
@@ -1959,7 +1965,7 @@ function render(){
 
   // Performance Insights
   (function(){
-    if(allMatches.length<5) return;
+    if(statMatches.length<5) return;
     var insights=[];
     function _durSecs(m){if(!m.duration)return 999;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):999;}
 
@@ -1971,7 +1977,7 @@ function render(){
         +'</div>';
     }
 
-    var sorted=allMatches.slice().sort(function(a,b){return new Date(b.startTime||0)-new Date(a.startTime||0);});
+    var sorted=statMatches.slice().sort(function(a,b){return new Date(b.startTime||0)-new Date(a.startTime||0);});
     var recent=sorted.slice(0,Math.min(5,sorted.length));
     var older=sorted.slice(5,Math.min(10,sorted.length));
 
@@ -2038,7 +2044,7 @@ function render(){
       }
     }
 
-    var weaponMatches=allMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
+    var weaponMatches=statMatches.filter(function(m){return m.weaponStats&&m.kills>0;});
     if(weaponMatches.length>=5){
       var totK=0,totG=0,totM=0,totHS=0,totPW=0;
       weaponMatches.forEach(function(m){totK+=m.kills;totG+=m.weaponStats.grenades||0;totM+=m.weaponStats.melee||0;totHS+=m.weaponStats.headshots||0;totPW+=m.weaponStats.powerWeapon||0;});
@@ -2049,15 +2055,15 @@ function render(){
       if(pwPct>28) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"13\" y1=\"2\" x2=\"13\" y2=\"6\"/><line x1=\"21\" y1=\"2\" x2=\"21\" y2=\"6\"/><line x1=\"17\" y1=\"6\" x2=\"17\" y2=\"22\"/><line x1=\"9\" y1=\"22\" x2=\"25\" y2=\"22\"/><line x1=\"9\" y1=\"12\" x2=\"13\" y2=\"6\"/></svg>','Power Weapon Dependent',Math.round(pwPct)+'% of kills from power weapons — you farm them well but your base gunfight rate may be lower than it looks.','var(--muted)'));
     }
 
-        var placementMatches=allMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
+        var placementMatches=statMatches.filter(function(m){return m.placement&&/^\d+/.test(m.placement);});
     if(placementMatches.length>=5){
       var avgPlace=placementMatches.reduce(function(s,m){return s+parseInt(m.placement);},0)/placementMatches.length;
       if(avgPlace<=3.0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><polyline points=\"6 9 6 2 18 2 18 9\"/><path d=\"M6 18H4a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2\"/><rect x=\"6\" y=\"18\" width=\"12\" height=\"4\"/><line x1=\"12\" y1=\"13\" x2=\"12\" y2=\"9\"/></svg>','Carrying Your Team','You consistently place top 2-3 on your team (avg '+avgPlace.toFixed(1)+') — your lobbies may need stronger teammates to convert wins.','var(--win)'));
       else if(avgPlace>=5.0) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg>','Struggling to Impact','Avg placement '+avgPlace.toFixed(1)+' on your team — focus on surviving longer and converting damage to kills.','var(--loss)'));
     }
 
-    var ctfGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='CTF';});
-    var oddballGames=allMatches.filter(function(m){return m.objStats&&m.objStats.mode==='Oddball';});
+    var ctfGames=statMatches.filter(function(m){return m.objStats&&m.objStats.mode==='CTF';});
+    var oddballGames=statMatches.filter(function(m){return m.objStats&&m.objStats.mode==='Oddball';});
     if(ctfGames.length>=3){
       var avgCaps=ctfGames.reduce(function(s,m){return s+(m.objStats.flagCaptures||0);},0)/ctfGames.length;
       if(avgCaps<0.3) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><path d=\"M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z\"/><line x1=\"4\" y1=\"22\" x2=\"4\" y2=\"15\"/></svg>','Low Flag Contribution','Avg '+avgCaps.toFixed(2)+' CTF caps per game — consider being more aggressive about contesting and capping flags.','var(--gold)'));
@@ -2068,7 +2074,7 @@ function render(){
     }
 
     var timeSlots={morning:[],afternoon:[],evening:[]};
-    allMatches.forEach(function(m){
+    statMatches.forEach(function(m){
       if(!m.startTime||m.deaths===undefined) return;
       var h=new Date(m.startTime).getHours();var kd=m.deaths>0?m.kills/m.deaths:m.kills;
       if(h>=5&&h<12) timeSlots.morning.push(kd);
@@ -2086,7 +2092,7 @@ function render(){
       }
     }
 
-    var mmrGames=allMatches.filter(function(m){return m.isRanked&&m.mmr&&m.oppMmr&&m.outcome!==0;});
+    var mmrGames=statMatches.filter(function(m){return m.isRanked&&m.mmr&&m.oppMmr&&m.outcome!==0;});
     if(mmrGames.length>=5){
       var favored=mmrGames.filter(function(m){return m.mmr>m.oppMmr;});
       var underdog=mmrGames.filter(function(m){return m.mmr<m.oppMmr;});
@@ -2099,7 +2105,7 @@ function render(){
     }
 
     var mapAccData={};
-    allMatches.forEach(function(m){
+    statMatches.forEach(function(m){
       if(!m.mapName||m.accuracy==null) return;
       if(m.outcome!==2&&m.outcome!==3) return; // skip draws — unreliable accuracy data
       var _ms=_durSecs(m);if(_ms<180) return; // skip sub-3-min games
@@ -2119,7 +2125,7 @@ function render(){
 
 
     // Win rate check (lobby-difficulty aware)
-    var _wGames=allMatches.filter(function(m){return m.outcome===2||m.outcome===3;});
+    var _wGames=statMatches.filter(function(m){return m.outcome===2||m.outcome===3;});
     if(_wGames.length>=5){
       var _wr=_wGames.filter(function(m){return m.outcome===2;}).length/_wGames.length*100;
       // Average MMR gap across all evaluated games
@@ -2159,7 +2165,7 @@ function render(){
     }
 
     // Damage ratio
-    var _dmgGames=allMatches.filter(function(m){return m.damageTaken>200&&m.damageDealt>200&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;});
+    var _dmgGames=statMatches.filter(function(m){return m.damageTaken>200&&m.damageDealt>200&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;});
     if(_dmgGames.length>=5){
       var _avgRatio=_dmgGames.reduce(function(s,m){return s+m.damageDealt/m.damageTaken;},0)/_dmgGames.length;
       if(_avgRatio<0.85) insights.push(insightCard('<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"vertical-align:-2px\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>','Losing More Fights Than Winning','Damage ratio '+_avgRatio.toFixed(2)+' — you\'re dealing less damage than you\'re receiving across the game. This doesn\'t mean individual fights are unwinnable, but overall you\'re on the back foot more than the front foot.','var(--loss)'));
@@ -2172,7 +2178,7 @@ function render(){
     // Look sensitivity signal: high accuracy but low headshot rate → sensitivity likely too fast (overshooting heads)
     //                          low accuracy but decent headshot rate → sensitivity too slow (only landing when very close)
     // Exclude Ranked Legacy — BR burst fire produces different accuracy/headshot distributions
-    var _aimGames=allMatches.filter(function(m){return m.shotsFired>0&&m.shotsHit!=null&&m.kills>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180&&!(m.gameMode&&m.gameMode.indexOf('Legacy')>-1);});
+    var _aimGames=statMatches.filter(function(m){return m.shotsFired>0&&m.shotsHit!=null&&m.kills>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180&&!(m.gameMode&&m.gameMode.indexOf('Legacy')>-1);});
     if(_aimGames.length>=8){
       var _acc=_aimGames.reduce(function(s,m){return s+m.shotsHit/m.shotsFired*100;},0)/_aimGames.length;
       var _hs=_aimGames.reduce(function(s,m){return s+(m.weaponStats&&m.kills>0?m.weaponStats.headshots/m.kills*100:0);},0)/_aimGames.length;
@@ -2210,7 +2216,7 @@ function render(){
 
     // ── TEAM & ASSIST INSIGHTS ──────────────────────────────────────────────
 
-    var _assistGames=allMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&m.kills>0&&m.assists!=null&&_durSecs(m)>=60;});
+    var _assistGames=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&m.kills>0&&m.assists!=null&&_durSecs(m)>=60;});
     if(_assistGames.length>=8){
       var _avgAssistRatio=_assistGames.reduce(function(s,m){return s+m.assists/(m.kills+m.assists);},0)/_assistGames.length*100;
       if(_avgAssistRatio>40){
@@ -2224,7 +2230,7 @@ function render(){
     // Note: rank-adjusted lobby difficulty scores live in the Performance Baseline
     // section on the Overview tab. These insight cards flag only clear persistent outliers.
 
-    var _expGames=allMatches.filter(function(m){return m.expectedKills!=null&&m.expectedDeaths!=null&&m.kills!=null&&m.mmr&&m.oppMmr&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
+    var _expGames=statMatches.filter(function(m){return m.expectedKills!=null&&m.expectedDeaths!=null&&m.kills!=null&&m.mmr&&m.oppMmr&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=60;});
     if(_expGames.length>=5){
       // Lobby-adjusted deltas: correct for MMR disparity before comparing to rank expectation
       var _adjDeltas=_expGames.map(function(m){
@@ -2251,8 +2257,8 @@ function render(){
 
     // ── STAMINA / LATE-GAME FADE ────────────────────────────────────────────
 
-    var _longGames=allMatches.filter(function(m){return _durSecs(m)>=480&&(m.outcome===2||m.outcome===3)&&m.kills!=null;});
-    var _shortGames=allMatches.filter(function(m){return _durSecs(m)>=60&&_durSecs(m)<300&&(m.outcome===2||m.outcome===3)&&m.kills!=null;});
+    var _longGames=statMatches.filter(function(m){return _durSecs(m)>=480&&(m.outcome===2||m.outcome===3)&&m.kills!=null;});
+    var _shortGames=statMatches.filter(function(m){return _durSecs(m)>=60&&_durSecs(m)<300&&(m.outcome===2||m.outcome===3)&&m.kills!=null;});
     if(_longGames.length>=4&&_shortGames.length>=4){
       function _kpm(arr){return arr.reduce(function(s,m){return s+m.kills/_durSecs(m)*60;},0)/arr.length;}
       var _lkpm=_kpm(_longGames);var _skpm=_kpm(_shortGames);
@@ -2265,7 +2271,7 @@ function render(){
 
     // ── CLOSE RANGE vs LONG RANGE ───────────────────────────────────────────
 
-    var _rangeGames=allMatches.filter(function(m){return m.kills>0&&m.shotsFired>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;});
+    var _rangeGames=statMatches.filter(function(m){return m.kills>0&&m.shotsFired>0&&(m.outcome===2||m.outcome===3)&&_durSecs(m)>=180;});
     if(_rangeGames.length>=8){
       // SPK and melee % are the reliable range proxies — DPK is not usable here.
       // BR (Legacy) fires 3 rounds/trigger pull so normalize to trigger-pull equivalents.
