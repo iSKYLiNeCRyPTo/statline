@@ -6,7 +6,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -106,6 +106,82 @@ const searchCache = {}; // gamertag.lower -> { data, fetchedAt }
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours (incrementals keep data fresh)
 const CACHE_TTL_SECONDS = 86400;        // Redis TTL in seconds
 const _searchProgress = {}; // gamertag.lower -> { step, valid, total, ts }
+
+// ── Background opponent/teammate snapshot queue ──────────────────────────────
+// When a player is searched, we extract every unique opponent & teammate from
+// their ranked match history and quietly build snapshots for them so the
+// leaderboard grows organically. Throttled to 1 fetch per 2.5s to stay well
+// within Halo API rate limits.
+const _snapQueue = [];          // [ { xuid, gamertag } ]
+const _snapQueued = new Set();  // xuid strings already in queue (dedup guard)
+let _snapRunning = false;
+
+async function _processSnapQueue() {
+  if (_snapRunning) return;
+  _snapRunning = true;
+  while (_snapQueue.length > 0) {
+    const { xuid, gamertag } = _snapQueue.shift();
+    _snapQueued.delete(xuid);
+    // Skip obviously unresolved gamertags ("Spartan 1234")
+    if (/^Spartan\s+\w+$/i.test(gamertag)) { continue; }
+    try {
+      const result = await fetchPlayerStats(gamertag);
+      if (result && result.xuid) {
+        await savePlayerSnapshot(result);
+        console.log(`[SnapQueue] saved snapshot for ${gamertag} (${xuid})`);
+      }
+    } catch(e) {
+      // Non-fatal — player may have changed gamertag or be unavailable
+      console.warn(`[SnapQueue] failed for ${gamertag}:`, e.message);
+    }
+    // Throttle: wait 2.5s between each fetch to respect rate limits
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  _snapRunning = false;
+}
+
+// Extract opponents + teammates from ranked matches and queue any we haven't
+// snapshotted recently. myXuid is excluded so we don't re-queue the searcher.
+async function enqueueOpponentSnapshots(matches, myXuid) {
+  if (!matches || !matches.length) return;
+  const myXuidStr = String(myXuid || '');
+
+  // Collect unique { xuid, gamertag } pairs from ranked match team rosters
+  const seen = new Map(); // xuid -> gamertag
+  for (const m of matches) {
+    if (!m.isRanked || !m.teams) continue;
+    for (const team of m.teams) {
+      for (const pl of (team.players || [])) {
+        const xu = String(pl.rawXuid || '');
+        if (!xu || xu === myXuidStr || seen.has(xu)) continue;
+        seen.set(xu, pl.gamertag || '');
+      }
+    }
+  }
+  if (!seen.size) return;
+
+  // Filter to ones not already queued
+  const candidates = [];
+  for (const [xu, gt] of seen) {
+    if (!_snapQueued.has(xu)) candidates.push({ xuid: xu, gamertag: gt });
+  }
+  if (!candidates.length) return;
+
+  // Check DB — skip anyone snapshotted in the last 7 days
+  const xuids = candidates.map(c => c.xuid);
+  const alreadyDone = await getRecentlySnapshotted(xuids, 7).catch(() => new Set());
+  const toQueue = candidates.filter(c => !alreadyDone.has(c.xuid));
+
+  for (const c of toQueue) {
+    _snapQueued.add(c.xuid);
+    _snapQueue.push(c);
+  }
+  if (toQueue.length > 0) {
+    console.log(`[SnapQueue] +${toQueue.length} players queued (${_snapQueue.length} total pending)`);
+    // Kick off processor if not already running (fire-and-forget)
+    _processSnapQueue().catch(e => console.warn('[SnapQueue] processor error:', e.message));
+  }
+}
 
 async function getFromCache(gamertag) {
   const key = gamertag.toLowerCase().trim();
@@ -313,6 +389,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
                 .catch(e => console.warn('[SkillBG/incremental] skill fetch failed:', e.message));
             }, 1000);
           }
+          // Queue snapshots for any new opponents/teammates we haven't seen before
+          enqueueOpponentSnapshots(filteredNew, cached.xuid).catch(() => {});
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
         // No new matches — fall through to cached response below
@@ -410,6 +488,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
     flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
     // Save player snapshot for rank comparison feature (fire and forget)
     savePlayerSnapshot(result).catch(() => {});
+    // Queue snapshots for all opponents + teammates encountered in ranked matches
+    const _bgMatchesForQueue = result.allMatches || result.recentMatches || [];
+    enqueueOpponentSnapshots(_bgMatchesForQueue, result.xuid).catch(() => {});
     // Background: enrich matches with skill data (hits skill.svc — separate rate limit from halostats)
     // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
     const _bgMatches = result.allMatches || result.recentMatches || [];
@@ -1102,7 +1183,7 @@ app.get('/api/stats', async (req, res) => {
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 1000, 5000);
     const data = await getLeaderboardData(limit);
     res.json(data);
   } catch(e) {

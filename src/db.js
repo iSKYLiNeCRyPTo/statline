@@ -366,8 +366,27 @@ async function getProStats() {
   };
 }
 
+// Batch check which XUIDs already have a recent snapshot (within last N days).
+// Returns a Set of xuid strings that are already covered.
+async function getRecentlySnapshotted(xuids, withinDays = 7) {
+  if (!xuids || !xuids.length) return new Set();
+  try {
+    const db = await getDb();
+    if (!db) return new Set();
+    const res = await db.query(
+      `SELECT DISTINCT xuid FROM player_snapshots
+       WHERE xuid = ANY($1) AND ts > NOW() - INTERVAL '${withinDays} days'`,
+      [xuids]
+    );
+    return new Set(res.rows.map(r => r.xuid));
+  } catch(e) {
+    console.error('[DB] getRecentlySnapshotted error:', e.message);
+    return new Set();
+  }
+}
+
 // Leaderboard: top N players per metric using most recent snapshot per player
-async function getLeaderboardData(limit = 50) {
+async function getLeaderboardData(limit = 1000) {
   try {
     const db = await getDb();
     if (!db) return { kd: [], winRate: [], csr: [] };
@@ -414,4 +433,4 @@ async function getLeaderboardData(limit = 50) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData };

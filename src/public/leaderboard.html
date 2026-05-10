@@ -105,6 +105,10 @@
     <div class="lb-subtitle">// RANKED PLAYERS · UPDATED ON SEARCH</div>
   </div>
 
+  <div style="background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.2);border-radius:6px;padding:8px 14px;margin-bottom:18px;font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(255,193,7,0.7);line-height:1.6;letter-spacing:0.5px">
+    ⚠ Community-sourced data — rankings include players who have been searched on Fragr or appeared as opponents/teammates in tracked matches. Not a complete global ranking. Stats reflect recent match performance, not lifetime averages.
+  </div>
+
   <div class="lb-tabs">
     <button class="lb-tab active" onclick="switchTab('kd', this)">TOP K/D</button>
     <button class="lb-tab" onclick="switchTab('winRate', this)">TOP WIN RATE</button>
@@ -135,7 +139,7 @@
     document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING LEADERBOARD DATA...</div>';
     document.getElementById('meta-count').textContent = 'Loading...';
     try {
-      var res = await fetch('/api/leaderboard?limit=50');
+      var res = await fetch('/api/leaderboard?limit=1000');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       _data = await res.json();
       render();
