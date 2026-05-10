@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Refresh token persisted to disk by tokenRefresh.js
+.refresh_token
+src/.refresh_token
+**/.refresh_token
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
