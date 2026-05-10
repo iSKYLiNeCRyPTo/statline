@@ -386,7 +386,7 @@ async function getRecentlySnapshotted(xuids, withinDays = 7) {
 }
 
 // Leaderboard: top N players per metric using most recent snapshot per player
-async function getLeaderboardData(limit = 1000) {
+async function getLeaderboardData(limit = 100000) {
   try {
     const db = await getDb();
     if (!db) return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [] };
