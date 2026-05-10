@@ -1005,7 +1005,7 @@ function render(){
     html+='</div>';
   }
 
-  // ── Daily Recap (last 14 days) ────────────────────────────────────────────
+  // ── Daily Recap (last 7 days) ────────────────────────────────────────────
   (function(){
     function _parseSecs(dur){if(!dur||dur==='PT0S')return 0;var mm=String(dur).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
     // Group matches by local date string
@@ -1017,7 +1017,7 @@ function render(){
       dayMap[ds].matches.push(m);
     });
     // Sort days newest first, keep up to 14
-    var days=Object.values(dayMap).sort(function(a,b){return b.date-a.date;}).slice(0,14);
+    var days=Object.values(dayMap).sort(function(a,b){return b.date-a.date;}).slice(0,7);
     // Need at least 2 days of data to show the section
     if(days.length<2)return;
 
@@ -2402,10 +2402,11 @@ function render(){
 
   // CSR History
   html+=sectionHead('CSR History');
-  html+=renderCsrFromMatches(allMatches,'Ranked Arena',_cc[0]);
-  html+=renderCsrFromMatches(allMatches,'Ranked Slayer',_cc[1]);
-  html+=renderCsrFromMatches(allMatches,'Ranked Legacy',_cc[2]);
-  html+=renderCsrEfficiency(allMatches);
+  var _csrMatches=_allRanked.slice(0,100);
+  html+=renderCsrFromMatches(_csrMatches,'Ranked Arena',_cc[0]);
+  html+=renderCsrFromMatches(_csrMatches,'Ranked Slayer',_cc[1]);
+  html+=renderCsrFromMatches(_csrMatches,'Ranked Legacy',_cc[2]);
+  html+=renderCsrEfficiency(_csrMatches);
   // Objective stats live in Stats tab (Objectives tab removed; synergy removed in favour of Rivals tab)
   html+=renderObjectiveStats(matches);
   html+='</div>'; // end stats tab
