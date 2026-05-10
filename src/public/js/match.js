@@ -524,8 +524,19 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
         '<span class="match-arrow">'+(isOpen?'▲':'▼')+'</span>'+
       '</div>'+
     '</div>'+
-    ((m.damageDealt||m.damageTaken)?
-      (function(){
+    (function(){
+      // Build CSR chip for ranked matches — shown in mobile bottom row
+      var _csrChip='';
+      if(m.isRanked){
+        if(m.csrDelta!=null){
+          var _cp=m.csrDelta>=0;
+          _csrChip='<span style="margin-left:8px;padding:0 5px;border-radius:3px;background:'+(_cp?'rgba(0,230,118,0.12)':'rgba(255,61,87,0.12)')+';color:'+(_cp?'var(--win)':'var(--loss)')+';font-family:Share Tech Mono,monospace;font-size:9px;font-weight:600;flex-shrink:0">'+(_cp&&m.csrDelta>0?'+':'')+m.csrDelta+' CSR</span>';
+        } else if(m.csrAfter!=null){
+          var _raw=parseInt(String(m.csrAfter).match(/\d+/));
+          if(!isNaN(_raw))_csrChip='<span style="margin-left:8px;padding:0 5px;border-radius:3px;background:rgba(55,138,221,0.1);color:var(--accent);font-family:Share Tech Mono,monospace;font-size:9px;flex-shrink:0">'+_raw+' CSR</span>';
+        }
+      }
+      if(m.damageDealt||m.damageTaken){
         var d=m.damageDealt||0,t=m.damageTaken||0,tot=d+t||1;
         var gPct=Math.round((d/tot)*100);
         var rPct=100-gPct;
@@ -536,9 +547,14 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
           +'<div style="width:'+gPct+'%;background:var(--win);opacity:0.8"></div>'
           +'</div>'
           +'<span style="color:var(--win);font-family:Share Tech Mono,monospace;font-size:9px">'+Math.round(d).toLocaleString()+'</span>'
+          +_csrChip
           +'</div>';
-      })()
-    :'')+
+      } else if(_csrChip){
+        // Ranked match with CSR but no damage data — show CSR chip on its own mobile row
+        return '<div class="match-dmg-mobile" style="justify-content:flex-end">'+_csrChip+'</div>';
+      }
+      return '';
+    })()+
     detail;
   return el.outerHTML;
 }

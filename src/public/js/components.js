@@ -122,14 +122,16 @@ async function resolveSynergyGamertags() {
   } catch(e) {}
 }
 
-async function resolveMatchGamertags(card) {
+async function resolveMatchGamertags(card, _attempt) {
+  _attempt = _attempt || 0;
+  // Collect rows still showing a skeleton (unresolved xuid)
   var unknownRows = card.querySelectorAll('tr[data-xuid]');
   var xuids = [];
   unknownRows.forEach(function(row) {
     var xuid = row.getAttribute('data-xuid');
     if (xuid && row.querySelector('.gt-skeleton')) xuids.push(xuid);
   });
-  if (!xuids.length) return;
+  if (!xuids.length) return; // all resolved
   try {
     var res = await fetch('/api/resolve-gamertags?xuids=' + xuids.join(','));
     var data = await res.json();
@@ -142,6 +144,21 @@ async function resolveMatchGamertags(card) {
       }
     });
   } catch(e) {}
+
+  // If any skeletons remain and the card is still open, retry on a back-off schedule.
+  // The server may be resolving xuids in the background — retrying picks them up live
+  // without the user needing to close and reopen the card.
+  var stillPending = card.querySelectorAll('tr[data-xuid] .gt-skeleton').length;
+  if (stillPending > 0 && _attempt < 8) {
+    // Back-off: 2s, 3s, 4s, 5s, 5s, 5s, 5s, 5s
+    var delay = Math.min(2000 + _attempt * 1000, 5000);
+    setTimeout(function() {
+      // Only retry if the detail panel is still in the DOM (card still expanded)
+      if (card.querySelector('.match-detail-panel')) {
+        resolveMatchGamertags(card, _attempt + 1);
+      }
+    }, delay);
+  }
 }
 function toggleMapExpand(id){
   var panel=document.getElementById(id);

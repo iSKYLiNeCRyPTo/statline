@@ -27,6 +27,9 @@ function renderCsrFromMatches(matches,playlist,color){
     return _getDelta(m)!=null||m.csrAfter!=null;
   });
   if(pm.length<2)return'';
+  // Flag when we have limited data — Halo's API only includes RankRecap (CSR before/after) for
+  // recent matches within the current/previous season. Older matches return null for this field.
+  var _limitedData = pm.length < 15;
 
   // Build running CSR from most recent value backwards
   var lastCsr=null;
@@ -133,7 +136,9 @@ function renderCsrFromMatches(matches,playlist,color){
   return'<div class="csr-chart-wrap" style="margin-bottom:12px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
     +'<span style="font-size:11px;font-family:Share Tech Mono,monospace;color:'+color+'">— '+playlist+'</span>'
-    +'<span id="'+chartId+'_tip" style="font-size:11px;font-family:Share Tech Mono,monospace;color:'+netColor+'">'+netStr+' CSR over '+n+' games</span>'
+    +'<span id="'+chartId+'_tip" style="font-size:11px;font-family:Share Tech Mono,monospace;color:'+netColor+'">'+netStr+' CSR over '+n+' games'
+    +(_limitedData?' <span style="color:var(--muted2);font-size:9px;margin-left:4px">· recent matches only</span>':'')
+    +'</span>'
     +'</div>'
     +'<div class="csr-chart-canvas" id="'+chartId+'_wrap"'
     +' data-vals="'+encodeURIComponent(JSON.stringify(vals))+'"'

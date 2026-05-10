@@ -389,14 +389,14 @@ async function getRecentlySnapshotted(xuids, withinDays = 7) {
 async function getLeaderboardData(limit = 1000) {
   try {
     const db = await getDb();
-    if (!db) return { kd: [], winRate: [], csr: [] };
+    if (!db) return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [] };
 
     // One row per player (most recent snapshot only), filtered for quality
-    // kd < 15 and win_rate < 95 filter out obvious stat manipulators / cheaters
+    // kd < 2 and win_rate < 85 filter out obvious stat manipulators / cheaters
     const base = `
       SELECT DISTINCT ON (xuid)
         gamertag, kd, win_rate, accuracy, avg_kills,
-        csr_tier, csr_subtier, csr_value, matches_played, wins, losses, ts
+        csr_tier, csr_subtier, csr_value, matches_played, wins, losses, ts, csr
       FROM player_snapshots
       WHERE kd IS NOT NULL AND kd > 0 AND kd < 2
         AND (win_rate IS NULL OR win_rate < 85)
@@ -416,20 +416,36 @@ async function getLeaderboardData(limit = 1000) {
       [limit]
     );
 
-    // Top by CSR value
-    const csrRes = await db.query(
-      `SELECT * FROM (${base}) t WHERE csr_value IS NOT NULL AND csr_value > 0 ORDER BY csr_value DESC LIMIT $1`,
-      [limit]
-    );
+    // Per-playlist CSR queries — extract value/tier/subtier from JSONB csr column
+    // Playlist key names must match what halo.js stores: 'Ranked Arena', 'Ranked Slayer', 'Ranked Legacy'
+    const csrPlaylistQuery = (playlist) => `
+      SELECT gamertag, kd, win_rate, matches_played,
+        (csr->'${playlist}'->>'value')::int        AS csr_value,
+        csr->'${playlist}'->>'tier'               AS csr_tier,
+        (csr->'${playlist}'->>'subTier')::int     AS csr_subtier
+      FROM (${base}) t
+      WHERE csr->'${playlist}'->>'value' IS NOT NULL
+        AND (csr->'${playlist}'->>'value')::int > 0
+      ORDER BY (csr->'${playlist}'->>'value')::int DESC
+      LIMIT $1
+    `;
+
+    const [arenaRes, slayerRes, legacyRes] = await Promise.all([
+      db.query(csrPlaylistQuery('Ranked Arena'),  [limit]),
+      db.query(csrPlaylistQuery('Ranked Slayer'), [limit]),
+      db.query(csrPlaylistQuery('Ranked Legacy'), [limit]),
+    ]);
 
     return {
-      kd:      kdRes.rows,
-      winRate: wrRes.rows,
-      csr:     csrRes.rows
+      kd:         kdRes.rows,
+      winRate:    wrRes.rows,
+      csrArena:   arenaRes.rows,
+      csrSlayer:  slayerRes.rows,
+      csrLegacy:  legacyRes.rows,
     };
   } catch(e) {
     console.error('[DB] getLeaderboardData error:', e.message);
-    return { kd: [], winRate: [], csr: [] };
+    return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [] };
   }
 }
 

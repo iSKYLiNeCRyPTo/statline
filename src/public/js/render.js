@@ -1005,7 +1005,8 @@ function render(){
     html+='</div>';
   }
 
-  // ── Daily Recap (last 7 days) ────────────────────────────────────────────
+  // ── Daily Recap (last 7 days) ── HIDDEN (kept for later) ────────────────
+  if (false) // eslint-disable-line no-constant-condition
   (function(){
     function _parseSecs(dur){if(!dur||dur==='PT0S')return 0;var mm=String(dur).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
     // Group matches by local date string
@@ -2403,10 +2404,22 @@ function render(){
   // CSR History
   html+=sectionHead('CSR History');
   var _csrMatches=_allRanked.slice(0,100);
-  html+=renderCsrFromMatches(_csrMatches,'Ranked Arena',_cc[0]);
-  html+=renderCsrFromMatches(_csrMatches,'Ranked Slayer',_cc[1]);
-  html+=renderCsrFromMatches(_csrMatches,'Ranked Legacy',_cc[2]);
-  html+=renderCsrEfficiency(_csrMatches);
+  // csrDelta is populated by background skill enrichment — check if it's still loading.
+  // If we have many ranked games but few with csrDelta, the chart would misleadingly show
+  // only a handful of games (e.g. 8 of 100). Show a loading notice instead.
+  var _csrWithDelta=_csrMatches.filter(function(m){return m.csrDelta!=null||m.csrAfter!=null;}).length;
+  var _csrSkillPending=_allRanked.length>=10&&_csrWithDelta<Math.max(10,_allRanked.length*0.3);
+  if(_csrSkillPending){
+    html+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;gap:12px">'
+      +'<div style="width:10px;height:10px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>'
+      +'<span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">Loading CSR history — skill data enriching in background (15–30s). Chart will update automatically.</span>'
+      +'</div>';
+  } else {
+    html+=renderCsrFromMatches(_csrMatches,'Ranked Arena',_cc[0]);
+    html+=renderCsrFromMatches(_csrMatches,'Ranked Slayer',_cc[1]);
+    html+=renderCsrFromMatches(_csrMatches,'Ranked Legacy',_cc[2]);
+    html+=renderCsrEfficiency(_csrMatches);
+  }
   // Objective stats live in Stats tab (Objectives tab removed; synergy removed in favour of Rivals tab)
   html+=renderObjectiveStats(matches);
   html+='</div>'; // end stats tab

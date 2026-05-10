@@ -722,7 +722,8 @@ async function fetchPlayerStats(gamertag) {
 
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
 async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null, stopAtMatchId = null) {
-  const TARGET   = 250;  // desired valid (non-custom/PvE) matches
+  const RANKED_TARGET = 100; // stop as soon as we have this many ranked games — enough for all stats
+  const TOTAL_TARGET  = 250; // fallback cap for players with few ranked games (social-heavy players)
   const BATCH    = 25;   // matches per API call (API max is 25)
   const MAX_SCAN = 1000; // give up after scanning this many raw matches
 
@@ -731,10 +732,17 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   const results = [];
   const pendingTracking = [];
 
+  // Stop as soon as we hit 100 ranked OR 250 total valid — whichever comes first.
+  // This prevents over-scanning for players who mostly play ranked (where 100 ranked
+  // might be reached at match 105 but TARGET=250 would scan all the way to 250).
+  const _rankedCount = () => results.filter(r => r.isRanked).length;
+  const _validCount  = () => results.filter(r => !r.isCustom).length;
+  const _isDone      = () => _rankedCount() >= RANKED_TARGET || _validCount() >= TOTAL_TARGET;
+
   let start = 0;
   let stopReason = 'done'; // tracks why the loop exited
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  while (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN) {
+  while (!_isDone() && start < MAX_SCAN) {
     // Fetch match list with retry on 429
     let res;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -749,7 +757,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
       console.warn(`[MatchFetch] 429 on match list at start=${start} for ${gamertag} — retrying in ${backoffSec}s (attempt ${attempt}/3)${retryAfterHdr > 0 ? ' [Retry-After header]' : ''}`);
       const validNow = results.filter(r => !r.isCustom).length;
       for (let sLeft = backoffSec; sLeft > 0; sLeft--) {
-        if (onProgress) onProgress(validNow, start, TARGET, { secondsLeft: sLeft, attempt, maxAttempts: 3 });
+        if (onProgress) onProgress(validNow, start, RANKED_TARGET, { secondsLeft: sLeft, attempt, maxAttempts: 3 });
         await sleep(1000);
       }
     }
@@ -784,12 +792,12 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
     start += BATCH;
     // Brief pause between batches to avoid bursting halostats rate limit
-    if (results.filter(r => !r.isCustom).length < TARGET && start < MAX_SCAN && !hitStop) {
+    if (!_isDone() && start < MAX_SCAN && !hitStop) {
       await sleep(200);
     }
 
     for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {
-      if (results.filter(r => !r.isCustom).length >= TARGET) break;
+      if (_isDone()) break;
     try {
       let kills = 0, deaths = 0, assists = 0, gameMode = null, teams = [];
       let placement = null, score = 0, damageDealt = 0, damageTaken = 0, accuracy = null;
@@ -1013,14 +1021,16 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
     if (hitStop) { stopReason = 'incremental stop'; break; }
 
-    const validNow = results.filter(r => !r.isCustom).length;
-    console.log(`[MatchFetch] scanned=${start} valid=${validNow}/${TARGET} for ${gamertag}`);
-    if (onProgress) onProgress(validNow, start, TARGET);
+    const rankedNow = _rankedCount();
+    const validNow  = _validCount();
+    console.log(`[MatchFetch] scanned=${start} ranked=${rankedNow}/${RANKED_TARGET} valid=${validNow}/${TOTAL_TARGET} for ${gamertag}`);
+    if (onProgress) onProgress(rankedNow, start, RANKED_TARGET);
   } // end while
-  const finalValid = results.filter(r => !r.isCustom).length;
-  if (finalValid < TARGET) {
+  const finalRanked = _rankedCount();
+  const finalValid  = _validCount();
+  if (finalRanked < RANKED_TARGET && finalValid < TOTAL_TARGET) {
     if (start >= MAX_SCAN) stopReason = 'MAX_SCAN reached';
-    console.warn(`[MatchFetch] Completed with only ${finalValid}/${TARGET} ranked matches after scanning ${start} raw matches for ${gamertag}. Reason: ${stopReason}`);
+    console.warn(`[MatchFetch] Completed with ${finalRanked} ranked / ${finalValid} total after scanning ${start} raw matches for ${gamertag}. Reason: ${stopReason}`);
   }
 
   // (no bulk GT resolve here — we only resolve what we actually need below)
