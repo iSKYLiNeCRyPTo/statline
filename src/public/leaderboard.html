@@ -111,9 +111,7 @@
   </div>
 
   <div class="lb-tabs">
-    <button class="lb-tab active" onclick="switchTab('kd', this)">TOP K/D</button>
-    <button class="lb-tab" onclick="switchTab('winRate', this)">TOP WIN RATE</button>
-    <button class="lb-tab" onclick="switchTab('csrArena', this)">RANKED ARENA</button>
+    <button class="lb-tab active" onclick="switchTab('csrArena', this)">RANKED ARENA</button>
     <button class="lb-tab" onclick="switchTab('csrSlayer', this)">RANKED SLAYER</button>
     <button class="lb-tab" onclick="switchTab('csrLegacy', this)">RANKED LEGACY</button>
   </div>
@@ -136,14 +134,13 @@
   })();
 
   var _data   = null;
-  var _tab    = 'kd';
-  var _csrTabs = { csrArena: true, csrSlayer: true, csrLegacy: true };
+  var _tab    = 'csrArena';
 
   async function load() {
     document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING LEADERBOARD DATA...</div>';
     document.getElementById('meta-count').textContent = 'Loading...';
     try {
-      var res = await fetch('/api/leaderboard?limit=1000');
+      var res = await fetch('/api/leaderboard?limit=100000');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       _data = await res.json();
       render();
@@ -178,14 +175,11 @@
 
     document.getElementById('meta-count').textContent = rows.length + ' PLAYERS';
 
-    var isCsr = !!_csrTabs[_tab];
     var html = '<table class="lb-table"><thead><tr>' +
       '<th style="width:40px">#</th>' +
       '<th>GAMERTAG</th>' +
       '<th class="right hide-mobile">RANK</th>' +
-      (_tab === 'kd'      ? '<th class="right">K/D</th><th class="right hide-mobile">WIN %</th><th class="right hide-mobile">GAMES</th>' : '') +
-      (_tab === 'winRate' ? '<th class="right">WIN %</th><th class="right hide-mobile">K/D</th><th class="right hide-mobile">GAMES</th>' : '') +
-      (isCsr              ? '<th class="right">CSR</th><th class="right hide-mobile">K/D</th><th class="right hide-mobile">WIN %</th>' : '') +
+      '<th class="right">CSR</th><th class="right hide-mobile">K/D</th><th class="right hide-mobile">WIN %</th>' +
       '</tr></thead><tbody>';
 
     rows.forEach(function(p, i) {
@@ -208,19 +202,9 @@
       html += '<td><a class="gt-link" href="/?player=' + encodeURIComponent(p.gamertag) + '">' + esc(p.gamertag) + '</a></td>';
       html += '<td class="hide-mobile" style="text-align:right">' + tierBadge + '</td>';
 
-      if (_tab === 'kd') {
-        html += '<td class="stat-val stat-kd">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
-        html += '<td class="stat-val stat-wr hide-mobile">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
-        html += '<td class="stat-val stat-muted hide-mobile">' + (p.matches_played || '—') + '</td>';
-      } else if (_tab === 'winRate') {
-        html += '<td class="stat-val stat-wr">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
-        html += '<td class="stat-val stat-kd hide-mobile">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
-        html += '<td class="stat-val stat-muted hide-mobile">' + (p.matches_played || '—') + '</td>';
-      } else if (isCsr) {
-        html += '<td class="stat-val stat-csr">' + (p.csr_value || '—') + '</td>';
-        html += '<td class="stat-val stat-kd hide-mobile">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
-        html += '<td class="stat-val stat-wr hide-mobile">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
-      }
+      html += '<td class="stat-val stat-csr">' + (p.csr_value || '—') + '</td>';
+      html += '<td class="stat-val stat-kd hide-mobile">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
+      html += '<td class="stat-val stat-wr hide-mobile">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
 
       html += '</tr>';
     });
