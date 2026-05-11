@@ -271,6 +271,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .match-detail td{padding:5px 8px;border-top:1px solid rgba(30,48,80,0.5)}
 .match-detail tr.me-row td{background:rgba(0,212,255,0.05);color:var(--accent)}
 .team-divider{border:none;border-top:1px solid var(--border);margin:10px 0}
+.rank-badge{display:inline-block;margin-left:6px;padding:0 5px;border-radius:3px;background:rgba(255,138,28,0.10);color:#ff8a1c;font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.4px;vertical-align:middle;line-height:14px;white-space:nowrap}
+.rank-badge-mobile{display:none}
+@media(max-width:768px){.rank-badge{margin-left:4px;padding:0 4px;font-size:8px;letter-spacing:.2px}.rank-badge-desktop{display:none}.rank-badge-mobile{display:inline}}
 .loading{text-align:center;padding:80px 24px;color:var(--muted)}
 .spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
 @keyframes spin{to{transform:rotate(360deg)}}@keyframes gtpulse{0%,100%{opacity:0.4}50%{opacity:1}}

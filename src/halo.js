@@ -885,6 +885,20 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           const ppstats = player.PlayerTeamStats?.[0]?.Stats || {};
           const ppodd = ppstats.OddballStats, ppzones = ppstats.ZonesStats, ppctf = ppstats.CaptureTheFlagStats, ppstock = ppstats.StockpileStats;
           const parseDurP = s => { if(!s||s==='PT0S')return 0; const mm=String(s).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/); return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0; };
+          // Per-player CSR from RankRecap (present in ranked matches). PostMatchCsr
+          // is the player's CSR after the game ended — what we surface next to their name.
+          let plCsrTier = null, plCsrSubTier = null, plCsrValue = null;
+          const plRankRecap = player.PlayerTeamStats?.[0]?.RankRecap;
+          const plPost = plRankRecap?.PostMatchCsr;
+          if (plPost && plPost.Tier !== undefined) {
+            const _tn = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
+            const _t = _tn[plPost.Tier];
+            if (_t) {
+              plCsrTier = _t;
+              plCsrSubTier = (plPost.SubTier ?? 0) + 1;
+              plCsrValue = plPost.Value ?? null;
+            }
+          }
           teamMap[teamId].players.push({
             gamertag: gt, rawXuid,
             kills: pk, deaths: pd, assists: pa,
@@ -893,6 +907,11 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             kda: (pk - pd + pa/3).toFixed(1),
             damage: pcore.DamageDealt||0,
             gamerpicUrl: xuidToGamerpic[rawXuid]||null,
+            // Per-player rank — null when match is unranked or RankRecap is missing.
+            // Renderer must treat any null field as "no badge".
+            csrTier: plCsrTier,
+            csrSubTier: plCsrSubTier,
+            csrValue: plCsrValue,
             // Objective stats for ranking
             ballTime: ppodd ? parseDurP(ppodd.TimeAsSkullCarrier) : 0,
             zoneCaptures: ppzones ? (ppzones.StrongholdCaptures||0) : 0,

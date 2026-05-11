@@ -141,7 +141,8 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       }
       var _plKda=pl.kda!=null?pl.kda:'—';
       var _plKdaColor=pl.kda!=null?(parseFloat(pl.kda)>=0?'var(--win)':'var(--loss)'):'var(--muted)';
-      html+='<tr'+(isMe?' class="me-row"':'')+(pl.rawXuid?' data-xuid="'+pl.rawXuid+'"':'')+'><td>'+_rowEmb+gtLink+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:'+_plKdaColor+'">'+_plKda+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td></tr>';
+      var _rankBadge=(typeof rankBadgeHtml==='function')?rankBadgeHtml(pl):'';
+      html+='<tr'+(isMe?' class="me-row"':'')+(pl.rawXuid?' data-xuid="'+pl.rawXuid+'"':'')+'><td>'+_rowEmb+gtLink+_rankBadge+'</td><td style="text-align:right">'+pl.kills+'</td><td style="text-align:right">'+pl.deaths+'</td><td style="text-align:right">'+pl.assists+'</td><td style="text-align:right;color:'+(parseFloat(pl.kd)>=1?'var(--win)':'var(--loss)')+'">'+pl.kd+'</td><td style="text-align:right;color:'+_plKdaColor+'">'+_plKda+'</td><td style="text-align:right;color:var(--muted)">'+(pl.damage?pl.damage.toLocaleString():'—')+'</td></tr>';
     });
     html+='</tbody></table>';
   });
