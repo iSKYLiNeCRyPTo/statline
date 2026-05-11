@@ -7,6 +7,8 @@ const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHead
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag } = require('./db');
+const { runBackfill } = require('./backfillParticipants');
+const adminAuth = require('./auth');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -1554,6 +1556,118 @@ app.delete('/api/admin/pro-players', express.json(), async (req, res) => {
   if (!xuid) return res.status(400).json({ error: 'xuid required' });
   try { await removeProPlayer(xuid); res.json({ success: true }); }
   catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: HTTP trigger for match_participants backfill ──────────────────────
+// Production data op. Defaults to dry-run. Real writes require BOTH
+// `dryRun:false` AND `confirm:true` in the JSON body. Concurrency-locked.
+// Auth uses src/auth.js (constant-time compare, refuses placeholder secrets);
+// since secrets() throws on misconfiguration, we catch and fail closed with
+// 503 instead of leaking a stack trace.
+const BACKFILL_API_LIMITS = {
+  defaultLimit: 200,    // canary-sized default; the user can ask for more, up to MAX
+  maxLimit: 5000,       // hard cap per HTTP-triggered run to avoid Render timeouts
+  defaultBatchSize: 100,
+  maxBatchSize: 1000,
+  defaultScanCount: 200,
+  maxScanCount: 2000,
+};
+let _backfillRunning = null; // { startedAt: number, dryRun: boolean } when active
+
+function checkAdminFailClosed(req, res) {
+  try {
+    if (!adminAuth.checkAdminPass(req)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return false;
+    }
+    return true;
+  } catch (e) {
+    // secrets() throws on missing/placeholder/short ADMIN_PASS — refuse rather than
+    // accidentally exposing the endpoint with a leftover default.
+    console.error('[Admin/backfill] admin auth misconfigured:', e.message);
+    res.status(503).json({ error: 'Admin auth misconfigured — set ADMIN_PASS to a strong value.' });
+    return false;
+  }
+}
+
+function clampInt(value, fallback, max) {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(n, max);
+}
+
+app.post('/api/admin/backfill-participants', express.json(), async (req, res) => {
+  if (!checkAdminFailClosed(req, res)) return;
+
+  if (_backfillRunning) {
+    return res.status(409).json({
+      error: 'Backfill already running',
+      since: new Date(_backfillRunning.startedAt).toISOString(),
+      dryRun: _backfillRunning.dryRun,
+    });
+  }
+
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  // Fail closed: anything other than the explicit pair (dryRun:false + confirm:true)
+  // is treated as a dry-run.
+  const dryRun = !(body.dryRun === false && body.confirm === true);
+
+  const options = {
+    dryRun,
+    limit: clampInt(body.limit, BACKFILL_API_LIMITS.defaultLimit, BACKFILL_API_LIMITS.maxLimit),
+    batchSize: clampInt(body.batchSize, BACKFILL_API_LIMITS.defaultBatchSize, BACKFILL_API_LIMITS.maxBatchSize),
+    scanCount: clampInt(body.scanCount, BACKFILL_API_LIMITS.defaultScanCount, BACKFILL_API_LIMITS.maxScanCount),
+    keyPattern: (typeof body.keyPattern === 'string' && body.keyPattern.length > 0 && body.keyPattern.length < 200)
+      ? body.keyPattern : 'player:*',
+    verbose: !!body.verbose,
+  };
+
+  // Pre-flight: real runs require DATABASE_URL. Surface that as 400 rather than
+  // letting saveMatchParticipants fail per-player.
+  if (!options.dryRun && !process.env.DATABASE_URL) {
+    return res.status(400).json({ error: 'DATABASE_URL not configured — cannot run live backfill.' });
+  }
+
+  // Reuse the running server's Redis client. If Redis is unavailable the
+  // backfill cannot proceed at all.
+  const redis = await getRedis();
+  if (!redis) {
+    return res.status(503).json({ error: 'Redis not available — cannot scan cached player blobs.' });
+  }
+
+  _backfillRunning = { startedAt: Date.now(), dryRun: options.dryRun };
+  try {
+    const result = await runBackfill({
+      redis,
+      saveMatchParticipants,
+      options,
+      logger: {
+        log:  (...a) => console.log('[Admin/backfill]', ...a),
+        warn: (...a) => console.warn('[Admin/backfill]', ...a),
+      },
+    });
+    res.json({
+      ok: true,
+      dryRun: result.dryRun,
+      requested: options,
+      counters: {
+        keysScanned: result.keysScanned,
+        playersParsed: result.playersParsed,
+        playersSkippedNoXuid: result.playersSkippedNoXuid,
+        playersSkippedMalformed: result.playersSkippedMalformed,
+        matchesFound: result.matchesFound,
+        matchesEligible: result.matchesEligible,
+        rowsWrittenReported: result.rowsWrittenReported,
+        errors: result.errors,
+      },
+      elapsedSeconds: result.elapsedSeconds,
+    });
+  } catch (e) {
+    console.error('[Admin/backfill] FATAL:', e && e.stack || e);
+    res.status(500).json({ error: e.message || String(e) });
+  } finally {
+    _backfillRunning = null;
+  }
 });
 
 // ── Admin: search log UI ──────────────────────────────────────────────────────

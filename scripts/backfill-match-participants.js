@@ -41,6 +41,7 @@
 try { require('dotenv').config(); } catch {} // optional — Render injects env directly
 const path = require('path');
 const db = require(path.join(__dirname, '..', 'src', 'db.js'));
+const { runBackfill } = require(path.join(__dirname, '..', 'src', 'backfillParticipants.js'));
 
 function parseArgs(argv) {
   const args = {
@@ -83,9 +84,6 @@ Environment:
 `);
 }
 
-// We connect to Redis directly so we can SCAN without going through the
-// server.js cache wrappers (which only expose GET-by-key). Same module the
-// halo.js helper uses — keeps the connection options consistent.
 async function connectRedis() {
   if (!process.env.REDIS_URL) {
     console.error('REDIS_URL is not set. Cached match data lives in Redis; aborting.');
@@ -99,40 +97,12 @@ async function connectRedis() {
     socket: {
       tls: isTLS,
       rejectUnauthorized: false,
-      // Don't retry forever; the script should fail fast if Redis is down.
       reconnectStrategy: retries => (retries >= 3 ? new Error('Redis unreachable') : retries * 500),
     },
   });
   client.on('error', err => console.warn('[Redis] error:', err.message));
   await client.connect();
   return client;
-}
-
-function safeParse(raw) {
-  if (raw == null) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-// Extract a list of cached match objects from a player payload. Tolerates both
-// shapes the server has used over time (allMatches preferred, recentMatches
-// fallback) and skips anything that doesn't look like a real match row.
-function extractMatches(payload) {
-  if (!payload || typeof payload !== 'object') return [];
-  const src = Array.isArray(payload.allMatches)    ? payload.allMatches
-            : Array.isArray(payload.recentMatches) ? payload.recentMatches
-            : [];
-  const out = [];
-  for (const m of src) {
-    if (!m || !m.matchId || !Array.isArray(m.teams)) continue;
-    // Need at least one team with at least one player carrying a rawXuid.
-    let usable = false;
-    for (const t of m.teams) {
-      if (!t || !Array.isArray(t.players)) continue;
-      if (t.players.some(p => p && p.rawXuid)) { usable = true; break; }
-    }
-    if (usable) out.push(m);
-  }
-  return out;
 }
 
 async function main() {
@@ -151,9 +121,6 @@ async function main() {
   }
 
   const redis = await connectRedis();
-  // Eagerly initialize the Postgres pool so we fail fast on bad creds before
-  // we start scanning Redis. In dry-run we skip this so the script works with
-  // only REDIS_URL.
   if (!args.dryRun) {
     const pool = await db.getDb();
     if (!pool) {
@@ -163,118 +130,30 @@ async function main() {
     }
   }
 
-  const counters = {
-    keysScanned: 0,
-    playersParsed: 0,
-    playersSkippedNoXuid: 0,
-    playersSkippedMalformed: 0,
-    matchesFound: 0,
-    matchesEligible: 0,
-    rowsWrittenReported: 0,   // sum of saveMatchParticipants() return values
-    errors: 0,
-  };
-  const startMs = Date.now();
-  let stopped = false;
-  let lastLogAt = 0;
-
-  // Redis SCAN with cursor — handles MILLIONs of keys safely and is resumable
-  // in the trivial sense (each invocation starts from cursor 0; rows already
-  // backfilled no-op via ON CONFLICT). MATCH filters server-side.
-  const iter = redis.scanIterator({ MATCH: args.keyPattern, COUNT: args.scanCount });
-
+  let result;
   try {
-    for await (const keyOrKeys of iter) {
-      if (stopped) break;
-      // node-redis v4 yields a single key per iteration, but some builds
-      // yield an array per SCAN page — handle both for forward compatibility.
-      const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys];
-
-      for (const key of keys) {
-        counters.keysScanned++;
-
-        let raw;
-        try {
-          raw = await redis.get(key);
-        } catch (e) {
-          counters.errors++;
-          console.warn(`[Backfill] GET ${redactKey(key)} failed: ${e.message}`);
-          continue;
-        }
-        const payload = safeParse(raw);
-        if (!payload) {
-          counters.playersSkippedMalformed++;
-          if (args.verbose) console.warn(`[Backfill] malformed JSON at ${redactKey(key)}`);
-          continue;
-        }
-        // Source xuid for provenance — without it saveMatchParticipants still
-        // writes rows (source_xuid is nullable) but the audit trail is worse.
-        const sourceXuid = payload.xuid ? String(payload.xuid) : null;
-        if (!sourceXuid) {
-          counters.playersSkippedNoXuid++;
-          continue;
-        }
-
-        const matches = extractMatches(payload);
-        counters.playersParsed++;
-        counters.matchesFound += Array.isArray(payload.allMatches || payload.recentMatches)
-          ? (payload.allMatches || payload.recentMatches).length : 0;
-        counters.matchesEligible += matches.length;
-
-        if (!matches.length) {
-          if (args.verbose) console.log(`[Backfill] ${redactKey(key)} no usable matches`);
-        } else if (args.dryRun) {
-          if (args.verbose) console.log(`[Backfill] dry-run ${redactKey(key)} would write rows for ${matches.length} matches`);
-        } else {
-          try {
-            const written = await db.saveMatchParticipants(matches, sourceXuid);
-            counters.rowsWrittenReported += (written || 0);
-            if (args.verbose) console.log(`[Backfill] ${redactKey(key)} wrote ${written} rows (${matches.length} matches)`);
-          } catch (e) {
-            counters.errors++;
-            console.warn(`[Backfill] saveMatchParticipants failed for ${redactKey(key)}: ${e.message}`);
-          }
-        }
-
-        if (counters.playersParsed >= args.limit) {
-          console.log(`[Backfill] hit --limit ${args.limit}, stopping early.`);
-          stopped = true;
-          break;
-        }
-
-        if (counters.playersParsed - lastLogAt >= args.batchSize) {
-          lastLogAt = counters.playersParsed;
-          const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
-          console.log(`[Backfill] progress: ${counters.playersParsed} players · ${counters.matchesEligible} usable matches · ${counters.rowsWrittenReported} rows · ${elapsed}s`);
-        }
-      }
-    }
+    result = await runBackfill({
+      redis,
+      saveMatchParticipants: db.saveMatchParticipants,
+      options: {
+        dryRun: args.dryRun,
+        limit: args.limit,
+        batchSize: args.batchSize,
+        keyPattern: args.keyPattern,
+        scanCount: args.scanCount,
+        verbose: args.verbose,
+      },
+      logger: console,
+    });
   } finally {
     try { await redis.disconnect(); } catch {}
-    // Close the pool if we opened one.
     try {
       const pool = !args.dryRun ? await db.getDb() : null;
       if (pool && typeof pool.end === 'function') await pool.end();
     } catch {}
   }
 
-  const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
-  console.log('[Backfill] complete', JSON.stringify({ ...counters, elapsedSeconds: Number(elapsed), dryRun: args.dryRun }));
-
-  // If nothing eligible was found, surface that clearly — covers the case
-  // where old cached blobs predate the team-roster shape and only contain
-  // top-level match summaries. Caller can then decide on the rehydration
-  // fallback (see README "Fallback: rehydrate via public histories").
-  if (counters.playersParsed > 0 && counters.matchesEligible === 0) {
-    console.warn('[Backfill] WARNING: cached blobs contained no team-roster match data. '
-      + 'See README "Fallback: rehydrate via public histories" for next steps.');
-  }
-}
-
-// Avoid leaking gamertags into logs at scale — show only a stable prefix.
-function redactKey(k) {
-  if (typeof k !== 'string') return String(k);
-  if (k.length <= 20) return k;
-  return k.slice(0, 12) + '…' + k.slice(-4);
+  console.log('[Backfill] complete', JSON.stringify(result));
 }
 
 main().catch(err => {
