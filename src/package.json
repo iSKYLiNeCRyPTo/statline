@@ -9,6 +9,7 @@
     "verify": "node ../scripts/verify-auth.js",
     "verify:reconstruct": "node ../scripts/verify-reconstruct.js",
     "verify:backfill": "node ../scripts/verify-backfill.js",
+    "verify:backfill-endpoint": "node ../scripts/verify-backfill-endpoint.js",
     "backfill:participants": "node ../scripts/backfill-match-participants.js",
     "backfill:participants:dry": "node ../scripts/backfill-match-participants.js --dry-run",
     "rehydrate:participants": "node ../scripts/rehydrate-match-participants.js",
