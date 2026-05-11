@@ -169,5 +169,36 @@ function assert(cond, msg) {
   const xu = await db.lookupXuidByGamertag('PrivateOne');
   assert(xu === PRIVATE_XUID, `gamertag→xuid via participants (got ${xu})`);
 
+  console.log('\nTest 5: reconstruct for an xuid with zero indexed rows returns empty cleanly');
+  const empty = await db.reconstructMatchHistoryForXuid('9999999999999999', 50);
+  assert(Array.isArray(empty.matches) && empty.matches.length === 0, 'zero-coverage xuid yields empty matches array');
+  assert(empty.participantRowCount === 0, 'participantRowCount is 0 for unknown xuid');
+
+  console.log('\nTest 6: target private xuid reconstructs even when stored only via OTHER source xuids');
+  // Simulate a second source (DifferentPublic) submitting a match where the
+  // same PRIVATE_XUID appears — verifies reconstruction queries by target xuid,
+  // not source xuid (regression guard for the "private player still empty after
+  // backfill" bug).
+  const DIFFERENT_SOURCE = '1000000000000099';
+  await db.saveMatchParticipants([{
+    matchId: 'm3',
+    isRanked: true,
+    gameMode: 'Ranked Arena: CTF',
+    mapName: 'Aquarius',
+    startTime: '2026-05-12T12:00:00Z',
+    teams: [
+      { teamId: 0, outcome: 2, players: [
+        { rawXuid: DIFFERENT_SOURCE, gamertag: 'OtherPub', kills: 18, deaths: 9, assists: 4 },
+        { rawXuid: PRIVATE_XUID,     gamertag: 'PrivateOne', kills: 11, deaths: 13, assists: 5 },
+      ]},
+      { teamId: 1, outcome: 3, players: [
+        { rawXuid: '1000000000000077', gamertag: 'OppX', kills: 7, deaths: 17, assists: 2 },
+      ]},
+    ],
+  }], DIFFERENT_SOURCE);
+  const recon2 = await db.reconstructMatchHistoryForXuid(PRIVATE_XUID, 50);
+  assert(recon2.matches.length === 3, `now 3 reconstructed matches incl. one from different source (got ${recon2.matches.length})`);
+  assert(recon2.matches.some(m => m.matchId === 'm3'), 'm3 surfaced via target xuid even though source_xuid differs');
+
   console.log('\nDone.');
 })();
