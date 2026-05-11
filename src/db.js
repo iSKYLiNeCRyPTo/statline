@@ -1001,6 +1001,9 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
         csrTier: my.csr_tier || null,
         csrSubTier: my.csr_subtier != null ? my.csr_subtier : null,
         csrValue: my.csr_value != null ? my.csr_value : null,
+        // Pre-game CSR (numeric) — lets the CSR chart compute deltas even
+        // when csr_delta is null on backfilled rows.
+        csrPreValue: my.csr_pre_value != null ? my.csr_pre_value : null,
         // Skill-API MMR (best effort — may be null if backfilled from a blob
         // that didn't carry it).
         mmr: my.mmr != null ? my.mmr : null,

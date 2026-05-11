@@ -1,14 +1,37 @@
 function renderCsrFromMatches(matches,playlist,color){
-  // Build CSR progression from match csrDelta — only ranked matches for this playlist
-  // Helper: compute csrDelta if missing but csrAfter+csrBefore both present
+  // Build CSR progression from match csrDelta — only ranked matches for this playlist.
+  //
+  // Two data shapes feed this chart:
+  //   1. Real history fetched directly from Halo — populates `csrDelta` and
+  //      `csrAfter` (string like "Onyx 1500" or "Diamond 4"). Older matches in
+  //      the same season can drop csrDelta but still have csrAfter.
+  //   2. Reconstructed history (private profiles) — populates the numeric
+  //      `csrValue` per match (1298, 1500, …) and may have csrDelta+csrAfter,
+  //      but the csrAfter string for non-Onyx tiers is "Diamond 4" where 4 is
+  //      the subTier index, NOT a CSR number. parseInt of that would chart
+  //      tier indices as if they were CSR — which is the bug we are fixing.
+  function _csrFrom(m){
+    // Prefer the explicit numeric CSR value (real CSR, e.g. 1298).
+    if(m.csrValue!=null) return +m.csrValue;
+    if(m.csr_value!=null) return +m.csr_value;
+    // Fall back to parsing csrAfter ONLY when the tier is Onyx (where the
+    // trailing number IS the CSR). For non-Onyx tiers parseInt would pick up
+    // the subTier (1–6) and produce a misleading flat line near 0.
+    if(m.csrAfter){
+      var s=String(m.csrAfter);
+      if(/^Onyx/i.test(s)){
+        var n=parseInt(s.match(/\d+/));
+        if(!isNaN(n)) return n;
+      }
+    }
+    return null;
+  }
   function _getDelta(m){
     if(m.csrDelta!=null)return m.csrDelta;
-    // Try to compute from csrAfter and csrBefore strings
-    if(m.csrAfter&&m.csrBefore){
-      var a=parseInt(String(m.csrAfter).match(/\d+/));
-      var b=parseInt(String(m.csrBefore).match(/\d+/));
-      if(!isNaN(a)&&!isNaN(b))return a-b;
-    }
+    // Try to compute from numeric pre/post values when available.
+    var aN=_csrFrom(m);
+    var bN=m.csrPreValue!=null?+m.csrPreValue:(m.csr_pre_value!=null?+m.csr_pre_value:null);
+    if(aN!=null&&bN!=null) return aN-bN;
     return null;
   }
   function _matchesPlaylist(m){
@@ -23,8 +46,8 @@ function renderCsrFromMatches(matches,playlist,color){
     if(!_matchesPlaylist(m))return false;
     // Draws always included — plotted flat at same CSR
     if(m.outcome!==2&&m.outcome!==3) return true;
-    // Wins/losses: need delta or csrAfter to plot
-    return _getDelta(m)!=null||m.csrAfter!=null;
+    // Wins/losses: need delta or a real numeric CSR to plot
+    return _getDelta(m)!=null||_csrFrom(m)!=null;
   });
   if(pm.length<2)return'';
   // Flag when we have limited data — Halo's API only includes RankRecap (CSR before/after) for
@@ -34,22 +57,18 @@ function renderCsrFromMatches(matches,playlist,color){
   // Build running CSR from most recent value backwards
   var lastCsr=null;
   var recent=matches.find(function(m){
-    if(!m.isRanked||!m.csrAfter||!m.gameMode)return false;
-    var gm=m.gameMode.trim();
-    if(playlist==='Ranked Slayer') return /^Ranked Slayer$/i.test(gm);
-    if(playlist==='Ranked Legacy') return /^Ranked Legacy$/i.test(gm);
-    return !/^Ranked Slayer$/i.test(gm) && !/^Ranked Legacy$/i.test(gm);
+    if(!m.isRanked||!m.gameMode)return false;
+    if(!_matchesPlaylist(m)) return false;
+    return _csrFrom(m)!=null;
   });
-  if(recent&&recent.csrAfter){
-    var raw=recent.csrAfter;
-    var num=parseInt(String(raw).match(/\d+/));
-    if(!isNaN(num))lastCsr=num;
-  }
+  if(recent) lastCsr=_csrFrom(recent);
   if(!lastCsr){
     var csrKey=playlist==='Ranked Arena'?'Ranked Arena':playlist==='Ranked Legacy'?'Ranked Legacy':'Ranked Slayer';
     var pnow=(getAllPlayers()[selectedPlayer]||{});
     if(pnow.csr&&pnow.csr[csrKey])lastCsr=pnow.csr[csrKey].value;
   }
+  // No real CSR value anywhere → hide the chart rather than plot tier/subtier
+  // indices, which would render a misleading "flat tiny values around 2" line.
   if(!lastCsr)return'';
 
   // Build array of CSR values + outcomes — draws always plot flat (0 delta)
@@ -69,11 +88,9 @@ function renderCsrFromMatches(matches,playlist,color){
       var _d=_getDelta(_m);
       if(_d!=null){
         vals.unshift(vals[0]-_d);
-      } else if(_m.csrAfter){
-        var _av=parseInt(String(_m.csrAfter).match(/\d+/));
-        vals.unshift(!isNaN(_av)?_av:vals[0]);
       } else {
-        vals.unshift(vals[0]);
+        var _av=_csrFrom(_m);
+        vals.unshift(_av!=null?_av:vals[0]);
       }
     }
     outcomes.unshift(_prev.outcome); // outcome of the match that ended at this new point
