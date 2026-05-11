@@ -1113,6 +1113,13 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           }
         }
       }
+      // Playlist context for downstream CSR pickers (match player rows + benchmark).
+      // 'arena' | 'slayer' | 'legacy' — only meaningful when isRanked is true.
+      const playlistKind = !isRanked ? null
+        : isRankedSlayer ? 'slayer'
+        : isRankedLegacy ? 'legacy'
+        : isRankedArena  ? 'arena'
+        : null;
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
         mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
@@ -1121,6 +1128,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         shotsFired, shotsHit,
         placement: placementStr(placement), weaponStats, topMedals: matchTopMedals, csrAfter, csrBefore, csrDelta, teams,
         mmr, oppMmr, expectedKills, expectedDeaths, objStats,
+        playlistId: matchPlaylistId || null, playlistKind,
       });
     } catch(e) {
       results.push({ matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, gameMode: null, kills:0,deaths:0,assists:0,damageDealt:0,damageTaken:0 });

@@ -101,6 +101,30 @@
     return h;
   }
 
+  // Playlist toggle: which playlists the player has any CSR for. Each entry
+  // becomes a button on the Rank Benchmark card so the user can compare
+  // themselves against Ranked Arena / Slayer / Legacy peers separately.
+  // `csrSnapshot` is preserved from the initial loadRankBenchmark call so the
+  // toggle does not need a second profile fetch.
+  function renderToggle(allPlaylists, current) {
+    var pls = ['Ranked Arena', 'Ranked Slayer', 'Ranked Legacy']
+      .filter(function (p) { return allPlaylists.some(function (a) { return a.label === p; }); });
+    if (pls.length < 2) return '';
+    var h = '<div class="rbm-toggle" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">';
+    pls.forEach(function (p) {
+      var active = p === current;
+      var bg = active ? 'var(--accent)' : 'transparent';
+      var color = active ? 'var(--bg)' : 'var(--muted)';
+      var border = active ? 'var(--accent)' : 'var(--border)';
+      h += '<button type="button" data-rbm-playlist="' + p + '" '
+        + 'style="font-family:Share Tech Mono,monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;'
+        + 'padding:5px 10px;border-radius:4px;cursor:pointer;background:' + bg + ';color:' + color + ';border:1px solid ' + border + '">'
+        + p.replace('Ranked ', '') + '</button>';
+    });
+    h += '</div>';
+    return h;
+  }
+
   function renderCard(data) {
     var peers = data.peers;
     var next  = data.nextRank;
@@ -125,14 +149,9 @@
     h += '<div style="margin-top:4px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
     h += 'benchmarking vs <span style="color:' + (isArena ? 'var(--accent)' : 'var(--gold)') + '">' + playlist + '</span> peers';
     h += '</div>';
-    if (!isArena) {
-      var arenaEntry = allPlaylists.find(function(p) { return p.label === 'Ranked Arena'; });
-      if (arenaEntry) {
-        h += '<div style="margin-top:3px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--gold)">';
-        h += '⚠ Ranked Arena (' + arenaEntry.display + ') is the primary competitive metric';
-        h += '</div>';
-      }
-    }
+    // Per-playlist toggle (Arena / Slayer / Legacy) — only renders when the
+    // player has CSR in at least two playlists.
+    h += renderToggle(allPlaylists, playlist);
     // Low peer count warning
     if (lowData) {
       h += '<div style="margin-top:4px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
@@ -183,35 +202,69 @@
     return h;
   }
 
-  function renderEmpty(reason) {
+  function renderEmpty(reason, opts) {
+    opts = opts || {};
+    var playlist = opts.playlist || '';
+    var allPlaylists = opts.allPlaylists || [];
     var msg = reason === 'not_cached'  ? 'Search a player to see rank data.' :
-              reason === 'no_csr'      ? 'No ranked CSR data — play ranked matches first.' :
-              'Not enough data yet. Check back as more players search this rank.';
-    return '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:16px 0">'
+              reason === 'no_csr'      ? (playlist
+                  ? 'No CSR data for ' + playlist + ' — play matches in this playlist first.'
+                  : 'No ranked CSR data — play ranked matches first.') :
+              reason === 'insufficient_peers'
+                ? 'Not enough ' + (playlist || 'ranked') + ' peer data yet — try Ranked Arena.'
+                : 'Not enough data yet. Check back as more players search this rank.';
+    var h = '<div style="font-size:12px;font-family:Share Tech Mono,monospace;color:var(--muted2);text-align:center;padding:16px 0">'
          + '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
          + msg + '</div>';
+    if (allPlaylists.length) h += '<div style="display:flex;justify-content:center">' + renderToggle(allPlaylists, playlist) + '</div>';
+    return h;
+  }
+
+  function fetchAndRender(el, gamertag, playlist, csrSnapshot) {
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:12px 0;color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:12px">'
+      + '<div style="width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>'
+      + 'Loading rank comparison…</div>';
+
+    var url = '/api/rank-comparison?gamertag=' + encodeURIComponent(gamertag);
+    if (playlist) url += '&playlist=' + encodeURIComponent(playlist);
+
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        // Build allPlaylists fallback from the CSR snapshot in case the
+        // endpoint shortcuts (e.g. no_csr for a specific playlist) — we still
+        // want the toggle visible so the user can switch back.
+        var pls = data.allPlaylists && data.allPlaylists.length
+          ? data.allPlaylists
+          : (csrSnapshot
+              ? Object.keys(csrSnapshot)
+                  .filter(function (k) { return csrSnapshot[k] && csrSnapshot[k].tier; })
+                  .map(function (k) { return { label: k, display: csrSnapshot[k].display, value: csrSnapshot[k].value }; })
+              : []);
+        if (!data.available) {
+          el.innerHTML = renderEmpty(data.reason || 'no_data', { playlist: playlist, allPlaylists: pls });
+        } else if (!data.peers || data.peers.count < 5) {
+          el.innerHTML = renderEmpty('insufficient_peers', { playlist: data.playlist || playlist, allPlaylists: pls });
+        } else {
+          el.innerHTML = renderCard(data);
+        }
+        // Wire up toggle buttons (event delegation kept simple — re-bind on each render).
+        Array.prototype.forEach.call(el.querySelectorAll('[data-rbm-playlist]'), function (btn) {
+          btn.addEventListener('click', function () {
+            var pl = btn.getAttribute('data-rbm-playlist');
+            if (pl === (data.playlist || playlist)) return;
+            fetchAndRender(el, gamertag, pl, csrSnapshot);
+          });
+        });
+      })
+      .catch(function () { el.innerHTML = ''; });
   }
 
   window.loadRankBenchmark = function (gamertag, csr) {
     var el = document.getElementById('rankBenchmarkCard');
     if (!el) return;
     if (!csr || !Object.keys(csr).length) { el.style.display = 'none'; return; }
-
-    // Show skeleton while loading
-    el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:12px 0;color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:12px">'
-      + '<div style="width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>'
-      + 'Loading rank comparison…</div>';
-
-    fetch('/api/rank-comparison?gamertag=' + encodeURIComponent(gamertag))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (!data.available || !data.peers || data.peers.count < 5) {
-          el.innerHTML = renderEmpty(data.reason || 'no_data');
-          return;
-        }
-        el.innerHTML = renderCard(data);
-      })
-      .catch(function () { el.innerHTML = ''; });
+    fetchAndRender(el, gamertag, null, csr);
   };
 
 })();
