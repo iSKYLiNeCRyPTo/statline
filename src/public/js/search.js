@@ -297,6 +297,16 @@ async function doSearch(gt, isRefresh, force){
       // Sync _loadPlayer with full data so the loading screen gets the correct emblemUrl/nameplateUrl
       // even if the statsOnly call resolved them as null (economy.svc can be flaky on first hit)
       if(!isRefresh) _loadPlayer=fullD.player;
+      // Private/restricted match history fallback — show a clear loading state
+      // explaining where the reconstructed history came from.
+      var _isPrivate = !!(fullD.player.privateHistory || fullD.player.reconstructed);
+      if(_isPrivate && !isRefresh){
+        var _msg = (fullD.player.reconstructedCount>0)
+          ? 'Building a partial match history from known public matches…'
+          : 'Searching public match records…';
+        var _lbl=document.getElementById('_lc_step2lbl');
+        if(_lbl) _lbl.innerHTML='<span style="color:var(--accent)">'+_msg+'</span>';
+      }
       // ── Steps 2–3: Skill data + rival pics (both non-blocking) ─────────────
       // Skill enrichment runs in the background on the server (5–25s).
       // We do NOT block the loading screen on it — page renders fast, skill data

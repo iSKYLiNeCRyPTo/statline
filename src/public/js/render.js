@@ -614,6 +614,18 @@ function render(){
   if(!p||!p.stats){document.getElementById('app').innerHTML=p&&p._loading?'<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+p.gamertag+'</strong>...</p></div>':p&&p.error?'<div class="error-card">'+p.error+'<br><small style="color:var(--muted)">Token may have expired — auto-refresh should fix this shortly.</small></div>':'<div class="loading"><p>No stats yet — click <strong>REFRESH</strong> to load.</p></div>';return;}
   // Show a non-blocking warning banner if last fetch failed but we have cached data
   var fetchErrBanner = data.fetchError ? '<div style="background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);border-radius:8px;padding:10px 16px;color:var(--loss);font-size:12px;margin-bottom:16px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Last refresh failed: '+data.fetchError+' — showing cached data from '+updated+'</div>' : '';
+  // Reconstructed-history banner — shown when the player's official match
+  // history is private/restricted and we are surfacing matches assembled from
+  // public match records (i.e. rows captured from other players' histories).
+  var reconstructedBanner = (p.privateHistory||p.reconstructed) ? (
+    '<div style="background:rgba(56,138,221,0.08);border:1px solid rgba(56,138,221,0.35);border-radius:8px;padding:10px 16px;color:var(--accent);font-size:12px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">'
+      +'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+      +'<div style="flex:1;line-height:1.45">'
+        +'<div style="font-weight:600;letter-spacing:0.3px">Official match history is private. Showing known matches found in public match records.</div>'
+        +'<div style="color:var(--muted);font-size:11px;margin-top:3px">Partial coverage · '+((p.reconstructedCount||((p.allMatches||p.recentMatches||[]).length))||0)+' known match'+(((p.reconstructedCount||((p.allMatches||p.recentMatches||[]).length))||0)===1?'':'es')+'. Coverage grows as more public players are searched.</div>'
+      +'</div>'
+    +'</div>'
+  ) : '';
   var s=p.stats;
   var PVE_MODES=['Mode 41','Mode 42','Firefight','Gruntpocalypse','Attrition'];
   var BAD_MAPS=['Launch Site','Yuletide','Octagon','AIMBOTZ'];
@@ -746,7 +758,7 @@ function render(){
     window._fragrBaselines=bl;
     window._fragrGds=_gdsR;
   })();
-  var html=fetchErrBanner||'';
+  var html=(fetchErrBanner||'')+(reconstructedBanner||'');
   // Pre-compute rank cards so we can inject them inside the hero on desktop
   var _isDesktop=window.innerWidth>=768;
   var careerCardHtml='';

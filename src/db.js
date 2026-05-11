@@ -41,6 +41,30 @@ async function getDb() {
           label TEXT,
           added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`);
+        // match_participants: powers the "private player" fallback — every time we
+        // fetch a public player's match history we record every roster slot here so
+        // we can later reconstruct a partial history for a private/restricted player
+        // whose own /matches endpoint returns nothing.
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS match_participants (
+          match_id TEXT NOT NULL,
+          xuid TEXT NOT NULL,
+          gamertag TEXT,
+          team_id INT,
+          outcome INT,
+          kills INT, deaths INT, assists INT,
+          score INT, damage INT,
+          is_ranked BOOLEAN,
+          game_mode TEXT,
+          map_name TEXT,
+          map_image_url TEXT,
+          start_time TIMESTAMPTZ,
+          duration_sec INT,
+          source_xuid TEXT,
+          ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (match_id, xuid)
+        )`);
+        await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_match_participants_xuid ON match_participants(xuid)`);
+        await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_match_participants_start_time ON match_participants(start_time DESC)`);
       } catch(e) { console.error('[DB] schema error:', e.message); }
       return _dbPool;
     })();
@@ -449,4 +473,208 @@ async function getLeaderboardData(limit = 100000) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData };
+// ── Match participants (private-player fallback) ─────────────────────────────
+// Persist a row per (match, roster slot) every time we fetch a public player's
+// match details. Lets us reconstruct a partial match history for a private
+// player by querying their xuid against rows sourced from public players.
+//
+// sourceXuid = the xuid of the player whose history we were fetching when we
+// captured this match. Tracks provenance ("known from public match records").
+async function saveMatchParticipants(matchRows, sourceXuid) {
+  if (!matchRows || !matchRows.length) return 0;
+  try {
+    const db = await getDb();
+    if (!db) return 0;
+    let written = 0;
+    for (const m of matchRows) {
+      if (!m || !m.matchId || !m.teams || !m.teams.length) continue;
+      const startTime = m.startTime ? new Date(m.startTime) : null;
+      const durSec = typeof m.duration === 'string' ? null : (m.duration || null);
+      const rows = [];
+      for (const team of m.teams) {
+        if (!team || !team.players) continue;
+        const teamOutcome = team.outcome != null ? team.outcome : null;
+        for (const pl of team.players) {
+          const rawXu = pl.rawXuid && String(pl.rawXuid);
+          if (!rawXu) continue;
+          rows.push({
+            match_id: m.matchId,
+            xuid: rawXu,
+            gamertag: pl.gamertag && !pl.gamertag.startsWith('Spartan ') ? pl.gamertag : null,
+            team_id: team.teamId != null ? team.teamId : null,
+            outcome: teamOutcome,
+            kills:   pl.kills   != null ? pl.kills   : null,
+            deaths:  pl.deaths  != null ? pl.deaths  : null,
+            assists: pl.assists != null ? pl.assists : null,
+            score:   pl.score   != null ? pl.score   : null,
+            damage:  pl.damage  != null ? pl.damage  : null,
+            is_ranked: !!m.isRanked,
+            game_mode: m.gameMode || null,
+            map_name:  m.mapName || null,
+            map_image_url: m.mapImageUrl || null,
+            start_time: startTime,
+            duration_sec: typeof durSec === 'number' ? durSec : null,
+            source_xuid: sourceXuid ? String(sourceXuid) : null,
+          });
+        }
+      }
+      if (!rows.length) continue;
+      // Batch insert per match — small enough to fit a single statement
+      const cols = ['match_id','xuid','gamertag','team_id','outcome','kills','deaths','assists','score','damage','is_ranked','game_mode','map_name','map_image_url','start_time','duration_sec','source_xuid'];
+      const placeholders = rows.map((_, i) =>
+        '(' + cols.map((__, j) => `$${i * cols.length + j + 1}`).join(',') + ')'
+      ).join(',');
+      const params = rows.flatMap(r => cols.map(c => r[c]));
+      // ON CONFLICT: update gamertag/stats only if the new row brings non-null
+      // information — never blow away a known gamertag with null.
+      const setClauses = cols.filter(c => c !== 'match_id' && c !== 'xuid')
+        .map(c => `${c} = COALESCE(EXCLUDED.${c}, match_participants.${c})`).join(',');
+      try {
+        await db.query(
+          `INSERT INTO match_participants (${cols.join(',')}) VALUES ${placeholders}
+           ON CONFLICT (match_id, xuid) DO UPDATE SET ${setClauses}, ts = NOW()`,
+          params
+        );
+        written += rows.length;
+      } catch(e) {
+        console.warn('[DB] saveMatchParticipants insert failed:', e.message);
+      }
+    }
+    if (written) console.log(`[DB] Persisted ${written} participant rows across ${matchRows.length} matches (source=${sourceXuid || '?'})`);
+    return written;
+  } catch(e) {
+    console.error('[DB] saveMatchParticipants error:', e.message);
+    return 0;
+  }
+}
+
+// Reconstruct a partial match history for a player whose own /matches endpoint
+// is private/empty, by aggregating rows we captured from OTHER public players'
+// matches. Returns matches shaped roughly like fetchMatchHistory output so the
+// frontend renderer can consume them directly.
+async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
+  if (!xuid) return { matches: [], participantRowCount: 0 };
+  try {
+    const db = await getDb();
+    if (!db) return { matches: [], participantRowCount: 0 };
+    // 1) Pull every match this xuid appears in (sorted by start_time desc).
+    const myRows = await db.query(
+      `SELECT match_id, team_id, outcome, kills, deaths, assists, score, damage,
+              is_ranked, game_mode, map_name, map_image_url, start_time, duration_sec, gamertag
+       FROM match_participants
+       WHERE xuid = $1
+       ORDER BY start_time DESC NULLS LAST
+       LIMIT $2`,
+      [String(xuid), limit]
+    );
+    if (!myRows.rows.length) return { matches: [], participantRowCount: 0 };
+    const matchIds = myRows.rows.map(r => r.match_id);
+    // 2) Pull all participants for those matches in one query so we can rebuild teams.
+    const allRows = await db.query(
+      `SELECT match_id, xuid, gamertag, team_id, outcome, kills, deaths, assists, score, damage
+       FROM match_participants
+       WHERE match_id = ANY($1)`,
+      [matchIds]
+    );
+    const byMatch = {};
+    for (const r of allRows.rows) {
+      if (!byMatch[r.match_id]) byMatch[r.match_id] = [];
+      byMatch[r.match_id].push(r);
+    }
+    const matches = [];
+    for (const my of myRows.rows) {
+      const teamMap = {};
+      for (const r of (byMatch[my.match_id] || [])) {
+        const tid = r.team_id != null ? r.team_id : 0;
+        if (!teamMap[tid]) teamMap[tid] = { teamId: tid, outcome: r.outcome, players: [] };
+        teamMap[tid].players.push({
+          gamertag: r.gamertag || ('Spartan ' + String(r.xuid).slice(-4)),
+          rawXuid: r.xuid,
+          kills: r.kills || 0,
+          deaths: r.deaths || 0,
+          assists: r.assists || 0,
+          score: r.score || 0,
+          kd: (r.deaths || 0) > 0 ? (r.kills / r.deaths).toFixed(2) : String(r.kills || 0),
+          kda: ((r.kills || 0) - (r.deaths || 0) + (r.assists || 0) / 3).toFixed(1),
+          damage: r.damage || 0,
+        });
+      }
+      matches.push({
+        matchId: my.match_id,
+        outcome: my.outcome,
+        startTime: my.start_time ? new Date(my.start_time).toISOString() : null,
+        duration: my.duration_sec || null,
+        gameMode: my.game_mode,
+        mapName: my.map_name,
+        mapImageUrl: my.map_image_url,
+        isRanked: !!my.is_ranked,
+        kills: my.kills || 0,
+        deaths: my.deaths || 0,
+        assists: my.assists || 0,
+        score: my.score || 0,
+        damageDealt: my.damage || 0,
+        damageTaken: 0,
+        teams: Object.values(teamMap),
+        // Marker so the frontend (and any downstream stats) can tell this row
+        // came from the participant-table fallback rather than a direct fetch.
+        reconstructed: true,
+      });
+    }
+    return { matches, participantRowCount: allRows.rows.length };
+  } catch(e) {
+    console.error('[DB] reconstructMatchHistoryForXuid error:', e.message);
+    return { matches: [], participantRowCount: 0 };
+  }
+}
+
+// Find frequent teammates/opponents for an xuid — used by the background
+// "expand coverage" hook so we can enqueue their public histories and grow the
+// known-match pool around the private player.
+async function getFrequentCoPlayers(xuid, limit = 20) {
+  if (!xuid) return [];
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    const res = await db.query(
+      `SELECT p.xuid, MAX(p.gamertag) AS gamertag, COUNT(*)::int AS games
+       FROM match_participants p
+       JOIN match_participants me ON me.match_id = p.match_id AND me.xuid = $1
+       WHERE p.xuid <> $1
+         AND p.gamertag IS NOT NULL
+       GROUP BY p.xuid
+       ORDER BY games DESC
+       LIMIT $2`,
+      [String(xuid), limit]
+    );
+    return res.rows;
+  } catch(e) {
+    console.error('[DB] getFrequentCoPlayers error:', e.message);
+    return [];
+  }
+}
+
+// Resolve a gamertag → xuid using whichever caches we have.
+async function lookupXuidByGamertag(gamertag) {
+  if (!gamertag) return null;
+  try {
+    const db = await getDb();
+    if (!db) return null;
+    const res = await db.query(
+      `SELECT xuid FROM xuid_cache WHERE LOWER(gamertag) = LOWER($1) LIMIT 1`,
+      [gamertag]
+    );
+    if (res.rows.length) return res.rows[0].xuid;
+    // Fallback — search participants table (covers players we've only seen as
+    // teammates/opponents and never directly searched).
+    const res2 = await db.query(
+      `SELECT xuid FROM match_participants WHERE LOWER(gamertag) = LOWER($1) LIMIT 1`,
+      [gamertag]
+    );
+    return res2.rows.length ? res2.rows[0].xuid : null;
+  } catch(e) {
+    console.error('[DB] lookupXuidByGamertag error:', e.message);
+    return null;
+  }
+}
+
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag };

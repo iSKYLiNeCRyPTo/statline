@@ -6,7 +6,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag } = require('./db');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
@@ -391,6 +391,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
           }
           // Queue snapshots for any new opponents/teammates we haven't seen before
           enqueueOpponentSnapshots(filteredNew, cached.xuid).catch(() => {});
+          // Persist participants for the newly-fetched matches.
+          saveMatchParticipants(filteredNew, cached.xuid).catch(() => {});
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
         // No new matches — fall through to cached response below
@@ -460,15 +462,43 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
         return true;
       }).slice(0, 250);
+
+      // ── Private-player fallback ────────────────────────────────────────────
+      // Career stats came back but the match-history endpoint returned nothing
+      // (private/restricted profile, or empty). Reconstruct what we can from
+      // the participants table — rows captured from OTHER public players'
+      // match details where this xuid appeared as a teammate or opponent.
+      let reconstructed = false;
+      let reconstructedCount = 0;
+      let displayMatches = matches;
+      if (!matches.length && playerStats.xuid) {
+        try {
+          const recon = await reconstructMatchHistoryForXuid(playerStats.xuid, 100);
+          if (recon && recon.matches.length) {
+            displayMatches = recon.matches;
+            reconstructed = true;
+            reconstructedCount = recon.matches.length;
+            console.log(`[Reconstruct] ${gamertag} (${playerStats.xuid}) — built ${reconstructedCount} matches from public match records`);
+          } else {
+            console.log(`[Reconstruct] ${gamertag} (${playerStats.xuid}) — no public match records found yet`);
+          }
+        } catch(e) {
+          console.warn('[Reconstruct] failed:', e.message);
+        }
+      }
+
       const result = {
         ...playerStats,
-        recentMatches: matches,
-        allMatches: matches,
+        recentMatches: displayMatches,
+        allMatches: displayMatches,
         rivals: histData.rivals || [],
         nemesisList: histData.nemesisList || [],
         victimsList: histData.victimsList || [],
         advancedStats: histData.advancedStats || {},
         haloDNA: histData.haloDNA || null,
+        privateHistory: reconstructed,
+        reconstructed: reconstructed,
+        reconstructedCount,
       };
       await saveToCache(gamertag, result);
       return result;
@@ -491,6 +521,22 @@ app.get('/api/search', rateLimit, async (req, res) => {
     // Queue snapshots for all opponents + teammates encountered in ranked matches
     const _bgMatchesForQueue = result.allMatches || result.recentMatches || [];
     enqueueOpponentSnapshots(_bgMatchesForQueue, result.xuid).catch(() => {});
+    // Persist participants — powers private-player history reconstruction.
+    saveMatchParticipants(_bgMatchesForQueue, result.xuid).catch(() => {});
+    // If we just served a reconstructed history (private direct match endpoint),
+    // schedule a background expansion: queue this player's frequent co-players
+    // so the next visit has more coverage. We reuse the snapshot queue with its
+    // built-in 2.5s throttle so we don't hammer the Halo API.
+    if (result.reconstructed && result.xuid) {
+      getFrequentCoPlayers(result.xuid, 15).then(coPlayers => {
+        if (!coPlayers.length) return;
+        const seedMatches = [{
+          isRanked: true,
+          teams: [{ players: coPlayers.map(c => ({ rawXuid: c.xuid, gamertag: c.gamertag })) }],
+        }];
+        return enqueueOpponentSnapshots(seedMatches, result.xuid);
+      }).catch(e => console.warn('[Reconstruct] co-player expansion failed:', e.message));
+    }
     // Background: enrich matches with skill data (hits skill.svc — separate rate limit from halostats)
     // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
     const _bgMatches = result.allMatches || result.recentMatches || [];
@@ -768,6 +814,55 @@ app.get('/api/discover-playlists', async (req, res) => {
 });
 
 // Match history (paginated; perPage capped at 2000 so loadFullMatches can pull the whole set)
+// Reconstructed match history for private/restricted players.
+// Looks up the player's xuid in our participants table — built from public
+// match records captured while indexing other players' histories.
+app.get('/api/reconstructed-history', async (req, res) => {
+  try {
+    const { gamertag, xuid: xuidParam, limit } = req.query;
+    if (!gamertag && !xuidParam) return res.status(400).json({ error: 'gamertag or xuid required' });
+
+    let xuid = xuidParam ? String(xuidParam) : null;
+    if (!xuid && gamertag) {
+      // Prefer the search cache (already-resolved xuid for canonical casing).
+      const cached = await getFromCache(gamertag).catch(() => null);
+      if (cached && cached.xuid) xuid = String(cached.xuid);
+      if (!xuid) xuid = await lookupXuidByGamertag(gamertag).catch(() => null);
+    }
+    if (!xuid) return res.json({ available: false, reason: 'unknown_xuid', matches: [] });
+
+    const lim = Math.min(parseInt(limit, 10) || 100, 250);
+    const recon = await reconstructMatchHistoryForXuid(xuid, lim);
+    const matches = recon.matches || [];
+
+    // Lightweight summary: recent K/D, win rate, ranked-vs-social count, top map/mode
+    let kd = null, winRate = null, ranked = 0, social = 0;
+    if (matches.length) {
+      const k = matches.reduce((s, m) => s + (m.kills  || 0), 0);
+      const d = matches.reduce((s, m) => s + (m.deaths || 0), 0);
+      const wl = matches.filter(m => m.outcome === 2 || m.outcome === 3);
+      const wins = wl.filter(m => m.outcome === 2).length;
+      kd = d > 0 ? +(k / d).toFixed(2) : null;
+      winRate = wl.length ? +((wins / wl.length) * 100).toFixed(1) : null;
+      ranked = matches.filter(m => m.isRanked).length;
+      social = matches.length - ranked;
+    }
+    res.json({
+      available: matches.length > 0,
+      xuid,
+      matchCount: matches.length,
+      participantRowCount: recon.participantRowCount || 0,
+      summary: { kd, winRate, ranked, social },
+      matches,
+      banner: 'Official match history is private. Showing known matches found in public match records.',
+      partial: true,
+    });
+  } catch(e) {
+    console.error('[Reconstruct] endpoint error:', e.message);
+    res.status(500).json({ error: e.message, matches: [] });
+  }
+});
+
 app.get('/api/matches', async (req, res) => {
   try {
     const { gamertag, page = 1, perPage = 100 } = req.query;
