@@ -983,6 +983,10 @@ app.get('/api/reconstructed-history', async (req, res) => {
       xuid,
       matchCount: matches.length,
       participantRowCount: recon.participantRowCount || 0,
+      // Per-field enrichment counters: how many of the reconstructed matches
+      // carry real (non-null) CoreStats / RankRecap data. Lets the UI tell
+      // "0/12 damage_taken found" vs "12/12 — partial-coverage but rich".
+      enrichmentCoverage: recon.enrichmentCoverage || {},
       summary: { kd, winRate, ranked, social },
       matches,
       banner: 'Official match history is private. Showing known matches found in public match records.',

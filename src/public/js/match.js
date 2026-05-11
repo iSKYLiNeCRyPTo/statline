@@ -517,7 +517,7 @@ function renderMatchCard(m,idx,modeBaselines,durSecs,noThumb){
       '<div class="match-dmg">'+
         '<div class="dmg-label">Damage</div>'+
         '<div class="dmg-bar-row"><span style="color:var(--win);width:40px;text-align:right">'+(m.damageDealt?Math.round(m.damageDealt).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+dp+'%;background:var(--win)"></div></div></div>'+
-        '<div class="dmg-bar-row"><span style="color:var(--loss);width:40px;text-align:right">'+(m.damageTaken?Math.round(m.damageTaken).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+tp+'%;background:var(--loss)"></div></div></div>'+
+        '<div class="dmg-bar-row" title="'+(m.damageTakenEstimated?'Estimated from enemy damage (private profile)':'Damage taken')+'"><span style="color:var(--loss);width:40px;text-align:right">'+(m.damageTaken?(m.damageTakenEstimated?'~':'')+Math.round(m.damageTaken).toLocaleString():'—')+'</span><div class="dmg-bar-track"><div class="dmg-bar-fill" style="width:'+tp+'%;background:var(--loss)"></div></div></div>'+
       '</div>'+
       '<div class="match-right">'+
         '<span class="match-time">'+timeAgo(m.startTime)+'</span>'+

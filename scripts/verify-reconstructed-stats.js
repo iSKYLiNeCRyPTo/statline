@@ -20,6 +20,7 @@ const path = require('path');
 const Module = require('module');
 
 const fakeRows = [];
+let PARTICIPANT_COLS = null;
 
 const fakePg = {
   Pool: function FakePool() {
@@ -27,20 +28,11 @@ const fakePg = {
       const s = sql.trim();
       if (/^CREATE TABLE|^CREATE INDEX|^ALTER TABLE/i.test(s)) return { rows: [] };
       if (/^INSERT INTO match_participants/i.test(s)) {
-        for (let i = 0; i < params.length; i += 17) {
-          fakeRows.push({
-            match_id: params[i],
-            xuid: params[i + 1],
-            gamertag: params[i + 2],
-            team_id: params[i + 3],
-            outcome: params[i + 4],
-            kills: params[i + 5], deaths: params[i + 6], assists: params[i + 7],
-            score: params[i + 8], damage: params[i + 9],
-            is_ranked: params[i + 10],
-            game_mode: params[i + 11], map_name: params[i + 12], map_image_url: params[i + 13],
-            start_time: params[i + 14], duration_sec: params[i + 15],
-            source_xuid: params[i + 16],
-          });
+        const colSize = PARTICIPANT_COLS ? PARTICIPANT_COLS.length : 17;
+        for (let i = 0; i < params.length; i += colSize) {
+          const row = {};
+          for (let j = 0; j < colSize; j++) row[PARTICIPANT_COLS[j]] = params[i + j];
+          fakeRows.push(row);
         }
         return { rows: [] };
       }
@@ -70,6 +62,7 @@ require.cache['pg_stub'] = { id: 'pg_stub', exports: fakePg, loaded: true };
 process.env.DATABASE_URL = 'postgresql://stub';
 
 const db = require(path.join(__dirname, '..', 'src', 'db.js'));
+PARTICIPANT_COLS = db.PARTICIPANT_COLS;
 
 function assert(cond, msg) {
   if (!cond) { console.error('  ✗', msg); process.exitCode = 1; }
