@@ -406,6 +406,33 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
     // Return cached (no new matches, or no newestCachedId to anchor on)
     const _allM = cached.allMatches || cached.recentMatches || [];
+    // ── Private-player: retry reconstruction on cached empty payloads ─────────
+    // If we previously cached an empty match list (private profile / pre-backfill
+    // cache) we will NOT have entered the incremental block above (no
+    // newestCachedId). Backfill since then may have added participant rows for
+    // this xuid — re-run reconstruct so the user sees the latest coverage
+    // without needing a manual force-refresh.
+    if (!_allM.length && cached.xuid) {
+      try {
+        const recon = await reconstructMatchHistoryForXuid(cached.xuid, 100);
+        if (recon && recon.matches.length) {
+          const updated = {
+            ...cached,
+            recentMatches: recon.matches,
+            allMatches: recon.matches,
+            privateHistory: true,
+            reconstructed: true,
+            reconstructedCount: recon.matches.length,
+          };
+          await saveToCache(gamertag, updated);
+          console.log(`[Reconstruct/cached] ${gamertag} (${cached.xuid}) — surfaced ${recon.matches.length} matches from participants table`);
+          logSearch(gamertag, req.headers['user-agent'], 'cached+reconstruct', true, null);
+          return res.json({ success: true, player: updated, cached: true, reconstructed: true });
+        }
+      } catch (e) {
+        console.warn('[Reconstruct/cached] failed:', e.message);
+      }
+    }
     const _ranked = _allM.filter(m => m.isRanked && m.matchId);
     const _withSkill = _ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
     if (_ranked.length > 0 && _withSkill < _ranked.length * 0.5) {
@@ -862,6 +889,82 @@ app.get('/api/reconstructed-history', async (req, res) => {
   } catch(e) {
     console.error('[Reconstruct] endpoint error:', e.message);
     res.status(500).json({ error: e.message, matches: [] });
+  }
+});
+
+// Admin diagnostic: how many participant rows exist for an xuid/gamertag?
+// Lets us tell at a glance whether a missing reconstructed history is a code
+// bug or simple data coverage (target xuid never appeared in any indexed match).
+app.get('/api/admin/participant-coverage', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { gamertag, xuid: xuidParam } = req.query;
+    if (!gamertag && !xuidParam) return res.status(400).json({ error: 'gamertag or xuid required' });
+
+    let xuid = xuidParam ? String(xuidParam) : null;
+    let resolution = xuid ? 'param' : null;
+    if (!xuid && gamertag) {
+      const cached = await getFromCache(gamertag).catch(() => null);
+      if (cached && cached.xuid) { xuid = String(cached.xuid); resolution = 'cache'; }
+      if (!xuid) {
+        const lookup = await lookupXuidByGamertag(gamertag).catch(() => null);
+        if (lookup) { xuid = lookup; resolution = 'lookup'; }
+      }
+    }
+    if (!xuid) {
+      return res.json({ xuid: null, gamertag: gamertag || null, resolved: false,
+        reason: 'unknown_xuid — never searched and not present as a participant',
+        recommendation: 'Search this player at least once so their xuid is resolved, or call /api/admin/backfill-participants to rebuild from cached blobs.' });
+    }
+
+    const db = await getXuidDb();
+    if (!db) return res.status(503).json({ error: 'DB unavailable' });
+
+    // Aggregate stats — total rows, distinct matches, ranked split, recent activity.
+    const stats = await db.query(`
+      SELECT COUNT(*)::int AS rows,
+             COUNT(DISTINCT match_id)::int AS distinct_matches,
+             COUNT(*) FILTER (WHERE is_ranked)::int AS ranked,
+             COUNT(*) FILTER (WHERE NOT is_ranked OR is_ranked IS NULL)::int AS social,
+             MIN(start_time) AS oldest,
+             MAX(start_time) AS newest,
+             COUNT(DISTINCT source_xuid)::int AS distinct_sources
+      FROM match_participants
+      WHERE xuid = $1
+    `, [String(xuid)]);
+    const row = stats.rows[0] || {};
+    const rowCount = row.rows || 0;
+
+    let recommendation = null;
+    if (rowCount === 0) {
+      recommendation = 'No indexed rows for this xuid yet. The target player has never appeared in any cached public match. '
+        + 'Run /api/admin/backfill-participants (dry-run=false) to (re)index, or wait for more public players who share matches with the target to be searched.';
+    } else if (rowCount < 5) {
+      recommendation = 'Very low coverage — reconstruction will surface a small number of matches. '
+        + 'Search known co-players (teammates/opponents) to grow coverage organically.';
+    } else {
+      recommendation = `OK — ${row.distinct_matches} distinct matches indexed. Reconstruction should surface these on next search. `
+        + 'If the player UI still shows career-only with no reconstructed banner, clear their Redis player:* cache or use ?force=1.';
+    }
+
+    res.json({
+      xuid,
+      gamertag: gamertag || null,
+      resolved: true,
+      resolution,
+      rowCount,
+      distinctMatches: row.distinct_matches || 0,
+      ranked: row.ranked || 0,
+      social: row.social || 0,
+      oldest: row.oldest,
+      newest: row.newest,
+      distinctSources: row.distinct_sources || 0,
+      recommendation,
+    });
+  } catch(e) {
+    console.error('[ParticipantCoverage] error:', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 
