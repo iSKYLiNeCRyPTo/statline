@@ -6,7 +6,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
 const adminAuth = require('./auth');
 const _memSearchLog = [];
@@ -114,9 +114,43 @@ const _searchProgress = {}; // gamertag.lower -> { step, valid, total, ts }
 // their ranked match history and quietly build snapshots for them so the
 // leaderboard grows organically. Throttled to 1 fetch per 2.5s to stay well
 // within Halo API rate limits.
+//
+// Freshness gating (env-tunable):
+//   SNAPSHOT_RECENT_TTL_HOURS         — skip players refreshed in this window (default 24)
+//   SNAPSHOT_STALE_RESCAN_DAYS        — rescan cadence for snapshotted players (default 7)
+//   SNAPSHOT_NO_NEW_DATA_COOLDOWN_DAYS — additional cooldown after N empty refreshes
+//                                       (default 14)
+//   SNAPSHOT_EMPTY_STRIKES            — empty-refresh strikes before cooldown kicks
+//                                       in (default 2)
+const SNAPSHOT_RECENT_TTL_HOURS = Math.max(1, parseInt(process.env.SNAPSHOT_RECENT_TTL_HOURS || '24', 10) || 24);
+const SNAPSHOT_STALE_RESCAN_DAYS = Math.max(1, parseInt(process.env.SNAPSHOT_STALE_RESCAN_DAYS || '7', 10) || 7);
+const SNAPSHOT_NO_NEW_DATA_COOLDOWN_DAYS = Math.max(1, parseInt(process.env.SNAPSHOT_NO_NEW_DATA_COOLDOWN_DAYS || '14', 10) || 14);
+const SNAPSHOT_EMPTY_STRIKES = Math.max(1, parseInt(process.env.SNAPSHOT_EMPTY_STRIKES || '2', 10) || 2);
+
 const _snapQueue = [];          // [ { xuid, gamertag } ]
 const _snapQueued = new Set();  // xuid strings already in queue (dedup guard)
 let _snapRunning = false;
+
+// Returns true when xuid was refreshed within SNAPSHOT_RECENT_TTL_HOURS,
+// regardless of whether the refresh produced new data. Caller passes the
+// pre-fetched refresh-meta map.
+function _isRecentlyRefreshed(meta) {
+  if (!meta || !meta.lastRefreshTs) return false;
+  const ageMs = Date.now() - meta.lastRefreshTs.getTime();
+  return ageMs < SNAPSHOT_RECENT_TTL_HOURS * 3600 * 1000;
+}
+
+// Returns true when the player has accumulated >= SNAPSHOT_EMPTY_STRIKES
+// empty refreshes AND the last empty refresh was within the cooldown window.
+// These players are skipped in background scans so we don't keep hammering
+// inactive accounts.
+function _isInNoNewDataCooldown(meta) {
+  if (!meta) return false;
+  if ((meta.consecutiveEmptyRefreshes || 0) < SNAPSHOT_EMPTY_STRIKES) return false;
+  if (!meta.lastNoNewDataTs) return false;
+  const ageMs = Date.now() - meta.lastNoNewDataTs.getTime();
+  return ageMs < SNAPSHOT_NO_NEW_DATA_COOLDOWN_DAYS * 86400000;
+}
 
 async function _processSnapQueue() {
   if (_snapRunning) return;
@@ -130,7 +164,16 @@ async function _processSnapQueue() {
       const result = await fetchPlayerStats(gamertag);
       if (result && result.xuid) {
         await savePlayerSnapshot(result);
-        console.log(`[SnapQueue] saved snapshot for ${gamertag} (${xuid})`);
+        // Track refresh attempt so subsequent enqueue passes can skip recently
+        // refreshed players and detect inactive accounts.
+        const matchesPlayed = result.stats && result.stats.matchesPlayed != null
+          ? Number(result.stats.matchesPlayed) : null;
+        const meta = await markRefreshAttempt(result.xuid, gamertag, matchesPlayed).catch(() => null);
+        if (meta && !meta.hadNewData) {
+          console.log(`[SnapQueue] saved snapshot for ${gamertag} (${xuid}) — no new matches since last refresh (strikes=${meta.consecutiveEmptyRefreshes})`);
+        } else {
+          console.log(`[SnapQueue] saved snapshot for ${gamertag} (${xuid})`);
+        }
       }
     } catch(e) {
       // Non-fatal — player may have changed gamertag or be unavailable
@@ -144,6 +187,18 @@ async function _processSnapQueue() {
 
 // Extract opponents + teammates from ranked matches and queue any we haven't
 // snapshotted recently. myXuid is excluded so we don't re-queue the searcher.
+//
+// Two gating layers:
+//   1. Snapshot freshness — players with a snapshot in the last
+//      SNAPSHOT_STALE_RESCAN_DAYS (default 7d) are skipped.
+//   2. Refresh-attempt freshness — players we've touched in the last
+//      SNAPSHOT_RECENT_TTL_HOURS (default 24h) are skipped even if their
+//      snapshot was unchanged, so a chain of co-player searches doesn't
+//      re-enqueue the same teammates over and over.
+//   3. No-new-data cooldown — players whose last N refreshes produced no new
+//      matches are deprioritized for SNAPSHOT_NO_NEW_DATA_COOLDOWN_DAYS
+//      (default 14d) so background scans don't burn rate-limit on inactive
+//      accounts.
 async function enqueueOpponentSnapshots(matches, myXuid) {
   if (!matches || !matches.length) return;
   const myXuidStr = String(myXuid || '');
@@ -162,17 +217,49 @@ async function enqueueOpponentSnapshots(matches, myXuid) {
   }
   if (!seen.size) return;
 
-  // Filter to ones not already queued
+  // Filter to ones not already queued in-memory
   const candidates = [];
   for (const [xu, gt] of seen) {
     if (!_snapQueued.has(xu)) candidates.push({ xuid: xu, gamertag: gt });
   }
   if (!candidates.length) return;
 
-  // Check DB — skip anyone snapshotted in the last 7 days
   const xuids = candidates.map(c => c.xuid);
-  const alreadyDone = await getRecentlySnapshotted(xuids, 7).catch(() => new Set());
-  const toQueue = candidates.filter(c => !alreadyDone.has(c.xuid));
+  // Two parallel DB checks: a recent snapshot wins outright, but we also need
+  // refresh-meta to enforce the 24h re-fetch TTL and the no-new-data cooldown.
+  const [alreadyDone, refreshMeta] = await Promise.all([
+    getRecentlySnapshotted(xuids, SNAPSHOT_STALE_RESCAN_DAYS).catch(() => new Set()),
+    getRefreshMeta(xuids).catch(() => new Map()),
+  ]);
+
+  const toQueue = [];
+  let skipFresh = 0, skipRecentRefresh = 0, skipCooldown = 0;
+  for (const c of candidates) {
+    if (alreadyDone.has(c.xuid)) {
+      skipFresh++;
+      continue;
+    }
+    const meta = refreshMeta.get(String(c.xuid));
+    if (_isRecentlyRefreshed(meta)) {
+      skipRecentRefresh++;
+      continue;
+    }
+    if (_isInNoNewDataCooldown(meta)) {
+      skipCooldown++;
+      continue;
+    }
+    toQueue.push(c);
+  }
+
+  // Sample logging so operators can see why bulk searches no longer reprocess
+  // the same set of teammates. Aggregated counts keep log volume reasonable.
+  if (skipFresh || skipRecentRefresh || skipCooldown) {
+    const parts = [];
+    if (skipFresh)         parts.push(`${skipFresh} fresh-snapshot (≤${SNAPSHOT_STALE_RESCAN_DAYS}d)`);
+    if (skipRecentRefresh) parts.push(`${skipRecentRefresh} recently refreshed (≤${SNAPSHOT_RECENT_TTL_HOURS}h)`);
+    if (skipCooldown)      parts.push(`${skipCooldown} no-new-data cooldown`);
+    console.log(`[SnapQueue] skip ${parts.join(' · ')}`);
+  }
 
   for (const c of toQueue) {
     _snapQueued.add(c.xuid);
@@ -391,6 +478,14 @@ app.get('/api/search', rateLimit, async (req, res) => {
                 .catch(e => console.warn('[SkillBG/incremental] skill fetch failed:', e.message));
             }, 1000);
           }
+          // Mark refresh — even an incremental fetch counts as touching this
+          // player so co-player background scans honor the 24h TTL.
+          if (cached.xuid) {
+            const mp = (freshStats && freshStats.stats && freshStats.stats.matchesPlayed != null)
+              ? Number(freshStats.stats.matchesPlayed)
+              : ((updated.stats && updated.stats.matchesPlayed != null) ? Number(updated.stats.matchesPlayed) : null);
+            markRefreshAttempt(cached.xuid, gamertag, mp).catch(() => {});
+          }
           // Queue snapshots for any new opponents/teammates we haven't seen before
           enqueueOpponentSnapshots(filteredNew, cached.xuid).catch(() => {});
           // Persist participants for the newly-fetched matches.
@@ -547,6 +642,13 @@ app.get('/api/search', rateLimit, async (req, res) => {
     flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
     // Save player snapshot for rank comparison feature (fire and forget)
     savePlayerSnapshot(result).catch(() => {});
+    // Update refresh metadata so background queue skips this player for the
+    // next SNAPSHOT_RECENT_TTL_HOURS. Explicit user searches always count as a
+    // refresh attempt regardless of whether new matches were found.
+    if (result.xuid) {
+      const mp = result.stats && result.stats.matchesPlayed != null ? Number(result.stats.matchesPlayed) : null;
+      markRefreshAttempt(result.xuid, result.gamertag || gamertag, mp).catch(() => {});
+    }
     // Queue snapshots for all opponents + teammates encountered in ranked matches
     const _bgMatchesForQueue = result.allMatches || result.recentMatches || [];
     enqueueOpponentSnapshots(_bgMatchesForQueue, result.xuid).catch(() => {});
