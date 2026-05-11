@@ -6,7 +6,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
 const adminAuth = require('./auth');
 const _memSearchLog = [];
@@ -422,6 +422,23 @@ app.get('/api/search', rateLimit, async (req, res) => {
   if (!gamertag) return res.status(400).json({ success: false, error: 'Gamertag required' });
   if (gamertag.length < 1 || gamertag.length > 32) return res.status(400).json({ success: false, error: 'Invalid gamertag' });
 
+  // Enrich teams[].players[] with CSR data (per-match → snapshot fallback)
+  // so the expanded match-detail table can always render rank badges. Old
+  // cached blobs predating PR #5 carry no csrTier on team rosters; this fills
+  // them in from match_participants / player_snapshots without re-hitting
+  // Halo's API. Safe to call repeatedly — it only enriches missing slots.
+  async function enrichForResponse(player) {
+    if (!player) return player;
+    const arr = player.allMatches || player.recentMatches;
+    if (!Array.isArray(arr) || !arr.length) return player;
+    try {
+      await enrichMatchTeamsWithCsr(arr);
+    } catch(e) {
+      console.warn('[CSR-enrich] failed:', e.message);
+    }
+    return player;
+  }
+
   // Check cache (skip if force refresh requested)
   const forceRefresh = req.query.force === '1';
   const key = gamertag.toLowerCase().trim();
@@ -490,6 +507,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
           enqueueOpponentSnapshots(filteredNew, cached.xuid).catch(() => {});
           // Persist participants for the newly-fetched matches.
           saveMatchParticipants(filteredNew, cached.xuid).catch(() => {});
+          await enrichForResponse(updated);
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
         // No new matches — fall through to cached response below
@@ -522,6 +540,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
           await saveToCache(gamertag, updated);
           console.log(`[Reconstruct/cached] ${gamertag} (${cached.xuid}) — surfaced ${recon.matches.length} matches from participants table`);
           logSearch(gamertag, req.headers['user-agent'], 'cached+reconstruct', true, null);
+          await enrichForResponse(updated);
           return res.json({ success: true, player: updated, cached: true, reconstructed: true });
         }
       } catch (e) {
@@ -543,6 +562,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
       } catch(e) { /* non-fatal */ }
     }
     logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
+    await enrichForResponse(cached);
     return res.json({ success: true, player: cached, cached: true });
   }
 
@@ -550,7 +570,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
   if (searchInFlight[key]) {
     try {
       const result = await searchInFlight[key];
-      logSearch(gamertag, req.headers['user-agent'], 'inflight', true, null); return res.json({ success: true, player: result });
+      logSearch(gamertag, req.headers['user-agent'], 'inflight', true, null);
+      await enrichForResponse(result);
+      return res.json({ success: true, player: result });
     } catch(e) {
       logSearch(gamertag, req.headers['user-agent'], 'error', false, null); return res.status(404).json({ success: false, error: e.message });
     }
@@ -637,6 +659,10 @@ app.get('/api/search', rateLimit, async (req, res) => {
     const _t0 = Date.now();
     const result = await searchPromise;
     logSearch(gamertag, req.headers['user-agent'], 'fresh', true, Date.now()-_t0);
+    // Fill any team-roster slots that lack per-match CSR (e.g. unranked
+    // teammates, or roster slots from old matches) with snapshot CSR so the
+    // expanded match table can still render a badge.
+    await enrichForResponse(result);
     res.json({ success: true, player: result });
     flushXuidCache(getXuidToGt()).catch(() => {});
     flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
