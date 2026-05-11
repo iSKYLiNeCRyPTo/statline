@@ -6,8 +6,9 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
+const recoveryQueue = require('./recoveryQueue');
 const adminAuth = require('./auth');
 const _memSearchLog = [];
 const _memTabLog = [];
@@ -189,6 +190,47 @@ function aggregateStatsFromMatches(matches, base) {
     avgKillsPerGame: matchesPlayed > 0 ? (kills / matchesPlayed).toFixed(1) : '0.0',
     damageDealt, damageTaken,
   };
+}
+
+// Dependencies bundle handed to the recovery queue so it can call into the
+// same Halo / DB / freshness primitives the request path uses without
+// importing them through indirect paths.
+function _recoveryDeps() {
+  return {
+    fetchMatchHistory,
+    saveMatchParticipants,
+    getRecoverySeeds,
+    countMatchesForXuid,
+    getRefreshMeta,
+    isRecentlyRefreshed: _isRecentlyRefreshed,
+    isInNoNewDataCooldown: _isInNoNewDataCooldown,
+  };
+}
+
+// Wrapper: only trigger recovery for reconstructed/private-history results,
+// and surface the queue's metadata on the response. Never throws — all errors
+// are absorbed inside recoveryQueue.
+function _attachRecoveryMeta(result, gamertag) {
+  if (!result || !result.reconstructed || !result.xuid) return;
+  const known = result.reconstructedCount || (result.allMatches || result.recentMatches || []).length || 0;
+  try {
+    const meta = recoveryQueue.maybeQueueRecovery({
+      xuid: result.xuid,
+      gamertag: result.gamertag || gamertag,
+      knownCount: known,
+      deps: _recoveryDeps(),
+    });
+    if (meta) {
+      result.recoveryQueued  = !!meta.recoveryQueued;
+      result.recoveryStatus  = meta.recoveryStatus || null;
+      result.recoverySeeds   = meta.recoverySeeds != null ? meta.recoverySeeds : null;
+      result.recoveryDepth   = meta.recoveryDepth != null ? meta.recoveryDepth : null;
+      result.recoveryKnown   = known;
+      result.recoveryThreshold = meta.threshold != null ? meta.threshold : null;
+    }
+  } catch(e) {
+    console.warn('[Recovery] attach meta failed:', e.message);
+  }
 }
 
 async function _processSnapQueue() {
@@ -585,6 +627,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
           console.log(`[Reconstruct/cached] ${gamertag} (${cached.xuid}) — surfaced ${recon.matches.length} matches from participants table`);
           logSearch(gamertag, req.headers['user-agent'], 'cached+reconstruct', true, null);
           await enrichForResponse(updated);
+          _attachRecoveryMeta(updated, gamertag);
           return res.json({ success: true, player: updated, cached: true, reconstructed: true });
         }
       } catch (e) {
@@ -607,6 +650,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
     }
     logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
     await enrichForResponse(cached);
+    _attachRecoveryMeta(cached, gamertag);
     return res.json({ success: true, player: cached, cached: true });
   }
 
@@ -616,6 +660,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
       const result = await searchInFlight[key];
       logSearch(gamertag, req.headers['user-agent'], 'inflight', true, null);
       await enrichForResponse(result);
+      _attachRecoveryMeta(result, gamertag);
       return res.json({ success: true, player: result });
     } catch(e) {
       logSearch(gamertag, req.headers['user-agent'], 'error', false, null); return res.status(404).json({ success: false, error: e.message });
@@ -726,6 +771,12 @@ app.get('/api/search', rateLimit, async (req, res) => {
     // teammates, or roster slots from old matches) with snapshot CSR so the
     // expanded match table can still render a badge.
     await enrichForResponse(result);
+    // For private/reconstructed players with low coverage, kick off active
+    // background recovery (teammate-history fetches). Non-blocking — the
+    // queue returns metadata immediately and the heavy lifting happens
+    // after the response is sent. The current search returns whatever rows
+    // were already in the DB; the next search picks up the recovered matches.
+    _attachRecoveryMeta(result, gamertag);
     res.json({ success: true, player: result });
     flushXuidCache(getXuidToGt()).catch(() => {});
     flushEmblemCache(getEmblemPathCache(), getNameplatePathCache()).catch(() => {});
@@ -1089,6 +1140,43 @@ app.get('/api/reconstructed-history', async (req, res) => {
   } catch(e) {
     console.error('[Reconstruct] endpoint error:', e.message);
     res.status(500).json({ error: e.message, matches: [] });
+  }
+});
+
+// Admin diagnostic: status of the active match-history recovery queue.
+// Returns config, currently-running runs (per xuid), and a ring-buffer of
+// recent completed runs with their per-seed shared-hit metrics. Public-safe
+// summary if `pass` is omitted; full details (per-seed gamertags, shared
+// counts) only with admin auth.
+app.get('/api/admin/recovery-status', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  const isAdmin = pass === (process.env.ADMIN_PASS || 'changeme');
+  try {
+    const cfg = recoveryQueue.getConfig();
+    if (!isAdmin) {
+      // Public summary — no per-seed gamertags or xuids leaked.
+      const recent = recoveryQueue.getRecentRuns(10);
+      return res.json({
+        config: cfg,
+        recentRunCount: recent.length,
+        runningCount: recent.filter(r => !r.finishedAt).length,
+      });
+    }
+    const xuidQ = req.query.xuid ? String(req.query.xuid) : null;
+    if (xuidQ) {
+      return res.json({
+        xuid: xuidQ,
+        status: recoveryQueue.getStatus(xuidQ),
+        config: cfg,
+      });
+    }
+    const recent = recoveryQueue.getRecentRuns(parseInt(req.query.limit, 10) || 25);
+    res.json({
+      config: cfg,
+      recentRuns: recent,
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

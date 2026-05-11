@@ -1046,6 +1046,74 @@ async function getFrequentCoPlayers(xuid, limit = 20) {
   }
 }
 
+// Recovery seeds for the private/reconstructed history pipeline.
+// Returns co-players ranked by likelihood that pulling their full match
+// history will reveal more shared matches with the target xuid.
+//
+// Preference order, encoded as the SQL ORDER BY:
+//   1. shared_team — how many known matches we share with this co-player
+//      on the SAME team (strong "they queue together" signal).
+//   2. recent_shared — total shared matches in the last 60 days
+//      (recency-weighted; old data may be stale rosters).
+//   3. total_shared — fallback for sparse rosters where team_id wasn't
+//      captured.
+//
+// Returns rows: { xuid, gamertag, total_shared, shared_team, recent_shared,
+//                 latest_shared }
+async function getRecoverySeeds(xuid, limit = 10) {
+  if (!xuid) return [];
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    const res = await db.query(
+      `WITH me AS (
+         SELECT match_id, team_id, start_time
+         FROM match_participants
+         WHERE xuid = $1
+       )
+       SELECT p.xuid,
+              MAX(p.gamertag) AS gamertag,
+              COUNT(*)::int AS total_shared,
+              COUNT(*) FILTER (WHERE p.team_id IS NOT NULL
+                                 AND me.team_id IS NOT NULL
+                                 AND p.team_id = me.team_id)::int AS shared_team,
+              COUNT(*) FILTER (WHERE me.start_time > NOW() - INTERVAL '60 days')::int AS recent_shared,
+              MAX(me.start_time) AS latest_shared
+       FROM match_participants p
+       JOIN me ON me.match_id = p.match_id
+       WHERE p.xuid <> $1
+         AND p.gamertag IS NOT NULL
+         AND p.gamertag NOT LIKE 'Spartan %'
+       GROUP BY p.xuid
+       ORDER BY shared_team DESC, recent_shared DESC, total_shared DESC, latest_shared DESC NULLS LAST
+       LIMIT $2`,
+      [String(xuid), limit]
+    );
+    return res.rows;
+  } catch(e) {
+    console.error('[DB] getRecoverySeeds error:', e.message);
+    return [];
+  }
+}
+
+// Count distinct matches stored for an xuid — used by the recovery pipeline
+// to measure coverage gain before/after a fetch run.
+async function countMatchesForXuid(xuid) {
+  if (!xuid) return 0;
+  try {
+    const db = await getDb();
+    if (!db) return 0;
+    const res = await db.query(
+      `SELECT COUNT(DISTINCT match_id)::int AS n FROM match_participants WHERE xuid = $1`,
+      [String(xuid)]
+    );
+    return res.rows[0]?.n || 0;
+  } catch(e) {
+    console.error('[DB] countMatchesForXuid error:', e.message);
+    return 0;
+  }
+}
+
 // Map gameMode/playlist hints → 'arena' | 'slayer' | 'legacy' for the snapshot
 // CSR JSON lookup. Returns null for unranked / unknown so the caller can skip
 // the per-playlist fallback rather than show wrong rank.
@@ -1262,4 +1330,4 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow };
