@@ -804,6 +804,12 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
       let weaponStats = [], mmr = null, oppMmr = null, expectedKills = null, expectedDeaths = null, objStats = null;
       let mapName = null, mapImageUrl = null, isRanked = false, csrAfter = null, csrBefore = null, csrDelta = null, matchOutcome = 0;
         let matchTopMedals = [];
+      // Hoisted so they remain in scope after the `if (md)` block closes — the
+      // results.push at the bottom references them. Declaring inside the block
+      // (as const) caused a ReferenceError that fell into the per-match catch,
+      // dropping isRanked and producing `ranked=0/N` for true ranked matches.
+      let matchPlaylistId = null, playlistKind = null;
+      let isRankedSlayer = false, isRankedArena = false, isRankedLegacy = false;
 
       if (md) {
         const lifecycleMode = md.MatchInfo?.LifecycleMode;
@@ -821,10 +827,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
         const RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
-        const matchPlaylistId = md.MatchInfo?.Playlist?.AssetId;
-        const isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
-        const isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
-        const isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
+        matchPlaylistId = md.MatchInfo?.Playlist?.AssetId || null;
+        isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
+        isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
+        isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
         isRanked = isRankedArena || isRankedSlayer || isRankedLegacy;
         if (!isRanked) {
           results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'Filtered', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
@@ -1115,7 +1121,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
       }
       // Playlist context for downstream CSR pickers (match player rows + benchmark).
       // 'arena' | 'slayer' | 'legacy' — only meaningful when isRanked is true.
-      const playlistKind = !isRanked ? null
+      playlistKind = !isRanked ? null
         : isRankedSlayer ? 'slayer'
         : isRankedLegacy ? 'legacy'
         : isRankedArena  ? 'arena'
@@ -1131,6 +1137,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         playlistId: matchPlaylistId || null, playlistKind,
       });
     } catch(e) {
+      // Per-match parsing failure — log so a regression in classification
+      // (e.g. a ReferenceError on the playlist vars) shows up in server logs
+      // instead of silently producing `ranked=0/N`.
+      console.warn(`[MatchFetch] Failed to parse match ${m.MatchId} for ${gamertag}: ${e && e.message ? e.message : e}`);
       results.push({ matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, gameMode: null, kills:0,deaths:0,assists:0,damageDealt:0,damageTaken:0 });
     }
     } // end for fetchedDetails
