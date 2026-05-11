@@ -718,6 +718,34 @@ app.get('/api/search', rateLimit, async (req, res) => {
         console.warn('[Reconstruct/cached] failed:', e.message);
       }
     }
+    // ── Reconstructed cache: refresh match field shape + recompute Overview ───
+    // For cached payloads flagged `reconstructed:true` (private profile, served
+    // from match_participants), older cache entries are missing the per-match
+    // `csrValue`/`csrPreValue` fields and carry stale Overview `stats` from the
+    // service-record fetch (often zeros for private profiles). That produces
+    // two visible bugs:
+    //   • Overview KDA / KD / Kills tiles render as "—" or "0.00" even though
+    //     the expanded match cards already show real numbers per row.
+    //   • The CSR History chart hides or plots tier indices because the new
+    //     numeric csrValue field isn't present on the cached rows.
+    // Re-running reconstruct is a single DB query against match_participants
+    // and re-projects the rows into the current shape. Cheap, and heals the
+    // payload on the next search without forcing the user to refresh.
+    if (cached.reconstructed && cached.xuid) {
+      try {
+        const recon = await reconstructMatchHistoryForXuid(cached.xuid, 100);
+        if (recon && recon.matches.length) {
+          cached.recentMatches = recon.matches;
+          cached.allMatches = recon.matches;
+          cached.stats = aggregateStatsFromMatches(recon.matches, cached.stats);
+          cached.reconstructedCount = recon.matches.length;
+          cached.privateHistory = true;
+          await saveToCache(gamertag, cached).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[Reconstruct/cached-refresh] failed:', e.message);
+      }
+    }
     const _ranked = _allM.filter(m => m.isRanked && m.matchId);
     const _withSkill = _ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
     if (_ranked.length > 0 && _withSkill < _ranked.length * 0.5) {
