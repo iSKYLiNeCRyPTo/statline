@@ -9,6 +9,7 @@
     "verify": "node ../scripts/verify-auth.js",
     "verify:reconstruct": "node ../scripts/verify-reconstruct.js",
     "verify:reconstruct-stats": "node ../scripts/verify-reconstructed-stats.js",
+    "verify:reconstruct-csr-kda": "node ../scripts/verify-reconstructed-csr-and-kda.js",
     "verify:rich-participants": "node ../scripts/verify-rich-participants.js",
     "verify:enrich-csr": "node ../scripts/verify-enrich-csr.js",
     "verify:benchmark-playlist": "node ../scripts/verify-benchmark-playlist.js",

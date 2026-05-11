@@ -152,6 +152,45 @@ function _isInNoNewDataCooldown(meta) {
   return ageMs < SNAPSHOT_NO_NEW_DATA_COOLDOWN_DAYS * 86400000;
 }
 
+// Aggregate per-match counters into the same shape `stats` carries from the
+// Halo service-record fetch. Used for reconstructed (private-profile) players
+// where the service-record endpoint may return empty/zero — without this the
+// Overview KDA/KD/Kills tiles render as "—" or "0.00" even though the
+// reconstructed matches contain real numbers.
+function aggregateStatsFromMatches(matches, base) {
+  const ms = Array.isArray(matches) ? matches : [];
+  if (!ms.length) return base || {};
+  const kills   = ms.reduce((s, m) => s + (m.kills   || 0), 0);
+  const deaths  = ms.reduce((s, m) => s + (m.deaths  || 0), 0);
+  const assists = ms.reduce((s, m) => s + (m.assists || 0), 0);
+  const wins    = ms.filter(m => m.outcome === 2).length;
+  const losses  = ms.filter(m => m.outcome === 3).length;
+  const matchesPlayed = ms.length;
+  // K/D — guard zero deaths by treating as raw kills (matches halo.js behavior
+  // and what expanded match cards already display per-row).
+  const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+  // KDA per game — (K - D + A/3) averaged. Same formula as halo.js.
+  const kda = matchesPlayed > 0
+    ? ((kills - deaths + assists / 3) / matchesPlayed).toFixed(2)
+    : (kills - deaths + assists / 3).toFixed(2);
+  const accuracyVals = ms.map(m => m.accuracy != null ? parseFloat(m.accuracy) : null).filter(v => v != null && !isNaN(v));
+  const accuracy = accuracyVals.length
+    ? (accuracyVals.reduce((a, v) => a + v, 0) / accuracyVals.length).toFixed(1)
+    : (base && base.accuracy != null ? base.accuracy : null);
+  const damageDealt = ms.reduce((s, m) => s + (m.damageDealt || 0), 0);
+  const damageTaken = ms.reduce((s, m) => s + (m.damageTaken || 0), 0);
+  return {
+    ...(base || {}),
+    matchesPlayed, wins, losses,
+    winRate: matchesPlayed > 0 ? ((wins / matchesPlayed) * 100).toFixed(1) : '0.0',
+    kills, deaths, assists,
+    kd, kda,
+    accuracy,
+    avgKillsPerGame: matchesPlayed > 0 ? (kills / matchesPlayed).toFixed(1) : '0.0',
+    damageDealt, damageTaken,
+  };
+}
+
 async function _processSnapQueue() {
   if (_snapRunning) return;
   _snapRunning = true;
@@ -535,6 +574,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         if (recon && recon.matches.length) {
           const updated = {
             ...cached,
+            stats: aggregateStatsFromMatches(recon.matches, cached.stats),
             recentMatches: recon.matches,
             allMatches: recon.matches,
             privateHistory: true,
@@ -632,6 +672,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
       let reconstructed = false;
       let reconstructedCount = 0;
       let displayMatches = matches;
+      let reconstructedStats = null;
       if (!matches.length && playerStats.xuid) {
         try {
           const recon = await reconstructMatchHistoryForXuid(playerStats.xuid, 100);
@@ -639,6 +680,11 @@ app.get('/api/search', rateLimit, async (req, res) => {
             displayMatches = recon.matches;
             reconstructed = true;
             reconstructedCount = recon.matches.length;
+            // Service-record stats are often empty/zero for private profiles
+            // — recompute Overview tiles (KDA, KD, kills, win rate, …) from
+            // the reconstructed per-match data so the user sees real numbers
+            // instead of "—" / "0.00".
+            reconstructedStats = aggregateStatsFromMatches(recon.matches, playerStats.stats);
             console.log(`[Reconstruct] ${gamertag} (${playerStats.xuid}) — built ${reconstructedCount} matches from public match records`);
           } else {
             console.log(`[Reconstruct] ${gamertag} (${playerStats.xuid}) — no public match records found yet`);
@@ -651,6 +697,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
       const result = {
         ...playerStats,
+        ...(reconstructedStats ? { stats: reconstructedStats } : {}),
         recentMatches: displayMatches,
         allMatches: displayMatches,
         rivals: histData.rivals || [],
