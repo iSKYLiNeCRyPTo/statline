@@ -87,6 +87,25 @@ let clearanceInFlight = null;
 let clearanceFailedAt = 0;      // timestamp of last all-attempts failure
 const CLEARANCE_FAIL_COOLDOWN = 5 * 60 * 1000; // 5 minutes before retrying after total failure
 
+// Shared backoff for the halostats /matches list endpoint. When it 429s or
+// 403s persistently we suppress further match-list calls for a window so a
+// thrash of refresh polls doesn't keep hammering. Callers can read
+// `isMatchListBackoffActive()` to decide whether to fall back to cached data.
+let matchListBackoffUntil = 0;
+const MATCH_LIST_BACKOFF_MS = 60 * 1000; // 60s — enough to let a burst clear
+function isMatchListBackoffActive() {
+  return Date.now() < matchListBackoffUntil;
+}
+function matchListBackoffSecondsRemaining() {
+  return Math.max(0, Math.ceil((matchListBackoffUntil - Date.now()) / 1000));
+}
+function isClearanceUnavailable() {
+  // True when we don't have a cached clearance AND the failure cooldown is
+  // still active. Callers use this to short-circuit refresh work that
+  // requires clearance, returning cached data instead.
+  return !cachedClearance && clearanceFailedAt > 0 && (Date.now() - clearanceFailedAt) < CLEARANCE_FAIL_COOLDOWN;
+}
+
 // Called by tokenRefresh after a new Spartan token is issued — wipes the old
 // clearance so the next request fetches a fresh one bound to the new token.
 function resetClearanceCache() {
@@ -742,6 +761,19 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   let start = 0;
   let stopReason = 'done'; // tracks why the loop exited
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // If the match-list endpoint is currently in shared backoff (recent 429/403
+  // burst), bail out immediately so the caller can serve cached/stale data
+  // instead of piling on more requests.
+  if (isMatchListBackoffActive()) {
+    console.warn(`[MatchFetch] Match list in backoff (${matchListBackoffSecondsRemaining()}s remaining) — skipping fetch for ${gamertag}`);
+    return {
+      matches: [], rivals: [], nemesisList: [], victimsList: [],
+      advancedStats: {}, haloDNA: null,
+      temporaryUnavailable: true, reason: 'match-list-backoff',
+    };
+  }
+
   while (!_isDone() && start < MAX_SCAN) {
     // Fetch match list with retry on 429
     let res;
@@ -763,7 +795,16 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     }
     if (!res.ok) {
       stopReason = `HTTP ${res.status}`;
-      console.warn(`[MatchFetch] Match list fetch failed at start=${start}: HTTP ${res.status} — stopping early for ${gamertag}`);
+      // 429 / 403 from the match list are the symptom of a thrash — arm a
+      // shared cooldown so concurrent and follow-up refreshes serve cached
+      // data instead of hammering. Other status codes (4xx/5xx) are likely
+      // request-specific, so we don't backoff on them.
+      if (res.status === 429 || res.status === 403) {
+        matchListBackoffUntil = Date.now() + MATCH_LIST_BACKOFF_MS;
+        console.warn(`[MatchFetch] Match list ${res.status} for ${gamertag} — arming shared backoff for ${MATCH_LIST_BACKOFF_MS/1000}s`);
+      } else {
+        console.warn(`[MatchFetch] Match list fetch failed at start=${start}: HTTP ${res.status} — stopping early for ${gamertag}`);
+      }
       break;
     }
     const data = await res.json();
@@ -771,14 +812,19 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     if (!rawBatch.length) { stopReason = 'no more history'; break; }
 
     // Incremental fetch: trim batch at the known boundary match — skip fetching
-    // details for matches we already have in cache
+    // details for matches we already have in cache. `hitStopNoop` distinguishes
+    // "anchor was the very first match (nothing new)" from "anchor was later
+    // in the batch (some new matches above it)" — the former is expected and
+    // should NOT produce a scary "0 ranked / 0 total" warning at the bottom.
     let hitStop = false;
+    let hitStopNoop = false;
     let batchToProcess = rawBatch;
     if (stopAtMatchId) {
       const stopIdx = rawBatch.findIndex(m => m.MatchId === stopAtMatchId);
       if (stopIdx !== -1) {
         batchToProcess = rawBatch.slice(0, stopIdx); // only the new ones
         hitStop = true;
+        hitStopNoop = stopIdx === 0;
       }
     }
 
@@ -1145,7 +1191,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     }
     } // end for fetchedDetails
 
-    if (hitStop) { stopReason = 'incremental stop'; break; }
+    if (hitStop) {
+      stopReason = hitStopNoop ? 'incremental no-op (cache up to date)' : 'incremental stop (reached cached anchor)';
+      break;
+    }
 
     const rankedNow = _rankedCount();
     const validNow  = _validCount();
@@ -1154,9 +1203,15 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   } // end while
   const finalRanked = _rankedCount();
   const finalValid  = _validCount();
-  if (finalRanked < RANKED_TARGET && finalValid < TOTAL_TARGET) {
+  // Only warn when we genuinely fell short — an incremental no-op is a
+  // success path (cache already had everything) and shouldn't surface as
+  // "Completed with 0 ranked / 0 total".
+  const isIncrementalNoop = stopReason.startsWith('incremental no-op');
+  if (!isIncrementalNoop && finalRanked < RANKED_TARGET && finalValid < TOTAL_TARGET) {
     if (start >= MAX_SCAN) stopReason = 'MAX_SCAN reached';
     console.warn(`[MatchFetch] Completed with ${finalRanked} ranked / ${finalValid} total after scanning ${start} raw matches for ${gamertag}. Reason: ${stopReason}`);
+  } else if (isIncrementalNoop) {
+    console.log(`[MatchFetch] No new matches since cached anchor for ${gamertag} (incremental no-op)`);
   }
 
   // (no bulk GT resolve here — we only resolve what we actually need below)
@@ -1508,4 +1563,7 @@ module.exports = {
   computeAdvancedStats,
   generateHaloDNA,
   resetClearanceCache,
+  isMatchListBackoffActive,
+  matchListBackoffSecondsRemaining,
+  isClearanceUnavailable,
 };

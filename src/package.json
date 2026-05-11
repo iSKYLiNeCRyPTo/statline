@@ -18,7 +18,7 @@
     "verify:backfill-endpoint": "node ../scripts/verify-backfill-endpoint.js",
     "verify:search-flow": "node ../scripts/verify-search-flow.js",
     "verify:match-classification": "node ../scripts/verify-match-classification.js",
-    "verify:recovery-queue": "node ../scripts/verify-recovery-queue.js",
+    "verify:incremental-and-backoff": "node ../scripts/verify-incremental-and-backoff.js",
     "backfill:participants": "node ../scripts/backfill-match-participants.js",
     "backfill:participants:dry": "node ../scripts/backfill-match-participants.js --dry-run",
     "rehydrate:participants": "node ../scripts/rehydrate-match-participants.js",

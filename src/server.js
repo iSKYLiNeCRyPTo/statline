@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
@@ -353,6 +353,32 @@ async function enqueueOpponentSnapshots(matches, myXuid) {
   }
 }
 
+// A cached match is "valid enough to anchor incremental fetch on" if it has
+// a real matchId AND has been parsed past the stub stage (gameMode populated
+// OR explicitly classified). Old caches from the PR #11 regression era could
+// contain rows with `{matchId, kills:0, deaths:0, ...}` and no gameMode —
+// using those as the incremental anchor stops the fetch after 25 raw matches
+// without finding any ranked games. Detect that case so we can force a
+// full refetch instead of trusting the stub.
+function _isValidAnchorMatch(m) {
+  if (!m || typeof m !== 'object') return false;
+  if (!m.matchId) return false;
+  // A valid parsed match always has gameMode set (even "Filtered" stubs do).
+  // The pure-failure stub from the per-match catch sets gameMode: null.
+  if (m.gameMode == null) return false;
+  return true;
+}
+
+// Find the first cached match that's safe to use as the incremental anchor.
+// Returns null if the cached list is empty or contains only stubs.
+function _findValidAnchorId(cached) {
+  const arr = (cached && (cached.allMatches || cached.recentMatches)) || [];
+  for (const m of arr) {
+    if (_isValidAnchorMatch(m)) return m.matchId;
+  }
+  return null;
+}
+
 async function getFromCache(gamertag) {
   const key = gamertag.toLowerCase().trim();
 
@@ -528,7 +554,27 @@ app.get('/api/search', rateLimit, async (req, res) => {
     // Cached path is fast; only log when we end up doing real work
     // (incremental fetch or reconstruct retry).
     const _cachedT0 = Date.now();
-    const newestCachedId = (cached.allMatches || cached.recentMatches || [])[0]?.matchId;
+    // Anchor incremental on the first cached match that's actually parsed —
+    // a stub row (matchId only, no gameMode) would otherwise make us stop
+    // after the first batch of 25 raw matches without ever scanning into
+    // real ranked history. If no valid anchor exists, we skip incremental
+    // and fall through to either reconstruct or full refresh.
+    const newestCachedId = _findValidAnchorId(cached);
+    const _hasAnyCachedMatch = !!(cached.allMatches || cached.recentMatches || []).length;
+    if (_hasAnyCachedMatch && !newestCachedId) {
+      console.log(`[Search] ${gamertag} cached matches present but no valid anchor (stub payload) — skipping incremental, will refresh below`);
+    }
+
+    // If the match-list endpoint is in shared backoff (recent 429/403 burst),
+    // serve the cached payload immediately without firing another match-list
+    // request. This is the core anti-hammer: every refresh poll arriving
+    // during the cooldown returns cache instead of piling on more requests.
+    if (isMatchListBackoffActive() && _hasAnyCachedMatch) {
+      console.log(`[Search] ${gamertag} match-list in backoff (${matchListBackoffSecondsRemaining()}s) — serving stale cache`);
+      logSearch(gamertag, req.headers['user-agent'], 'cached+stale-backoff', true, null);
+      await enrichForResponse(cached);
+      return res.json({ success: true, player: cached, cached: true, stale: true, reason: 'match-list-backoff' });
+    }
 
     // ── Incremental fetch: only pull matches newer than what we have ──────────
     if (newestCachedId && cached.xuid) {
@@ -542,6 +588,16 @@ app.get('/api/search', rateLimit, async (req, res) => {
           newestCachedId
         );
         setTimeout(() => { delete _searchProgress[key]; }, 10000);
+
+        // fetchMatchHistory returns a temporary-unavailable shape when the
+        // match-list backoff was armed mid-flight. Treat it the same as the
+        // pre-flight short-circuit above: serve cache, do not overwrite it.
+        if (newHistData.temporaryUnavailable) {
+          console.log(`[Search] ${gamertag} match-list temporarily unavailable (${newHistData.reason}) — serving stale cache`);
+          logSearch(gamertag, req.headers['user-agent'], 'cached+stale-backoff', true, null);
+          await enrichForResponse(cached);
+          return res.json({ success: true, player: cached, cached: true, stale: true, reason: newHistData.reason });
+        }
 
         const rawNew = newHistData.matches || [];
         const PVE = ['firefight','gruntpocalypse','attrition','pve'];
@@ -604,6 +660,34 @@ app.get('/api/search', rateLimit, async (req, res) => {
 
     // Return cached (no new matches, or no newestCachedId to anchor on)
     const _allM = cached.allMatches || cached.recentMatches || [];
+
+    // ── Repair: stub-only cached payloads ─────────────────────────────────────
+    // If the cache has matches but none of them are valid anchors (all stubs
+    // with gameMode==null — e.g. cached during the PR #11 ReferenceError
+    // window), invalidate this cache and fall through to a fresh fetch so the
+    // user sees real ranked data instead of being stuck on stubs forever.
+    if (_hasAnyCachedMatch && !newestCachedId && cached.xuid) {
+      // Don't blow it away if the match list is in backoff — we already
+      // returned stale cache above in that case, this guard is defensive.
+      if (!isMatchListBackoffActive()) {
+        console.warn(`[Search] ${gamertag} cached payload contains only stub matches (${_allM.length} entries) — invalidating cache and falling through to fresh fetch`);
+        try { delete searchCache[key]; } catch (e) {}
+        // Drop redis copy too so the next request can't re-hydrate the stub.
+        try {
+          const redis = await getRedis();
+          if (redis) await redis.del('player:' + key);
+        } catch (e) { /* non-fatal */ }
+        // Fall through to the fresh-search code path below by NOT returning.
+      }
+    }
+    // After the optional invalidation above, re-check cache. If we cleared
+    // it, drop into the fresh path; otherwise continue with cached.
+    const _stillCached = searchCache[key];
+    if (!_stillCached) {
+      // Skip the cached-response branch entirely and fall through to the
+      // fresh `searchPromise` flow further down.
+    } else {
+
     // ── Private-player: retry reconstruction on cached empty payloads ─────────
     // If we previously cached an empty match list (private profile / pre-backfill
     // cache) we will NOT have entered the incremental block above (no
@@ -652,6 +736,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
     await enrichForResponse(cached);
     _attachRecoveryMeta(cached, gamertag);
     return res.json({ success: true, player: cached, cached: true });
+    } // end else (_stillCached)
   }
 
   // Deduplicate concurrent searches
@@ -665,6 +750,22 @@ app.get('/api/search', rateLimit, async (req, res) => {
     } catch(e) {
       logSearch(gamertag, req.headers['user-agent'], 'error', false, null); return res.status(404).json({ success: false, error: e.message });
     }
+  }
+
+  // No cache + match list is currently in shared backoff → return a clear
+  // temporary-unavailable response instead of attempting the fresh path
+  // (which would just hit the backoff again or trigger more 429s). The
+  // client can show a "try again in a minute" state without us marking
+  // this player as no-data.
+  if (isMatchListBackoffActive()) {
+    console.warn(`[Search] ${gamertag} no cache + match-list in backoff (${matchListBackoffSecondsRemaining()}s) — returning 503 temporary-unavailable`);
+    logSearch(gamertag, req.headers['user-agent'], 'temp-unavailable', false, null);
+    return res.status(503).json({
+      success: false,
+      error: 'Halo API is temporarily rate-limited. Please try again in a minute.',
+      reason: 'match-list-backoff',
+      retryAfterSec: matchListBackoffSecondsRemaining(),
+    });
   }
 
   // statsOnly mode — return service record immediately, skip match fetch
@@ -699,6 +800,16 @@ app.get('/api/search', rateLimit, async (req, res) => {
         _searchProgress[key] = { step: 2, valid, scanned, total, retrying: retrying || null, ts: Date.now() };
       });
       _phase('fetchMatchHistory');
+      // If the match list backoff fired mid-flight, do NOT overwrite the
+      // existing cache with an empty payload — surface the temporary state
+      // and let the caller (this request + any future ones) keep returning
+      // the prior cache instead of a no-data record.
+      if (histData && histData.temporaryUnavailable) {
+        const err = new Error('match-list-backoff');
+        err.code = 'TEMP_UNAVAILABLE';
+        err.retryAfterSec = matchListBackoffSecondsRemaining();
+        throw err;
+      }
       _searchProgress[key] = { step: 3, valid: 250, total: 250, ts: Date.now() };
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
       const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
@@ -820,7 +931,16 @@ app.get('/api/search', rateLimit, async (req, res) => {
     }
   } catch(e) {
     console.error('[Search] Error for', gamertag, ':', e.message);
-    if (e.message.includes('Could not resolve gamertag') || e.message.includes('404')) {
+    if (e.code === 'TEMP_UNAVAILABLE') {
+      // Match list backoff fired mid-flight on a fresh search. Surface a
+      // clean temporary state so the client can retry — do not 404 / 500.
+      res.status(503).json({
+        success: false,
+        error: 'Halo API is temporarily rate-limited. Please try again in a minute.',
+        reason: 'match-list-backoff',
+        retryAfterSec: e.retryAfterSec || 60,
+      });
+    } else if (e.message.includes('Could not resolve gamertag') || e.message.includes('404')) {
       res.status(404).json({ success: false, error: `Player "${gamertag}" not found. Check the spelling and try again.` });
     } else if (e.message.includes('SPARTAN_TOKEN') || e.message.includes('401') || e.message.includes('403')) {
       res.status(503).json({ success: false, error: 'Authentication error — check SPARTAN_TOKEN in environment variables.' });
