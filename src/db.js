@@ -810,6 +810,72 @@ async function saveMatchParticipants(matchRows, sourceXuid) {
   }
 }
 
+// Score a participant row by how much rich data it carries. Used to pick the
+// "best" row when collapsing duplicates that share a match_id for one xuid.
+// Counts non-null/non-empty values across the rich columns (CoreStats,
+// RankRecap, objective stats, medals). Higher = richer.
+function _participantRowRichness(r) {
+  if (!r) return -1;
+  let score = 0;
+  const numFields = [
+    'kills','deaths','assists','score','damage','damage_taken',
+    'shots_fired','shots_landed','accuracy',
+    'headshot_kills','melee_kills','grenade_kills','power_weapon_kills',
+    'placement','csr_value','csr_pre_value','csr_delta','csr_subtier','mmr',
+    'duration_sec',
+  ];
+  for (const f of numFields) if (r[f] != null) score++;
+  if (r.csr_tier) score++;
+  if (r.gamertag) score++;
+  if (r.start_time) score++;
+  if (r.team_id != null) score++;
+  if (r.outcome != null) score++;
+  if (r.medals) {
+    try {
+      const m = typeof r.medals === 'string' ? JSON.parse(r.medals) : r.medals;
+      if (Array.isArray(m) && m.length) score++;
+    } catch { /* malformed JSON — ignore */ }
+  }
+  if (r.obj_stats) {
+    try {
+      const o = typeof r.obj_stats === 'string' ? JSON.parse(r.obj_stats) : r.obj_stats;
+      if (o && Object.keys(o).length) score++;
+    } catch { /* malformed JSON — ignore */ }
+  }
+  return score;
+}
+
+// Collapse participant rows so each match_id appears at most once. The PK
+// (match_id, xuid) already enforces this at the DB level, so this is a
+// belt-and-suspenders guard for legacy data / future schema drift. When two
+// rows share a match_id, prefer the richer one; ties → newer ts.
+function _dedupeParticipantRowsByMatchId(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return rows || [];
+  const seen = new Map();
+  for (const r of rows) {
+    if (!r || !r.match_id) continue;
+    const prev = seen.get(r.match_id);
+    if (!prev) { seen.set(r.match_id, r); continue; }
+    const a = _participantRowRichness(prev);
+    const b = _participantRowRichness(r);
+    if (b > a) seen.set(r.match_id, r);
+    else if (b === a) {
+      const tsA = prev.ts ? new Date(prev.ts).getTime() : 0;
+      const tsB = r.ts    ? new Date(r.ts).getTime()    : 0;
+      if (tsB > tsA) seen.set(r.match_id, r);
+    }
+  }
+  // Preserve original start_time DESC ordering from the SQL.
+  const out = [];
+  const emitted = new Set();
+  for (const r of rows) {
+    if (!r || !r.match_id || emitted.has(r.match_id)) continue;
+    const winner = seen.get(r.match_id);
+    if (winner) { out.push(winner); emitted.add(r.match_id); }
+  }
+  return out;
+}
+
 // Reconstruct a partial match history for a player whose own /matches endpoint
 // is private/empty, by aggregating rows we captured from OTHER public players'
 // matches. Returns matches shaped roughly like fetchMatchHistory output so the
@@ -830,7 +896,13 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
       [String(xuid), limit]
     );
     if (!myRows.rows.length) return { matches: [], participantRowCount: 0, enrichmentCoverage: {} };
-    const matchIds = myRows.rows.map(r => r.match_id);
+    // Defense-in-depth dedupe by match_id. The (match_id, xuid) primary key
+    // already guarantees one row per match for this xuid, but if any legacy
+    // rows ever slipped in (pre-PK insert path, manual fixup, future schema
+    // drift) we collapse to one. Prefer the richer row — most populated rich
+    // fields wins, ties broken by newest ingest (ts).
+    const dedupedMyRows = _dedupeParticipantRowsByMatchId(myRows.rows);
+    const matchIds = dedupedMyRows.map(r => r.match_id);
     // 2) Pull all participants for those matches in one query so we can rebuild teams.
     const allRows = await db.query(
       `SELECT * FROM match_participants WHERE match_id = ANY($1)`,
@@ -844,7 +916,7 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
     // Coverage counters so callers (and tests) can tell which rich fields
     // were actually populated for this player vs. left null.
     const coverage = {
-      total: myRows.rows.length,
+      total: dedupedMyRows.length,
       damageTaken: 0,
       accuracy: 0,
       headshotKills: 0,
@@ -855,7 +927,7 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
       placement: 0,
     };
     const matches = [];
-    for (const my of myRows.rows) {
+    for (const my of dedupedMyRows) {
       const teamMap = {};
       for (const r of (byMatch[my.match_id] || [])) {
         const tid = r.team_id != null ? r.team_id : 0;
@@ -1330,4 +1402,4 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness };
