@@ -923,9 +923,14 @@ app.get('/api/rank-comparison', async (req, res) => {
     const onyxBandHigh = onyxBandLow != null ? (onyxBandLow >= 1900 ? null : onyxBandLow + 100) : null;
     const onyxLabel    = onyxBandLow != null ? (onyxBandHigh != null ? `Onyx ${onyxBandLow}–${onyxBandHigh - 1}` : `Onyx ${onyxBandLow}+`) : null;
 
-    const peerRows = await getSnapshotsByRank(tier, subTier, csrValue);
+    // Peer pool: when the user picked a non-Arena playlist, sample peers by
+    // their CSR in THAT playlist (from snapshot.csr JSON). Without this the
+    // pool would just be Arena peers at the same tier/subtier — the bug
+    // we're fixing for non-Arena benchmarks.
+    const playlistKey = pl; // 'Ranked Arena' | 'Ranked Slayer' | 'Ranked Legacy'
+    const peerRows = await getSnapshotsByRank(tier, subTier, csrValue, playlistKey);
     const next = getNextRank(tier, subTier, csrValue);
-    const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier, next.csrValue) : [];
+    const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier, next.csrValue, playlistKey) : [];
     const proStats = await getProStats();
 
     // Label for next Onyx band

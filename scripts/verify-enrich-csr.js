@@ -47,7 +47,7 @@ const fakePg = {
         const xuids = new Set(params[0]);
         const rows = [];
         for (const [xu, r] of snapshotsByXuid.entries()) {
-          if (xuids.has(xu)) rows.push({ xuid: xu, csr_tier: r.csr_tier, csr_subtier: r.csr_subtier, csr_value: r.csr_value, ts: r.ts });
+          if (xuids.has(xu)) rows.push({ xuid: xu, csr_tier: r.csr_tier, csr_subtier: r.csr_subtier, csr_value: r.csr_value, csr: r.csr || null, ts: r.ts });
         }
         return { rows };
       }
@@ -115,14 +115,28 @@ function assert(cond, msg) {
   assert(t2.csr_tier === 'Platinum', 'snake_case csr_tier untouched');
   assert(t2.csrTier == null, 'no spurious camelCase added');
 
-  console.log('\nTest 3: snapshot fallback when no per-match row exists');
-  participantsByKey = new Map(); // no per-match data
+  console.log('\nTest 3: snapshot fallback uses playlist-specific CSR for the match playlist');
+  // The match is Ranked SLAYER. The target has CSR in Slayer; the mate has CSR
+  // only in Ranked Arena. The fallback must pick Slayer for the target and
+  // leave the mate empty rather than show Arena CSR on a Slayer match row.
+  participantsByKey = new Map();
   snapshotsByXuid = new Map([
-    ['x_target2', { csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1750 }],
-    ['x_mate2',   { csr_tier: 'Diamond', csr_subtier: 6, csr_value: 1499 }],
+    ['x_target2', {
+      csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1750,
+      csr: {
+        'Ranked Arena':  { tier: 'Onyx',    subTier: 1, value: 1750 },
+        'Ranked Slayer': { tier: 'Diamond', subTier: 6, value: 1490 },
+      },
+    }],
+    ['x_mate2',   {
+      csr_tier: 'Diamond', csr_subtier: 6, csr_value: 1499,
+      csr: { 'Ranked Arena': { tier: 'Diamond', subTier: 6, value: 1499 } },
+    }],
   ]);
   const matches3 = [{
     matchId: 'm3',
+    isRanked: true,
+    playlistKind: 'slayer',
     teams: [{ teamId: 0, players: [
       { rawXuid: 'x_target2', gamertag: 'Tgt2', kills: 10, deaths: 8, assists: 5 },
       { rawXuid: 'x_mate2',   gamertag: 'Mate2', kills: 7, deaths: 12, assists: 3 },
@@ -133,12 +147,13 @@ function assert(cond, msg) {
   const t3Tgt = matches3[0].teams[0].players[0];
   const t3Mate = matches3[0].teams[0].players[1];
   const t3Ghost = matches3[0].teams[0].players[2];
-  assert(t3Tgt.csrTier === 'Onyx' && t3Tgt.csrValue === 1750, `snapshot Onyx 1750 enriched`);
+  assert(t3Tgt.csrTier === 'Diamond' && t3Tgt.csrValue === 1490,
+    `Slayer-specific CSR used (Diamond 1490), NOT top-level Arena (got ${t3Tgt.csrTier} ${t3Tgt.csrValue})`);
   assert(t3Tgt.csrFromSnapshot === true, 'csrFromSnapshot flag set (current-rank fallback)');
-  assert(t3Mate.csrTier === 'Diamond' && t3Mate.csrSubTier === 6, 'snapshot Diamond 6 enriched');
-  assert(t3Mate.csrFromSnapshot === true, 'mate csrFromSnapshot flag set');
+  assert(t3Mate.csrTier == null,
+    `mate has no Slayer CSR → badge omitted (NOT Diamond from Arena; got ${t3Mate.csrTier})`);
   assert(t3Ghost.csrTier == null, 'ghost (no row, no snapshot) stays empty');
-  assert(r3.snapshot === 2, `snapshot=2 (got ${r3.snapshot})`);
+  assert(r3.snapshot === 1, `snapshot=1 (only target enriched; got ${r3.snapshot})`);
   assert(r3.perMatch === 0, 'perMatch=0 (no per-match data)');
 
   console.log('\nTest 4: per-match wins over snapshot when both exist');
@@ -148,10 +163,15 @@ function assert(cond, msg) {
   ]);
   snapshotsByXuid = new Map([
     // Current: Onyx 1700 (player has since climbed). Per-match must win.
-    ['x_dual', { csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1700 }],
+    ['x_dual', {
+      csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1700,
+      csr: { 'Ranked Arena': { tier: 'Onyx', subTier: 1, value: 1700 } },
+    }],
   ]);
   const matches4 = [{
     matchId: 'm4',
+    isRanked: true,
+    playlistKind: 'arena',
     teams: [{ teamId: 0, players: [
       { rawXuid: 'x_dual', gamertag: 'Dual' },
     ]}],
@@ -161,6 +181,55 @@ function assert(cond, msg) {
   assert(t4.csrTier === 'Diamond' && t4.csrValue === 1300, `per-match Diamond beats snapshot Onyx`);
   assert(!t4.csrFromSnapshot, 'csrFromSnapshot NOT set (per-match source)');
   assert(r4.perMatch === 1 && r4.snapshot === 0, 'counters: perMatch=1, snapshot=0');
+
+  console.log('\nTest 4b: legacy match w/ snapshot that has only Arena CSR — slot stays empty');
+  // This is the original bug: a Ranked Legacy match should NOT inherit the
+  // player's Ranked Arena rank from the snapshot fallback.
+  participantsByKey = new Map();
+  snapshotsByXuid = new Map([
+    ['x_arena_only', {
+      csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1820,
+      csr: { 'Ranked Arena': { tier: 'Onyx', subTier: 1, value: 1820 } },
+    }],
+  ]);
+  const matches4b = [{
+    matchId: 'm4b',
+    isRanked: true,
+    playlistKind: 'legacy',
+    teams: [{ teamId: 0, players: [
+      { rawXuid: 'x_arena_only', gamertag: 'ArenaOnly' },
+    ]}],
+  }];
+  const r4b = await db.enrichMatchTeamsWithCsr(matches4b);
+  const t4b = matches4b[0].teams[0].players[0];
+  assert(t4b.csrTier == null,
+    `legacy match leaves Arena-only player empty (got ${t4b.csrTier} ${t4b.csrValue})`);
+  assert(r4b.snapshot === 0, 'snapshot=0 (no Legacy CSR available)');
+
+  console.log('\nTest 4c: playlistKind inferred from gameMode for reconstructed matches');
+  // Reconstructed matches (from match_participants) have no playlistKind on
+  // the parent match object — only `gameMode`. Make sure _playlistKindOf
+  // picks the right kind from the mode string.
+  participantsByKey = new Map();
+  snapshotsByXuid = new Map([
+    ['x_recon', {
+      csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1750,
+      csr: {
+        'Ranked Arena':  { tier: 'Onyx',    subTier: 1, value: 1750 },
+        'Ranked Slayer': { tier: 'Platinum',subTier: 2, value: 1080 },
+      },
+    }],
+  ]);
+  const matches4c = [{
+    matchId: 'm4c',
+    isRanked: true,
+    gameMode: 'Ranked Slayer',
+    teams: [{ teamId: 0, players: [{ rawXuid: 'x_recon', gamertag: 'Recon' }] }],
+  }];
+  await db.enrichMatchTeamsWithCsr(matches4c);
+  const t4c = matches4c[0].teams[0].players[0];
+  assert(t4c.csrTier === 'Platinum' && t4c.csrValue === 1080,
+    `gameMode='Ranked Slayer' resolves to slayer (got ${t4c.csrTier} ${t4c.csrValue})`);
 
   console.log('\nTest 5: no-op on empty / undefined input');
   const rE1 = await db.enrichMatchTeamsWithCsr([]);

@@ -297,12 +297,47 @@ async function savePlayerSnapshot(player) {
 // Fetch stats rows for players at a given rank tier+subtier (last 30 days, up to 1000 rows).
 // For Onyx, csrValue is required — players are bucketed in 100-point ranges (1500-1599, 1600-1699, etc.)
 // so an Onyx 1500 is never compared against an Onyx 1900.
-async function getSnapshotsByRank(tier, subTier, csrValue) {
+//
+// When `playlistKey` is provided ('Ranked Arena' | 'Ranked Slayer' | 'Ranked Legacy'),
+// the peer pool is selected from the snapshot's per-playlist CSR JSON instead of
+// the top-level `csr_tier/csr_value` columns (which always reflect Arena because
+// savePlayerSnapshot prefers Arena). This is what makes the benchmark toggle
+// produce a per-playlist peer pool rather than the Arena peer pool re-labeled.
+async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
   try {
     const db = await getDb();
     if (!db) return [];
     let queryStr, params;
-    if (tier === 'Onyx') {
+    if (playlistKey) {
+      // JSON path filter — Postgres `csr->'<key>'->>'tier'` etc.
+      // The Arena-vs-non-Arena divergence the user reported only matters
+      // here: when the toggle selects Slayer/Legacy, the peer pool must be
+      // sampled by the player's CSR in THAT playlist.
+      if (tier === 'Onyx') {
+        const bandLow = csrValue != null ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : 1500;
+        const bandHigh = bandLow >= 1900 ? 9999 : bandLow + 100;
+        queryStr = `
+          SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+          WHERE csr->$4->>'tier' = $1
+            AND (csr->$4->>'value')::int >= $2
+            AND (csr->$4->>'value')::int <  $3
+            AND kd IS NOT NULL
+            AND ts > NOW() - INTERVAL '30 days'
+          ORDER BY ts DESC LIMIT 1000
+        `;
+        params = [tier, bandLow, bandHigh, playlistKey];
+      } else {
+        queryStr = `
+          SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+          WHERE csr->$3->>'tier' = $1
+            AND (csr->$3->>'subTier')::int = $2
+            AND kd IS NOT NULL
+            AND ts > NOW() - INTERVAL '30 days'
+          ORDER BY ts DESC LIMIT 1000
+        `;
+        params = [tier, subTier, playlistKey];
+      }
+    } else if (tier === 'Onyx') {
       // Bucket into 100-point bands: floor to nearest 100, cap at 1900+
       const bandLow = csrValue != null ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : 1500;
       const bandHigh = bandLow >= 1900 ? 9999 : bandLow + 100;
@@ -1008,6 +1043,21 @@ async function getFrequentCoPlayers(xuid, limit = 20) {
   }
 }
 
+// Map gameMode/playlist hints → 'arena' | 'slayer' | 'legacy' for the snapshot
+// CSR JSON lookup. Returns null for unranked / unknown so the caller can skip
+// the per-playlist fallback rather than show wrong rank.
+function _playlistKindOf(m) {
+  if (!m) return null;
+  if (m.playlistKind) return m.playlistKind;
+  if (m.isRanked === false) return null;
+  const gm = (m.gameMode || '').toLowerCase();
+  if (gm.includes('ranked slayer')) return 'slayer';
+  if (gm.includes('ranked legacy')) return 'legacy';
+  if (gm.includes('ranked arena'))  return 'arena';
+  return null;
+}
+const PLAYLIST_KIND_TO_CSR_KEY = { arena: 'Ranked Arena', slayer: 'Ranked Slayer', legacy: 'Ranked Legacy' };
+
 // Enrich a list of match objects with CSR/rank data on each team-roster
 // player slot, so the expanded match-detail team table can always render
 // rank badges next to player names. Three sources are consulted in order:
@@ -1017,10 +1067,13 @@ async function getFrequentCoPlayers(xuid, limit = 20) {
 //      fetched ourselves. Already correct; nothing to do.
 //   2. The match_participants row for (match_id, xuid) — set whenever ANY
 //      public player's history surfaced this match. Provides the post-game
-//      CSR for that specific match.
+//      CSR for that specific match (so it is always for the right playlist).
 //   3. The most recent player_snapshots row for this xuid — provides the
-//      player's CURRENT rank as a fallback. Tagged as `csrFromSnapshot:true`
-//      so the renderer can mark the badge as approximate if desired.
+//      player's CURRENT rank in THIS MATCH'S PLAYLIST (from the `csr` JSON
+//      column). Tagged as `csrFromSnapshot:true` so the renderer can mark
+//      the badge as approximate. Skipped if the player has no CSR for this
+//      playlist — better to omit the badge than show Arena CSR on a Slayer
+//      match row.
 //
 // Cached match blobs predating PR #5 carry no csrTier on team rosters; this
 // function fills them in without re-fetching anything from Halo. Mutates
@@ -1098,32 +1151,74 @@ async function enrichMatchTeamsWithCsr(matches) {
     }
 
     // Step 3: snapshot fallback. Only for xuids still missing rank data.
-    const stillMissing = new Set();
-    for (const [xu, slots] of xuidToSlots.entries()) {
-      if (slots.some(s => !s.csrTier && !s.csr_tier)) stillMissing.add(xu);
+    // Per-slot now: each slot has a playlist context (arena/slayer/legacy)
+    // inherited from its parent match. We read the player's per-playlist CSR
+    // from the snapshot's `csr` JSON column and use the one that matches the
+    // match's playlist. If the player has no CSR for this playlist (e.g. a
+    // Ranked Slayer match where the teammate has only ever played Ranked
+    // Arena), the slot is left empty so the badge is omitted — never show
+    // Arena CSR on a Slayer/Legacy row.
+    // Build per-slot context so we can decide per-slot which playlist to pull.
+    const slotsByXuid = new Map(); // xuid -> array of {pl, kind}
+    for (const m of matches) {
+      if (!m || !Array.isArray(m.teams)) continue;
+      const kind = _playlistKindOf(m);
+      for (const team of m.teams) {
+        if (!team || !Array.isArray(team.players)) continue;
+        for (const pl of team.players) {
+          if (!pl) continue;
+          if (pl.csrTier || pl.csr_tier) continue;
+          const xu = pl.rawXuid || pl.xuid;
+          if (!xu) continue;
+          if (!slotsByXuid.has(String(xu))) slotsByXuid.set(String(xu), []);
+          slotsByXuid.get(String(xu)).push({ pl, kind });
+        }
+      }
     }
-    if (stillMissing.size) {
-      const xuidArr = Array.from(stillMissing);
-      // Most recent snapshot per xuid (DISTINCT ON respects ORDER BY).
+    if (slotsByXuid.size) {
+      const xuidArr = Array.from(slotsByXuid.keys());
+      // Most recent snapshot per xuid (DISTINCT ON respects ORDER BY). Pull
+      // the `csr` JSON so we can pick playlist-specific tiers, plus the
+      // top-level columns as the legacy/no-kind fallback.
       const snapRows = await db.query(
-        `SELECT DISTINCT ON (xuid) xuid, csr_tier, csr_subtier, csr_value, ts
+        `SELECT DISTINCT ON (xuid) xuid, csr_tier, csr_subtier, csr_value, csr, ts
          FROM player_snapshots
          WHERE xuid = ANY($1) AND csr_tier IS NOT NULL
          ORDER BY xuid, ts DESC`,
         [xuidArr]
       );
       const byXuid = new Map();
-      for (const r of snapRows.rows) byXuid.set(String(r.xuid), r);
-      for (const [xu, slots] of xuidToSlots.entries()) {
-        const row = byXuid.get(xu);
-        if (!row) continue;
-        for (const pl of slots) {
+      for (const r of snapRows.rows) {
+        let csrJson = r.csr;
+        if (csrJson && typeof csrJson === 'string') {
+          try { csrJson = JSON.parse(csrJson); } catch { csrJson = null; }
+        }
+        byXuid.set(String(r.xuid), { row: r, csr: csrJson || null });
+      }
+      for (const [xu, entries] of slotsByXuid.entries()) {
+        const snap = byXuid.get(xu);
+        if (!snap) continue;
+        for (const { pl, kind } of entries) {
           if (pl.csrTier || pl.csr_tier) continue;
-          pl.csrTier = row.csr_tier;
-          if (row.csr_subtier != null) pl.csrSubTier = row.csr_subtier;
-          if (row.csr_value != null) pl.csrValue = row.csr_value;
-          // Mark as a fallback so the renderer/title can disclose this is
-          // the player's current rank, not the rank at this specific match.
+          let tier = null, subTier = null, value = null;
+          if (kind && snap.csr) {
+            const key = PLAYLIST_KIND_TO_CSR_KEY[kind];
+            const entry = key ? snap.csr[key] : null;
+            if (entry && entry.tier) {
+              tier = entry.tier;
+              // halo.js stores subTier as 1-indexed in csrResults (already +1),
+              // and value as the raw CSR int.
+              subTier = entry.subTier != null ? entry.subTier : null;
+              value = entry.value != null ? entry.value : null;
+            }
+          }
+          // No playlist-specific CSR — leave the slot empty. Showing the
+          // snapshot's top-level (Arena-preferred) tier here is exactly the
+          // bug we are fixing.
+          if (!tier) continue;
+          pl.csrTier = tier;
+          if (subTier != null) pl.csrSubTier = subTier;
+          if (value != null) pl.csrValue = value;
           pl.csrFromSnapshot = true;
           snapshotHits++;
         }
