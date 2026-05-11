@@ -6,7 +6,13 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "verify": "node ../scripts/verify-auth.js"
+    "verify": "node ../scripts/verify-auth.js",
+    "verify:reconstruct": "node ../scripts/verify-reconstruct.js",
+    "verify:backfill": "node ../scripts/verify-backfill.js",
+    "backfill:participants": "node ../scripts/backfill-match-participants.js",
+    "backfill:participants:dry": "node ../scripts/backfill-match-participants.js --dry-run",
+    "rehydrate:participants": "node ../scripts/rehydrate-match-participants.js",
+    "rehydrate:participants:dry": "node ../scripts/rehydrate-match-participants.js --dry-run"
   },
   "dependencies": {
     "express": "^4.18.2",
