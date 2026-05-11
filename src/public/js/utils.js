@@ -1,3 +1,44 @@
+// Format a player's CSR as a compact rank label.
+// `mode` is 'desktop' (full label, e.g. "Diamond 3", "Onyx 1734")
+// or 'mobile' (single-letter tier + subtier, e.g. "D3"; Onyx => just the CSR number).
+// Returns '' if rank data is incomplete — caller should omit the badge rather than
+// render a placeholder. Tier names map to the standard Halo Infinite CSR ladder.
+function formatRankLabel(tier, subTier, value, mode){
+  if(!tier) return '';
+  if(tier === 'Onyx'){
+    // Onyx is uncapped — the CSR number is the meaningful identifier.
+    // Mobile drops the tier name to save space; desktop keeps "Onyx" for clarity.
+    if(value == null) return 'Onyx';
+    return mode === 'mobile' ? String(value) : ('Onyx ' + value);
+  }
+  var sub = subTier != null ? subTier : 1;
+  if(mode === 'mobile'){
+    var letter = (tier && tier[0]) ? tier[0].toUpperCase() : '?';
+    return letter + sub;
+  }
+  // Desktop: full label like "Diamond 3"
+  return tier + ' ' + sub;
+}
+// Build the HTML for a rank badge that appears next to a player's name.
+// Desktop and mobile variants are emitted together — CSS hides the inactive one
+// based on viewport width. Returns '' when rank data is missing so the row layout
+// is unchanged for unranked matches / private players.
+function rankBadgeHtml(player){
+  if(!player) return '';
+  var tier = player.csrTier, sub = player.csrSubTier, val = player.csrValue;
+  var desktopText = formatRankLabel(tier, sub, val, 'desktop');
+  var mobileText  = formatRankLabel(tier, sub, val, 'mobile');
+  if(!desktopText && !mobileText) return '';
+  // Use a single accessible title for screen readers / hover.
+  var titleParts = [tier];
+  if(tier && tier !== 'Onyx' && sub != null) titleParts.push(sub);
+  if(val != null) titleParts.push('· CSR ' + val);
+  var title = titleParts.filter(Boolean).join(' ');
+  return '<span class="rank-badge" title="'+title.replace(/"/g,'&quot;')+'" aria-label="'+title.replace(/"/g,'&quot;')+'">'
+    + '<span class="rank-badge-desktop">'+desktopText+'</span>'
+    + '<span class="rank-badge-mobile">'+mobileText+'</span>'
+    + '</span>';
+}
 function rivalAvatar(r,size){
   var init=(r.gamertag||'?')[0].toUpperCase();
   var src=r.xuid?'/api/emblem?xuid='+r.xuid:(r.gamerpicUrl||null);
