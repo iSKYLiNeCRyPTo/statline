@@ -427,6 +427,9 @@ app.get('/api/search', rateLimit, async (req, res) => {
   const key = gamertag.toLowerCase().trim();
   const cached = await getFromCache(gamertag);
   if (cached && !forceRefresh) {
+    // Cached path is fast; only log when we end up doing real work
+    // (incremental fetch or reconstruct retry).
+    const _cachedT0 = Date.now();
     const newestCachedId = (cached.allMatches || cached.recentMatches || [])[0]?.matchId;
 
     // ── Incremental fetch: only pull matches newer than what we have ──────────
@@ -457,6 +460,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
           const merged = [...filteredNew, ...existing].slice(0, 250);
           const advancedStats = computeAdvancedStats(merged);
           const haloDNA = generateHaloDNA(merged, advancedStats, null);
+          console.log(`[Search/phase] ${gamertag} incremental:fetched +${Date.now() - _cachedT0}ms (${filteredNew.length} new)`);
           // Refresh player stats (CSR, service record) — fast, just 2-3 API calls
           const freshStats = await fetchPlayerStats(gamertag).catch(() => null);
           const updated = {
@@ -570,13 +574,24 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 
   const searchPromise = (async () => {
+    // Phase timing — logged once per fresh search so slow phases are visible
+    // in production logs without needing a profiler attached.
+    const _phT0 = Date.now();
+    let _phLast = _phT0;
+    const _phase = (label) => {
+      const now = Date.now();
+      console.log(`[Search/phase] ${gamertag} ${label} +${now - _phLast}ms (t=${now - _phT0}ms)`);
+      _phLast = now;
+    };
     try {
       _searchProgress[key] = { step: 1, valid: 0, total: 250, ts: Date.now() };
       const playerStats = await fetchPlayerStats(gamertag);
+      _phase('fetchPlayerStats');
       _searchProgress[key] = { step: 2, valid: 0, total: 250, ts: Date.now() };
       const histData = await fetchMatchHistory(playerStats.xuid, gamertag, 250, (valid, scanned, total, retrying) => {
         _searchProgress[key] = { step: 2, valid, scanned, total, retrying: retrying || null, ts: Date.now() };
       });
+      _phase('fetchMatchHistory');
       _searchProgress[key] = { step: 3, valid: 250, total: 250, ts: Date.now() };
       const PVE = ['firefight','gruntpocalypse','attrition','pve'];
       const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
@@ -609,6 +624,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         } catch(e) {
           console.warn('[Reconstruct] failed:', e.message);
         }
+        _phase('reconstructMatchHistoryForXuid');
       }
 
       const result = {
