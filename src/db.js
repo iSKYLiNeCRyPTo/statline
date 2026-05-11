@@ -65,6 +65,22 @@ async function getDb() {
         )`);
         await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_match_participants_xuid ON match_participants(xuid)`);
         await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_match_participants_start_time ON match_participants(start_time DESC)`);
+        // player_refresh_meta: per-player background-refresh bookkeeping.
+        // last_refresh_ts          — when we last fetched their stats (any source)
+        // last_no_new_data_ts      — when the most recent refresh found NO new
+        //                            matches played vs the previous snapshot
+        // last_matches_played      — last observed career match count
+        // consecutive_empty_refreshes — strikes; deprioritize after N
+        // Powers freshness gating so the background snapshot queue skips
+        // players we recently touched and deprioritizes inactive accounts.
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS player_refresh_meta (
+          xuid TEXT PRIMARY KEY,
+          gamertag TEXT,
+          last_refresh_ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_no_new_data_ts TIMESTAMPTZ,
+          last_matches_played INT,
+          consecutive_empty_refreshes INT NOT NULL DEFAULT 0
+        )`);
       } catch(e) { console.error('[DB] schema error:', e.message); }
       return _dbPool;
     })();
@@ -409,6 +425,72 @@ async function getRecentlySnapshotted(xuids, withinDays = 7) {
   }
 }
 
+// Fetch refresh-tracking metadata for a batch of xuids. Returns a Map keyed
+// by xuid → { lastRefreshTs, lastNoNewDataTs, lastMatchesPlayed,
+// consecutiveEmptyRefreshes }. Missing xuids are absent from the map.
+async function getRefreshMeta(xuids) {
+  const out = new Map();
+  if (!xuids || !xuids.length) return out;
+  try {
+    const db = await getDb();
+    if (!db) return out;
+    const res = await db.query(
+      `SELECT xuid, last_refresh_ts, last_no_new_data_ts, last_matches_played, consecutive_empty_refreshes
+       FROM player_refresh_meta WHERE xuid = ANY($1)`,
+      [xuids.map(x => String(x))]
+    );
+    for (const r of res.rows) {
+      out.set(String(r.xuid), {
+        lastRefreshTs: r.last_refresh_ts ? new Date(r.last_refresh_ts) : null,
+        lastNoNewDataTs: r.last_no_new_data_ts ? new Date(r.last_no_new_data_ts) : null,
+        lastMatchesPlayed: r.last_matches_played != null ? Number(r.last_matches_played) : null,
+        consecutiveEmptyRefreshes: r.consecutive_empty_refreshes != null ? Number(r.consecutive_empty_refreshes) : 0,
+      });
+    }
+  } catch(e) {
+    console.error('[DB] getRefreshMeta error:', e.message);
+  }
+  return out;
+}
+
+// Record that we attempted (or completed) a refresh for a player. Bumps
+// last_refresh_ts, tracks consecutive empty refreshes so the queue can
+// deprioritize accounts with no new data after the stale-rescan window.
+async function markRefreshAttempt(xuid, gamertag, currentMatchesPlayed) {
+  if (!xuid) return;
+  try {
+    const db = await getDb();
+    if (!db) return;
+    // Read prior to decide whether this is "new data" or not.
+    const prior = await db.query(
+      `SELECT last_matches_played, consecutive_empty_refreshes FROM player_refresh_meta WHERE xuid = $1`,
+      [String(xuid)]
+    );
+    const priorRow = prior.rows[0];
+    const priorMatches = priorRow ? Number(priorRow.last_matches_played) : null;
+    const priorEmpty = priorRow ? Number(priorRow.consecutive_empty_refreshes || 0) : 0;
+    // hadNewData = current matches played > last observed (when both known).
+    // If we had no prior, treat it as new data so first observation counts.
+    const cmp = currentMatchesPlayed != null ? Number(currentMatchesPlayed) : null;
+    const hadNewData = priorMatches == null ? (cmp != null) : (cmp != null && cmp > priorMatches);
+    const nextEmpty = hadNewData ? 0 : priorEmpty + 1;
+    await db.query(
+      `INSERT INTO player_refresh_meta (xuid, gamertag, last_refresh_ts, last_no_new_data_ts, last_matches_played, consecutive_empty_refreshes)
+       VALUES ($1, $2, NOW(), $3, $4, $5)
+       ON CONFLICT (xuid) DO UPDATE SET
+         gamertag = COALESCE(EXCLUDED.gamertag, player_refresh_meta.gamertag),
+         last_refresh_ts = NOW(),
+         last_no_new_data_ts = CASE WHEN $6 THEN NULL ELSE NOW() END,
+         last_matches_played = COALESCE(EXCLUDED.last_matches_played, player_refresh_meta.last_matches_played),
+         consecutive_empty_refreshes = $5`,
+      [String(xuid), gamertag || null, hadNewData ? null : new Date(), cmp, nextEmpty, hadNewData]
+    );
+    return { hadNewData, consecutiveEmptyRefreshes: nextEmpty };
+  } catch(e) {
+    console.error('[DB] markRefreshAttempt error:', e.message);
+  }
+}
+
 // Leaderboard: top N players per metric using most recent snapshot per player
 async function getLeaderboardData(limit = 100000) {
   try {
@@ -599,11 +681,42 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
           damage: r.damage || 0,
         });
       }
+      // Format duration in ISO 8601 (PT#M#S) so the frontend's existing
+      // duration parsers (used by every Stats-tab module) accept reconstructed
+      // matches alongside real ones. Without this, stats modules that filter
+      // by min-duration would silently drop every reconstructed row.
+      let durationIso = null;
+      if (typeof my.duration_sec === 'number' && my.duration_sec > 0) {
+        const totalSec = Math.round(my.duration_sec);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        durationIso = 'PT' + (h ? h + 'H' : '') + (m ? m + 'M' : '') + (s || (!h && !m) ? s + 'S' : '');
+      }
+      // Estimate damageTaken so the Damage Trends module can include this row
+      // (it requires both damageDealt and damageTaken > 300). We have a rough
+      // signal: sum of damage dealt by all enemy players in the same match.
+      // It is not perfect (counts damage spread across teammates too) but it
+      // is the best approximation we have from participant rows and is clearly
+      // labelled as reconstructed in the UI banner.
+      let estTaken = 0;
+      const allInMatch = byMatch[my.match_id] || [];
+      const myTeamId = my.team_id != null ? my.team_id : 0;
+      const enemies = allInMatch.filter(r => r.xuid !== String(xuid) && (r.team_id != null ? r.team_id : 0) !== myTeamId);
+      if (enemies.length) {
+        const totalEnemyDmg = enemies.reduce((s, r) => s + (r.damage || 0), 0);
+        // No friendly-fire in Halo Infinite, so all enemy damage was directed
+        // at our team. Split evenly across teammates (incl. the target) as a
+        // best-effort estimate.
+        const myTeammates = allInMatch.filter(r => (r.team_id != null ? r.team_id : 0) === myTeamId).length || 1;
+        estTaken = Math.round(totalEnemyDmg / myTeammates);
+      }
       matches.push({
         matchId: my.match_id,
         outcome: my.outcome,
         startTime: my.start_time ? new Date(my.start_time).toISOString() : null,
-        duration: my.duration_sec || null,
+        duration: durationIso,
+        durationSec: typeof my.duration_sec === 'number' ? my.duration_sec : null,
         gameMode: my.game_mode,
         mapName: my.map_name,
         mapImageUrl: my.map_image_url,
@@ -613,7 +726,9 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
         assists: my.assists || 0,
         score: my.score || 0,
         damageDealt: my.damage || 0,
-        damageTaken: 0,
+        // Approximated from enemy damage; renderer treats this as best-effort
+        // for Damage Trends but never as authoritative for accuracy/KDA.
+        damageTaken: estTaken,
         teams: Object.values(teamMap),
         // Marker so the frontend (and any downstream stats) can tell this row
         // came from the participant-table fallback rather than a direct fetch.
@@ -677,4 +792,4 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt };

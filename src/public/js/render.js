@@ -1724,11 +1724,45 @@ function render(){
   html+='<div class="tab-panel'+(activeTab==='charts'?' active':'')+'" data-tab="charts">';
   var _cc=window._themeChartColors||['#378ADD','#85B7EB','#E0A020'];
 
+  // Whether the current player's history was reconstructed from public match
+  // records rather than fetched directly. Reconstructed matches may lack some
+  // fields (weaponStats, accuracy, shotsFired) and have an estimated
+  // damageTaken — so stats modules accept smaller samples and skip data
+  // points that are missing rather than blanking the whole module.
+  var _isReconstructed=!!(p.privateHistory||p.reconstructed)
+    ||statMatches.some(function(m){return m&&m.reconstructed;});
+  // Minimum sample sizes — lowered for reconstructed history because coverage
+  // grows only as other public players are searched. A small sample is
+  // explicitly labelled in the section header so the user can read confidence.
+  var _MIN_FP=_isReconstructed?5:10;        // playstyle fingerprint / consistency
+  var _MIN_DMG=_isReconstructed?3:3;        // damage trends — already low
+  var _MIN_KB=_isReconstructed?3:1;         // kill breakdown basics
+
   // ── PLAYSTYLE FINGERPRINT + CONSISTENCY SCORE ─────────────────────────────────
   (function(){
-    function _fpSecs(m){var s=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;}
-    var validMs=statMatches.filter(function(m){return m.kills!=null&&_fpSecs(m)>=180;});
-    if(validMs.length<10) return;
+    // Resolve match duration in seconds. Accepts ISO 8601 (PT#H#M#S) — the
+    // shape the Halo API returns — and falls back to a numeric durationSec
+    // field which reconstructed matches carry. Returns 0 only when neither is
+    // available; callers gate on a minimum threshold but reconstructed rows
+    // without any duration metadata still count as 0 and are filtered out.
+    function _fpSecs(m){
+      if(typeof m.durationSec==='number'&&m.durationSec>0) return m.durationSec;
+      var s=String(m.duration||'').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);
+      return s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;
+    }
+    // For reconstructed matches duration may be entirely absent — still
+    // include them so the user gets some signal. Use a relaxed filter:
+    // accept any match where we have kills/deaths, and a duration threshold
+    // only when duration metadata is present.
+    var validMs=statMatches.filter(function(m){
+      if(m.kills==null) return false;
+      var secs=_fpSecs(m);
+      // If duration data is present at all, enforce the 180s floor (filters
+      // out custom 1v1 / aborted matches). Otherwise accept the match.
+      if(secs>0) return secs>=180;
+      return !!m.reconstructed; // accept unknown-duration only when reconstructed
+    });
+    if(validMs.length<_MIN_FP) return;
 
     var totalK=validMs.reduce(function(a,m){return a+(m.kills||0);},0);
     var totalD=validMs.reduce(function(a,m){return a+(m.deaths||0);},0);
@@ -1846,7 +1880,7 @@ function render(){
     });
     var radarSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 284 230" width="284" height="230" style="flex-shrink:0;display:block;max-width:100%;height:auto">'+svgInner+'</svg>';
 
-    html+=sectionHead('Playstyle Fingerprint',validMs.length+' games analysed');
+    html+=sectionHead('Playstyle Fingerprint',validMs.length+' games analysed'+(_isReconstructed?' · reconstructed (partial coverage)':''));
     html+='<div class="fingerprint-card" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:16px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;overflow:hidden">';
     html+=radarSvg;
     html+='<div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:0">';
@@ -1888,7 +1922,7 @@ function render(){
     // horizontally to fill available space; height is kept fixed so bars don't become too tall.
     var sparkSvg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+sparkW+' '+sparkH+'" preserveAspectRatio="none" style="display:block;border-radius:3px;overflow:hidden;width:100%;height:'+sparkH+'px">'+sparkBars+'<line x1="0" y1="'+avgKdaY+'" x2="'+sparkW+'" y2="'+avgKdaY+'" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,2"/></svg>';
 
-    html+=sectionHead('Consistency Score','KDA variance across '+validMs.length+' games');
+    html+=sectionHead('Consistency Score','KDA variance across '+validMs.length+' games'+(_isReconstructed?' · reconstructed':''));
     html+='<div class="consistency-card" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px 24px;margin-bottom:24px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">';
     // Big score
     html+='<div style="flex-shrink:0">';
@@ -1939,7 +1973,11 @@ function render(){
     });
     var kbAccuracy=totalShotsFired>0?(totalShotsHit/totalShotsFired*100).toFixed(1):null;
     var hasWeaponData=totalHS+totalMelee+totalGrenades+totalPower>0;
-    if(!hasWeaponData||!totalKillsSample) return;
+    // Need at least basic kill totals to show anything meaningful.
+    if(!totalKillsSample||_kbSample.length<_MIN_KB) return;
+    // Reconstructed histories carry per-match kills/deaths but no weaponStats
+    // (headshots, melee, grenades). When weapon data is absent we still render
+    // the Record + K/D + Kills + Deaths cards so the section is not empty.
     var totalKills=totalKillsSample;
     var hsPct=Math.round((totalHS/totalKills)*100);
     var meleePct=Math.round((totalMelee/totalKills)*100);
@@ -1947,7 +1985,7 @@ function render(){
     var powerPct=Math.round((totalPower/totalKills)*100);
     var otherPct=Math.max(0,100-hsPct-meleePct-grenPct-powerPct);
     var _validGames=_kbSample.filter(function(m){return m.outcome===2||m.outcome===3;}).filter(function(m){return _durSecs(m)>=60;});
-    var sampleLabel='last '+_kbSample.length+' games';
+    var sampleLabel='last '+_kbSample.length+' games'+(_isReconstructed?' · reconstructed':'');
     html+=sectionHead('Kill Breakdown',sampleLabel);
     function killStat(label,val,pct,color){
       return'<div class="stat-card"><div class="stat-label">'+label+'</div>'
@@ -1968,11 +2006,17 @@ function render(){
       +'<div class="stat-card"><div class="stat-label">Kills</div><div class="stat-value" style="color:var(--win)">'+totalKillsSample+'</div><div class="stat-sub">'+(_validGames.length?totalKillsSample/_validGames.length:0).toFixed(1)+' per game</div></div>'
       +'<div class="stat-card"><div class="stat-label">Deaths</div><div class="stat-value" style="color:var(--loss)">'+totalDeathsSample+'</div><div class="stat-sub">'+(_validGames.length?totalDeathsSample/_validGames.length:0).toFixed(1)+' per game</div></div>'
       +(kbAccuracy!==null?'<div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" style="color:var(--accent)">'+kbAccuracy+'%</div><div class="stat-sub">shots hit / fired</div></div>':'')
-      +killStat('Headshots',totalHS,hsPct,'#ff6b6b')
-      +killStat('Power Weapon',totalPower,powerPct,'var(--gold)')
-      +killStat('Grenade',totalGrenades,grenPct,'#51cf66')
-      +killStat('Melee',totalMelee,meleePct,'#339af0')
-      +killStat('Body Shots',Math.max(0,totalKills-totalHS-totalMelee-totalGrenades-totalPower),otherPct,'var(--muted)')
+      +(hasWeaponData?(
+        killStat('Headshots',totalHS,hsPct,'#ff6b6b')
+        +killStat('Power Weapon',totalPower,powerPct,'var(--gold)')
+        +killStat('Grenade',totalGrenades,grenPct,'#51cf66')
+        +killStat('Melee',totalMelee,meleePct,'#339af0')
+        +killStat('Body Shots',Math.max(0,totalKills-totalHS-totalMelee-totalGrenades-totalPower),otherPct,'var(--muted)')
+      ):(
+        // Reconstructed histories carry no weapon-stat detail. Surface a small
+        // note in lieu of the bars so the section is not silently truncated.
+        _isReconstructed?'<div class="stat-card" style="grid-column:span 4;background:var(--surface2);border:1px dashed var(--border)"><div class="stat-label">Weapon Breakdown</div><div class="stat-sub" style="margin-top:6px">Per-weapon kill data (headshots, power, grenade, melee) is not captured for reconstructed match history. Counts above are accurate; weapon breakdown will populate if the player\'s history later becomes public.</div></div>':''
+      ))
       +'</div>';
   })();
 
@@ -2317,9 +2361,17 @@ function render(){
     var dmgSample=displayMatches.filter(function(m){
       var s=m.duration?String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/):null;
       var secs=s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;
+      if(secs===0&&typeof m.durationSec==='number') secs=m.durationSec;
+      // Reconstructed matches have an estimated damageTaken (split from enemy
+      // damage), so we only require dealt > 300 and a non-zero taken.
+      // Direct-fetched matches still need both > 300 to filter aborted games.
+      if(m.reconstructed){
+        if(secs>0&&secs<180) return false;
+        return (m.damageDealt||0)>0&&(m.outcome===2||m.outcome===3);
+      }
       return secs>=180&&m.damageDealt>300&&m.damageTaken>300&&(m.outcome===2||m.outcome===3);
     }).slice(0,_isMobile?20:40).reverse();
-    if(dmgSample.length<3)return;
+    if(dmgSample.length<_MIN_DMG)return;
 
     var dealtVals=dmgSample.map(function(m){return m.damageDealt||0;});
     var takenVals=dmgSample.map(function(m){return m.damageTaken||0;});
@@ -2344,7 +2396,7 @@ function render(){
         +'</div>';
     }
 
-    html+=sectionHead('Damage Trends','last '+dmgSample.length+' games');
+    html+=sectionHead('Damage Trends','last '+dmgSample.length+' games'+(_isReconstructed?' · damage taken estimated':''));
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
 
     // Stat cards — 2-col on mobile, 4-col on desktop
