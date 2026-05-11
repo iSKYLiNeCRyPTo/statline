@@ -1008,6 +1008,138 @@ async function getFrequentCoPlayers(xuid, limit = 20) {
   }
 }
 
+// Enrich a list of match objects with CSR/rank data on each team-roster
+// player slot, so the expanded match-detail team table can always render
+// rank badges next to player names. Three sources are consulted in order:
+//
+//   1. The per-match RankRecap already carried on the player slot
+//      (csrTier/csrSubTier/csrValue) — set by halo.js for ranked matches we
+//      fetched ourselves. Already correct; nothing to do.
+//   2. The match_participants row for (match_id, xuid) — set whenever ANY
+//      public player's history surfaced this match. Provides the post-game
+//      CSR for that specific match.
+//   3. The most recent player_snapshots row for this xuid — provides the
+//      player's CURRENT rank as a fallback. Tagged as `csrFromSnapshot:true`
+//      so the renderer can mark the badge as approximate if desired.
+//
+// Cached match blobs predating PR #5 carry no csrTier on team rosters; this
+// function fills them in without re-fetching anything from Halo. Mutates
+// `matches` in place. Safe to call on undefined / empty arrays.
+async function enrichMatchTeamsWithCsr(matches) {
+  if (!Array.isArray(matches) || !matches.length) return { perMatch: 0, snapshot: 0, missing: 0 };
+  // First pass: collect (matchId, xuid) pairs missing per-match CSR.
+  const matchIdToXuids = new Map();          // matchId -> Set of xuids
+  const xuidToSlots = new Map();             // xuid -> array of player slot refs (mutated later)
+  const allXuids = new Set();
+  for (const m of matches) {
+    if (!m || !Array.isArray(m.teams)) continue;
+    const mid = m.matchId;
+    for (const team of m.teams) {
+      if (!team || !Array.isArray(team.players)) continue;
+      for (const pl of team.players) {
+        if (!pl) continue;
+        const xu = pl.rawXuid || pl.xuid;
+        if (!xu) continue;
+        // Skip if already has rank data (either casing).
+        const hasTier = (pl.csrTier != null && pl.csrTier !== '') || (pl.csr_tier != null && pl.csr_tier !== '');
+        if (hasTier) continue;
+        if (mid) {
+          if (!matchIdToXuids.has(mid)) matchIdToXuids.set(mid, new Set());
+          matchIdToXuids.get(mid).add(String(xu));
+        }
+        if (!xuidToSlots.has(String(xu))) xuidToSlots.set(String(xu), []);
+        xuidToSlots.get(String(xu)).push(pl);
+        allXuids.add(String(xu));
+      }
+    }
+  }
+  if (!allXuids.size) return { perMatch: 0, snapshot: 0, missing: 0 };
+
+  let perMatchHits = 0, snapshotHits = 0;
+  try {
+    const db = await getDb();
+    if (!db) return { perMatch: 0, snapshot: 0, missing: allXuids.size };
+
+    // Step 2: per-match CSR from match_participants. Single query for ALL
+    // (match_id, xuid) pairs missing rank data.
+    if (matchIdToXuids.size) {
+      const mids = Array.from(matchIdToXuids.keys());
+      const xuids = Array.from(new Set([].concat(...Array.from(matchIdToXuids.values()).map(s => Array.from(s)))));
+      if (mids.length && xuids.length) {
+        const rows = await db.query(
+          `SELECT match_id, xuid, csr_tier, csr_subtier, csr_value, csr_delta, csr_pre_value
+           FROM match_participants
+           WHERE match_id = ANY($1) AND xuid = ANY($2) AND csr_tier IS NOT NULL`,
+          [mids, xuids]
+        );
+        const byKey = new Map();
+        for (const r of rows.rows) byKey.set(r.match_id + '|' + r.xuid, r);
+        for (const m of matches) {
+          if (!m || !m.matchId || !Array.isArray(m.teams)) continue;
+          for (const team of m.teams) {
+            if (!team || !Array.isArray(team.players)) continue;
+            for (const pl of team.players) {
+              if (!pl) continue;
+              if (pl.csrTier || pl.csr_tier) continue;
+              const xu = pl.rawXuid || pl.xuid;
+              if (!xu) continue;
+              const row = byKey.get(m.matchId + '|' + String(xu));
+              if (!row) continue;
+              pl.csrTier = row.csr_tier;
+              if (row.csr_subtier != null) pl.csrSubTier = row.csr_subtier;
+              if (row.csr_value != null) pl.csrValue = row.csr_value;
+              if (row.csr_delta != null) pl.csrDelta = row.csr_delta;
+              if (row.csr_pre_value != null) pl.csrPreValue = row.csr_pre_value;
+              perMatchHits++;
+            }
+          }
+        }
+      }
+    }
+
+    // Step 3: snapshot fallback. Only for xuids still missing rank data.
+    const stillMissing = new Set();
+    for (const [xu, slots] of xuidToSlots.entries()) {
+      if (slots.some(s => !s.csrTier && !s.csr_tier)) stillMissing.add(xu);
+    }
+    if (stillMissing.size) {
+      const xuidArr = Array.from(stillMissing);
+      // Most recent snapshot per xuid (DISTINCT ON respects ORDER BY).
+      const snapRows = await db.query(
+        `SELECT DISTINCT ON (xuid) xuid, csr_tier, csr_subtier, csr_value, ts
+         FROM player_snapshots
+         WHERE xuid = ANY($1) AND csr_tier IS NOT NULL
+         ORDER BY xuid, ts DESC`,
+        [xuidArr]
+      );
+      const byXuid = new Map();
+      for (const r of snapRows.rows) byXuid.set(String(r.xuid), r);
+      for (const [xu, slots] of xuidToSlots.entries()) {
+        const row = byXuid.get(xu);
+        if (!row) continue;
+        for (const pl of slots) {
+          if (pl.csrTier || pl.csr_tier) continue;
+          pl.csrTier = row.csr_tier;
+          if (row.csr_subtier != null) pl.csrSubTier = row.csr_subtier;
+          if (row.csr_value != null) pl.csrValue = row.csr_value;
+          // Mark as a fallback so the renderer/title can disclose this is
+          // the player's current rank, not the rank at this specific match.
+          pl.csrFromSnapshot = true;
+          snapshotHits++;
+        }
+      }
+    }
+  } catch(e) {
+    console.error('[DB] enrichMatchTeamsWithCsr error:', e.message);
+  }
+  // Coverage counters used by verification scripts + admin diagnostics.
+  let stillMissingFinal = 0;
+  for (const slots of xuidToSlots.values()) {
+    for (const pl of slots) if (!pl.csrTier && !pl.csr_tier) stillMissingFinal++;
+  }
+  return { perMatch: perMatchHits, snapshot: snapshotHits, missing: stillMissingFinal };
+}
+
 // Resolve a gamertag → xuid using whichever caches we have.
 async function lookupXuidByGamertag(gamertag) {
   if (!gamertag) return null;
@@ -1032,4 +1164,4 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow };

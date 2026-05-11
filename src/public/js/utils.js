@@ -35,12 +35,17 @@ function rankBadgeHtml(player){
   var desktopText = formatRankLabel(tier, sub, val, 'desktop');
   var mobileText  = formatRankLabel(tier, sub, val, 'mobile');
   if(!desktopText && !mobileText) return '';
-  // Use a single accessible title for screen readers / hover.
+  // Server-side enrichment marks badges sourced from the player_snapshots
+  // table (current rank, not the rank at this specific match) so the title
+  // can disclose that to the reader. Per-match badges leave the flag unset.
+  var fromSnapshot = player.csrFromSnapshot === true || player.csr_from_snapshot === true;
   var titleParts = [tier];
   if(tier && tier !== 'Onyx' && sub != null) titleParts.push(sub);
   if(val != null) titleParts.push('· CSR ' + val);
+  if(fromSnapshot) titleParts.push('· current rank');
   var title = titleParts.filter(Boolean).join(' ');
-  return '<span class="rank-badge" title="'+title.replace(/"/g,'&quot;')+'" aria-label="'+title.replace(/"/g,'&quot;')+'">'
+  var cls = 'rank-badge' + (fromSnapshot ? ' rank-badge-fallback' : '');
+  return '<span class="'+cls+'" title="'+title.replace(/"/g,'&quot;')+'" aria-label="'+title.replace(/"/g,'&quot;')+'">'
     + '<span class="rank-badge-desktop">'+desktopText+'</span>'
     + '<span class="rank-badge-mobile">'+mobileText+'</span>'
     + '</span>';
