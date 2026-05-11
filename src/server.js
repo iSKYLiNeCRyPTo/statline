@@ -159,8 +159,23 @@ function _isInNoNewDataCooldown(meta) {
 // Overview KDA/KD/Kills tiles render as "—" or "0.00" even though the
 // reconstructed matches contain real numbers.
 function aggregateStatsFromMatches(matches, base) {
-  const ms = Array.isArray(matches) ? matches : [];
+  let ms = Array.isArray(matches) ? matches : [];
   if (!ms.length) return base || {};
+  // Belt-and-suspenders: collapse by canonical matchId so a duplicate row
+  // (e.g. reconstructed match also present in a fresh fetch on edge paths)
+  // never inflates K/D, win-rate, kill totals, or matchesPlayed. Keeps the
+  // first occurrence (callers pass DESC-sorted match lists, so newest wins).
+  if (ms.length > 1) {
+    const seen = new Set();
+    const out = [];
+    for (const m of ms) {
+      const id = m && m.matchId;
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      out.push(m);
+    }
+    ms = out;
+  }
   const kills   = ms.reduce((s, m) => s + (m.kills   || 0), 0);
   const deaths  = ms.reduce((s, m) => s + (m.deaths  || 0), 0);
   const assists = ms.reduce((s, m) => s + (m.assists || 0), 0);
