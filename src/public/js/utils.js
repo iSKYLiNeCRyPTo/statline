@@ -25,7 +25,13 @@ function formatRankLabel(tier, subTier, value, mode){
 // is unchanged for unranked matches / private players.
 function rankBadgeHtml(player){
   if(!player) return '';
-  var tier = player.csrTier, sub = player.csrSubTier, val = player.csrValue;
+  // Accept both camelCase (renderer-friendly) and snake_case (raw DB column
+  // names). The reconstructed-history path in db.js returns rows shaped from
+  // the match_participants table; if any caller skips the camelCase mapping,
+  // snake_case still surfaces the badge instead of silently dropping it.
+  var tier = player.csrTier != null ? player.csrTier : player.csr_tier;
+  var sub  = player.csrSubTier != null ? player.csrSubTier : player.csr_subtier;
+  var val  = player.csrValue != null ? player.csrValue : player.csr_value;
   var desktopText = formatRankLabel(tier, sub, val, 'desktop');
   var mobileText  = formatRankLabel(tier, sub, val, 'mobile');
   if(!desktopText && !mobileText) return '';
