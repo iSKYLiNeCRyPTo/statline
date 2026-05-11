@@ -65,6 +65,36 @@ async function getDb() {
         )`);
         await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_match_participants_xuid ON match_participants(xuid)`);
         await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_match_participants_start_time ON match_participants(start_time DESC)`);
+        // Richer per-participant fields — added in PR "rich match participants".
+        // Each column is added independently so live deploys upgrade without
+        // downtime; missing columns just stay null on legacy rows. Field
+        // sources (Halo CoreStats / RankRecap / objective sub-stats) are
+        // documented above saveMatchParticipants.
+        const _participantColumns = [
+          ['damage_taken',       'INT'],
+          ['shots_fired',        'INT'],
+          ['shots_landed',       'INT'],
+          ['accuracy',           'FLOAT'],
+          ['headshot_kills',     'INT'],
+          ['melee_kills',        'INT'],
+          ['grenade_kills',      'INT'],
+          ['power_weapon_kills', 'INT'],
+          ['placement',          'INT'],
+          ['csr_tier',           'TEXT'],
+          ['csr_subtier',        'INT'],
+          ['csr_value',          'INT'],
+          ['csr_pre_value',      'INT'],
+          ['csr_delta',          'INT'],
+          ['mmr',                'INT'],
+          ['medals',             'JSONB'],
+          ['obj_stats',          'JSONB'],
+          // enrichment_version bumps whenever saveMatchParticipants begins
+          // emitting a new field shape; lets backfills tell legacy rows apart.
+          ['enrichment_version', 'INT'],
+        ];
+        for (const [col, type] of _participantColumns) {
+          await _dbPool.query(`ALTER TABLE match_participants ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+        }
         // player_refresh_meta: per-player background-refresh bookkeeping.
         // last_refresh_ts          — when we last fetched their stats (any source)
         // last_no_new_data_ts      — when the most recent refresh found NO new
@@ -562,6 +592,115 @@ async function getLeaderboardData(limit = 100000) {
 //
 // sourceXuid = the xuid of the player whose history we were fetching when we
 // captured this match. Tracks provenance ("known from public match records").
+//
+// Field sources (Halo Infinite match-detail payload via halo.js fetchMatchHistory):
+//   kills / deaths / assists / score / damage / damage_taken / shots_fired /
+//     shots_landed / accuracy / headshot_kills / melee_kills / grenade_kills /
+//     power_weapon_kills
+//                                ← PlayerTeamStats[0].Stats.CoreStats.*
+//   medals                       ← PlayerTeamStats[0].Stats.CoreStats.Medals
+//                                  (filtered to {nameId, count} for non-zero counts)
+//   placement                    ← player.Rank + 1 (post-game leaderboard position)
+//   csr_tier / csr_subtier / csr_value / csr_pre_value / csr_delta
+//                                ← PlayerTeamStats[0].RankRecap.{PostMatchCsr,PreMatchCsr}
+//   mmr                          ← skill.svc TeamMmr at match time (best-effort)
+//   obj_stats                    ← Oddball/Zones/CTF/Stockpile fields
+//
+// All rich fields are optional: rows that predate the schema (or were
+// constructed from a cached blob missing a field) stay null. Backfills only
+// COALESCE non-null values in so we never overwrite a richer prior write.
+const PARTICIPANT_ENRICHMENT_VERSION = 1;
+
+const PARTICIPANT_COLS = [
+  'match_id','xuid','gamertag','team_id','outcome',
+  'kills','deaths','assists','score','damage',
+  'is_ranked','game_mode','map_name','map_image_url','start_time','duration_sec','source_xuid',
+  // PR "rich match participants" — see column docs above. Field order matters
+  // for legacy verify-* scripts that index params by position, but new tests
+  // use buildParticipantRow() to avoid hard-coded offsets.
+  'damage_taken','shots_fired','shots_landed','accuracy',
+  'headshot_kills','melee_kills','grenade_kills','power_weapon_kills',
+  'placement','csr_tier','csr_subtier','csr_value','csr_pre_value','csr_delta','mmr',
+  'medals','obj_stats','enrichment_version',
+];
+
+function _numOrNull(v) {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _intOrNull(v) {
+  const n = _numOrNull(v);
+  return n == null ? null : Math.trunc(n);
+}
+
+// Build the row payload for one roster slot (team.players[i]). The match-level
+// fields (gameMode, isRanked, etc.) come in via meta — separating concerns so
+// the same function can be used both for fresh Halo fetches and for backfill
+// from cached blobs that already nested everything per-match.
+function buildParticipantRow(pl, team, meta) {
+  const rawXu = pl.rawXuid && String(pl.rawXuid);
+  if (!rawXu) return null;
+  // Medals: only persist {nameId, count} for non-zero counts. The full Halo
+  // payload includes a dozen extra fields per medal we don't need.
+  let medalsJson = null;
+  const rawMedals = pl.medals != null ? pl.medals : pl.topMedals;
+  if (Array.isArray(rawMedals) && rawMedals.length) {
+    const cleaned = rawMedals
+      .map(mm => {
+        if (!mm) return null;
+        const id = mm.nameId != null ? mm.nameId : (mm.NameId != null ? mm.NameId : null);
+        const ct = mm.count   != null ? mm.count   : (mm.Count   != null ? mm.Count   : null);
+        if (id == null || !ct) return null;
+        return { nameId: Number(id), count: Number(ct) };
+      })
+      .filter(x => x && x.count > 0);
+    if (cleaned.length) medalsJson = JSON.stringify(cleaned);
+  }
+  const objStatsJson = pl.objStats && typeof pl.objStats === 'object'
+    ? JSON.stringify(pl.objStats)
+    : null;
+  return {
+    match_id: meta.matchId,
+    xuid: rawXu,
+    gamertag: pl.gamertag && !pl.gamertag.startsWith('Spartan ') ? pl.gamertag : null,
+    team_id: team && team.teamId != null ? team.teamId : null,
+    outcome: team && team.outcome != null ? team.outcome : null,
+    kills:   _intOrNull(pl.kills),
+    deaths:  _intOrNull(pl.deaths),
+    assists: _intOrNull(pl.assists),
+    score:   _intOrNull(pl.score),
+    damage:  _intOrNull(pl.damage),
+    is_ranked: !!meta.isRanked,
+    game_mode: meta.gameMode || null,
+    map_name:  meta.mapName || null,
+    map_image_url: meta.mapImageUrl || null,
+    start_time: meta.startTime,
+    duration_sec: typeof meta.durationSec === 'number' ? meta.durationSec : null,
+    source_xuid: meta.sourceXuid ? String(meta.sourceXuid) : null,
+    // Rich fields — every one is null-safe.
+    damage_taken:        _intOrNull(pl.damageTaken),
+    shots_fired:         _intOrNull(pl.shotsFired),
+    shots_landed:        _intOrNull(pl.shotsLanded != null ? pl.shotsLanded : pl.shotsHit),
+    accuracy:            pl.accuracy != null ? _numOrNull(pl.accuracy) : null,
+    headshot_kills:      _intOrNull(pl.headshotKills != null ? pl.headshotKills : (pl.weaponStats && pl.weaponStats.headshots)),
+    melee_kills:         _intOrNull(pl.meleeKills    != null ? pl.meleeKills    : (pl.weaponStats && pl.weaponStats.melee)),
+    grenade_kills:       _intOrNull(pl.grenadeKills  != null ? pl.grenadeKills  : (pl.weaponStats && pl.weaponStats.grenades)),
+    power_weapon_kills:  _intOrNull(pl.powerWeaponKills != null ? pl.powerWeaponKills : (pl.weaponStats && pl.weaponStats.powerWeapon)),
+    placement:           _intOrNull(pl.placement),
+    csr_tier:            pl.csrTier || null,
+    csr_subtier:         _intOrNull(pl.csrSubTier),
+    csr_value:           _intOrNull(pl.csrValue),
+    csr_pre_value:       _intOrNull(pl.csrPreValue),
+    csr_delta:           _intOrNull(pl.csrDelta),
+    mmr:                 _intOrNull(pl.mmr),
+    medals:              medalsJson,
+    obj_stats:           objStatsJson,
+    enrichment_version:  PARTICIPANT_ENRICHMENT_VERSION,
+  };
+}
+
 async function saveMatchParticipants(matchRows, sourceXuid) {
   if (!matchRows || !matchRows.length) return 0;
   try {
@@ -571,44 +710,50 @@ async function saveMatchParticipants(matchRows, sourceXuid) {
     for (const m of matchRows) {
       if (!m || !m.matchId || !m.teams || !m.teams.length) continue;
       const startTime = m.startTime ? new Date(m.startTime) : null;
-      const durSec = typeof m.duration === 'string' ? null : (m.duration || null);
+      // duration may be ISO ("PT9M30S"), numeric seconds, or a numeric string —
+      // tolerate all three. Anything else stays null.
+      let durSec = null;
+      if (typeof m.duration === 'number') durSec = m.duration;
+      else if (typeof m.durationSec === 'number') durSec = m.durationSec;
+      else if (typeof m.duration === 'string') {
+        const parsed = m.duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/);
+        if (parsed) {
+          const h = parseInt(parsed[1] || 0, 10);
+          const mm = parseInt(parsed[2] || 0, 10);
+          const s = parseFloat(parsed[3] || 0);
+          durSec = (h * 3600) + (mm * 60) + s;
+          if (!Number.isFinite(durSec) || durSec <= 0) durSec = null;
+        } else if (/^\d+(\.\d+)?$/.test(m.duration)) {
+          durSec = parseFloat(m.duration);
+        }
+      }
+      const meta = {
+        matchId: m.matchId,
+        isRanked: m.isRanked,
+        gameMode: m.gameMode,
+        mapName: m.mapName,
+        mapImageUrl: m.mapImageUrl,
+        startTime,
+        durationSec: typeof durSec === 'number' ? Math.round(durSec) : null,
+        sourceXuid,
+      };
       const rows = [];
       for (const team of m.teams) {
         if (!team || !team.players) continue;
-        const teamOutcome = team.outcome != null ? team.outcome : null;
         for (const pl of team.players) {
-          const rawXu = pl.rawXuid && String(pl.rawXuid);
-          if (!rawXu) continue;
-          rows.push({
-            match_id: m.matchId,
-            xuid: rawXu,
-            gamertag: pl.gamertag && !pl.gamertag.startsWith('Spartan ') ? pl.gamertag : null,
-            team_id: team.teamId != null ? team.teamId : null,
-            outcome: teamOutcome,
-            kills:   pl.kills   != null ? pl.kills   : null,
-            deaths:  pl.deaths  != null ? pl.deaths  : null,
-            assists: pl.assists != null ? pl.assists : null,
-            score:   pl.score   != null ? pl.score   : null,
-            damage:  pl.damage  != null ? pl.damage  : null,
-            is_ranked: !!m.isRanked,
-            game_mode: m.gameMode || null,
-            map_name:  m.mapName || null,
-            map_image_url: m.mapImageUrl || null,
-            start_time: startTime,
-            duration_sec: typeof durSec === 'number' ? durSec : null,
-            source_xuid: sourceXuid ? String(sourceXuid) : null,
-          });
+          const r = buildParticipantRow(pl, team, meta);
+          if (r) rows.push(r);
         }
       }
       if (!rows.length) continue;
-      // Batch insert per match — small enough to fit a single statement
-      const cols = ['match_id','xuid','gamertag','team_id','outcome','kills','deaths','assists','score','damage','is_ranked','game_mode','map_name','map_image_url','start_time','duration_sec','source_xuid'];
+      const cols = PARTICIPANT_COLS;
       const placeholders = rows.map((_, i) =>
         '(' + cols.map((__, j) => `$${i * cols.length + j + 1}`).join(',') + ')'
       ).join(',');
       const params = rows.flatMap(r => cols.map(c => r[c]));
-      // ON CONFLICT: update gamertag/stats only if the new row brings non-null
-      // information — never blow away a known gamertag with null.
+      // ON CONFLICT: update each column only when the new value is non-null.
+      // Never blow away a richer prior write (e.g. real damageTaken) with a
+      // null from a thinner backfill source.
       const setClauses = cols.filter(c => c !== 'match_id' && c !== 'xuid')
         .map(c => `${c} = COALESCE(EXCLUDED.${c}, match_participants.${c})`).join(',');
       try {
@@ -635,27 +780,25 @@ async function saveMatchParticipants(matchRows, sourceXuid) {
 // matches. Returns matches shaped roughly like fetchMatchHistory output so the
 // frontend renderer can consume them directly.
 async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
-  if (!xuid) return { matches: [], participantRowCount: 0 };
+  if (!xuid) return { matches: [], participantRowCount: 0, enrichmentCoverage: {} };
   try {
     const db = await getDb();
-    if (!db) return { matches: [], participantRowCount: 0 };
+    if (!db) return { matches: [], participantRowCount: 0, enrichmentCoverage: {} };
     // 1) Pull every match this xuid appears in (sorted by start_time desc).
+    // SELECT *: column drift between schemas is handled at row-read time so
+    // legacy deploys without the rich columns still respond.
     const myRows = await db.query(
-      `SELECT match_id, team_id, outcome, kills, deaths, assists, score, damage,
-              is_ranked, game_mode, map_name, map_image_url, start_time, duration_sec, gamertag
-       FROM match_participants
+      `SELECT * FROM match_participants
        WHERE xuid = $1
        ORDER BY start_time DESC NULLS LAST
        LIMIT $2`,
       [String(xuid), limit]
     );
-    if (!myRows.rows.length) return { matches: [], participantRowCount: 0 };
+    if (!myRows.rows.length) return { matches: [], participantRowCount: 0, enrichmentCoverage: {} };
     const matchIds = myRows.rows.map(r => r.match_id);
     // 2) Pull all participants for those matches in one query so we can rebuild teams.
     const allRows = await db.query(
-      `SELECT match_id, xuid, gamertag, team_id, outcome, kills, deaths, assists, score, damage
-       FROM match_participants
-       WHERE match_id = ANY($1)`,
+      `SELECT * FROM match_participants WHERE match_id = ANY($1)`,
       [matchIds]
     );
     const byMatch = {};
@@ -663,12 +806,35 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
       if (!byMatch[r.match_id]) byMatch[r.match_id] = [];
       byMatch[r.match_id].push(r);
     }
+    // Coverage counters so callers (and tests) can tell which rich fields
+    // were actually populated for this player vs. left null.
+    const coverage = {
+      total: myRows.rows.length,
+      damageTaken: 0,
+      accuracy: 0,
+      headshotKills: 0,
+      shotsFired: 0,
+      csr: 0,
+      objStats: 0,
+      medals: 0,
+      placement: 0,
+    };
     const matches = [];
     for (const my of myRows.rows) {
       const teamMap = {};
       for (const r of (byMatch[my.match_id] || [])) {
         const tid = r.team_id != null ? r.team_id : 0;
         if (!teamMap[tid]) teamMap[tid] = { teamId: tid, outcome: r.outcome, players: [] };
+        const weaponStats = (r.headshot_kills != null || r.melee_kills != null || r.grenade_kills != null || r.power_weapon_kills != null) ? {
+          headshots:   r.headshot_kills || 0,
+          melee:       r.melee_kills || 0,
+          grenades:    r.grenade_kills || 0,
+          powerWeapon: r.power_weapon_kills || 0,
+        } : null;
+        let medals = null;
+        try {
+          if (r.medals) medals = typeof r.medals === 'string' ? JSON.parse(r.medals) : r.medals;
+        } catch { medals = null; }
         teamMap[tid].players.push({
           gamertag: r.gamertag || ('Spartan ' + String(r.xuid).slice(-4)),
           rawXuid: r.xuid,
@@ -679,6 +845,20 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
           kd: (r.deaths || 0) > 0 ? (r.kills / r.deaths).toFixed(2) : String(r.kills || 0),
           kda: ((r.kills || 0) - (r.deaths || 0) + (r.assists || 0) / 3).toFixed(1),
           damage: r.damage || 0,
+          // Rich fields surface on team-roster players too so the match-detail
+          // modal can render CSR badges, accuracy, headshots, etc. consistently
+          // with a direct-fetched match.
+          damageTaken: r.damage_taken != null ? r.damage_taken : null,
+          accuracy: r.accuracy != null ? r.accuracy : null,
+          shotsFired: r.shots_fired != null ? r.shots_fired : null,
+          shotsLanded: r.shots_landed != null ? r.shots_landed : null,
+          csrTier: r.csr_tier || null,
+          csrSubTier: r.csr_subtier != null ? r.csr_subtier : null,
+          csrValue: r.csr_value != null ? r.csr_value : null,
+          csrDelta: r.csr_delta != null ? r.csr_delta : null,
+          weaponStats,
+          medals,
+          placement: r.placement != null ? r.placement : null,
         });
       }
       // Format duration in ISO 8601 (PT#M#S) so the frontend's existing
@@ -689,28 +869,68 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
       if (typeof my.duration_sec === 'number' && my.duration_sec > 0) {
         const totalSec = Math.round(my.duration_sec);
         const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
+        const mn = Math.floor((totalSec % 3600) / 60);
         const s = totalSec % 60;
-        durationIso = 'PT' + (h ? h + 'H' : '') + (m ? m + 'M' : '') + (s || (!h && !m) ? s + 'S' : '');
+        durationIso = 'PT' + (h ? h + 'H' : '') + (mn ? mn + 'M' : '') + (s || (!h && !mn) ? s + 'S' : '');
       }
-      // Estimate damageTaken so the Damage Trends module can include this row
-      // (it requires both damageDealt and damageTaken > 300). We have a rough
-      // signal: sum of damage dealt by all enemy players in the same match.
-      // It is not perfect (counts damage spread across teammates too) but it
-      // is the best approximation we have from participant rows and is clearly
-      // labelled as reconstructed in the UI banner.
-      let estTaken = 0;
-      const allInMatch = byMatch[my.match_id] || [];
-      const myTeamId = my.team_id != null ? my.team_id : 0;
-      const enemies = allInMatch.filter(r => r.xuid !== String(xuid) && (r.team_id != null ? r.team_id : 0) !== myTeamId);
-      if (enemies.length) {
-        const totalEnemyDmg = enemies.reduce((s, r) => s + (r.damage || 0), 0);
-        // No friendly-fire in Halo Infinite, so all enemy damage was directed
-        // at our team. Split evenly across teammates (incl. the target) as a
-        // best-effort estimate.
-        const myTeammates = allInMatch.filter(r => (r.team_id != null ? r.team_id : 0) === myTeamId).length || 1;
-        estTaken = Math.round(totalEnemyDmg / myTeammates);
+      // Real damageTaken if we have it from the Halo CoreStats payload; only
+      // fall back to enemy-damage estimation when the column is null AND no
+      // sibling row in this match supplies it either. Estimated values are
+      // tagged so the UI can mark them as approximate.
+      let damageTaken = null;
+      let damageTakenEstimated = false;
+      if (my.damage_taken != null) {
+        damageTaken = my.damage_taken;
+      } else {
+        const allInMatch = byMatch[my.match_id] || [];
+        const myTeamId = my.team_id != null ? my.team_id : 0;
+        const enemies = allInMatch.filter(r => r.xuid !== String(xuid) && (r.team_id != null ? r.team_id : 0) !== myTeamId);
+        if (enemies.length) {
+          const totalEnemyDmg = enemies.reduce((s, r) => s + (r.damage || 0), 0);
+          // No friendly-fire in Halo Infinite, so all enemy damage was directed
+          // at our team. Split evenly across teammates (incl. the target) as a
+          // best-effort estimate.
+          const myTeammates = allInMatch.filter(r => (r.team_id != null ? r.team_id : 0) === myTeamId).length || 1;
+          damageTaken = Math.round(totalEnemyDmg / myTeammates);
+          damageTakenEstimated = damageTaken > 0;
+        } else {
+          damageTaken = 0;
+        }
       }
+      // Per-match weaponStats (top-level — used by Kill Breakdown when present).
+      const myWeaponStats = (my.headshot_kills != null || my.melee_kills != null || my.grenade_kills != null || my.power_weapon_kills != null) ? {
+        headshots:   my.headshot_kills || 0,
+        melee:       my.melee_kills || 0,
+        grenades:    my.grenade_kills || 0,
+        powerWeapon: my.power_weapon_kills || 0,
+      } : null;
+      let myObjStats = null;
+      try {
+        if (my.obj_stats) myObjStats = typeof my.obj_stats === 'string' ? JSON.parse(my.obj_stats) : my.obj_stats;
+      } catch { myObjStats = null; }
+      let myMedals = null;
+      try {
+        if (my.medals) myMedals = typeof my.medals === 'string' ? JSON.parse(my.medals) : my.medals;
+      } catch { myMedals = null; }
+      // CSR badge for the player row — "Onyx 1500" / "Diamond 4" style label
+      // matching halo.js csrAfter formatting.
+      let csrAfter = null;
+      if (my.csr_tier) {
+        csrAfter = my.csr_tier === 'Onyx'
+          ? 'Onyx ' + (my.csr_value || '')
+          : my.csr_tier + (my.csr_subtier != null ? ' ' + my.csr_subtier : '');
+        csrAfter = csrAfter.trim();
+      }
+      // Update coverage counters from the player's own row (not teammate rows).
+      if (my.damage_taken != null) coverage.damageTaken++;
+      if (my.accuracy != null) coverage.accuracy++;
+      if (my.headshot_kills != null) coverage.headshotKills++;
+      if (my.shots_fired != null) coverage.shotsFired++;
+      if (my.csr_tier) coverage.csr++;
+      if (myObjStats) coverage.objStats++;
+      if (myMedals && myMedals.length) coverage.medals++;
+      if (my.placement != null) coverage.placement++;
+
       matches.push({
         matchId: my.match_id,
         outcome: my.outcome,
@@ -726,19 +946,39 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
         assists: my.assists || 0,
         score: my.score || 0,
         damageDealt: my.damage || 0,
-        // Approximated from enemy damage; renderer treats this as best-effort
-        // for Damage Trends but never as authoritative for accuracy/KDA.
-        damageTaken: estTaken,
+        damageTaken,
+        // Marker so the renderer can label the cell when this is an estimate
+        // rather than the real CoreStats.DamageTaken value.
+        damageTakenEstimated,
+        // Shooting stats — null when not captured.
+        accuracy: my.accuracy != null ? String(my.accuracy) : null,
+        shotsFired: my.shots_fired,
+        shotsHit:   my.shots_landed,
+        // Per-match weaponStats + objective stats: the Stats tab modules
+        // (Kill Breakdown, Objective Profile) gate on these being present.
+        weaponStats: myWeaponStats,
+        topMedals: myMedals,
+        objStats: myObjStats,
+        placement: my.placement != null ? my.placement : null,
+        // CSR (per-match, post-game).
+        csrAfter,
+        csrDelta: my.csr_delta != null ? my.csr_delta : null,
+        csrTier: my.csr_tier || null,
+        csrSubTier: my.csr_subtier != null ? my.csr_subtier : null,
+        csrValue: my.csr_value != null ? my.csr_value : null,
+        // Skill-API MMR (best effort — may be null if backfilled from a blob
+        // that didn't carry it).
+        mmr: my.mmr != null ? my.mmr : null,
         teams: Object.values(teamMap),
         // Marker so the frontend (and any downstream stats) can tell this row
         // came from the participant-table fallback rather than a direct fetch.
         reconstructed: true,
       });
     }
-    return { matches, participantRowCount: allRows.rows.length };
+    return { matches, participantRowCount: allRows.rows.length, enrichmentCoverage: coverage };
   } catch(e) {
     console.error('[DB] reconstructMatchHistoryForXuid error:', e.message);
-    return { matches: [], participantRowCount: 0 };
+    return { matches: [], participantRowCount: 0, enrichmentCoverage: {} };
   }
 }
 
@@ -792,4 +1032,4 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow };

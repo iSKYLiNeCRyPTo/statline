@@ -2015,7 +2015,7 @@ function render(){
       ):(
         // Reconstructed histories carry no weapon-stat detail. Surface a small
         // note in lieu of the bars so the section is not silently truncated.
-        _isReconstructed?'<div class="stat-card" style="grid-column:span 4;background:var(--surface2);border:1px dashed var(--border)"><div class="stat-label">Weapon Breakdown</div><div class="stat-sub" style="margin-top:6px">Per-weapon kill data (headshots, power, grenade, melee) is not captured for reconstructed match history. Counts above are accurate; weapon breakdown will populate if the player\'s history later becomes public.</div></div>':''
+        _isReconstructed?'<div class="stat-card" style="grid-column:span 4;background:var(--surface2);border:1px dashed var(--border)"><div class="stat-label">Weapon Breakdown</div><div class="stat-sub" style="margin-top:6px">Per-weapon kill data (headshots, power, grenade, melee) is not yet captured for any of the reconstructed games in view. Coverage will grow as more public players are searched whose match details include this player as a roster slot.</div></div>':''
       ))
       +'</div>';
   })();
@@ -2362,11 +2362,16 @@ function render(){
       var s=m.duration?String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/):null;
       var secs=s?(parseInt(s[1]||0)*3600)+(parseInt(s[2]||0)*60)+parseFloat(s[3]||0):0;
       if(secs===0&&typeof m.durationSec==='number') secs=m.durationSec;
-      // Reconstructed matches have an estimated damageTaken (split from enemy
-      // damage), so we only require dealt > 300 and a non-zero taken.
-      // Direct-fetched matches still need both > 300 to filter aborted games.
+      // Reconstructed matches with REAL damageTaken (from CoreStats — captured
+      // when another public player's match details exposed our roster slot)
+      // get the same 300/300 filter as direct-fetched matches. Reconstructed
+      // matches where damageTaken is estimated (no public source had the
+      // CoreStats payload) just need dealt > 0.
       if(m.reconstructed){
         if(secs>0&&secs<180) return false;
+        if(m.damageTakenEstimated===false&&(m.damageTaken||0)>300){
+          return (m.damageDealt||0)>300&&(m.outcome===2||m.outcome===3);
+        }
         return (m.damageDealt||0)>0&&(m.outcome===2||m.outcome===3);
       }
       return secs>=180&&m.damageDealt>300&&m.damageTaken>300&&(m.outcome===2||m.outcome===3);
@@ -2396,7 +2401,15 @@ function render(){
         +'</div>';
     }
 
-    html+=sectionHead('Damage Trends','last '+dmgSample.length+' games'+(_isReconstructed?' · damage taken estimated':''));
+    var _hasEstTaken=dmgSample.some(function(m){return m.reconstructed&&m.damageTakenEstimated!==false;});
+    var _hasRealTaken=dmgSample.some(function(m){return m.reconstructed&&m.damageTakenEstimated===false;});
+    var _dmgLabel='last '+dmgSample.length+' games';
+    if(_isReconstructed){
+      if(_hasEstTaken&&_hasRealTaken) _dmgLabel+=' · partial real damage taken';
+      else if(_hasEstTaken)            _dmgLabel+=' · damage taken estimated';
+      else                              _dmgLabel+=' · reconstructed';
+    }
+    html+=sectionHead('Damage Trends',_dmgLabel);
     html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
 
     // Stat cards — 2-col on mobile, 4-col on desktop

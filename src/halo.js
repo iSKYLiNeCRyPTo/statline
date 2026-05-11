@@ -899,6 +899,73 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
               plCsrValue = plPost.Value ?? null;
             }
           }
+          // Rich per-player fields captured here so saveMatchParticipants can
+          // persist them to match_participants for the private-player fallback.
+          // Computing once per roster slot keeps the cached payload self-
+          // sufficient: future reconstructs don't need to re-fetch match
+          // details.
+          const ppShotsFired = pcore.ShotsFired || 0;
+          const ppShotsHit   = pcore.ShotsHit   || 0;
+          const ppAccuracy = pcore.Accuracy != null
+            ? pcore.Accuracy
+            : (pcore.ShotAccuracy != null ? pcore.ShotAccuracy * 100
+                : (ppShotsFired > 0 ? (ppShotsHit / ppShotsFired) * 100 : null));
+          const ppMedalsRaw = pcore.Medals || [];
+          const ppTopMedals = Array.isArray(ppMedalsRaw)
+            ? ppMedalsRaw
+                .filter(mm => mm && mm.Count > 0)
+                .sort((a,b) => (b.Count||0)-(a.Count||0))
+                .slice(0, 12)
+                .map(mm => ({ nameId: mm.NameId, count: mm.Count }))
+            : [];
+          let ppCsrPreValue = null, ppCsrDelta = null;
+          const plPre = plRankRecap?.PreMatchCsr;
+          if (plPre && plPre.Value != null) {
+            ppCsrPreValue = plPre.Value;
+            if (plPost && plPost.Value != null) ppCsrDelta = plPost.Value - plPre.Value;
+          }
+          // Per-player objective sub-stats for reconstruct → renderer. Shape
+          // matches the per-search-target objStats below so the same UI cells
+          // light up regardless of who fetched the match.
+          let ppObjStats = null;
+          if (ppodd && (catNum===12||catNum===18) && !ppzones) {
+            ppObjStats = { mode:'Oddball',
+              timeAsCarrier: parseDurP(ppodd.TimeAsSkullCarrier),
+              longestCarry:  parseDurP(ppodd.LongestTimeAsSkullCarrier),
+              ballGrabs:     ppodd.SkullGrabs ?? null,
+              killsAsCarrier: ppodd.KillsAsSkullCarrier ?? null,
+              carrierKills:  ppodd.SkullCarriersKilled ?? null,
+              scoringTicks:  ppodd.SkullScoringTicks ?? null,
+            };
+          } else if (ppzones) {
+            const _caps = ppzones.StrongholdCaptures ?? ppzones.ZoneCaptures ?? ppzones.HillCaptures ?? ppzones.Captures ?? null;
+            const _secs = ppzones.StrongholdSecures  ?? ppzones.ZoneSecures  ?? ppzones.HillSecures  ?? ppzones.Secures  ?? null;
+            const _defK = ppzones.StrongholdDefensiveKills ?? ppzones.DefensiveKills ?? null;
+            const _offK = ppzones.StrongholdOffensiveKills ?? ppzones.OffensiveKills ?? null;
+            const _ticks= ppzones.StrongholdScoringTicks ?? ppzones.ScoringTicks ?? null;
+            const _occT = ppzones.StrongholdOccupationTime ?? ppzones.OccupationTime ?? ppzones.TotalTimeInZone ?? ppzones.TimeInZone ?? null;
+            ppObjStats = { mode:'Zones',
+              captures:_caps, secures:_secs,
+              defensiveKills:_defK, offensiveKills:_offK,
+              scoringTicks:_ticks, occupationTime: parseDurP(_occT),
+            };
+          } else if (ppctf) {
+            const ctfCarrier = ppctf.TimeAsCarrier;
+            ppObjStats = { mode:'CTF',
+              flagCaptures: ppctf.FlagCaptures ?? null,
+              flagGrabs:    ppctf.FlagGrabs    ?? null,
+              flagReturns:  ppctf.FlagReturns  ?? null,
+              flagCarrierKills: ppctf.FlagCarrierKills ?? null,
+              flagsStolen:  ppctf.FlagsStolen ?? null,
+              timeAsCarrier: typeof ctfCarrier === 'number' ? ctfCarrier : parseDurP(ctfCarrier),
+            };
+          } else if (ppstock) {
+            ppObjStats = { mode:'Stockpile',
+              seedsDeposited: ppstock.PowerSeedsDeposited ?? null,
+              seedsStolen:    ppstock.PowerSeedsStolenFromBase ?? null,
+              seedsPickedUp:  ppstock.PowerSeedsPickedUp ?? null,
+            };
+          }
           teamMap[teamId].players.push({
             gamertag: gt, rawXuid,
             kills: pk, deaths: pd, assists: pa,
@@ -912,7 +979,29 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             csrTier: plCsrTier,
             csrSubTier: plCsrSubTier,
             csrValue: plCsrValue,
-            // Objective stats for ranking
+            csrPreValue: ppCsrPreValue,
+            csrDelta: ppCsrDelta,
+            // Rich fields — every one mirrors what halo.js currently extracts
+            // only for the search target. Capturing here lets the private-
+            // player reconstruct surface the same data without re-fetching.
+            damageTaken: pcore.DamageTaken != null ? pcore.DamageTaken : null,
+            shotsFired: ppShotsFired || null,
+            shotsLanded: ppShotsHit || null,
+            accuracy: ppAccuracy != null ? parseFloat(ppAccuracy).toFixed(1) : null,
+            headshotKills:    pcore.HeadshotKills    != null ? pcore.HeadshotKills    : null,
+            meleeKills:       pcore.MeleeKills       != null ? pcore.MeleeKills       : null,
+            grenadeKills:     pcore.GrenadeKills     != null ? pcore.GrenadeKills     : null,
+            powerWeaponKills: pcore.PowerWeaponKills != null ? pcore.PowerWeaponKills : null,
+            weaponStats: {
+              headshots:   pcore.HeadshotKills    || 0,
+              melee:       pcore.MeleeKills       || 0,
+              grenades:    pcore.GrenadeKills     || 0,
+              powerWeapon: pcore.PowerWeaponKills || 0,
+            },
+            placement: player.Rank != null ? player.Rank + 1 : null,
+            medals: ppTopMedals.length ? ppTopMedals : null,
+            objStats: ppObjStats,
+            // Objective stats for ranking (legacy fields used by placement calc)
             ballTime: ppodd ? parseDurP(ppodd.TimeAsSkullCarrier) : 0,
             zoneCaptures: ppzones ? (ppzones.StrongholdCaptures||0) : 0,
             zoneSecures: ppzones ? (ppzones.StrongholdSecures||0) : 0,

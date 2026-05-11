@@ -54,7 +54,11 @@ class FakePool {
   async query(sql, params) {
     if (/^CREATE TABLE|^CREATE INDEX|^ALTER TABLE/i.test(sql.trim())) return { rows: [] };
     if (/^INSERT INTO match_participants/i.test(sql.trim())) {
-      const cols = 17;
+      // INSERT INTO match_participants (col1,col2,...) — count commas inside
+      // the parenthesized column list to know how many params per row. Keeps
+      // the stub working as the schema grows.
+      const m = sql.match(/INSERT INTO match_participants \(([^)]+)\)/i);
+      const cols = m ? m[1].split(',').length : 17;
       for (let i = 0; i < params.length; i += cols) {
         inserted.push({
           match_id: params[i], xuid: params[i+1], gamertag: params[i+2],
