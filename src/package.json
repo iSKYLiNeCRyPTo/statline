@@ -14,6 +14,7 @@
     "verify:snapshot-freshness": "node ../scripts/verify-snapshot-freshness.js",
     "verify:backfill": "node ../scripts/verify-backfill.js",
     "verify:backfill-endpoint": "node ../scripts/verify-backfill-endpoint.js",
+    "verify:search-flow": "node ../scripts/verify-search-flow.js",
     "backfill:participants": "node ../scripts/backfill-match-participants.js",
     "backfill:participants:dry": "node ../scripts/backfill-match-participants.js --dry-run",
     "rehydrate:participants": "node ../scripts/rehydrate-match-participants.js",

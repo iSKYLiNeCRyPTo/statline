@@ -10,34 +10,48 @@ async function doSearch(gt, isRefresh, force){
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;
   matchHistoryData=null;
-  _pickNewAd(); // rotate to a new sponsor each search
 
-  // ── Loading page (new search) ────────────────────────────────────────────
+  // ── Phase timing ─────────────────────────────────────────────────────────
+  // Tracks search-flow durations so slowness is visible in the console without
+  // touching the server. Each mark logs delta from search start and from prev.
+  var _phaseT0 = (typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  var _phaseLast = _phaseT0;
+  function _phase(label){
+    var now=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+    var total=Math.round(now-_phaseT0), step=Math.round(now-_phaseLast);
+    _phaseLast=now;
+    try{ console.log('[search] '+label+' +'+step+'ms (t='+total+'ms)'); }catch(e){}
+  }
+  _phase(isRefresh?'refresh:start':'search:start');
+
+  // ── Loading screen state ─────────────────────────────────────────────────
+  // Step labels are short and match what the server is actually doing.
+  // Skill data and team enrichment are background work — we no longer block
+  // the whole screen on them, but we still show a brief module-level state.
   var _loadSteps=[
     {id:'s1',label:'Service record'},
     {id:'s2',label:'Match history'},
-    {id:'s3',label:'Skill data'},
-    {id:'s4',label:'Team data'},
-    {id:'s5',label:'Analyzing data'}
+    {id:'s3',label:'Finalizing'}
   ];
   var _loadPlayer=null; // populated after step 1 returns
   function _renderLoadSteps(activeIdx,matchProgress){
     var _lsMobile=window.innerWidth<768;
-    var pct=Math.round((activeIdx/5)*100);
+    var pct=Math.round((activeIdx/_loadSteps.length)*100);
     var p=_loadPlayer;
 
     // Step dots — desktop shows all steps; mobile shows only the active step as one line
     var dotsHtml;
+    function _stepLabel(step,i,active){
+      var label=step.label;
+      if(active&&i===1&&matchProgress){
+        label='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
+      }
+      return label;
+    }
     if(_lsMobile){
-      // Find the active step and render it as a single status line (like the refresh page)
       var _activeStep=_loadSteps[activeIdx]||null;
-      var _activeLabel=_activeStep?_activeStep.label:'';
-      if(activeIdx===1&&matchProgress) _activeLabel='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
-      var _activeLabelHtml=(activeIdx===4)
-        ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-        :(activeIdx===2)
-        ?'Skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-        :_activeLabel+'<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>';
+      var _activeLabel=_activeStep?_stepLabel(_activeStep,activeIdx,true):'';
+      var _activeLabelHtml=_activeLabel+'<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>';
       dotsHtml=_activeStep
         ?'<div style="display:flex;align-items:center;gap:8px;margin-top:16px">'
           +'<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;box-shadow:0 0 6px var(--accent);flex-shrink:0"></div>'
@@ -47,14 +61,11 @@ async function doSearch(gt, isRefresh, force){
     } else {
       dotsHtml='<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">';
       _loadSteps.forEach(function(step,i){
-        var done=i<activeIdx,active=i===activeIdx,label=step.label;
-        if(active&&i===1&&matchProgress) label='Match history · '+matchProgress.valid+' ranked'+(matchProgress.scanned?' / '+matchProgress.scanned+' scanned':'');
+        var done=i<activeIdx,active=i===activeIdx,label=_stepLabel(step,i,active);
         var dotColor=done?'var(--win)':active?'var(--accent)':'var(--surface3)';
         var textColor=done?'var(--win)':active?'var(--text)':'var(--muted2)';
-        var labelHtml=(active&&i===4)
-          ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-          :(active&&i===2)
-          ?'Skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
+        var labelHtml=active
+          ?label+'<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
           :label+(done?' ✓':'');
         dotsHtml+='<div style="display:flex;align-items:center;gap:10px">'
           +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';flex-shrink:0;'+(active?'box-shadow:0 0 6px var(--accent);animation:pulse 1.2s ease-in-out infinite':'')+';transition:all 0.3s"></div>'
@@ -66,7 +77,7 @@ async function doSearch(gt, isRefresh, force){
 
     var leftHtml;
     if(p){
-      // After step 1: show player card with nameplate, emblem, stats — same as refresh page
+      // After step 1: show player card with nameplate, emblem, stats
       var emblemSize=_lsMobile?'48px':'60px';
       var gtFontSize=_lsMobile?'clamp(20px,6vw,30px)':'34px';
       var statFontSize=_lsMobile?'18px':'20px';
@@ -90,7 +101,7 @@ async function doSearch(gt, isRefresh, force){
         +(p&&p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);margin-top:3px;letter-spacing:1.5px">['+p.serviceTag+']</div>':'')
         +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px;letter-spacing:1px">HALO INFINITE · RANKED</div>'
         +'</div>'
-        +'</div></div>'  // close position:relative content + nameplate row
+        +'</div></div>'
         // Stat boxes
         +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">';
       var statItems2=[
@@ -107,7 +118,7 @@ async function doSearch(gt, isRefresh, force){
       leftHtml+=''
         +'</div>'
         +dotsHtml
-        +'</div>'; // close outer card
+        +'</div>';
     } else {
       // Before step 1: plain gamertag + progress bar + dots
       leftHtml=''
@@ -118,29 +129,22 @@ async function doSearch(gt, isRefresh, force){
         +dotsHtml;
     }
 
-    // If the layout skeleton already exists, only swap the player section — leave the ad untouched
+    // Single-column layout: no sponsor card. If the player section already
+    // exists from a prior tick, swap in place to avoid flashing.
     var _existingPS=document.getElementById('_lc_playersect');
     if(_existingPS){
       _existingPS.innerHTML=leftHtml;
     } else {
-      var html;
-      if(_lsMobile){
-        html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
-          +'<div id="_lc_playersect" style="margin-bottom:16px;flex-shrink:0">'+leftHtml+'</div>'
-          +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
-          +'</div>';
-      } else {
-        html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
-          +'<div style="display:flex;align-items:stretch;gap:32px;max-width:1000px;width:100%">'
-          +'<div id="_lc_playersect" style="flex:1;min-width:0">'+leftHtml+'</div>'
-          +'<div style="width:440px;flex-shrink:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
-          +'</div></div>';
-      }
+      var maxW=_lsMobile?'100%':'520px';
+      var pad=_lsMobile?'20px 16px 12px':'32px 24px';
+      var html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:'+pad+';box-sizing:border-box">'
+        +'<div id="_lc_playersect" style="width:100%;max-width:'+maxW+'">'+leftHtml+'</div>'
+        +'</div>';
       document.getElementById('app').innerHTML=html;
     }
   }
 
-  // ── Refresh page (page reload with existing player) ──────────────────────
+  // ── Refresh page (existing player, force-refresh from URL or banner) ────
   function _renderRefreshPage(player, status){
     var p=player;
     var isMobile=window.innerWidth<768;
@@ -148,12 +152,10 @@ async function doSearch(gt, isRefresh, force){
     if(p&&p.csr){var cv=Object.values(p.csr);if(cv.length)topCsr=cv.sort(function(a,b){return b.value-a.value;})[0];}
     var initials=gt.replace(/\s+/g,'').slice(0,2).toUpperCase();
 
-    // Responsive sizes
     var emblemSize = isMobile ? '48px' : '60px';
     var gtFontSize = isMobile ? 'clamp(20px, 6vw, 30px)' : '34px';
     var statFontSize = isMobile ? '18px' : '20px';
 
-    // Player identity header — wrapped in nameplate container
     var _npStyle=p&&p.nameplateUrl?'background-image:url(\''+p.nameplateUrl+'\');':'';
     var playerSection=''
       +'<div style="border-radius:12px;padding:20px;background:var(--surface2);border:1px solid var(--border);margin-bottom:18px">'
@@ -168,9 +170,8 @@ async function doSearch(gt, isRefresh, force){
       +(p&&p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);margin-top:3px;letter-spacing:1.5px">['+p.serviceTag+']</div>':'')
       +'<div style="font-size:9px;font-family:Share Tech Mono,monospace;color:var(--muted2);margin-top:2px;letter-spacing:1px">HALO INFINITE · RANKED</div>'
       +'</div>'
-      +'</div></div>'; // close content row + nameplate container
+      +'</div></div>';
 
-    // Stats grid
     if(p&&p.stats){
       playerSection+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">';
       var statItems=[
@@ -191,40 +192,24 @@ async function doSearch(gt, isRefresh, force){
       playerSection+='</div>';
     }
 
-    // Status line
-    var statusLabel=status==='analyzing'
-      ?'Analyzing data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-      :status==='skilldata'
-      ?'Fetching skill data<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
-      :status==='loading'
+    var statusLabel=status==='loading'
       ?'Updating stats<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>'
       :'Connecting<span class="load-dots"><span>.</span><span>.</span><span>.</span></span>';
     playerSection+='<div style="display:flex;align-items:center;gap:8px">'
       +'<div style="width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;box-shadow:0 0 6px var(--accent);flex-shrink:0"></div>'
       +'<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted)">'+statusLabel+'</div>'
       +'</div>'
-      +'</div>'; // close outer card
+      +'</div>';
 
-    // If the layout skeleton already exists, only swap the player section — leave the ad untouched
     var _existingPS2=document.getElementById('_lc_playersect');
     if(_existingPS2){
       _existingPS2.innerHTML=playerSection;
     } else {
-      var html;
-      if(isMobile){
-        // Mobile: player info at top, ad card fills remaining screen — no scroll
-        html='<div style="height:calc(100vh - 100px);display:flex;flex-direction:column;padding:20px 16px 12px;box-sizing:border-box;overflow:hidden">'
-          +'<div id="_lc_playersect" style="margin-bottom:16px;flex-shrink:0">'+playerSection+'</div>'
-          +'<div style="flex:1;min-height:0;display:flex;flex-direction:column">'+_renderAdSlot('card')+'</div>'
-          +'</div>';
-      } else {
-        // Desktop: two-column — player left, ad right
-        html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:32px 24px;box-sizing:border-box">'
-          +'<div style="display:flex;align-items:flex-start;gap:32px;max-width:860px;width:100%">'
-          +'<div id="_lc_playersect" style="flex:1;min-width:0">'+playerSection+'</div>'
-          +'<div style="width:340px;flex-shrink:0">'+_renderAdSlot('card')+'</div>'
-          +'</div></div>';
-      }
+      var maxW=isMobile?'100%':'520px';
+      var pad=isMobile?'20px 16px 12px':'32px 24px';
+      var html='<div style="min-height:calc(100vh - 100px);display:flex;align-items:center;justify-content:center;padding:'+pad+';box-sizing:border-box">'
+        +'<div id="_lc_playersect" style="width:100%;max-width:'+maxW+'">'+playerSection+'</div>'
+        +'</div>';
       document.getElementById('app').innerHTML=html;
     }
   }
@@ -234,9 +219,10 @@ async function doSearch(gt, isRefresh, force){
   else { _renderLoadSteps(0,null); }
 
   try{
-    // ── Step 1: Service record ───────────────────────────────────────────────
+    // ── Step 1: Service record ───────────────────────────────────────────
     var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1'+(force?'&force=1':''));
     var statsD=await statsRes.json();
+    _phase('statsOnly response');
     if(!isCurrent()) return; // newer search started while we waited
     if(!statsD.success||!statsD.player){
       var errMsg=statsD.error||'Player not found. Check the spelling and try again.';
@@ -253,15 +239,13 @@ async function doSearch(gt, isRefresh, force){
     updateFavBtn();
 
     if(isRefresh){
-      // Refresh page: show player identity + stats while full fetch runs
       _renderRefreshPage(statsD.player,'loading');
     } else {
-      // Loading page: populate the card with step-1 data then keep showing progress
       _loadPlayer=statsD.player;
       _renderLoadSteps(1,null);
     }
 
-    // ── Step 2: Match history ────────────────────────────────────────────────
+    // ── Step 2: Match history (this is the long one) ─────────────────────
     var _progressPoll=null;
     if(!isRefresh){
       _progressPoll=setInterval(function(){
@@ -269,8 +253,6 @@ async function doSearch(gt, isRefresh, force){
           .then(function(r){return r.ok?r.json():null;})
           .then(function(p){
             if(!isCurrent()||!p||p.step!==2) return;
-            // If the player card is already rendered, only update the match label
-            // in-place — avoids destroying the <img> elements on every poll tick
             if(_loadPlayer&&document.getElementById('_lc_step2lbl')){
               var lbl=document.getElementById('_lc_step2lbl');
               if(p.retrying){
@@ -289,32 +271,33 @@ async function doSearch(gt, isRefresh, force){
     var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+(force?'&force=1':''));
     var fullD=await fullRes.json();
     if(_progressPoll) clearInterval(_progressPoll);
+    _phase('match history response'+(fullD&&fullD.cached?' [cached]':''));
     if(!isCurrent()) return; // newer search started while match history was fetching
-    // Cached result: match history + skill data already done — jump to team data step
-    if(!isRefresh&&fullD.cached) _renderLoadSteps(3,null);
 
     if(fullD.success&&fullD.player){
-      // Sync _loadPlayer with full data so the loading screen gets the correct emblemUrl/nameplateUrl
-      // even if the statsOnly call resolved them as null (economy.svc can be flaky on first hit)
+      // Sync _loadPlayer with full data so emblem/nameplate reflect what server resolved
       if(!isRefresh) _loadPlayer=fullD.player;
-      // Private/restricted match history fallback — show a clear loading state
-      // explaining where the reconstructed history came from.
+
+      // Private/restricted history — show a one-line note in the step label
       var _isPrivate = !!(fullD.player.privateHistory || fullD.player.reconstructed);
       if(_isPrivate && !isRefresh){
         var _msg = (fullD.player.reconstructedCount>0)
-          ? 'Building a partial match history from known public matches…'
+          ? 'Reconstructed from public match records'
           : 'Searching public match records…';
         var _lbl=document.getElementById('_lc_step2lbl');
         if(_lbl) _lbl.innerHTML='<span style="color:var(--accent)">'+_msg+'</span>';
       }
-      // ── Steps 2–3: Skill data + rival pics (both non-blocking) ─────────────
-      // Skill enrichment runs in the background on the server (5–25s).
-      // We do NOT block the loading screen on it — page renders fast, skill data
-      // appears via a post-render force-refresh once enrichment is done.
-      if(!isRefresh) _renderLoadSteps(2,null);
-      var _canonicalGt=fullD.player.gamertag||gt; // use server's canonical casing for cache keys
 
-      // Preload rival/nemesis pics — fire in background, never awaited
+      // Required data is now in hand. Everything below is best-effort polish:
+      //   • Skill enrichment (server runs it async, we poll post-render)
+      //   • Rival/nemesis gamerpic prefetch (cosmetic)
+      //   • Co-player snapshot queue (background, server-side)
+      // We jump straight to "Finalizing" and proceed to render.
+      if(!isRefresh) _renderLoadSteps(2,null);
+
+      var _canonicalGt=fullD.player.gamertag||gt;
+
+      // Fire rival-pic prefetch but do NOT await — page must not wait for image bytes.
       var _rivals=(fullD.player.rivals||[]).concat(fullD.player.nemesisList||[],fullD.player.victimsList||[]);
       var _seenRiv={};
       _rivals=_rivals.filter(function(r){if(!r.gamertag||_seenRiv[r.gamertag.toLowerCase()])return false;_seenRiv[r.gamertag.toLowerCase()]=true;return true;});
@@ -329,79 +312,58 @@ async function doSearch(gt, isRefresh, force){
             });
           }).catch(function(){});
       }
-      // Preload images that are already available (doesn't include missing ones — they load later)
-      var _picPromises=_rivals.filter(function(r){return r.gamerpicUrl;}).slice(0,30).map(function(r){
-        return new Promise(function(resolve){var img=new Image();img.onload=img.onerror=resolve;img.src=r.gamerpicUrl;});
-      });
-      if(!isRefresh) _renderLoadSteps(3,null); // team data step active
-      // Only wait for image preloads — skill wait no longer blocks loading
-      await Promise.all(_picPromises);
 
-      if(isRefresh){
-        // ── Refresh: Skill data → Analyzing overlay ───────────────────────
-        _renderRefreshPage(fullD.player,'skilldata');
-        await new Promise(function(r){setTimeout(r,900);});
-        _renderRefreshPage(fullD.player,'analyzing');
-        await new Promise(function(r){setTimeout(r,5000);});
-      } else {
-        // ── Loading: Analyzing step (new search) ─────────────────────────
-        await new Promise(function(r){setTimeout(r,100);});
-        _renderLoadSteps(4,null); // team data ✓, analyzing active
-        await new Promise(function(r){setTimeout(r,5000);});
-        _renderLoadSteps(5,null); // all done
-        await new Promise(function(r){setTimeout(r,120);});
-      }
-
-      if(!isCurrent()) return; // user searched someone else during the analyzing delay
+      if(!isCurrent()) return;
+      _phase('about to render');
       playerData=fullD.player;
       data={players:[playerData],_searchOverride:true,lastUpdated:playerData.lastUpdated};
       searchData=playerData; searchMode=false; selectedPlayer=0;
       // Clear stale fullMatchCache so render() uses fresh data from the API response
-      // rather than the old cached match list. loadFullMatches() will repopulate it.
       delete fullMatchCache[_canonicalGt];
-      activeTab='overview'; render();
-      // Start background poller — checks every 90s for new matches without requiring a manual refresh
+      activeTab='overview';
+      render();
+      _phase('rendered');
+
+      // Background poller: detect new matches without manual refresh
       var _allM=fullD.player.allMatches||fullD.player.recentMatches||[];
       startAutoRefresh(_canonicalGt, _allM[0]?_allM[0].matchId:null);
-      // Sync tab button highlight to overview — render() only sets panel active classes,
-      // tab bar buttons are only updated by switchTab(), so we sync them here manually.
+
+      // Sync tab button highlight to overview
       (function(){
         var _syncTab='overview';
         document.querySelectorAll('.dtab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
         document.querySelectorAll('.sidebar-nav-item').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
         document.querySelectorAll('.mobile-tab[data-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
       })();
-      // Use canonical gamertag as cache key so render() can find it by p.gamertag
+
       loadFullMatches(_canonicalGt);
+
       // Poll skill status post-render and force-refresh as soon as enrichment is ready.
       // Checks every 3s for the first 30s, then gives up.
-      // Always run (even for cached results) — the early-exit check inside handles already-enriched players.
       {
         var _skillPollId=null,_skillPollN=0;
         function _stopSkillPoll(){if(_skillPollId){clearInterval(_skillPollId);_skillPollId=null;}}
         function _doSkillPoll(){
           if(!isCurrent()){_stopSkillPoll();return;}
-          if(++_skillPollN>10){_stopSkillPoll();return;} // give up after ~30s
+          if(++_skillPollN>10){_stopSkillPoll();return;}
           fetch('/api/skill-status?gamertag='+encodeURIComponent(_canonicalGt))
             .then(function(r){return r.ok?r.json():null;})
             .then(function(s){
               if(!s||!isCurrent())return;
               if(s.ready||s.pct>=95||!s.total){
                 _stopSkillPoll();
+                _phase('skill data ready (pct='+(s.pct||0)+')');
                 loadFullMatches(_canonicalGt,true,'Syncing skill data…');
               }
             }).catch(function(){});
         }
-        // Start immediately — enrichment usually finishes within 5–15s
         setTimeout(function(){
           if(!isCurrent())return;
           var _cc=fullMatchCache[_canonicalGt]||[];
           var _rk=_cc.filter(function(m){return m.isRanked;});
           var _sk=_rk.filter(function(m){return m.expectedKills!=null||m.mmr!=null;}).length;
-          // Also check the 5 most recent ranked games — a single new game without skill data
-          // won't drop the aggregate below 95% (e.g. 1 of 250), but still needs enrichment.
           var _recentMissing=_rk.slice(0,5).some(function(m){return m.expectedKills==null&&m.mmr==null;});
-          if(_rk.length>0&&_sk>=_rk.length*0.95&&!_recentMissing){return;} // already complete — skip
+          if(_rk.length>0&&_sk>=_rk.length*0.95&&!_recentMissing){return;}
           _skillPollId=setInterval(_doSkillPoll,3000);
           _doSkillPoll();
         },3000);
