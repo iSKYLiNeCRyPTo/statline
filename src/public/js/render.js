@@ -617,15 +617,38 @@ function render(){
   // Reconstructed-history banner — shown when the player's official match
   // history is private/restricted and we are surfacing matches assembled from
   // public match records (i.e. rows captured from other players' histories).
-  var reconstructedBanner = (p.privateHistory||p.reconstructed) ? (
-    '<div style="background:rgba(56,138,221,0.08);border:1px solid rgba(56,138,221,0.35);border-radius:8px;padding:10px 16px;color:var(--accent);font-size:12px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">'
+  var reconstructedBanner = '';
+  if (p.privateHistory||p.reconstructed) {
+    var _known = (p.reconstructedCount||((p.allMatches||p.recentMatches||[]).length))||0;
+    var _knownLabel = _known + ' known match' + (_known===1?'':'es');
+    // Map server-side recoveryStatus → human copy. Keep it short — this is
+    // a status hint, not a tutorial.
+    var _recStatus = p.recoveryStatus || null;
+    var _recLine = '';
+    if (_recStatus === 'queued' || _recStatus === 'in_progress') {
+      _recLine = 'Checking frequent teammates in the background to recover more.';
+    } else if (_recStatus === 'recent_run') {
+      _recLine = 'Frequent teammates were checked recently; coverage will refresh on the next visit.';
+    } else if (_recStatus === 'sufficient_coverage') {
+      _recLine = ''; // already have plenty — no need to nag
+    } else if (_recStatus === 'no_xuid' || _recStatus === 'all_candidates_gated') {
+      _recLine = 'No teammates available to check yet.';
+    } else {
+      // Older deploy / no recovery metadata — fall back to legacy copy.
+      _recLine = 'Coverage grows as more public players are searched.';
+    }
+    var _subParts = ['Partial coverage · ' + _knownLabel];
+    if (_recLine) _subParts.push(_recLine);
+    reconstructedBanner = (
+      '<div style="background:rgba(56,138,221,0.08);border:1px solid rgba(56,138,221,0.35);border-radius:8px;padding:10px 16px;color:var(--accent);font-size:12px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">'
       +'<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
       +'<div style="flex:1;line-height:1.45">'
-        +'<div style="font-weight:600;letter-spacing:0.3px">Official match history is private. Showing known matches found in public match records.</div>'
-        +'<div style="color:var(--muted);font-size:11px;margin-top:3px">Partial coverage · '+((p.reconstructedCount||((p.allMatches||p.recentMatches||[]).length))||0)+' known match'+(((p.reconstructedCount||((p.allMatches||p.recentMatches||[]).length))||0)===1?'':'es')+'. Coverage grows as more public players are searched.</div>'
+        +'<div style="font-weight:600;letter-spacing:0.3px">Official match history is private. Showing known matches found in public records.</div>'
+        +'<div style="color:var(--muted);font-size:11px;margin-top:3px">'+_subParts.join(' · ')+'</div>'
       +'</div>'
     +'</div>'
-  ) : '';
+    );
+  }
   var s=p.stats;
   var PVE_MODES=['Mode 41','Mode 42','Firefight','Gruntpocalypse','Attrition'];
   var BAD_MAPS=['Launch Site','Yuletide','Octagon','AIMBOTZ'];
