@@ -241,5 +241,46 @@ function aggregateStatsFromMatches(matches, base) {
   assert(agg4.kd !== '—' && agg4.kda !== '—' && agg4.kd !== null && agg4.kda !== null,
     'kd/kda are real values, never dash placeholders');
 
+  // ── Test C1: cache-read repair — stale stats on a reconstructed cache entry
+  // get recomputed from current matches, and match rows get re-projected with
+  // the new csrValue/csrPreValue fields. Simulates a payload cached before the
+  // PR12 db.js change (matches lack csrValue) with zero service-record stats.
+  console.log('\nTest C1: cached reconstructed payload — stats recomputed + matches re-projected on read');
+  const cached = {
+    xuid: PRIVATE_XUID,
+    reconstructed: true,
+    privateHistory: true,
+    // Old service-record stats — all dashes/zeros for private profiles.
+    stats: { kills: 0, deaths: 0, assists: 0, kd: '—', kda: '—', matchesPlayed: 0, winRate: '0.0' },
+    // Old cached match rows: lack csrValue / csrPreValue (the fields PR12 added
+    // to db.js). They still carry kills/deaths/assists so per-match cards work,
+    // but the chart would have nothing real to plot.
+    recentMatches: recon.matches.map(m => ({
+      matchId: m.matchId, isRanked: m.isRanked, gameMode: m.gameMode,
+      kills: m.kills, deaths: m.deaths, assists: m.assists, outcome: m.outcome,
+      csrAfter: m.csrAfter, csrTier: m.csrTier, csrSubTier: m.csrSubTier,
+      // csrValue / csrPreValue intentionally omitted — simulates pre-PR12 cache.
+    })),
+  };
+  cached.allMatches = cached.recentMatches;
+  // Simulate the cache-repair branch: re-run reconstruct, re-project match
+  // rows, re-aggregate stats. This mirrors src/server.js cached-path code.
+  const fresh = await db.reconstructMatchHistoryForXuid(PRIVATE_XUID, 100);
+  if (fresh && fresh.matches.length) {
+    cached.recentMatches = fresh.matches;
+    cached.allMatches = fresh.matches;
+    cached.stats = aggregateStatsFromMatches(fresh.matches, cached.stats);
+  }
+  assert(cached.stats.kd !== '—' && cached.stats.kda !== '—',
+    `cached stats no longer dashes after repair (kd=${cached.stats.kd}, kda=${cached.stats.kda})`);
+  assert(parseFloat(cached.stats.kda) > 0, `cached kda is real number (${cached.stats.kda})`);
+  assert(cached.recentMatches[0].csrValue != null,
+    'cached match rows now carry csrValue after re-projection');
+  assert(cached.recentMatches[0].csrPreValue != null,
+    'cached match rows now carry csrPreValue after re-projection');
+  const repairedChartVals = cached.recentMatches.map(_csrFromChart).sort((a, b) => a - b);
+  assert(JSON.stringify(repairedChartVals) === JSON.stringify([1500, 1503, 1506, 1509, 1512]),
+    `repaired cache plots real CSR series (got ${JSON.stringify(repairedChartVals)})`);
+
   console.log(`\n${failures === 0 ? 'PASS' : 'FAIL (' + failures + ')'}`);
 })();
