@@ -103,10 +103,30 @@
     .pg-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(55,138,221,0.1)}
 
     @media(max-width:600px){
-      .page{padding:16px 10px 40px}
+      .page{padding:16px 8px 40px;max-width:100%}
       .lb-title{font-size:22px}
-      .lb-table td,.lb-table th{padding:8px 8px}
+      /* Tight mobile table — keep every column but shrink fonts/padding so
+         we don't drop to a CSR-only view. Order: # · GT(+tier) · CSR · K/D · WR% · M */
+      .lb-table th,.lb-table td{padding:6px 4px;font-size:11px}
+      .lb-table th{font-size:8px;letter-spacing:0.6px}
+      .rank-num{width:22px;font-size:10px}
+      .gt-link{font-size:12px;letter-spacing:0;font-weight:600}
+      .tier-badge{font-size:8px;padding:1px 4px;letter-spacing:0.3px;margin-left:4px;vertical-align:1px}
+      .stat-val{font-size:10px}
+      .stat-muted{font-size:9px}
+      /* No horizontal scroll — let the inline-tier-badge wrap under the GT
+         when the screen is narrow. */
+      .lb-mobile-gt-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+      .lb-mobile-gt-cell .gt-link{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw;display:inline-block}
+      .lb-mobile-tier-row{display:flex;gap:4px;align-items:center;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:0.5px}
+      /* Hide the dedicated RANK column on mobile (tier badge now lives under
+         the gamertag), and hide the Matches column on the tightest screens. */
       .hide-mobile{display:none}
+      .show-mobile{display:table-cell}
+    }
+    @media(min-width:601px){
+      .show-mobile{display:none}
+      .lb-mobile-tier-row{display:none}
     }
   </style>
 </head>
@@ -255,9 +275,19 @@
       '<th style="width:40px">#</th>' +
       '<th>GAMERTAG</th>' +
       '<th class="right hide-mobile">RANK</th>' +
-      '<th class="right">CSR</th><th class="right hide-mobile">K/D</th><th class="right hide-mobile">WIN %</th>' +
+      '<th class="right">CSR</th>' +
+      '<th class="right">K/D</th>' +
+      '<th class="right">WIN %</th>' +
+      '<th class="right hide-mobile">MATCHES</th>' +
       '</tr></thead><tbody>';
 
+    // Compact mobile tier label: D5, P3, G2 — Onyx stays full-name since it
+    // has no subtier digit and "O" alone is ambiguous.
+    function tierShort(tier, sub){
+      if (!tier) return '';
+      if (tier === 'Onyx') return 'Onyx';
+      return (tier[0] || '?').toUpperCase() + (sub != null ? sub : '');
+    }
     pageRows.forEach(function(p, i) {
       // Use global rank position (position in full allRows array)
       var pos = allRows.indexOf(p) + 1;
@@ -273,14 +303,26 @@
       var tierBadge = tier
         ? '<span class="tier-badge tier-' + tier + '">' + tier.toUpperCase() + (p.csr_subtier ? ' ' + p.csr_subtier : '') + '</span>'
         : '<span class="tier-badge">—</span>';
+      // Compact tier shown inline under the gamertag on mobile (so we keep
+      // K/D + WR% in the table without overflow).
+      var tierMobile = tier
+        ? '<span class="tier-badge tier-' + tier + '">' + tierShort(tier, p.csr_subtier) + '</span>'
+        : '';
+      var matches = p.matches_played != null ? Number(p.matches_played).toLocaleString() : '—';
 
       html += '<tr class="' + rankClass + '">';
       html += '<td class="rank-num">' + medal + '</td>';
-      html += '<td><a class="gt-link" href="/?player=' + encodeURIComponent(p.gamertag) + '">' + esc(p.gamertag) + '</a></td>';
+      // Gamertag cell — desktop: plain link. Mobile: link + compact tier chip
+      // stacked underneath so the RANK column can be hidden.
+      html += '<td><div class="lb-mobile-gt-cell">'
+            +   '<a class="gt-link" href="/?player=' + encodeURIComponent(p.gamertag) + '">' + esc(p.gamertag) + '</a>'
+            +   (tierMobile ? '<div class="lb-mobile-tier-row">' + tierMobile + '<span>' + matches + ' M</span></div>' : '')
+            + '</div></td>';
       html += '<td class="hide-mobile" style="text-align:right">' + tierBadge + '</td>';
       html += '<td class="stat-val stat-csr">' + (p.csr_value || '—') + '</td>';
-      html += '<td class="stat-val stat-kd hide-mobile">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
-      html += '<td class="stat-val stat-wr hide-mobile">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
+      html += '<td class="stat-val stat-kd">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
+      html += '<td class="stat-val stat-wr">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
+      html += '<td class="stat-val stat-muted hide-mobile">' + matches + '</td>';
       html += '</tr>';
     });
 

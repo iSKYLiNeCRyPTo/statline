@@ -724,11 +724,17 @@ function buildParticipantRow(pl, team, meta) {
     grenade_kills:       _intOrNull(pl.grenadeKills  != null ? pl.grenadeKills  : (pl.weaponStats && pl.weaponStats.grenades)),
     power_weapon_kills:  _intOrNull(pl.powerWeaponKills != null ? pl.powerWeaponKills : (pl.weaponStats && pl.weaponStats.powerWeapon)),
     placement:           _intOrNull(pl.placement),
-    csr_tier:            pl.csrTier || null,
-    csr_subtier:         _intOrNull(pl.csrSubTier),
-    csr_value:           _intOrNull(pl.csrValue),
-    csr_pre_value:       _intOrNull(pl.csrPreValue),
-    csr_delta:           _intOrNull(pl.csrDelta),
+    // CSR fields persist ONLY when sourced from this match's RankRecap
+    // (per-match, playlist-correct). Slots filled in by
+    // enrichMatchTeamsWithCsr's snapshot-fallback path carry csrFromSnapshot:
+    // those are the player's CURRENT rank, not their post-game rank, and writing
+    // them here would poison match_participants with cross-playlist values
+    // (e.g. the player's Arena CSR persisted on their Slayer match rows).
+    csr_tier:            pl.csrFromSnapshot ? null : (pl.csrTier || null),
+    csr_subtier:         pl.csrFromSnapshot ? null : _intOrNull(pl.csrSubTier),
+    csr_value:           pl.csrFromSnapshot ? null : _intOrNull(pl.csrValue),
+    csr_pre_value:       pl.csrFromSnapshot ? null : _intOrNull(pl.csrPreValue),
+    csr_delta:           pl.csrFromSnapshot ? null : _intOrNull(pl.csrDelta),
     mmr:                 _intOrNull(pl.mmr),
     medals:              medalsJson,
     obj_stats:           objStatsJson,
@@ -1256,8 +1262,66 @@ async function enrichMatchTeamsWithCsr(matches) {
     const db = await getDb();
     if (!db) return { perMatch: 0, snapshot: 0, missing: allXuids.size };
 
+    // Pull most recent snapshot for every xuid we're enriching upfront so both
+    // Step 2 (validate participant rows against snapshot) and Step 3 (fallback)
+    // can consult it. DISTINCT ON respects ORDER BY ts DESC.
+    const xuidArr = Array.from(allXuids);
+    const snapRowsRes = await db.query(
+      `SELECT DISTINCT ON (xuid) xuid, csr_tier, csr_subtier, csr_value, csr, ts
+       FROM player_snapshots
+       WHERE xuid = ANY($1) AND csr_tier IS NOT NULL
+       ORDER BY xuid, ts DESC`,
+      [xuidArr]
+    );
+    const snapByXuid = new Map();
+    for (const r of snapRowsRes.rows) {
+      let csrJson = r.csr;
+      if (csrJson && typeof csrJson === 'string') {
+        try { csrJson = JSON.parse(csrJson); } catch { csrJson = null; }
+      }
+      snapByXuid.set(String(r.xuid), { row: r, csr: csrJson || null });
+    }
+
+    // Pick the snapshot's playlist-specific CSR entry, or null if absent.
+    function _snapEntryForKind(snap, kind) {
+      if (!snap || !snap.csr || !kind) return null;
+      const key = PLAYLIST_KIND_TO_CSR_KEY[kind];
+      const entry = key ? snap.csr[key] : null;
+      return entry && entry.tier ? entry : null;
+    }
+    // Detect "poisoned" participant rows from pre-fix deployments: the row's
+    // tier matches a NON-match playlist's snapshot tier (typically Arena
+    // bleeding into Slayer/Legacy rows) but disagrees with the snapshot's
+    // entry for the match's actual playlist. Heuristic — not perfect, but the
+    // alternative is keeping wrong badges on legacy rows.
+    function _participantRowLooksPoisoned(row, snap, kind) {
+      if (!snap || !snap.csr || !kind) return false;
+      const matchEntry = _snapEntryForKind(snap, kind);
+      // Player has Slayer CSR but row says Onyx 1820 (Arena number)?
+      // Look across other playlists for a tier+value match.
+      for (const otherKind of Object.keys(PLAYLIST_KIND_TO_CSR_KEY)) {
+        if (otherKind === kind) continue;
+        const otherEntry = _snapEntryForKind(snap, otherKind);
+        if (!otherEntry) continue;
+        const tierMatch = otherEntry.tier === row.csr_tier;
+        const valueMatch = row.csr_value != null && otherEntry.value != null
+          && Math.abs(otherEntry.value - row.csr_value) <= 5;
+        // If the row data clearly belongs to a different playlist AND
+        // disagrees with the actual match playlist's data, it's poisoned.
+        if (tierMatch && valueMatch) {
+          if (!matchEntry) return true;
+          const matchTierDiffers = matchEntry.tier !== row.csr_tier;
+          const matchValueDiffers = matchEntry.value != null && row.csr_value != null
+            && Math.abs(matchEntry.value - row.csr_value) > 5;
+          if (matchTierDiffers || matchValueDiffers) return true;
+        }
+      }
+      return false;
+    }
+
     // Step 2: per-match CSR from match_participants. Single query for ALL
     // (match_id, xuid) pairs missing rank data.
+    const poisonedKeys = new Set(); // `${matchId}|${xuid}` of rows we rejected
     if (matchIdToXuids.size) {
       const mids = Array.from(matchIdToXuids.keys());
       const xuids = Array.from(new Set([].concat(...Array.from(matchIdToXuids.values()).map(s => Array.from(s)))));
@@ -1272,6 +1336,7 @@ async function enrichMatchTeamsWithCsr(matches) {
         for (const r of rows.rows) byKey.set(r.match_id + '|' + r.xuid, r);
         for (const m of matches) {
           if (!m || !m.matchId || !Array.isArray(m.teams)) continue;
+          const kind = _playlistKindOf(m);
           for (const team of m.teams) {
             if (!team || !Array.isArray(team.players)) continue;
             for (const pl of team.players) {
@@ -1279,8 +1344,18 @@ async function enrichMatchTeamsWithCsr(matches) {
               if (pl.csrTier || pl.csr_tier) continue;
               const xu = pl.rawXuid || pl.xuid;
               if (!xu) continue;
-              const row = byKey.get(m.matchId + '|' + String(xu));
+              const key = m.matchId + '|' + String(xu);
+              const row = byKey.get(key);
               if (!row) continue;
+              // Reject participant rows poisoned by the pre-fix snapshot
+              // fallback (e.g. Arena CSR persisted on Slayer match rows).
+              // Fall through to Step 3, which will pick the snapshot's
+              // playlist-specific CSR if available.
+              const snap = snapByXuid.get(String(xu));
+              if (_participantRowLooksPoisoned(row, snap, kind)) {
+                poisonedKeys.add(key);
+                continue;
+              }
               pl.csrTier = row.csr_tier;
               if (row.csr_subtier != null) pl.csrSubTier = row.csr_subtier;
               if (row.csr_value != null) pl.csrValue = row.csr_value;
@@ -1319,49 +1394,18 @@ async function enrichMatchTeamsWithCsr(matches) {
       }
     }
     if (slotsByXuid.size) {
-      const xuidArr = Array.from(slotsByXuid.keys());
-      // Most recent snapshot per xuid (DISTINCT ON respects ORDER BY). Pull
-      // the `csr` JSON so we can pick playlist-specific tiers, plus the
-      // top-level columns as the legacy/no-kind fallback.
-      const snapRows = await db.query(
-        `SELECT DISTINCT ON (xuid) xuid, csr_tier, csr_subtier, csr_value, csr, ts
-         FROM player_snapshots
-         WHERE xuid = ANY($1) AND csr_tier IS NOT NULL
-         ORDER BY xuid, ts DESC`,
-        [xuidArr]
-      );
-      const byXuid = new Map();
-      for (const r of snapRows.rows) {
-        let csrJson = r.csr;
-        if (csrJson && typeof csrJson === 'string') {
-          try { csrJson = JSON.parse(csrJson); } catch { csrJson = null; }
-        }
-        byXuid.set(String(r.xuid), { row: r, csr: csrJson || null });
-      }
       for (const [xu, entries] of slotsByXuid.entries()) {
-        const snap = byXuid.get(xu);
+        const snap = snapByXuid.get(xu);
         if (!snap) continue;
         for (const { pl, kind } of entries) {
           if (pl.csrTier || pl.csr_tier) continue;
-          let tier = null, subTier = null, value = null;
-          if (kind && snap.csr) {
-            const key = PLAYLIST_KIND_TO_CSR_KEY[kind];
-            const entry = key ? snap.csr[key] : null;
-            if (entry && entry.tier) {
-              tier = entry.tier;
-              // halo.js stores subTier as 1-indexed in csrResults (already +1),
-              // and value as the raw CSR int.
-              subTier = entry.subTier != null ? entry.subTier : null;
-              value = entry.value != null ? entry.value : null;
-            }
-          }
-          // No playlist-specific CSR — leave the slot empty. Showing the
-          // snapshot's top-level (Arena-preferred) tier here is exactly the
-          // bug we are fixing.
-          if (!tier) continue;
-          pl.csrTier = tier;
-          if (subTier != null) pl.csrSubTier = subTier;
-          if (value != null) pl.csrValue = value;
+          const entry = _snapEntryForKind(snap, kind);
+          if (!entry) continue;
+          pl.csrTier = entry.tier;
+          // halo.js stores subTier as 1-indexed in csrResults (already +1),
+          // and value as the raw CSR int.
+          if (entry.subTier != null) pl.csrSubTier = entry.subTier;
+          if (entry.value != null) pl.csrValue = entry.value;
           pl.csrFromSnapshot = true;
           snapshotHits++;
         }

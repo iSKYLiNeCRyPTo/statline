@@ -231,6 +231,96 @@ function assert(cond, msg) {
   assert(t4c.csrTier === 'Platinum' && t4c.csrValue === 1080,
     `gameMode='Ranked Slayer' resolves to slayer (got ${t4c.csrTier} ${t4c.csrValue})`);
 
+  console.log('\nTest 4d: poisoned participant row (Arena CSR on Slayer match) — heals from snapshot');
+  // The exact bug from the screenshot: a pre-fix deployment saved snapshot-
+  // derived Arena CSR onto match_participants for a Ranked Slayer match.
+  // Now the snapshot's csr JSON shows the player has both Arena (P3 / 1450)
+  // and Slayer (D5 / 1390) CSR. The poisoned row says Platinum 3 / 1450
+  // (matches Arena, not Slayer). Expectation: enrich rejects the row and
+  // falls back to the snapshot's Slayer CSR, with csrFromSnapshot:true.
+  participantsByKey = new Map([
+    ['mPoison|x_itz', { csr_tier: 'Platinum', csr_subtier: 3, csr_value: 1450, csr_delta: 0, csr_pre_value: 1450 }],
+  ]);
+  snapshotsByXuid = new Map([
+    ['x_itz', {
+      csr_tier: 'Platinum', csr_subtier: 3, csr_value: 1450,
+      csr: {
+        'Ranked Arena':  { tier: 'Platinum', subTier: 3, value: 1450 },
+        'Ranked Slayer': { tier: 'Diamond',  subTier: 5, value: 1390 },
+      },
+    }],
+  ]);
+  const matches4d = [{
+    matchId: 'mPoison',
+    isRanked: true,
+    playlistKind: 'slayer',
+    gameMode: 'Ranked Slayer',
+    teams: [{ teamId: 0, players: [
+      { rawXuid: 'x_itz', gamertag: 'Itz7Shots' },
+    ]}],
+  }];
+  const r4d = await db.enrichMatchTeamsWithCsr(matches4d);
+  const t4d = matches4d[0].teams[0].players[0];
+  assert(t4d.csrTier === 'Diamond' && t4d.csrSubTier === 5 && t4d.csrValue === 1390,
+    `poisoned Arena row replaced by Slayer snapshot (got ${t4d.csrTier} ${t4d.csrSubTier} ${t4d.csrValue})`);
+  assert(t4d.csrFromSnapshot === true, 'csrFromSnapshot tagged after heal');
+  assert(r4d.snapshot === 1 && r4d.perMatch === 0,
+    `counters: snapshot=1 perMatch=0 (got snapshot=${r4d.snapshot} perMatch=${r4d.perMatch})`);
+
+  console.log('\nTest 4e: poisoned-row heal omits badge when snapshot has no match-playlist CSR');
+  // Same shape as 4d but the player has only Arena CSR. The row is still
+  // rejected (Arena CSR on a Slayer row); since the snapshot has no Slayer
+  // entry, the slot stays empty rather than fall through to Arena.
+  participantsByKey = new Map([
+    ['mPoison2|x_arenaonly', { csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1820, csr_pre_value: 1820 }],
+  ]);
+  snapshotsByXuid = new Map([
+    ['x_arenaonly', {
+      csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1820,
+      csr: { 'Ranked Arena': { tier: 'Onyx', subTier: 1, value: 1820 } },
+    }],
+  ]);
+  const matches4e = [{
+    matchId: 'mPoison2',
+    isRanked: true,
+    playlistKind: 'slayer',
+    teams: [{ teamId: 0, players: [{ rawXuid: 'x_arenaonly', gamertag: 'ArenaOnly' }] }],
+  }];
+  await db.enrichMatchTeamsWithCsr(matches4e);
+  const t4e = matches4e[0].teams[0].players[0];
+  assert(t4e.csrTier == null,
+    `Arena-only player on Slayer match stays empty even with poisoned row (got ${t4e.csrTier})`);
+
+  console.log('\nTest 4f: matching participant row trusted — not flagged as poisoned');
+  // Player on a Slayer match where the participant row genuinely contains the
+  // player's Slayer CSR (matches the snapshot's Slayer entry). Must use the
+  // row, not the snapshot fallback path.
+  participantsByKey = new Map([
+    ['mGood|x_good', { csr_tier: 'Diamond', csr_subtier: 5, csr_value: 1390, csr_pre_value: 1380 }],
+  ]);
+  snapshotsByXuid = new Map([
+    ['x_good', {
+      csr_tier: 'Onyx', csr_subtier: 1, csr_value: 1820,
+      csr: {
+        'Ranked Arena':  { tier: 'Onyx',    subTier: 1, value: 1820 },
+        'Ranked Slayer': { tier: 'Diamond', subTier: 5, value: 1390 },
+      },
+    }],
+  ]);
+  const matches4f = [{
+    matchId: 'mGood',
+    isRanked: true,
+    playlistKind: 'slayer',
+    teams: [{ teamId: 0, players: [{ rawXuid: 'x_good', gamertag: 'GoodRow' }] }],
+  }];
+  const r4f = await db.enrichMatchTeamsWithCsr(matches4f);
+  const t4f = matches4f[0].teams[0].players[0];
+  assert(t4f.csrTier === 'Diamond' && t4f.csrValue === 1390,
+    `genuine Slayer row preserved (got ${t4f.csrTier} ${t4f.csrValue})`);
+  assert(!t4f.csrFromSnapshot, 'csrFromSnapshot NOT set (per-match source)');
+  assert(r4f.perMatch === 1 && r4f.snapshot === 0,
+    `counters: perMatch=1 snapshot=0 (got perMatch=${r4f.perMatch} snapshot=${r4f.snapshot})`);
+
   console.log('\nTest 5: no-op on empty / undefined input');
   const rE1 = await db.enrichMatchTeamsWithCsr([]);
   assert(rE1.perMatch === 0 && rE1.snapshot === 0 && rE1.missing === 0, 'empty matches → zeros');
@@ -249,6 +339,36 @@ function assert(cond, msg) {
   assert(wouldBadge(t1Mate),   'm1 mate produces a badge after enrichment');
   assert(!wouldBadge(t1Unk),   'm1 unknown produces NO badge');
   assert(wouldBadge(t3Tgt),    'm3 target (snapshot) produces a badge');
+
+  console.log('\nTest 7: buildParticipantRow strips CSR fields when csrFromSnapshot is set');
+  // saveMatchParticipants must NEVER persist a snapshot-derived CSR onto
+  // match_participants — that's exactly what poisoned the table before.
+  const goodMeta = { matchId: 'mB', isRanked: true, gameMode: 'Ranked Slayer', sourceXuid: 'x_src' };
+  const goodTeam = { teamId: 0, outcome: 2 };
+  const perMatchPl = {
+    rawXuid: 'x_realmatch', gamertag: 'PerMatch',
+    kills: 12, deaths: 8, assists: 4,
+    csrTier: 'Diamond', csrSubTier: 5, csrValue: 1390, csrPreValue: 1380, csrDelta: 10,
+  };
+  const snapPl = {
+    rawXuid: 'x_snap', gamertag: 'FromSnap',
+    kills: 9, deaths: 12, assists: 3,
+    csrTier: 'Diamond', csrSubTier: 5, csrValue: 1390,
+    csrFromSnapshot: true,
+  };
+  const rowGood = db.buildParticipantRow(perMatchPl, goodTeam, goodMeta);
+  const rowSnap = db.buildParticipantRow(snapPl, goodTeam, goodMeta);
+  assert(rowGood.csr_tier === 'Diamond' && rowGood.csr_value === 1390,
+    'per-match CSR persisted (Diamond 1390)');
+  assert(rowGood.csr_subtier === 5 && rowGood.csr_pre_value === 1380 && rowGood.csr_delta === 10,
+    'per-match CSR rich fields persisted');
+  assert(rowSnap.csr_tier == null && rowSnap.csr_subtier == null && rowSnap.csr_value == null,
+    `snapshot-derived CSR NOT persisted (got tier=${rowSnap.csr_tier} sub=${rowSnap.csr_subtier} val=${rowSnap.csr_value})`);
+  assert(rowSnap.csr_pre_value == null && rowSnap.csr_delta == null,
+    'snapshot-derived pre/delta also nulled out');
+  // Non-CSR rich fields still flow through — only CSR is gated.
+  assert(rowSnap.kills === 9 && rowSnap.deaths === 12,
+    'non-CSR fields still persisted on csrFromSnapshot rows');
 
   if (process.exitCode) {
     console.error('\n✗ verify-enrich-csr: failures');
