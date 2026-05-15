@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Statline · Leaderboards</title>
+  <title>fragr · Leaderboards</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
@@ -132,8 +132,8 @@
 </head>
 <body>
 <div class="topbar">
-  <a class="topbar-logo" href="/">// STATLINE</a>
-  <a class="topbar-back" id="backBtn" href="/">← BACK</a>
+  <a class="topbar-logo" href="/">// fragr</a>
+  <a class="topbar-back" id="backBtn" href="/" onclick="if(history.length>1){event.preventDefault();history.back()}">← BACK</a>
 </div>
 
 <div class="page">
@@ -175,19 +175,7 @@
     if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
   })();
 
-  // ── Back button — return to the player profile we came from ───────────────
-  (function(){
-    try {
-      var ref = document.referrer;
-      if (ref) {
-        var u = new URL(ref);
-        var player = u.searchParams.get('player');
-        if (player && (u.hostname === location.hostname || u.hostname === 'localhost')) {
-          document.getElementById('backBtn').href = '/?player=' + encodeURIComponent(player);
-        }
-      }
-    } catch(e) {}
-  })();
+  // Back button uses history.back() (set inline) — no JS override needed
 
   // ── State ─────────────────────────────────────────────────────────────────
   var _data      = null;
@@ -255,7 +243,7 @@
     if (!filtered.length) {
       panel.innerHTML = allRows.length
         ? '<div class="lb-empty"><div class="lb-empty-title">No match</div><div class="lb-empty-sub">No players found for "' + esc(_search) + '"</div></div>'
-        : '<div class="lb-empty"><div class="lb-empty-title">No data yet</div><div class="lb-empty-sub">Search players on Statline to populate the leaderboard</div></div>';
+        : '<div class="lb-empty"><div class="lb-empty-title">No data yet</div><div class="lb-empty-sub">Search players on fragr to populate the leaderboard</div></div>';
       document.getElementById('meta-count').textContent = '0 PLAYERS';
       return;
     }
