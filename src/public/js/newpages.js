@@ -466,6 +466,301 @@ function renderSynergyPage(p, allMatches) {
   return '<div class="empty-state"><div class="empty-state-msg">Synergy data unavailable</div></div>';
 }
 
+// ── LAST GAME ─────────────────────────────────────────────────────────────────
+function renderLastGamePage(p, allMatches) {
+  if (!allMatches || !allMatches.length) {
+    return '<div class="empty-state"><div class="empty-state-icon">◈</div><div class="empty-state-msg">Loading match data…</div><div class="empty-state-sub">Full match history is being fetched</div></div>';
+  }
+
+  var m = allMatches[0];
+  var isWin = m.outcome === 2;
+  var isLoss = m.outcome === 3;
+  var outcomeLabel = isWin ? 'WIN' : isLoss ? 'LOSS' : 'DRAW';
+  var outcomeColor = isWin ? 'var(--win)' : isLoss ? 'var(--loss)' : 'var(--muted)';
+
+  function parseDur(iso) {
+    if (!iso) return '--';
+    var h = iso.match(/(\d+)H/), mn = iso.match(/(\d+)M/), s = iso.match(/(\d+)S/);
+    var hv = h ? parseInt(h[1]) : 0, mv = mn ? parseInt(mn[1]) : 0, sv = s ? parseInt(s[1]) : 0;
+    if (hv) return hv + 'h ' + mv + 'm';
+    return mv + 'm ' + sv + 's';
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '';
+    var diff = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(diff / 60000), hours = Math.floor(mins / 60), days = Math.floor(hours / 24);
+    if (days > 0) return days + 'd ago';
+    if (hours > 0) return hours + 'h ago';
+    if (mins > 1) return mins + 'm ago';
+    return 'just now';
+  }
+
+  function avgStat(arr, fn) {
+    var vals = arr.map(fn).filter(function(v){ return v != null && !isNaN(v); });
+    return vals.length ? vals.reduce(function(a,b){ return a+b; }, 0) / vals.length : null;
+  }
+  function winRate(arr) {
+    if (!arr.length) return null;
+    return arr.filter(function(x){ return x.outcome === 2; }).length / arr.length * 100;
+  }
+  function fmt(v, dec) { dec = dec == null ? 2 : dec; return v != null ? parseFloat(v).toFixed(dec) : '—'; }
+  function fmtPct(v) { return v != null ? parseFloat(v).toFixed(1) + '%' : '—'; }
+  function deltaArrow(cur, avg, higherBetter) {
+    if (cur == null || avg == null || avg === 0) return '';
+    var diff = cur - avg, pct = Math.abs(diff / avg * 100);
+    var better = higherBetter !== false ? diff > 0 : diff < 0;
+    var color = better ? 'var(--win)' : 'var(--loss)';
+    var arrow = diff > 0 ? '▲' : '▼';
+    return '<span style="color:' + color + ';font-size:8px;margin-left:3px">' + arrow + pct.toFixed(0) + '%</span>';
+  }
+
+  var myKDA = parseFloat(m.kda) || 0;
+  var myAcc = m.accuracy != null ? parseFloat(m.accuracy) : null;
+  var myDmg = m.damageDealt || 0;
+  var myGamertag = (p.gamertag || '').toLowerCase();
+
+  var mapMatches  = allMatches.filter(function(x){ return x.mapName === m.mapName; });
+  var modeMatches = allMatches.filter(function(x){ return x.gameMode === m.gameMode; });
+  var contexts = [
+    { label: 'THIS MAP',  sub: m.mapName || '—',                          matches: mapMatches  },
+    { label: 'THIS MODE', sub: (m.gameMode||'').replace(/Ranked /,''),     matches: modeMatches },
+    { label: 'OVERALL',   sub: allMatches.length + ' games',               matches: allMatches  },
+  ];
+
+  var html = '';
+
+  // ── Live poll status strip ───────────────────────────────────────────────
+  html += '<div id="lg-poll-strip" style="background:var(--surface2);border-bottom:1px solid var(--border);padding:7px 16px;font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;display:flex;align-items:center;gap:10px">';
+  html += '<span id="lg-pulse-dot" style="width:7px;height:7px;border-radius:50%;background:var(--win);flex-shrink:0;animation:lgPulse 2.4s ease-in-out infinite"></span>';
+  html += '<span id="lg-poll-status">WATCHING FOR NEW GAME</span>';
+  html += '<span id="lg-checked-ago" style="color:var(--muted2);margin-left:4px"></span>';
+  html += '<span id="lg-new-banner" style="display:none;margin-left:auto;color:var(--accent);font-weight:700;cursor:pointer;letter-spacing:1px;animation:lgBlink 1s step-end infinite" onclick="window._lgLoadNewGame && window._lgLoadNewGame()">▶ NEW GAME DETECTED — CLICK TO LOAD</span>';
+  html += '</div>';
+
+  // ── Map hero ─────────────────────────────────────────────────────────────
+  var mapBg = m.mapImageUrl
+    ? 'background:linear-gradient(to bottom,rgba(6,13,23,0.45) 0%,rgba(6,13,23,0.88) 55%,var(--bg) 100%),url(\'' + m.mapImageUrl + '\') center/cover no-repeat'
+    : 'background:linear-gradient(135deg,var(--surface2),var(--surface3))';
+  html += '<div style="' + mapBg + ';padding:36px 24px 28px;border-bottom:1px solid var(--border)">';
+  html += '<div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:12px">';
+  html += '<span style="background:' + outcomeColor + ';color:var(--bg);font-family:Rajdhani,sans-serif;font-size:13px;font-weight:800;padding:3px 12px;border-radius:3px;letter-spacing:3px">' + outcomeLabel + '</span>';
+  if (m.isRanked) html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px;border:1px solid var(--border2);padding:2px 7px;border-radius:2px">RANKED</span>';
+  html += '</div>';
+  html += '<div style="font-family:Rajdhani,sans-serif;font-size:36px;font-weight:700;color:var(--text);line-height:1;margin-bottom:6px">' + (m.mapName || 'Unknown Map') + '</div>';
+  html += '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:16px">';
+  html += (m.gameMode || '').toUpperCase();
+  if (m.duration) html += ' · ' + parseDur(m.duration);
+  html += ' · ' + timeAgo(m.startTime);
+  html += '</div>';
+  // CSR delta badge
+  if (m.csrDelta != null) {
+    var d = m.csrDelta, dSign = d > 0 ? '+' : '', dColor = d > 0 ? 'var(--win)' : d < 0 ? 'var(--loss)' : 'var(--muted)';
+    html += '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,0,0,0.45);border:1px solid var(--border2);border-radius:4px;padding:7px 14px">';
+    html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px">CSR</span>';
+    html += '<span style="font-family:Rajdhani,sans-serif;font-size:26px;font-weight:700;color:' + dColor + '">' + dSign + d + '</span>';
+    if (m.csrAfter) html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted);letter-spacing:1px">→ ' + m.csrAfter + '</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '<div style="padding:20px 16px 32px">';
+
+  // ── Your performance cards ───────────────────────────────────────────────
+  html += sectionHead('YOUR PERFORMANCE', m.placement != null ? 'ranked #' + m.placement + ' on scoreboard' : null);
+  html += '<div class="stat-cards" style="margin-top:12px">';
+  html += statCard('KILLS',   m.kills);
+  html += statCard('DEATHS',  m.deaths);
+  html += statCard('ASSISTS', m.assists);
+  html += statCard('KDA', m.kda, myKDA >= 1.5 ? 'win' : myKDA < 0.8 ? 'loss' : '');
+  if (myAcc != null) html += statCard('ACCURACY', myAcc.toFixed(1) + '%', myAcc >= 50 ? 'win' : myAcc < 35 ? 'loss' : '');
+  if (m.weaponStats && m.weaponStats.headshots != null && m.kills > 0) {
+    var hsRate = (m.weaponStats.headshots / m.kills * 100).toFixed(0);
+    html += statCard('HEADSHOT %', hsRate + '%', parseInt(hsRate) >= 40 ? 'win' : '');
+  }
+  if (m.damageDealt) html += statCard('DMG DEALT',  m.damageDealt.toLocaleString());
+  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), null, m.damageTakenEstimated ? 'est.' : null);
+  if (m.damageDealt && m.damageTaken) {
+    var dmgRatio = (m.damageDealt / Math.max(m.damageTaken, 1)).toFixed(2);
+    html += statCard('DMG RATIO', dmgRatio, parseFloat(dmgRatio) >= 1.1 ? 'win' : parseFloat(dmgRatio) < 0.9 ? 'loss' : '', 'dealt÷taken');
+  }
+  if (m.shotsFired && m.shotsHit) html += statCard('SHOTS FIRED', m.shotsFired.toLocaleString(), null, m.shotsHit.toLocaleString() + ' hit');
+  html += '</div>';
+
+  // ── Kill breakdown bars ──────────────────────────────────────────────────
+  if (m.weaponStats && m.kills > 0) {
+    var ws = m.weaponStats;
+    var specialTotal = (ws.headshots||0) + (ws.melee||0) + (ws.grenades||0) + (ws.powerWeapon||0);
+    var regularKills = Math.max(0, m.kills - specialTotal);
+    var killTypes = [
+      { label: 'BODY SHOTS', value: regularKills,    color: 'var(--accent)'  },
+      { label: 'HEADSHOTS',  value: ws.headshots||0, color: 'var(--win)'     },
+      { label: 'MELEE',      value: ws.melee||0,     color: 'var(--gold)'    },
+      { label: 'GRENADES',   value: ws.grenades||0,  color: '#e8a030'        },
+      { label: 'POWER WPN',  value: ws.powerWeapon||0, color: '#b060ff'      },
+    ].filter(function(x){ return x.value > 0; });
+
+    if (killTypes.length > 1) {
+      html += '<div style="margin-top:24px">';
+      html += sectionHead('KILL BREAKDOWN');
+      html += '<div style="margin-top:12px;display:flex;flex-direction:column;gap:7px">';
+      killTypes.forEach(function(k) {
+        var pct = k.value / m.kills * 100;
+        html += '<div style="display:flex;align-items:center;gap:10px">';
+        html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;width:72px;flex-shrink:0;text-align:right">' + k.label + '</div>';
+        html += '<div style="flex:1;height:20px;background:var(--surface2);border-radius:2px;overflow:hidden;border:1px solid var(--border)">';
+        html += '<div style="height:100%;width:' + pct.toFixed(1) + '%;background:' + k.color + ';display:flex;align-items:center;padding-left:7px;min-width:' + (k.value>0?'26px':'0') + ';transition:width 0.5s ease">';
+        html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--bg);font-weight:700">' + k.value + '</span>';
+        html += '</div></div>';
+        html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);width:30px">' + pct.toFixed(0) + '%</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+  }
+
+  // ── Context comparison ───────────────────────────────────────────────────
+  html += '<div style="margin-top:28px">';
+  html += sectionHead('PERFORMANCE CONTEXT', 'this game vs your averages');
+  html += '<div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  contexts.forEach(function(ctx) {
+    var avgKDA  = avgStat(ctx.matches, function(x){ return parseFloat(x.kda); });
+    var avgAcc  = avgStat(ctx.matches, function(x){ return x.accuracy != null ? parseFloat(x.accuracy) : null; });
+    var avgDmg  = avgStat(ctx.matches, function(x){ return x.damageDealt || 0; });
+    var wr      = winRate(ctx.matches);
+    var n       = ctx.matches.length;
+
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 10px">';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;letter-spacing:2px;color:var(--accent);margin-bottom:2px">' + ctx.label + '</div>';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + ctx.sub + '">' + ctx.sub + '</div>';
+
+    function ctxRow(label, curVal, avgVal, fmtFn, higherBetter) {
+      var fmtFnFinal = fmtFn || function(v){ return fmt(v); };
+      var r = '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">';
+      r += '<span style="font-family:Share Tech Mono,monospace;font-size:7px;color:var(--muted2);letter-spacing:1px">' + label + '</span>';
+      r += '<div style="text-align:right">';
+      r += '<span style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:var(--text)">' + fmtFnFinal(avgVal) + '</span>';
+      r += deltaArrow(curVal, avgVal, higherBetter);
+      r += '</div></div>';
+      return r;
+    }
+
+    html += ctxRow('AVG KDA',  myKDA,  avgKDA,  function(v){ return fmt(v,2); });
+    if (avgAcc != null && myAcc != null) html += ctxRow('AVG ACC', myAcc, avgAcc, function(v){ return fmtPct(v); });
+    html += ctxRow('AVG DMG',  myDmg,  avgDmg,  function(v){ return v != null ? Math.round(v).toLocaleString() : '—'; });
+    // Win rate — no delta arrow since it's a pool stat not a this-game stat
+    var wrColor = wr != null && wr >= 50 ? 'var(--win)' : 'var(--loss)';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0">';
+    html += '<span style="font-family:Share Tech Mono,monospace;font-size:7px;color:var(--muted2);letter-spacing:1px">WIN RATE</span>';
+    html += '<span style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:' + wrColor + '">' + fmtPct(wr) + '</span>';
+    html += '</div>';
+
+    html += '<div style="margin-top:6px;font-family:Share Tech Mono,monospace;font-size:7px;color:var(--muted2);text-align:right;letter-spacing:1px">' + n + ' GAMES</div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  // ── Full scoreboard ──────────────────────────────────────────────────────
+  if (m.teams && m.teams.length) {
+    html += '<div style="margin-top:28px">';
+    html += sectionHead('FULL SCOREBOARD');
+    m.teams.forEach(function(team, ti) {
+      var tOut   = team.outcome === 2 ? 'WIN' : team.outcome === 3 ? 'LOSS' : 'DRAW';
+      var tColor = team.outcome === 2 ? 'var(--win)' : team.outcome === 3 ? 'var(--loss)' : 'var(--muted)';
+      var sorted = team.players.slice().sort(function(a,b){ return (b.score||b.kills||0)-(a.score||a.kills||0); });
+
+      html += '<div style="margin-top:14px">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+      html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;font-weight:700;letter-spacing:3px;color:' + tColor + '">' + tOut + '</span>';
+      html += '<span style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2)">TEAM ' + (ti+1) + ' · ' + sorted.length + ' PLAYERS</span>';
+      html += '</div>';
+
+      // Header
+      var cols = '1fr 36px 36px 36px 52px 72px 60px';
+      html += '<div style="display:grid;grid-template-columns:' + cols + ';background:var(--surface3);border:1px solid var(--border);border-radius:4px 4px 0 0;padding:5px 10px;font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px">';
+      html += '<span>PLAYER</span><span style="text-align:center">K</span><span style="text-align:center">D</span><span style="text-align:center">A</span><span style="text-align:center">ACC</span><span style="text-align:center">DAMAGE</span><span style="text-align:center">KDA</span>';
+      html += '</div>';
+
+      sorted.forEach(function(pl, pi) {
+        var isMe = pl.gamertag.toLowerCase() === myGamertag;
+        var isLast = pi === sorted.length - 1;
+        var rowStyle = [
+          isMe ? 'background:rgba(var(--accent-r),var(--accent-g),var(--accent-b),0.09);border-left:2px solid var(--accent)' : 'background:var(--surface2)',
+          isLast ? 'border-radius:0 0 4px 4px' : '',
+          'border:1px solid var(--border);border-top:none',
+          'display:grid;grid-template-columns:' + cols,
+          'padding:7px 10px;align-items:center;font-family:Share Tech Mono,monospace;font-size:10px',
+        ].filter(Boolean).join(';');
+
+        var plKda   = pl.kda || pl.kd || null;
+        var kdaNum  = parseFloat(plKda);
+        var kdaColor = kdaNum >= 1.5 ? 'var(--win)' : kdaNum < 0.8 ? 'var(--loss)' : 'var(--text)';
+        var plAcc   = pl.accuracy != null ? parseFloat(pl.accuracy).toFixed(0) + '%' : '—';
+        var plDmg   = pl.damage  ? (Math.round(pl.damage/100)/10).toFixed(1) + 'k' : '—';
+
+        // CSR badge suffix
+        var csrBadge = '';
+        if (pl.csrTier) {
+          var csrLabel = pl.csrTier === 'Onyx' ? 'Onyx ' + (pl.csrValue||'') : pl.csrTier + (pl.csrSubTier != null ? ' ' + pl.csrSubTier : '');
+          var csrChange = pl.csrDelta != null ? ' (' + (pl.csrDelta > 0 ? '+' : '') + pl.csrDelta + ')' : '';
+          csrBadge = ' <span style="font-size:8px;color:var(--muted2)">' + csrLabel.trim() + csrChange + '</span>';
+        }
+
+        html += '<div style="' + rowStyle + '">';
+        html += '<span style="color:' + (isMe ? 'var(--accent)' : 'var(--text)') + ';font-weight:' + (isMe ? '700' : '400') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + pl.gamertag + (isMe ? ' ←' : '') + csrBadge + '</span>';
+        html += '<span style="text-align:center;color:var(--text)">'     + (pl.kills  || 0) + '</span>';
+        html += '<span style="text-align:center;color:var(--muted)">'    + (pl.deaths || 0) + '</span>';
+        html += '<span style="text-align:center;color:var(--muted)">'    + (pl.assists|| 0) + '</span>';
+        html += '<span style="text-align:center;color:var(--muted)">'    + plAcc            + '</span>';
+        html += '<span style="text-align:center;color:var(--muted)">'    + plDmg            + '</span>';
+        html += '<span style="text-align:center;color:' + kdaColor + ';font-weight:700">' + (plKda || '—') + '</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ── Medals ───────────────────────────────────────────────────────────────
+  if (m.topMedals && m.topMedals.length) {
+    html += '<div style="margin-top:28px">';
+    html += sectionHead('MEDALS', m.topMedals.length + ' earned');
+    html += '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:7px">';
+    m.topMedals.forEach(function(medal) {
+      var name  = medal.name || medal.nameId || 'Medal';
+      var count = medal.count || medal.totalCount || 1;
+      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 11px;display:flex;align-items:center;gap:6px">';
+      if (medal.imageUrl) html += '<img src="' + medal.imageUrl + '" width="20" height="20" style="object-fit:contain;border-radius:2px">';
+      html += '<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text)">' + name + '</span>';
+      if (count > 1) html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--accent);font-weight:700">×' + count + '</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // ── Recent results on this map ────────────────────────────────────────────
+  if (mapMatches.length > 1) {
+    var mapSlice = mapMatches.slice(0, 12);
+    html += '<div style="margin-top:28px">';
+    html += sectionHead('RECENT ON ' + (m.mapName||'THIS MAP').toUpperCase(), mapSlice.length + ' games shown');
+    html += '<div style="margin-top:10px;display:flex;gap:4px;flex-wrap:wrap">';
+    mapSlice.forEach(function(gm) {
+      var w = gm.outcome===2, l = gm.outcome===3;
+      var c = w ? 'var(--win)' : l ? 'var(--loss)' : 'var(--muted)';
+      var lbl = w ? 'W' : l ? 'L' : 'D';
+      var tip = (gm.kills||0)+'/'+(gm.deaths||0)+'/'+(gm.assists||0)+' · '+(gm.gameMode||'')+(gm.csrDelta!=null?' · CSR '+(gm.csrDelta>0?'+':'')+gm.csrDelta:'');
+      html += '<div title="' + tip + '" style="background:var(--surface2);border:1px solid ' + c + ';border-radius:3px;padding:5px 8px;font-family:Share Tech Mono,monospace;font-size:9px;color:' + c + ';min-width:24px;text-align:center;cursor:default">';
+      html += lbl;
+      html += '<div style="font-size:7px;color:var(--muted2);margin-top:2px">' + (gm.kills||0) + '/' + (gm.deaths||0) + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  html += '</div>'; // end main padding
+  return html;
+}
+
 // ── COMPARE ──────────────────────────────────────────────────────────────────
 // Opens the existing full-screen compare overlay — it already handles everything
 function renderComparePage(p) {

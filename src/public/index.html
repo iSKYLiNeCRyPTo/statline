@@ -303,6 +303,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .toast.error{border-color:rgba(255,61,87,0.4);color:var(--loss)}
 .toast.info{border-color:rgba(0,212,255,0.3);color:var(--accent)}
 @keyframes toastOut{to{opacity:0;transform:translateX(20px)}}
+@keyframes lgPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.75)}}
+@keyframes lgBlink{0%,100%{opacity:1}50%{opacity:0.3}}
 
 /* Live indicator */
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:5px;animation:pulse 2s infinite}
@@ -591,6 +593,9 @@ body.on-landing .sidebar{display:none !important}
       </button>
       <button class="sidebar-nav-item" data-tab="compare" onclick="setTab('compare')">
         <span class="nav-icon">⊞</span><span class="nav-label">Compare</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="lastgame" onclick="setTab('lastgame')">
+        <span class="nav-icon" style="position:relative">◈<span id="lg-live-dot" style="display:none;position:absolute;top:-2px;right:-4px;width:5px;height:5px;border-radius:50%;background:var(--win)"></span></span><span class="nav-label">Last Game</span>
       </button>
     </nav>
 

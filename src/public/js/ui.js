@@ -291,7 +291,7 @@ function setTab(t){
     p.classList.toggle('active', p.dataset.tab===t);
   });
   // Update topbar title
-  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS',sessions:'// SESSIONS',activity:'// ACTIVITY',weapons:'// WEAPONS',synergy:'// SYNERGY',compare:'// COMPARE'};
+  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS',sessions:'// SESSIONS',activity:'// ACTIVITY',weapons:'// WEAPONS',synergy:'// SYNERGY',compare:'// COMPARE',lastgame:'// LAST GAME'};
   var el=document.getElementById('topbarTitle');
   if(el)el.textContent=titles[t]||'// '+t.toUpperCase();
   // Close sidebar on mobile
@@ -314,16 +314,82 @@ function setTab(t){
       }
     },50);
   }
-  if(['bymap','charts','opponents','sessions','activity','weapons','synergy'].indexOf(t)>-1){
+  if(['bymap','charts','opponents','sessions','activity','weapons','synergy','lastgame'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
   if(t==='charts'||t==='synergy') setTimeout(resolveSynergyGamertags, 150);
   if(t==='compare'&&typeof openCompare==='function') setTimeout(openCompare, 0);
+
+  // Last Game — start live polling when on tab, stop when leaving
+  if(t==='lastgame'){
+    _startLastGamePoll();
+  } else {
+    _stopLastGamePoll();
+  }
+
   // Update desktop tab active state
   document.querySelectorAll('.dtab').forEach(function(b){
     b.classList.toggle('active', b.dataset.tab===t);
   });
+}
+
+// ── Last Game live polling ────────────────────────────────────────────────────
+var _lgPollTimer=null, _lgLastChecked=0, _lgCheckedAgoTimer=null;
+function _startLastGamePoll(){
+  _stopLastGamePoll(); // clear any existing
+  var dot=document.getElementById('lg-live-dot');
+  if(dot) dot.style.display='block';
+  _lgDoPoll(); // immediate first check
+  _lgPollTimer=setInterval(_lgDoPoll, 30000);
+  // "last checked X sec ago" ticker
+  _lgCheckedAgoTimer=setInterval(function(){
+    var el=document.getElementById('lg-checked-ago');
+    if(!el)return;
+    var secs=Math.round((Date.now()-_lgLastChecked)/1000);
+    el.textContent = secs < 5 ? '· checked just now' : '· checked '+secs+'s ago';
+  }, 5000);
+}
+function _stopLastGamePoll(){
+  if(_lgPollTimer){clearInterval(_lgPollTimer);_lgPollTimer=null;}
+  if(_lgCheckedAgoTimer){clearInterval(_lgCheckedAgoTimer);_lgCheckedAgoTimer=null;}
+  var dot=document.getElementById('lg-live-dot');
+  if(dot) dot.style.display='none';
+}
+function _lgDoPoll(){
+  var p=getAllPlayers()[selectedPlayer]||searchData;
+  var gt=p&&p.gamertag;
+  if(!gt) return;
+  var allM=(p.allMatches||p.recentMatches||fullMatchCache[gt.toLowerCase()]||[]);
+  var currentId=allM[0]&&allM[0].matchId;
+  _lgLastChecked=Date.now();
+  fetch('/api/latest-match?gamertag='+encodeURIComponent(gt))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d.ok) return;
+      var statusEl=document.getElementById('lg-poll-status');
+      var bannerEl=document.getElementById('lg-new-banner');
+      if(!statusEl) return;
+      _lgLastChecked=Date.now();
+      if(d.matchId && currentId && d.matchId !== currentId){
+        // New game detected
+        statusEl.textContent='NEW GAME FOUND';
+        statusEl.style.color='var(--accent)';
+        if(bannerEl) bannerEl.style.display='inline';
+        // Set up the refresh handler
+        window._lgLoadNewGame=function(){
+          if(bannerEl) bannerEl.style.display='none';
+          statusEl.textContent='LOADING NEW GAME…';
+          _stopLastGamePoll();
+          doSearch(gt, true, true);
+        };
+      } else {
+        statusEl.textContent='WATCHING FOR NEW GAME';
+        statusEl.style.color='';
+        if(bannerEl) bannerEl.style.display='none';
+      }
+    })
+    .catch(function(){});
 }
 
 function toast(msg,type,duration){

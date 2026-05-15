@@ -2768,6 +2768,12 @@ function render(){
   else html+='<div style="padding:2rem;color:var(--muted)">Compare loading...</div>';
   html+='</div>';
 
+  // Last Game tab
+  html+='<div class="tab-panel'+(activeTab==='lastgame'?' active':'')+'" data-tab="lastgame">';
+  if(typeof renderLastGamePage==='function') html+=renderLastGamePage(p, allMatches);
+  else html+='<div style="padding:2rem;color:var(--muted)">Last game loading...</div>';
+  html+='</div>';
+
 
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
