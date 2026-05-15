@@ -338,8 +338,6 @@ function setTab(t){
 var _lgPollTimer=null, _lgLastChecked=0, _lgCheckedAgoTimer=null;
 function _startLastGamePoll(){
   _stopLastGamePoll(); // clear any existing
-  var dot=document.getElementById('lg-live-dot');
-  if(dot) dot.style.display='block';
   _lgDoPoll(); // immediate first check
   _lgPollTimer=setInterval(_lgDoPoll, 30000);
   // "last checked X sec ago" ticker
@@ -353,8 +351,6 @@ function _startLastGamePoll(){
 function _stopLastGamePoll(){
   if(_lgPollTimer){clearInterval(_lgPollTimer);_lgPollTimer=null;}
   if(_lgCheckedAgoTimer){clearInterval(_lgCheckedAgoTimer);_lgCheckedAgoTimer=null;}
-  var dot=document.getElementById('lg-live-dot');
-  if(dot) dot.style.display='none';
 }
 function _lgDoPoll(){
   var p=getAllPlayers()[selectedPlayer]||searchData;
@@ -371,14 +367,17 @@ function _lgDoPoll(){
       var bannerEl=document.getElementById('lg-new-banner');
       if(!statusEl) return;
       _lgLastChecked=Date.now();
+      var dot=document.getElementById('lg-live-dot');
       if(d.matchId && currentId && d.matchId !== currentId){
-        // New game detected
+        // New game detected — show dot as alert indicator
         statusEl.textContent='NEW GAME FOUND';
         statusEl.style.color='var(--accent)';
         if(bannerEl) bannerEl.style.display='inline';
+        if(dot) dot.style.display='block';
         // Set up the refresh handler
         window._lgLoadNewGame=function(){
           if(bannerEl) bannerEl.style.display='none';
+          if(dot) dot.style.display='none';
           statusEl.textContent='LOADING NEW GAME…';
           _stopLastGamePoll();
           doSearch(gt, true, true);
@@ -387,6 +386,7 @@ function _lgDoPoll(){
         statusEl.textContent='WATCHING FOR NEW GAME';
         statusEl.style.color='';
         if(bannerEl) bannerEl.style.display='none';
+        if(dot) dot.style.display='none';
       }
     })
     .catch(function(){});

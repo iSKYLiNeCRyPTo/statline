@@ -725,15 +725,21 @@ function renderLastGamePage(p, allMatches) {
   if (m.topMedals && m.topMedals.length) {
     html += '<div style="margin-top:28px">';
     html += sectionHead('MEDALS', m.topMedals.length + ' earned');
-    html += '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:7px">';
+    html += '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:4px">';
     m.topMedals.forEach(function(medal) {
-      var name  = medal.name || medal.nameId || 'Medal';
-      var count = medal.count || medal.totalCount || 1;
-      html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 11px;display:flex;align-items:center;gap:6px">';
-      if (medal.imageUrl) html += '<img src="' + medal.imageUrl + '" width="20" height="20" style="object-fit:contain;border-radius:2px">';
-      html += '<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text)">' + name + '</span>';
-      if (count > 1) html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--accent);font-weight:700">×' + count + '</span>';
-      html += '</div>';
+      // Use the global renderMedal() from utils.js which handles sprite sheet + medalMeta lookup
+      if (typeof renderMedal === 'function') {
+        html += renderMedal(medal);
+      } else {
+        // Fallback: look up name from medalMeta directly
+        var meta = (typeof medalMeta !== 'undefined') ? (medalMeta[String(medal.nameId)] || {}) : {};
+        var name = meta.name || medal.name || String(medal.nameId);
+        var count = medal.count || 1;
+        html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 10px;display:flex;align-items:center;gap:5px">';
+        html += '<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text)">' + name + '</span>';
+        if (count > 1) html += '<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--accent);font-weight:700">×' + count + '</span>';
+        html += '</div>';
+      }
     });
     html += '</div></div>';
   }
