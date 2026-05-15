@@ -291,7 +291,7 @@ function setTab(t){
     p.classList.toggle('active', p.dataset.tab===t);
   });
   // Update topbar title
-  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS'};
+  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS',sessions:'// SESSIONS',activity:'// ACTIVITY',weapons:'// WEAPONS',synergy:'// SYNERGY',compare:'// COMPARE'};
   var el=document.getElementById('topbarTitle');
   if(el)el.textContent=titles[t]||'// '+t.toUpperCase();
   // Close sidebar on mobile
@@ -314,11 +314,12 @@ function setTab(t){
       }
     },50);
   }
-  if(['bymap','charts','opponents'].indexOf(t)>-1){
+  if(['bymap','charts','opponents','sessions','activity','weapons','synergy'].indexOf(t)>-1){
     var _cp=getAllPlayers()[selectedPlayer];
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
-  if(t==='charts') setTimeout(resolveSynergyGamertags, 150);
+  if(t==='charts'||t==='synergy') setTimeout(resolveSynergyGamertags, 150);
+  if(t==='compare'&&typeof openCompare==='function') setTimeout(openCompare, 0);
   // Update desktop tab active state
   document.querySelectorAll('.dtab').forEach(function(b){
     b.classList.toggle('active', b.dataset.tab===t);

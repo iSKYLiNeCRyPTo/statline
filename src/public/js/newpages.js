@@ -1,0 +1,478 @@
+// ── New page rendering functions ──────────────────────────────────────────────
+// Sessions, Activity, Weapons, Synergy, Compare tabs
+
+// ── SESSIONS ─────────────────────────────────────────────────────────────────
+function renderSessionsPage(p, allMatches) {
+  if (!allMatches || !allMatches.length) {
+    return '<div class="empty-state"><div class="empty-state-icon">◷</div><div class="empty-state-msg">No session data</div><div class="empty-state-sub">Load more match history to see sessions</div></div>';
+  }
+
+  // Group matches by local date
+  var dayMap = {};
+  allMatches.forEach(function(m) {
+    if (!m.startTime) return;
+    var d = new Date(m.startTime);
+    var key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    if (!dayMap[key]) dayMap[key] = [];
+    dayMap[key].push(m);
+  });
+
+  var days = Object.keys(dayMap).sort().reverse();
+  if (!days.length) return '<div class="empty-state"><div class="empty-state-msg">No dated matches found</div></div>';
+
+  // Summary stats
+  var totalDays = days.length;
+  var totalGames = allMatches.length;
+  var avgPerDay = totalDays ? (totalGames / totalDays).toFixed(1) : 0;
+  var allWins = allMatches.filter(function(m){return m.outcome===2;}).length;
+  var overallWR = totalGames ? Math.round(allWins/totalGames*100) : 0;
+
+  // Streak calculation
+  var sortedKeys = days.slice().reverse();
+  var bestStreak = 1, curStreak = 1;
+  for (var i = 1; i < sortedKeys.length; i++) {
+    var prev = new Date(sortedKeys[i-1]+'T12:00:00'), cur = new Date(sortedKeys[i]+'T12:00:00');
+    if ((cur - prev) === 86400000) { curStreak++; if (curStreak > bestStreak) bestStreak = curStreak; }
+    else curStreak = 1;
+  }
+
+  var html = '';
+
+  // Summary row
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:24px">';
+  html += statCard('Active Days', totalDays, 'accent', avgPerDay + ' games / day');
+  html += statCard('Total Games', totalGames.toLocaleString(), '', '');
+  html += statCard('Win Rate', overallWR + '%', overallWR>=50?'win':'loss', allWins + 'W · ' + (totalGames-allWins) + 'L');
+  if (bestStreak > 1) html += statCard('Best Streak', bestStreak + ' days', 'gold', 'consecutive active days');
+  html += '</div>';
+
+  html += sectionHead('Session History', days.length + ' active days');
+
+  days.forEach(function(day) {
+    var matches = dayMap[day];
+    var wins   = matches.filter(function(m){return m.outcome===2;}).length;
+    var losses = matches.filter(function(m){return m.outcome===3;}).length;
+    var draws  = matches.length - wins - losses;
+    var kills  = matches.reduce(function(s,m){return s+(m.kills||0);},0);
+    var deaths = matches.reduce(function(s,m){return s+(m.deaths||0);},0);
+    var kd     = deaths > 0 ? (kills/deaths).toFixed(2) : kills > 0 ? kills+'.00' : '—';
+    var kdVal  = deaths > 0 ? kills/deaths : kills;
+    var kdColor = kdVal >= 1.2 ? 'var(--win)' : kdVal >= 0.8 ? 'var(--gold)' : 'var(--loss)';
+
+    // CSR net per playlist
+    var csrByPlaylist = {};
+    matches.forEach(function(m) {
+      if (!m.csrDelta || !m.gameMode) return;
+      var pl = m.gameMode;
+      csrByPlaylist[pl] = (csrByPlaylist[pl]||0) + (m.csrDelta||0);
+    });
+    var csrPills = '';
+    Object.entries(csrByPlaylist).forEach(function(e) {
+      if (!e[1]) return;
+      var label = e[0].replace('Ranked ','');
+      var pos = e[1] > 0;
+      csrPills += '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:'+(pos?'rgba(76,175,80,0.13)':'rgba(244,67,54,0.13)')+';color:'+(pos?'var(--win)':'var(--loss)')+'">'+label+' '+(pos?'+':'')+e[1]+'</span>';
+    });
+
+    // Accuracy avg
+    var accMs = matches.filter(function(m){return m.accuracy>0;});
+    var accStr = accMs.length ? (accMs.reduce(function(s,m){return s+m.accuracy;},0)/accMs.length).toFixed(1)+'%' : '';
+
+    // Best game KDA
+    var bestKda = matches.reduce(function(best, m) {
+      var kda = m.deaths > 0 ? (m.kills + (m.assists||0)*0.33) / m.deaths : m.kills + (m.assists||0)*0.33;
+      return kda > best ? kda : best;
+    }, 0);
+
+    var date = new Date(day + 'T12:00:00');
+    var label = date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    var isToday = day === (function(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); })();
+
+    html += '<div style="background:var(--surface);border:1px solid '+(isToday?'var(--accent)':'var(--border)')+';border-radius:8px;padding:13px 16px;margin-bottom:8px">';
+
+    // Row 1: date · game count · K/D · W/L
+    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+';min-width:96px">'+label+'</div>';
+    html += '<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace">'+matches.length+'g</div>';
+    html += '<div style="font-family:Rajdhani,sans-serif;font-size:16px;font-weight:700;color:'+kdColor+'">'+kd+' <span style="font-size:10px;color:var(--muted2)">K/D</span></div>';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:12px"><span style="color:var(--win)">'+wins+'W</span><span style="color:var(--muted2);margin:0 2px">/</span><span style="color:var(--loss)">'+losses+'L</span>'+(draws?'<span style="color:var(--muted2);margin-left:2px">'+draws+'D</span>':'')+'</div>';
+    if (accStr) html += '<div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">'+accStr+' acc</div>';
+    if (bestKda > 0) html += '<div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace;margin-left:auto">best <span style="color:var(--text)">'+bestKda.toFixed(1)+' KDA</span></div>';
+    html += '</div>';
+
+    // Row 2: outcome dots
+    html += '<div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;margin-bottom:'+(csrPills?'8':'0')+'px">';
+    matches.forEach(function(m) {
+      var c = m.outcome===2?'var(--win)':m.outcome===3?'var(--loss)':'var(--muted2)';
+      var mapLabel = (m.mapName||'')+(m.kills!=null?' · '+m.kills+'/'+m.deaths:'');
+      html += '<div title="'+mapLabel+'" style="width:9px;height:9px;border-radius:50%;background:'+c+';flex-shrink:0"></div>';
+    });
+    html += '</div>';
+
+    // Row 3: CSR pills
+    if (csrPills) html += '<div style="display:flex;gap:6px;flex-wrap:wrap">'+csrPills+'</div>';
+
+    html += '</div>';
+  });
+
+  return html;
+}
+
+// ── ACTIVITY ─────────────────────────────────────────────────────────────────
+function renderActivityPage(p, allMatches) {
+  if (!allMatches || !allMatches.length) {
+    return '<div class="empty-state"><div class="empty-state-icon">◎</div><div class="empty-state-msg">No activity data</div><div class="empty-state-sub">Load more match history to see activity</div></div>';
+  }
+
+  var hourCounts = new Array(24).fill(0);
+  var dayCounts  = new Array(7).fill(0);
+  var modeCounts = {}, mapCounts = {}, mapWins = {};
+
+  allMatches.forEach(function(m) {
+    if (m.startTime) {
+      var d = new Date(m.startTime);
+      hourCounts[d.getHours()]++;
+      dayCounts[d.getDay()]++;
+    }
+    var mode = (m.gameMode||'Unknown').replace('Ranked ','');
+    modeCounts[mode] = (modeCounts[mode]||0) + 1;
+    if (m.mapName) {
+      mapCounts[m.mapName]  = (mapCounts[m.mapName]||0) + 1;
+      if (m.outcome===2) mapWins[m.mapName] = (mapWins[m.mapName]||0) + 1;
+    }
+  });
+
+  // Top summaries
+  var totalGames = allMatches.length;
+  var dayNames   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var peakHour   = hourCounts.indexOf(Math.max.apply(null,hourCounts));
+  var peakDay    = dayCounts.indexOf(Math.max.apply(null,dayCounts));
+  var topMode    = Object.entries(modeCounts).sort(function(a,b){return b[1]-a[1];})[0];
+  var topMap     = Object.entries(mapCounts).sort(function(a,b){return b[1]-a[1];})[0];
+
+  var hourLabel  = peakHour === 0 ? '12 AM' : peakHour < 12 ? peakHour+' AM' : peakHour===12 ? '12 PM' : (peakHour-12)+' PM';
+
+  var html = '';
+
+  // Summary cards
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:24px">';
+  html += statCard('Peak Hour', hourLabel, 'accent', 'most games played');
+  html += statCard('Peak Day', dayNames[peakDay], 'accent', dayCounts[peakDay]+' games');
+  if (topMode) html += statCard('Top Playlist', topMode[0], '', Math.round(topMode[1]/totalGames*100)+'% of games');
+  if (topMap)  html += statCard('Top Map', topMap[0], '', topMap[1]+' games played');
+  html += '</div>';
+
+  // ── Hour of day chart ────────────────────────────────────────────────────
+  var maxHour = Math.max.apply(null, hourCounts) || 1;
+  html += sectionHead('Hour of Day', 'when you queue up');
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">';
+  html += '<div style="display:flex;align-items:flex-end;gap:2px;height:64px">';
+  hourCounts.forEach(function(c, h) {
+    var pct = c / maxHour * 100;
+    var isPeak = h === peakHour;
+    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
+    html += '<div title="'+(h===0?'12 AM':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM')+' · '+c+' games" style="width:100%;height:'+Math.max(pct,c?3:0)+'%;background:'+(ispeak?'var(--accent)':'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+(0.25+pct/100*0.65)+')')+';border-radius:2px 2px 0 0;min-height:'+(c?2:0)+'px;transition:opacity 0.15s" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:6px;padding:0 1px"><span>12a</span><span>3a</span><span>6a</span><span>9a</span><span>12p</span><span>3p</span><span>6p</span><span>9p</span></div>';
+  html += '</div>';
+
+  // ── Day of week + Playlists side by side ─────────────────────────────────
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">';
+
+  // Day of week
+  var maxDay = Math.max.apply(null,dayCounts) || 1;
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px">';
+  html += sectionHead('Day of Week','');
+  dayCounts.forEach(function(c,d) {
+    var pct = c/maxDay*100;
+    var isP = d===peakDay;
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:'+(isP?'var(--accent)':'var(--muted2)')+';width:26px">'+dayNames[d]+'</div>';
+    html += '<div style="flex:1;height:7px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+(isP?'var(--accent)':'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5)')+';border-radius:4px"></div></div>';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);width:20px;text-align:right">'+c+'</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Playlists
+  var modeEntries = Object.entries(modeCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+  var maxMode = modeEntries.length ? modeEntries[0][1] : 1;
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px">';
+  html += sectionHead('Playlists','');
+  modeEntries.forEach(function(e) {
+    var pct = e[1]/maxMode*100;
+    var sharePct = Math.round(e[1]/totalGames*100);
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);width:72px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+e[0]+'">'+e[0]+'</div>';
+    html += '<div style="flex:1;height:7px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.55);border-radius:4px"></div></div>';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);width:26px;text-align:right">'+sharePct+'%</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '</div>'; // end grid
+
+  // ── Activity Heatmap ────────────────────────────────────────────────────
+  (function() {
+    var dayMap = {};
+    allMatches.forEach(function(m) {
+      if (!m.startTime) return;
+      var d = new Date(m.startTime);
+      var key = d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+      dayMap[key] = (dayMap[key]||0)+1;
+    });
+    var keys = Object.keys(dayMap);
+    if (keys.length < 3) return;
+    var now = new Date(); now.setHours(23,59,59,0);
+    var oldest = keys.reduce(function(mn,k){var p=k.split('-');var t=new Date(+p[0],+p[1]-1,+p[2]).getTime();return t<mn?t:mn;},Infinity);
+    var rangeStart = new Date(Math.max(oldest, now.getTime()-26*7*86400000));
+    var startDate = new Date(rangeStart);
+    startDate.setDate(startDate.getDate()-startDate.getDay());
+    var weeks=[], cur=new Date(startDate);
+    while(cur<=now){
+      var week=[];
+      for(var _d=0;_d<7;_d++){
+        var dd=new Date(cur); dd.setDate(dd.getDate()+_d);
+        if(dd>now){week.push(null);}
+        else{var k2=dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate();week.push({date:new Date(dd),count:dayMap[k2]||0});}
+      }
+      weeks.push(week); cur.setDate(cur.getDate()+7);
+    }
+    var totalGames2=Object.values(dayMap).reduce(function(a,v){return a+v;},0);
+    var activeDays=keys.length;
+    var bestDayKey=keys.reduce(function(bk,k){return(dayMap[k]||0)>(dayMap[bk]||0)?k:bk;},keys[0]);
+    var bestDayCount=dayMap[bestDayKey]||0;
+    var sortedTs=keys.map(function(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime();}).sort(function(a,b){return a-b;});
+    var bestSt=1,curSt=1;
+    for(var si=1;si<sortedTs.length;si++){if(sortedTs[si]-sortedTs[si-1]===86400000){curSt++;if(curSt>bestSt)bestSt=curSt;}else curSt=1;}
+    var cellSz=11,cellGap=2,step=cellSz+cellGap,leftPad=22,topPad=16;
+    var svgW=leftPad+weeks.length*step+4, svgH=topPad+7*step+4;
+    function heatColor(n){if(!n)return'var(--surface3)';if(n===1)return'rgba(56,138,221,0.28)';if(n<=3)return'rgba(56,138,221,0.52)';if(n<=5)return'rgba(56,138,221,0.76)';return'rgba(56,138,221,0.95)';}
+    var svgBody='';
+    var DAY_LBLS=['S','M','T','W','T','F','S'];
+    [1,3,5].forEach(function(di){svgBody+='<text x="'+(leftPad-3)+'" y="'+(topPad+di*step+cellSz*0.75)+'" text-anchor="end" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+DAY_LBLS[di]+'</text>';});
+    var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var lastMo=-1;
+    weeks.forEach(function(wk,wi){var first=wk.find(function(c){return c;});if(first){var mo=first.date.getMonth();if(mo!==lastMo){lastMo=mo;svgBody+='<text x="'+(leftPad+wi*step)+'" y="'+(topPad-4)+'" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+MONTHS[mo]+'</text>';}}});
+    weeks.forEach(function(wk,wi){
+      wk.forEach(function(cell,di){
+        if(!cell)return;
+        var x=leftPad+wi*step, y=topPad+di*step;
+        var tip=cell.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(cell.count?' · '+cell.count+' game'+(cell.count!==1?'s':''):'');
+        svgBody+='<rect x="'+x+'" y="'+y+'" width="'+cellSz+'" height="'+cellSz+'" rx="2" fill="'+heatColor(cell.count)+'"><title>'+tip+'</title></rect>';
+      });
+    });
+    var spanMonths=Math.round((now.getTime()-startDate.getTime())/(30*86400000));
+    html+=sectionHead('Activity Heatmap', spanMonths+' months of data');
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+    html+='<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px">';
+    html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+totalGames2+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">GAMES LOGGED</div></div>';
+    html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+activeDays+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">ACTIVE DAYS</div></div>';
+    if(bestSt>1)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">'+bestSt+' <span style="font-size:12px;color:var(--muted2)">days</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">BEST STREAK</div></div>';
+    if(bestDayCount>=4)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--loss)">'+bestDayCount+' <span style="font-size:12px;color:var(--muted2)">games</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">MOST IN A DAY</div></div>';
+    html+='</div>';
+    html+='<div style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">'+svgBody+'</svg></div>';
+    html+='<div style="display:flex;align-items:center;gap:5px;margin-top:10px"><span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">Less</span>';
+    ['var(--surface3)','rgba(56,138,221,0.28)','rgba(56,138,221,0.52)','rgba(56,138,221,0.76)','rgba(56,138,221,0.95)'].forEach(function(c){html+='<div style="width:10px;height:10px;background:'+c+';border-radius:2px"></div>';});
+    html+='<span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">More</span></div>';
+    html+='</div>';
+  })();
+
+  // ── Top maps with win rate ───────────────────────────────────────────────
+  var mapEntries = Object.entries(mapCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,12);
+  if (mapEntries.length) {
+    html += sectionHead('Most Played Maps', '');
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:24px">';
+    mapEntries.forEach(function(e) {
+      var wr = e[1] ? Math.round((mapWins[e[0]]||0)/e[1]*100) : 0;
+      var wrColor = wr>=55?'var(--win)':wr>=45?'var(--gold)':'var(--loss)';
+      var sharePct = Math.round(e[1]/totalGames*100);
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px">';
+      html += '<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">'+e[0]+'</div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      html += '<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2)">'+e[1]+' games · '+sharePct+'%</div>';
+      html += '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+wrColor+'">'+wr+'% WR</div>';
+      html += '</div>';
+      html += '<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:8px"><div style="height:100%;width:'+wr+'%;background:'+wrColor+';border-radius:2px"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  return html;
+}
+
+// ── WEAPONS (Accuracy & Precision) ───────────────────────────────────────────
+function renderWeaponsPage(p, allMatches) {
+  if (!allMatches || !allMatches.length) {
+    return '<div class="empty-state"><div class="empty-state-icon">◆</div><div class="empty-state-msg">No weapon data</div><div class="empty-state-sub">Load more match history to see precision stats</div></div>';
+  }
+
+  var ranked = allMatches.filter(function(m){return m.isRanked;});
+  var ms = ranked.length >= 20 ? ranked : allMatches;
+
+  var accMs    = ms.filter(function(m){return m.accuracy>0;});
+  var hsMs     = ms.filter(function(m){return m.weaponStats&&m.kills>0;});
+  var dmgMs    = ms.filter(function(m){return m.damageDealt>0;});
+
+  var avgAcc   = accMs.length ? accMs.reduce(function(s,m){return s+m.accuracy;},0)/accMs.length : null;
+  var avgHsR   = hsMs.length  ? hsMs.reduce(function(s,m){return s+(m.weaponStats.headshots||0)/m.kills;},0)/hsMs.length*100 : null;
+  var avgDmg   = dmgMs.length ? dmgMs.reduce(function(s,m){return s+m.damageDealt;},0)/dmgMs.length : null;
+  var avgDmgTk = dmgMs.length ? dmgMs.reduce(function(s,m){return s+(m.damageTaken||0);},0)/dmgMs.length : null;
+
+  var html = '';
+
+  // Summary cards
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:24px">';
+  if (avgAcc  !== null) html += statCard('Avg Accuracy', avgAcc.toFixed(1)+'%', 'accent', 'across '+accMs.length+' matches');
+  if (avgHsR  !== null) html += statCard('Headshot Rate', avgHsR.toFixed(1)+'%', 'gold', 'of kills');
+  if (avgDmg  !== null) html += statCard('Avg Damage', Math.round(avgDmg).toLocaleString(), 'win', 'dealt per match');
+  if (avgDmgTk!== null && avgDmg !== null) {
+    var ratio = (avgDmg/avgDmgTk).toFixed(2);
+    html += statCard('Dmg Ratio', ratio, parseFloat(ratio)>=1?'win':'loss', 'dealt / taken');
+  }
+  html += '</div>';
+
+  // ── Accuracy trend ───────────────────────────────────────────────────────
+  var accTrend = accMs.slice(0,60).reverse();
+  if (accTrend.length >= 5) {
+    var maxA = Math.max.apply(null,accTrend.map(function(m){return m.accuracy;}));
+    var minA = Math.min.apply(null,accTrend.map(function(m){return m.accuracy;}));
+    var rng  = maxA - minA || 1;
+    var svgH = 80, svgW = 600, pad = 6;
+    var pts  = accTrend.map(function(m,i){
+      var x = accTrend.length>1 ? (i/(accTrend.length-1))*(svgW-pad*2)+pad : svgW/2;
+      var y = svgH - pad - ((m.accuracy-minA)/rng)*(svgH-pad*2);
+      return x+','+y;
+    }).join(' ');
+    html += sectionHead('Accuracy Trend', 'last '+accTrend.length+' matches · win=green, loss=red');
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">';
+    html += '<svg viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;height:auto;overflow:visible" xmlns="http://www.w3.org/2000/svg">';
+    // Avg line
+    if (avgAcc) {
+      var avgY = svgH - pad - ((avgAcc-minA)/rng)*(svgH-pad*2);
+      html += '<line x1="'+pad+'" y1="'+avgY+'" x2="'+(svgW-pad)+'" y2="'+avgY+'" stroke="rgba(133,183,235,0.25)" stroke-width="1" stroke-dasharray="4,3"/>';
+    }
+    html += '<polyline points="'+pts+'" fill="none" stroke="rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.4)" stroke-width="1.5" stroke-linejoin="round"/>';
+    accTrend.forEach(function(m,i){
+      var x = accTrend.length>1?(i/(accTrend.length-1))*(svgW-pad*2)+pad:svgW/2;
+      var y = svgH - pad - ((m.accuracy-minA)/rng)*(svgH-pad*2);
+      var c = m.outcome===2?'var(--win)':m.outcome===3?'var(--loss)':'var(--muted2)';
+      html += '<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="'+c+'" stroke="var(--surface)" stroke-width="1"><title>'+m.accuracy.toFixed(1)+'% · '+(m.mapName||'')+'</title></circle>';
+    });
+    html += '</svg>';
+    html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:4px"><span>'+minA.toFixed(1)+'%</span><span style="color:rgba(133,183,235,0.5)">avg '+avgAcc.toFixed(1)+'%</span><span>'+maxA.toFixed(1)+'%</span></div>';
+    html += '</div>';
+  }
+
+  // ── Headshot rate bars ───────────────────────────────────────────────────
+  var hsTrend = hsMs.filter(function(m){return m.kills>=3;}).slice(0,50).reverse();
+  if (hsTrend.length >= 5) {
+    var hsRates = hsTrend.map(function(m){return (m.weaponStats.headshots||0)/m.kills*100;});
+    var maxHs = Math.max.apply(null,hsRates) || 1;
+    html += sectionHead('Headshot Rate per Match', 'headshots as % of kills');
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">';
+    html += '<svg viewBox="0 0 600 56" style="width:100%;height:auto" xmlns="http://www.w3.org/2000/svg">';
+    var bw = 600/hsTrend.length - 1;
+    hsTrend.forEach(function(m,i) {
+      var v = hsRates[i];
+      var h2 = Math.max((v/maxHs)*52, v>0?2:0);
+      var x = i*(600/hsTrend.length);
+      var c = v>=35?'var(--gold)':v>=20?'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.8)':'rgba(133,183,235,0.35)';
+      html += '<rect x="'+x.toFixed(1)+'" y="'+(56-h2).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h2.toFixed(1)+'" fill="'+c+'" rx="1"><title>'+v.toFixed(1)+'% · '+(m.mapName||'')+'</title></rect>';
+    });
+    html += '</svg>';
+    if (avgHsR !== null) html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:4px">avg '+avgHsR.toFixed(1)+'% · gold = 35%+</div>';
+    html += '</div>';
+  }
+
+  // ── Accuracy by map ──────────────────────────────────────────────────────
+  var mapAcc = {};
+  ms.forEach(function(m){
+    if (!m.mapName||!m.accuracy) return;
+    if (!mapAcc[m.mapName]) mapAcc[m.mapName]={sum:0,count:0,wins:0};
+    mapAcc[m.mapName].sum += m.accuracy;
+    mapAcc[m.mapName].count++;
+    if (m.outcome===2) mapAcc[m.mapName].wins++;
+  });
+  var mapAccList = Object.entries(mapAcc)
+    .filter(function(e){return e[1].count>=3;})
+    .map(function(e){return {map:e[0],avg:e[1].sum/e[1].count,count:e[1].count,wr:Math.round(e[1].wins/e[1].count*100)};})
+    .sort(function(a,b){return b.avg-a.avg;});
+
+  if (mapAccList.length) {
+    var globalAvg = avgAcc || 50;
+    html += sectionHead('Accuracy by Map', 'min 3 games');
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:24px">';
+    html += '<table style="width:100%;border-collapse:collapse">';
+    html += '<thead><tr style="border-bottom:1px solid var(--border)">'
+      + '<th style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);padding:8px 14px;text-align:left">MAP</th>'
+      + '<th style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);padding:8px 10px;text-align:right">ACC</th>'
+      + '<th style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);padding:8px 10px;text-align:right">WIN%</th>'
+      + '<th style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);padding:8px 14px;text-align:right">vs AVG</th>'
+      + '</tr></thead><tbody>';
+    mapAccList.forEach(function(e){
+      var diff = e.avg - globalAvg;
+      var dc = diff>0?'var(--win)':diff<-2?'var(--loss)':'var(--muted)';
+      var wrc = e.wr>=55?'var(--win)':e.wr>=45?'var(--gold)':'var(--loss)';
+      html += '<tr onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">';
+      html += '<td style="padding:8px 14px;font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700">'+e.map+'<span style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-left:8px">'+e.count+'g</span></td>';
+      html += '<td style="padding:8px 10px;text-align:right;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)">'+e.avg.toFixed(1)+'%</td>';
+      html += '<td style="padding:8px 10px;text-align:right;font-family:Share Tech Mono,monospace;font-size:11px;color:'+wrc+'">'+e.wr+'%</td>';
+      html += '<td style="padding:8px 14px;text-align:right;font-family:Share Tech Mono,monospace;font-size:11px;color:'+dc+'">'+(diff>0?'+':'')+diff.toFixed(1)+'%</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // ── Damage dealt vs taken scatter ────────────────────────────────────────
+  if (dmgMs.length >= 10) {
+    var dmgSample = dmgMs.slice(0, 60).reverse();
+    var maxDmg2 = Math.max.apply(null, dmgSample.map(function(m){return Math.max(m.damageDealt||0,m.damageTaken||0);})) || 1;
+    html += sectionHead('Damage Dealt vs Taken', 'per match · above diagonal = net positive');
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+    html += '<svg viewBox="0 0 300 200" style="width:100%;max-width:420px;height:auto" xmlns="http://www.w3.org/2000/svg">';
+    // Diagonal
+    html += '<line x1="20" y1="180" x2="290" y2="10" stroke="rgba(133,183,235,0.15)" stroke-width="1" stroke-dasharray="3,3"/>';
+    // Axes
+    html += '<line x1="20" y1="10" x2="20" y2="180" stroke="var(--border)" stroke-width="1"/>';
+    html += '<line x1="20" y1="180" x2="290" y2="180" stroke="var(--border)" stroke-width="1"/>';
+    html += '<text x="155" y="196" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.4)">TAKEN</text>';
+    html += '<text x="8" y="100" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.4)" transform="rotate(-90,8,100)">DEALT</text>';
+    dmgSample.forEach(function(m){
+      var tx = 20 + ((m.damageTaken||0)/maxDmg2)*270;
+      var ty = 180 - ((m.damageDealt||0)/maxDmg2)*170;
+      var c = m.outcome===2?'var(--win)':m.outcome===3?'var(--loss)':'var(--muted2)';
+      html += '<circle cx="'+tx.toFixed(1)+'" cy="'+ty.toFixed(1)+'" r="3" fill="'+c+'" opacity="0.75"><title>Dealt '+(m.damageDealt||0)+' · Taken '+(m.damageTaken||0)+(m.mapName?' · '+m.mapName:'')+'</title></circle>';
+    });
+    html += '</svg>';
+    html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:4px">green=win · red=loss · points above diagonal = you dealt more than you took</div>';
+    html += '</div>';
+  }
+
+  return html;
+}
+
+// ── SYNERGY ──────────────────────────────────────────────────────────────────
+function renderSynergyPage(p, allMatches) {
+  if (!allMatches || !allMatches.length) {
+    return '<div class="empty-state"><div class="empty-state-icon">⊕</div><div class="empty-state-msg">Loading match data…</div><div class="empty-state-sub">Full match history is being fetched</div></div>';
+  }
+  // renderTeamSynergy is defined in players.js and available globally
+  if (typeof renderTeamSynergy === 'function') {
+    return renderTeamSynergy(null, p.gamertag);
+  }
+  return '<div class="empty-state"><div class="empty-state-msg">Synergy data unavailable</div></div>';
+}
+
+// ── COMPARE ──────────────────────────────────────────────────────────────────
+// Opens the existing full-screen compare overlay — it already handles everything
+function renderComparePage(p) {
+  return '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:20px;text-align:center;padding:40px 20px">'
+    + '<div style="font-family:Rajdhani,sans-serif;font-size:48px;font-weight:700;color:var(--muted2);letter-spacing:8px">VS</div>'
+    + '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted2);letter-spacing:1px">PLAYER COMPARISON</div>'
+    + '<button onclick="openCompare()" style="margin-top:8px;background:var(--accent);border:none;color:var(--bg);padding:12px 32px;border-radius:6px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:2px;transition:opacity 0.15s" onmouseover="this.style.opacity=\'0.85\'" onmouseout="this.style.opacity=\'1\'">OPEN COMPARE</button>'
+    + '<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);max-width:320px;line-height:1.6">Search any gamertag for a side-by-side breakdown of K/D, CSR, win rate, accuracy, and more</div>'
+    + '</div>';
+}

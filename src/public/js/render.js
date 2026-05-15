@@ -2738,6 +2738,36 @@ function render(){
   })();
   html+='</div>'; // end opponents tab
 
+  // Sessions tab
+  html+='<div class="tab-panel'+(activeTab==='sessions'?' active':'')+'" data-tab="sessions">';
+  if(typeof renderSessionsPage==='function') html+=renderSessionsPage(p, allMatches);
+  else html+='<div style="padding:2rem;color:var(--muted)">Sessions data loading...</div>';
+  html+='</div>';
+
+  // Activity tab
+  html+='<div class="tab-panel'+(activeTab==='activity'?' active':'')+'" data-tab="activity">';
+  if(typeof renderActivityPage==='function') html+=renderActivityPage(p, allMatches);
+  else html+='<div style="padding:2rem;color:var(--muted)">Activity data loading...</div>';
+  html+='</div>';
+
+  // Weapons tab
+  html+='<div class="tab-panel'+(activeTab==='weapons'?' active':'')+'" data-tab="weapons">';
+  if(typeof renderWeaponsPage==='function') html+=renderWeaponsPage(p, allMatches);
+  else html+='<div style="padding:2rem;color:var(--muted)">Weapons data loading...</div>';
+  html+='</div>';
+
+  // Synergy tab
+  html+='<div class="tab-panel'+(activeTab==='synergy'?' active':'')+'" data-tab="synergy">';
+  if(typeof renderSynergyPage==='function') html+=renderSynergyPage(p, allMatches);
+  else html+='<div style="padding:2rem;color:var(--muted)">Synergy data loading...</div>';
+  html+='</div>';
+
+  // Compare tab
+  html+='<div class="tab-panel'+(activeTab==='compare'?' active':'')+'" data-tab="compare">';
+  if(typeof renderComparePage==='function') html+=renderComparePage(p);
+  else html+='<div style="padding:2rem;color:var(--muted)">Compare loading...</div>';
+  html+='</div>';
+
 
   document.getElementById('app').innerHTML=html;
   setTimeout(initCsrCharts,0);
