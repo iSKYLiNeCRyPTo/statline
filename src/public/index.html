@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="description" content="fragr — Halo Infinite stat tracker. Search any player for K/D, CSR rank, match history, and more.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-32 -32 64 64'%3E%3Ccircle cx='0' cy='0' r='30' fill='none' stroke='%23185FA5' stroke-width='3'/%3E%3Ccircle cx='0' cy='0' r='9' fill='none' stroke='%23185FA5' stroke-width='2.5'/%3E%3Ccircle cx='0' cy='0' r='3' fill='%23185FA5'/%3E%3Cline x1='0' y1='-30' x2='0' y2='-13' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='0' y1='13' x2='0' y2='30' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='-30' y1='0' x2='-13' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='13' y1='0' x2='30' y2='0' stroke='%23185FA5' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fragr — Halo Infinite Stat Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --fragr-blue:#185FA5;--fragr-light:#85B7EB;--fragr-dark:#0C447C;
+  --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
+  --border:#1a3050;--border2:#254268;--accent:#378ADD;--accent-r:56;--accent-g:138;--accent-b:221;--win:#4CAF82;
+  --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
+}
+[data-theme="covenant"]{
+  --bg:#080610;--surface:#0e0b1a;--surface2:#130f22;--surface3:#180c2e;
+  --border:#2a1e50;--border2:#3a2870;--accent:#9b59f5;--accent-r:155;--accent-g:89;--accent-b:245;--win:#7c4dff;
+  --loss:#ff3d57;--gold:#e040fb;--text:#d4c8f8;--muted:#5a4890;--muted2:#3a2870;
+}
+[data-theme="forerunner"]{
+  --bg:#080700;--surface:#121000;--surface2:#1a1800;--surface3:#222000;
+  --border:#3a3000;--border2:#4a4000;--accent:#f0b030;--accent-r:240;--accent-g:176;--accent-b:48;--win:#d4a020;
+  --loss:#e05020;--gold:#f0b030;--text:#e8d890;--muted:#7a6830;--muted2:#5a4820;
+}
+[data-theme="oni"]{
+  --bg:#050505;--surface:#0c0c0c;--surface2:#121212;--surface3:#181818;
+  --border:#222222;--border2:#2a2a2a;--accent:#e8002a;--accent-r:232;--accent-g:0;--accent-b:42;--win:#00c853;
+  --loss:#e8002a;--gold:#ff6d00;--text:#e0e0e0;--muted:#555555;--muted2:#333333;
+}
+[data-theme="flood"]{
+  --bg:#040808;--surface:#080e0a;--surface2:#0c1410;--surface3:#101a14;
+  --border:#1a2e1e;--border2:#243c28;--accent:#2aff7a;--accent-r:42;--accent-g:255;--accent-b:122;--win:#2aff7a;
+  --loss:#ff2a6a;--gold:#aaff00;--text:#b0d8b8;--muted:#3a6845;--muted2:#2a4830;
+}
+[data-theme="onyx"]{
+  --bg:#06080c;--surface:#0c1018;--surface2:#111820;--surface3:#162030;
+  --border:#1e2a3a;--border2:#283848;--accent:#00c8ff;--accent-r:0;--accent-g:200;--accent-b:255;--win:#00e5ff;
+  --loss:#ff4040;--gold:#ffd740;--text:#e0eeff;--muted:#4a6a90;--muted2:#2a4060;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:0}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(56,138,221,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(56,138,221,0.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+/* ── COMMAND CENTER LAYOUT ── */
+.cmd-layout{display:block;min-height:100vh}
+
+/* Sidebar */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;width:220px;z-index:100;overflow-y:auto;scrollbar-width:none}
+.sidebar::-webkit-scrollbar{display:none}
+.sidebar-logo{padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:block;overflow:visible}
+.sidebar-logo svg{display:block;width:100%;height:auto;overflow:visible}
+.sidebar-player{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sidebar-avatar{width:40px;height:40px;background:linear-gradient(135deg,var(--surface3),var(--surface2));border:2px solid var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--accent);flex-shrink:0}
+.sidebar-gt{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-rank{font-size:9px;color:var(--accent);font-family:'Share Tech Mono',monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-player-btns{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.sidebar-nav{padding:10px 8px;flex:1}
+.sidebar-nav-item{padding:9px 10px;border-radius:4px;font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:10px;letter-spacing:.5px;text-transform:uppercase;transition:all 0.15s;border-left:2px solid transparent;margin-bottom:2px}
+.sidebar-nav-item:hover{color:var(--text);background:var(--surface2)}
+.sidebar-nav-item.active{background:rgba(56,138,221,0.12);color:var(--accent);border-left-color:var(--accent);font-weight:700}
+.sidebar-nav-item.active .nav-icon{text-shadow:0 0 8px var(--accent)}
+[data-theme="covenant"] .sidebar-nav-item.active{background:rgba(155,89,245,0.12)}
+[data-theme="forerunner"] .sidebar-nav-item.active{background:rgba(240,176,48,0.12)}
+[data-theme="oni"] .sidebar-nav-item.active{background:rgba(232,0,42,0.12)}
+[data-theme="flood"] .sidebar-nav-item.active{background:rgba(42,255,122,0.12)}
+[data-theme="onyx"] .sidebar-nav-item.active{background:rgba(0,200,255,0.12)}
+.nav-icon{font-size:14px;flex-shrink:0}
+.sidebar-mini-stats{padding:12px 16px;border-top:1px solid var(--border);font-family:'Share Tech Mono',monospace}
+.sidebar-mini-stat{display:flex;justify-content:space-between;padding:3px 0;font-size:10px;border-bottom:1px solid rgba(42,48,32,0.4)}
+.sidebar-mini-stat .sk{color:var(--muted2)}
+.sidebar-mini-stat .sv{color:var(--text)}
+.sidebar-footer{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0}
+.sidebar-action-btn{flex:1;background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px;border-radius:4px;font-size:13px;cursor:pointer;transition:all 0.15s;font-family:'Share Tech Mono',monospace}
+.sidebar-action-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Main content area */
+.cmd-main{margin-left:220px;display:flex;flex-direction:column;min-height:100vh;width:calc(100vw - 220px);transition:margin-left 0.2s ease,width 0.2s ease}
+.cmd-topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 14px 0 10px;height:48px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;flex-shrink:0;width:100%;box-sizing:border-box}
+.cmd-topbar-left{display:flex;align-items:center;gap:12px}
+.sidebar-toggle{display:none;background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px}
+.cmd-topbar-title{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase}
+.cmd-topbar-right{display:flex;align-items:center;gap:10px}
+.cmd-content{flex:1;padding:20px 24px;width:100%;overflow-x:hidden}
+
+/* Player buttons in sidebar */
+.player-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s;text-align:left;width:100%;letter-spacing:.3px}
+.player-btn:hover{border-color:var(--accent);color:var(--accent)}
+.player-btn.active{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.1);border-color:var(--accent);color:var(--accent)}
+
+/* Mobile bottom tab bar */
+.mobile-logo-bar{display:none;position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;align-items:center;justify-content:space-between;transition:transform 0.2s ease}
+.mapexp-inner{display:block}
+.mapexp-img{display:none}
+.mapexp-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+@media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{display:none}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
+@media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
+.mobile-logo-bar svg{display:block;height:32px;width:auto}
+.mobile-logo-actions{display:flex;gap:8px;align-items:center}
+.mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mobile-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom))}
+.mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 1px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:0}
+.mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mobile-tab.active{color:var(--accent)}
+.mobile-tabbar{display:none;/* hidden on desktop */}
+
+/* Topbar search/refresh */
+.last-updated{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)}
+.refresh-btn{background:transparent;border:1px solid var(--border);color:var(--accent);padding:5px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Share Tech Mono',monospace;letter-spacing:.5px;transition:all 0.2s}
+.refresh-btn:hover{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.1);border-color:var(--accent)}
+.refresh-btn:disabled{opacity:0.4;cursor:not-allowed}
+.share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
+.share-btn:hover{border-color:var(--accent);color:var(--accent)}
+.hero{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);overflow:hidden;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.hero-nameplate{position:absolute;inset:0;background-size:56%;background-position:76% center;background-repeat:no-repeat;opacity:0.18;border-radius:12px;pointer-events:none}
+.hero-adornment{width:48px;height:48px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
+.hero::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.07) 0%,transparent 70%);pointer-events:none}
+.hero-name{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;letter-spacing:2px;line-height:1}
+.hero-name span{color:var(--accent)}
+.hero-sub{font-size:13px;color:var(--muted);margin-top:6px;font-family:'Share Tech Mono',monospace}
+.hero-kd-val{font-family:'Rajdhani',sans-serif;font-size:52px;font-weight:700;color:var(--accent);line-height:1;text-align:right}
+.hero-kd-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px;text-align:right}
+.win-bar-wrap{margin-top:12px;max-width:280px}
+.win-bar-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px;font-family:'Share Tech Mono',monospace}
+.win-bar{height:3px;background:var(--surface3);border-radius:2px;overflow:hidden}
+.win-bar-fill{height:100%;background:var(--win);border-radius:2px}
+.csr-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:24px}
+.csr-card{background:var(--surface);border-radius:8px;padding:16px 20px;display:flex;align-items:center;gap:16px;border:1px solid var(--border);min-width:0;overflow:hidden}
+.csr-icon{width:56px;height:56px;min-width:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden;padding:4px;box-sizing:border-box}.csr-icon img{width:100%;height:100%;object-fit:contain}
+.csr-info{flex:1;min-width:0;overflow:hidden}
+.csr-tier{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;line-height:1}
+.csr-detail{font-size:11px;color:var(--muted);margin-top:3px;font-family:'Share Tech Mono',monospace}
+.csr-bar-wrap{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;margin:8px 0 4px}
+.csr-bar-fill{height:100%;border-radius:2px}
+.csr-bar-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted2);font-family:'Share Tech Mono',monospace}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px}
+.stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:600}
+.stat-value{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;line-height:1}
+.stat-value.accent{color:var(--accent)}.stat-value.win{color:var(--win)}.stat-value.gold{color:var(--gold)}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px;font-family:'Share Tech Mono',monospace}
+.section-head{display:flex;align-items:center;gap:10px;margin:28px 0 14px}
+.section-head-line{flex:1;height:1px;background:var(--border)}
+.section-label{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
+.medals-grid{display:flex;flex-wrap:wrap;gap:10px}
+.medal-item{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px}
+.medal-wrap{width:60px;height:60px;overflow:hidden;position:relative;border-radius:50%;background:var(--surface2);flex-shrink:0}
+.medal-wrap img{position:absolute;image-rendering:auto}
+.medal-name{font-size:11px;color:var(--muted);text-align:center;line-height:1.2;word-break:break-word}
+.medal-count{font-size:11px;font-weight:700;color:var(--gold);font-family:'Share Tech Mono',monospace}
+.rivals-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.tab-panel{display:none}.tab-panel.active{display:block;margin-top:20px}
+.dtab.active{color:var(--accent) !important;border-bottom-color:var(--accent) !important;font-weight:700}
+.dtab:hover{color:var(--text) !important}
+.search-bar{display:flex;gap:8px;align-items:center}
+.search-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;width:130px;outline:none;min-width:80px}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 1px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.2)}
+.search-input::placeholder{color:var(--muted)}
+.search-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer}
+.search-btn:hover{border-color:var(--accent);color:var(--accent)}
+.search-wrap{position:relative}
+.suggest-dropdown{position:absolute;top:calc(100% + 4px);left:0;min-width:260px;background:var(--surface);border:1px solid var(--border2);border-radius:6px;z-index:2000;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.5);display:none}
+.suggest-dropdown.open{display:block}
+.suggest-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;transition:background 0.1s}
+.suggest-item:hover,.suggest-item.active{background:var(--surface2)}
+.suggest-pic{width:32px;height:32px;border-radius:4px;object-fit:cover;background:var(--surface2);flex-shrink:0}
+.suggest-pic-placeholder{width:32px;height:32px;border-radius:4px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.suggest-gt{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);font-weight:600}
+.suggest-gs{font-size:9px;color:var(--muted);margin-top:1px;font-family:'Share Tech Mono',monospace}
+.suggest-empty{padding:10px 12px;font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.player-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.5px}
+.player-btn.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:700}
+.player-btn:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+.session-bar{background:linear-gradient(135deg,rgba(0,212,255,0.06),rgba(0,212,255,0.02));border:1px solid rgba(0,212,255,0.2);border-radius:8px;padding:12px 20px;margin-bottom:24px;display:flex;align-items:center;gap:16px;flex-wrap:nowrap;overflow-x:auto}
+.session-label{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;flex-shrink:0}
+.session-stats{display:flex;gap:16px;flex-wrap:nowrap;flex-shrink:0}
+.session-stat{text-align:center}
+.session-stat-val{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;line-height:1}
+.session-stat-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:2px;font-family:'Share Tech Mono',monospace}
+.weapon-table{width:100%;border-collapse:collapse;font-size:12px}
+.weapon-table th{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px;padding:5px 10px;text-align:left;font-family:'Share Tech Mono',monospace;border-bottom:1px solid var(--border)}
+.weapon-table td{padding:7px 10px;border-bottom:1px solid rgba(30,48,80,0.4)}
+.weapon-table tr:last-child td{border-bottom:none}
+.weapon-table tr:hover td{background:var(--surface2)}
+.weapon-name{font-weight:600;font-size:13px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.csr-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px;overflow:hidden}
+.csr-chart-canvas{width:100%;position:relative;overflow:visible}
+.csr-chart-svg{width:100%;height:auto}
+.streak-dots{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+.streak-dot{width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.streak-dot.w{background:rgba(0,230,118,0.2);color:var(--win);border:1px solid rgba(0,230,118,0.5)}
+.streak-dot.l{background:rgba(255,61,87,0.2);color:var(--loss);border:1px solid rgba(255,61,87,0.4)}
+.streak-dot.d{background:rgba(90,112,144,0.2);color:var(--muted);border:1px solid var(--muted2)}
+.mode-table{width:100%;border-collapse:collapse;font-size:12px}
+.mode-table th{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px;padding:5px 10px;text-align:left;font-family:'Share Tech Mono',monospace;border-bottom:1px solid var(--border)}
+.mode-table td{padding:7px 10px;border-bottom:1px solid rgba(30,48,80,0.4);font-family:'Exo 2',sans-serif}
+.mode-table tr:last-child td{border-bottom:none}
+.mode-table tr:hover td{background:var(--surface2)}
+.mode-name{font-weight:600;font-size:13px}
+.bar-cell{width:80px}
+.mini-bar{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:3px}
+.mini-bar-fill{height:100%;border-radius:2px;background:var(--accent)}
+.rivals-col-label{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
+.rivals-col-label.nemesis{color:var(--loss)}.rivals-col-label.victim{color:var(--win)}
+.rivals-wide-col{display:none}
+@media(min-width:560px){.rivals-wide-col{display:block}}
+.rival-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:6px}
+.rival-avatar{width:28px;height:28px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--surface3)}
+.rival-avatar-placeholder{width:28px;height:28px;border-radius:4px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--muted);flex-shrink:0}
+.rival-name{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rival-record{display:flex;gap:8px;align-items:center;font-family:'Share Tech Mono',monospace;font-size:11px}
+.rival-w{color:var(--win);font-weight:700}.rival-l{color:var(--loss);font-weight:700}.rival-total{color:var(--muted2);font-size:10px}
+.filter-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.filter-btn{padding:5px 12px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.5px;transition:all 0.15s}
+.filter-btn:hover{color:var(--text);border-color:var(--border2)}
+.filter-btn.active{border-color:var(--accent);background:rgba(0,212,255,0.08);color:var(--accent)}
+.filter-count{font-size:10px;color:var(--muted2);margin-left:auto;font-family:'Share Tech Mono',monospace}
+.match-list{display:flex;flex-direction:column}
+.match-card{background:var(--surface);border:1px solid var(--border);border-bottom:none;cursor:pointer;overflow:hidden;transition:background 0.15s;border-left-width:3px}
+.match-card:first-child{border-radius:8px 8px 0 0}.match-card:last-child{border-radius:0 0 8px 8px;border-bottom:1px solid var(--border)}.match-card:only-child{border-radius:8px;border-bottom:1px solid var(--border)}
+.match-card:hover{background:var(--surface2)}
+.match-card.win-card{border-left:3px solid var(--win)}.match-card.loss-card{border-left:3px solid var(--loss)}.match-card.draw-card{border-left:3px solid var(--muted2)}
+.match-main{display:flex;align-items:center;gap:12px;padding:11px 16px;flex-wrap:wrap}
+.outcome-pill{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;padding:3px 8px;border-radius:3px;letter-spacing:.5px;flex-shrink:0}
+.outcome-win{background:rgba(0,230,118,0.12);color:var(--win);border:1px solid rgba(0,230,118,0.3)}
+.outcome-loss{background:rgba(255,61,87,0.12);color:var(--loss);border:1px solid rgba(255,61,87,0.3)}
+.outcome-draw{background:rgba(90,112,144,0.15);color:var(--muted);border:1px solid var(--muted2)}
+.match-info{flex:1;min-width:0}.match-mode{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.match-sub{font-size:10px;color:var(--muted);margin-top:2px;font-family:'Share Tech Mono',monospace}
+.match-kda{text-align:center;min-width:80px}
+.match-kda-big{font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700}
+
+.match-card.has-banner{display:flex;align-items:stretch}
+.match-map-thumb{width:96px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)}
+.match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none}
+.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px;pointer-events:none}
+.cq-badge-mobile{display:none}.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
+.match-map-outcome.win{background:var(--win);color:#000}
+.match-map-outcome.loss{background:var(--loss);color:#fff}
+.match-map-outcome.draw{background:var(--muted2);color:#fff}
+.match-card.has-banner .match-main{flex:1;min-width:0}
+
+.match-card.has-banner.expanded{flex-wrap:wrap;position:relative}
+.match-card.has-banner.expanded .match-map-thumb{width:220px;position:relative;z-index:1}
+.match-card.has-banner.expanded .match-map-thumb img{object-position:center}
+.match-card.has-banner.expanded .match-map-thumb-overlay{background:linear-gradient(to right,rgba(0,0,0,0) 40%,var(--surface) 100%)}
+.match-card.has-banner.expanded .match-main{z-index:2}
+.match-detail-panel{width:100%;flex-basis:100%}
+@media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
+@media(max-width:768px){.cq-badge-desktop{display:none}.cq-badge-mobile{display:inline !important}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+.match-kda-sub{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.match-dmg{min-width:100px}.dmg-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.match-dmg-mobile{display:none;align-items:center;padding:4px 12px 6px;gap:0}
+.dmg-bar-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:'Share Tech Mono',monospace}
+.dmg-bar-track{flex:1;height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;min-width:40px}
+.dmg-bar-fill{height:100%;border-radius:2px}
+.match-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.match-time{font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace}
+.match-csr{font-size:11px;font-weight:600;color:var(--accent);font-family:'Share Tech Mono',monospace}
+.match-arrow{font-size:10px;color:var(--muted2)}
+.match-detail{background:var(--surface2);border-top:1px solid var(--border);padding:14px 16px}
+.team-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:700;font-family:'Rajdhani',sans-serif}
+.match-detail table{width:100%;border-collapse:collapse;font-size:12px}
+.match-detail th{font-size:9px;padding:4px 8px;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px;text-align:left;font-family:'Share Tech Mono',monospace}
+.match-detail td{padding:5px 8px;border-top:1px solid rgba(30,48,80,0.5)}
+.match-detail tr.me-row td{background:rgba(0,212,255,0.05);color:var(--accent)}
+.team-divider{border:none;border-top:1px solid var(--border);margin:10px 0}
+.rank-badge{display:inline-block;margin-left:6px;padding:0 5px;border-radius:3px;background:rgba(255,138,28,0.10);color:#ff8a1c;font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.4px;vertical-align:middle;line-height:14px;white-space:nowrap}
+.rank-badge-mobile{display:none}
+@media(max-width:768px){.rank-badge{margin-left:4px;padding:0 4px;font-size:8px;letter-spacing:.2px}.rank-badge-desktop{display:none}.rank-badge-mobile{display:inline}}
+.loading{text-align:center;padding:80px 24px;color:var(--muted)}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;filter:drop-shadow(0 0 4px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.5))}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes gtpulse{0%,100%{opacity:0.4}50%{opacity:1}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes dotFade{0%,80%,100%{opacity:0}40%{opacity:1}}
+.load-dots span{animation:dotFade 1.4s ease-in-out infinite;opacity:0}.load-dots span:nth-child(1){animation-delay:0s}.load-dots span:nth-child(2){animation-delay:0.25s}.load-dots span:nth-child(3){animation-delay:0.5s}
+
+/* Skeleton loading */
+.skeleton{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px}
+.skeleton-hero{height:120px;border-radius:12px;margin-bottom:24px}
+.skeleton-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.skeleton-card{height:80px;border-radius:8px}
+.skeleton-row{height:16px;margin-bottom:8px;border-radius:4px}
+.skeleton-row.w60{width:60%}
+.skeleton-row.w40{width:40%}
+
+/* Tab transitions */
+.tab-panel{display:none;animation:fadeIn 0.2s ease}
+.tab-panel.active{display:block}
+
+/* Toast notifications */
+#toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 16px;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,0.4);animation:fadeIn 0.2s ease;pointer-events:all;display:flex;align-items:center;gap:10px;min-width:220px;max-width:320px}
+.toast.success{border-color:rgba(0,230,118,0.4);color:var(--win)}
+.toast.error{border-color:rgba(255,61,87,0.4);color:var(--loss)}
+.toast.info{border-color:rgba(0,212,255,0.3);color:var(--accent)}
+@keyframes toastOut{to{opacity:0;transform:translateX(20px)}}
+
+/* Live indicator */
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:5px;animation:pulse 2s infinite}
+.live-dot.stale{background:var(--gold);animation:none}
+.live-dot.old{background:var(--loss);animation:none}
+
+/* Stale data banner */
+.stale-banner{background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.2);border-radius:6px;padding:8px 14px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gold);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+
+/* Player switcher active glow */
+.player-btn.active{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.12);border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.2)}
+
+/* Smooth card hover */
+.stat-card{transition:transform 0.15s,box-shadow 0.15s}
+.stat-card:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+.rival-row{transition:background 0.15s;border-radius:4px;padding:6px 8px;cursor:pointer}
+.rival-row:hover{background:var(--surface3)}
+
+/* Better empty states */
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-state-icon{font-size:36px;margin-bottom:12px;opacity:0.5}
+.empty-state-msg{font-size:13px;margin-bottom:6px}
+.empty-state-sub{font-size:11px;color:var(--muted2);font-family:'Share Tech Mono',monospace}
+
+/* Share button */
+
+
+.share-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.15s}
+.share-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Keyboard shortcut hint */
+.kbd{display:inline-block;background:var(--surface3);border:1px solid var(--border2);border-radius:3px;padding:1px 5px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.error-card{background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);border-radius:8px;padding:20px;color:var(--loss);font-size:13px;text-align:center}
+@media(max-width:768px){
+  .cmd-layout{grid-template-columns:1fr}
+  .sidebar{transform:translateX(-100%);transition:transform 0.25s ease;width:220px;max-width:80vw}
+  .sidebar.open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,0.5)}
+  .cmd-main{margin-left:0 !important;width:100vw !important;transition:none}
+  .cmd-content{padding:10px;width:100%;overflow-x:hidden;box-sizing:border-box}
+  .sidebar-toggle{display:block}
+  .mobile-tabbar{display:flex}
+  body.on-landing .mobile-tabbar{display:none !important}
+  body.on-landing .mobile-logo-bar{display:none !important}
+  .mobile-logo-bar{display:flex}
+  .search-input{font-size:16px !important}
+  input[type="text"],input[type="search"]{font-size:16px !important}
+  .cmd-topbar{display:none}
+  .cmd-content{padding-bottom:80px}
+  .rivals-grid{grid-template-columns:1fr}
+  .csr-row{grid-template-columns:1fr}
+  .session-bar{flex-direction:column;align-items:flex-start;gap:8px;overflow-x:visible;overflow-y:visible}
+  .session-stats{flex-wrap:wrap;gap:8px;width:100%}
+  .session-stat-val{font-size:17px}
+  .session-stat-lbl{font-size:10px}
+  .mode-table{font-size:11px}
+  .mode-table th{font-size:8px}
+  .medal-item{width:60px}
+  .medal-wrap{width:60px;height:60px;zoom:0.8}
+
+  .stat-card{padding:12px}
+  .stat-value{font-size:22px}
+  .match-main{padding:10px 12px;gap:8px;flex-wrap:nowrap}
+  .match-info{flex:1;min-width:0}
+  .match-mode{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+  .match-sub{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .match-kda{min-width:70px}
+  .match-kda-big{font-size:14px}
+  
+.match-card.has-banner{display:flex;align-items:stretch}
+.match-map-thumb{width:96px;flex-shrink:0;position:relative;overflow:hidden;background:var(--surface3)}
+.match-map-thumb img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+.match-map-thumb-overlay{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0) 50%,var(--surface) 100%);pointer-events:none}
+.match-map-thumb-label{position:absolute;bottom:5px;left:6px;right:6px;pointer-events:none}
+.cq-badge-mobile{display:none}.match-map-name{font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,0.95);font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,1);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.match-map-outcome{font-family:'Share Tech Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:1px 5px;border-radius:2px;display:inline-block;margin-top:2px}
+.match-map-outcome.win{background:var(--win);color:#000}
+.match-map-outcome.loss{background:var(--loss);color:#fff}
+.match-map-outcome.draw{background:var(--muted2);color:#fff}
+.match-card.has-banner .match-main{flex:1;min-width:0}
+
+.match-card.has-banner.expanded{flex-wrap:wrap;position:relative}
+.match-card.has-banner.expanded .match-map-thumb{width:220px;position:relative;z-index:1}
+.match-card.has-banner.expanded .match-map-thumb img{object-position:center}
+.match-card.has-banner.expanded .match-map-thumb-overlay{background:linear-gradient(to right,rgba(0,0,0,0) 40%,var(--surface) 100%)}
+.match-card.has-banner.expanded .match-main{z-index:2}
+.match-detail-panel{width:100%;flex-basis:100%}
+@media(max-width:768px){.match-card.has-banner.expanded .match-map-thumb{width:100%;height:83px}}
+@media(max-width:768px){.cq-badge-desktop{display:none}.cq-badge-mobile{display:inline !important}.map-mode-str{display:none !important}.map-name-overlay{display:block !important}.map-name-inline{display:none !important}.map-collapsed-thumb{width:90px !important;height:56px !important}.match-card{border-bottom:1px solid var(--border2)}.match-card.has-banner{flex-direction:column}.match-map-thumb{width:100%;height:62px}.match-map-thumb img{object-position:center 35%}.match-map-thumb-overlay{background:linear-gradient(to bottom,rgba(0,0,0,0) 20%,rgba(0,0,0,0.65) 100%)}.match-map-thumb-label{bottom:4px}}
+.match-kda-sub{font-size:9px}
+  .match-dmg{min-width:80px}
+  .dmg-bar-row span{width:32px;font-size:9px}
+  .match-right{min-width:56px}
+  .match-time{font-size:9px}
+  .match-csr{font-size:10px}
+
+  .streak-dots{gap:4px}
+    .hero{padding:14px;overflow:hidden}
+  .hero-name{font-size:20px}
+  .hero-kd-val{font-size:26px}
+  .stat-row{grid-template-columns:repeat(2,1fr);gap:8px}
+  .csr-row{grid-template-columns:1fr}
+  .match-main{padding:8px 10px;gap:6px}
+  .match-dmg{display:none}
+  .match-dmg-mobile{display:flex}
+  .match-csr{display:none} /* CSR moved to match-dmg-mobile row on mobile */
+  .match-kda{min-width:60px}
+  .match-kda-big{font-size:12px}
+  .cmd-topbar-right .search-bar{display:none}
+  .sidebar-logo svg{width:100%;height:auto}
+  header .last-updated{display:none}
+  #playerBtns .player-btn{font-size:9px;padding:3px 8px}
+
+  /* ── Playstyle Fingerprint + Consistency Score ── */
+  /* On mobile force SVG to fill full card width so the pentagon uses all available space */
+  .fingerprint-card svg{width:100% !important;height:auto !important}
+  /* Consistency sparkline already uses width:100% — just ensure it doesn't overflow on mobile */
+  .consistency-card svg{max-width:100%}
+  /* Big consistency score number — shrink slightly so it doesn't crowd */
+  .cons-score-num{font-size:48px !important}
+}
+
+/* ── Sidebar collapse ──────────────────────────────────────────────────────── */
+.sb-collapse-btn{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:color 0.15s,transform 0.2s ease}
+.sb-collapse-btn:hover{color:var(--accent)}
+.nav-label{white-space:nowrap;overflow:hidden;transition:opacity 0.15s,width 0.2s;opacity:1}
+/* Hide sidebar on landing page (landing overlay has z-index:50, sidebar has z-index:100 so it would show over it) */
+body.on-landing .sidebar{display:none !important}
+/* Hide the old horizontal desktop tab bar — sidebar replaces it */
+@media(min-width:769px){
+  #desktopTabBar{display:none !important}
+  /* Also hide topbar logo since sidebar has one */
+  .cmd-topbar > .cmd-topbar-left > div:first-child{display:none}
+}
+/* Collapsed sidebar state (class on cmd-layout) */
+@media(min-width:769px){
+  .cmd-layout.sidebar-collapsed .sidebar{width:52px;overflow:hidden}
+  .cmd-layout.sidebar-collapsed .cmd-main{margin-left:52px;width:calc(100vw - 52px)}
+  .cmd-layout.sidebar-collapsed .nav-label{opacity:0;width:0;pointer-events:none;display:none}
+  .cmd-layout.sidebar-collapsed .sb-logo-full{display:none !important}
+  .cmd-layout.sidebar-collapsed .sb-logo-icon{display:flex !important}
+  .cmd-layout.sidebar-collapsed .sb-collapse-btn{transform:rotate(180deg)}
+  .cmd-layout.sidebar-collapsed .sidebar-nav-item{justify-content:center;padding:9px 0}
+  .cmd-layout.sidebar-collapsed .sidebar-footer a{justify-content:center;padding:9px 0}
+}
+
+/* ── Desktop readability enhancements ─────────────────────────────────────── */
+@media(min-width:1024px){
+  /* Max-width container so content doesn't stretch edge-to-edge on wide screens */
+  .cmd-content{padding:28px 48px;max-width:1480px;margin:0 auto}
+
+  /* Stat cards — bigger labels and values */
+  .stat-label{font-size:11px;letter-spacing:1.2px}
+  .stat-value{font-size:32px}
+  .stat-sub{font-size:12px}
+
+  /* Section headers */
+  .section-label{font-size:14px;letter-spacing:2.5px}
+
+  /* CSR cards */
+  .csr-tier{font-size:22px}
+  .csr-detail{font-size:12px}
+  .csr-bar-labels{font-size:11px}
+  .stat-row{grid-template-columns:repeat(8,1fr);gap:10px}
+
+  /* Hero panel */
+  .hero-sub{font-size:14px}
+  .hero-name{font-size:44px}
+  .win-bar-label{font-size:11px}
+
+  /* Sidebar text */
+  .sidebar-nav-item{font-size:12px;padding:10px 12px}
+  .sidebar-mini-stat{font-size:11px;padding:4px 0}
+  .sidebar-gt{font-size:13px}
+  .sidebar-rank{font-size:10px}
+
+  /* Match cards */
+  .match-mode{font-size:14px}
+  .match-sub{font-size:11px}
+  .match-kda-big{font-size:18px}
+  .match-kda-sub{font-size:11px}
+  .match-time{font-size:11px}
+  .match-csr{font-size:12px}
+
+  /* Tables */
+  .weapon-table{font-size:13px}
+  .weapon-table th{font-size:12px}
+  .weapon-table td{padding:9px 10px}
+  .mode-table{font-size:13px}
+  .mode-table th{font-size:12px}
+  .mode-table td{padding:9px 10px}
+  .mode-name{font-size:14px}
+
+  /* Filter row */
+  .filter-btn{font-size:13px;padding:6px 14px}
+  .filter-count{font-size:11px}
+}
+</style>
+</head>
+<body>
+<div id="toast-container"></div>
+<div class="mobile-logo-bar" id="mobileLogoBar">
+  <svg width="110" height="28" viewBox="0 0 110 28" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" style="cursor:pointer">
+    <rect width="28" height="28" rx="6" fill="#185FA5"/>
+    <g transform="translate(15,15) rotate(-35) scale(0.42)">
+    <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+    <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+    <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+    <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+    <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+    <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+  </g>
+    <text x="35" y="19" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="19" fill="var(--text)">fragr</text>
+  </svg>
+  <div class="mobile-logo-actions">
+    <button class="mobile-action-btn" id="mobileCompareBtn" onclick="openCompare()" title="Compare players" style="display:none;font-size:11px;font-family:Share Tech Mono,monospace;width:auto;padding:0 8px;letter-spacing:.5px;display:none;align-items:center;gap:4px"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="21" y2="21"/><path d="m14.5 9.5-5 5"/><path d="M3 21 12 12"/><path d="M12 12 21 3"/></svg>VS</button>
+    <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+  </div>
+</div>
+<!-- Compare overlay -->
+<div id="compareOverlay" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(5,8,14,0.97);flex-direction:column;overflow:hidden" onclick="if(event.target===this)closeCompare()">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
+    <div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);letter-spacing:2px;text-transform:uppercase">⚔ Scouting Report</div>
+    <button onclick="closeCompare()" style="background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">×</button>
+  </div>
+  <div id="cmpPanel" style="flex:1;overflow-y:auto;padding:24px 20px;-webkit-overflow-scrolling:touch"></div>
+</div>
+<!-- Mobile search overlay -->
+<div id="mobileSearch" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:500;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;width:100%;max-width:360px">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:10px;letter-spacing:1px">SEARCH PLAYER</div>
+    <div style="display:flex;gap:8px">
+      <div class="search-wrap" style="flex:1;position:relative">
+        <input id="mobileSearchInput" class="search-input" style="width:100%" placeholder="Enter gamertag..." autocomplete="off"
+          onkeydown="handleSuggestKey(event,'mobileSuggestDropdown')"
+          oninput="debounceSuggest(this.value,'mobileSuggestDropdown','mobileSearchInput')">
+        <div class="suggest-dropdown" id="mobileSuggestDropdown" style="min-width:100%"></div>
+      </div>
+      <button onclick="document.getElementById('searchInput').value=document.getElementById('mobileSearchInput').value;searchPlayer();document.getElementById('mobileSearch').style.display='none'" style="background:var(--accent);border:none;color:var(--bg);padding:0 14px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer;font-weight:700">GO</button>
+    </div>
+  </div>
+</div>
+<div class="cmd-layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <!-- Logo + collapse toggle -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 10px 0 14px;height:48px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div class="sb-logo-full" onclick="goHome()" style="cursor:pointer;display:flex;align-items:center;overflow:hidden">
+        <svg width="82" height="24" viewBox="0 0 82 24" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+          <rect width="24" height="24" rx="5" fill="#185FA5"/>
+          <g transform="translate(13,13) rotate(-35) scale(0.39)">
+            <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+            <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+            <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+            <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+            <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+            <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+          </g>
+          <text x="31" y="17" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="16" fill="var(--text)">fragr</text>
+        </svg>
+      </div>
+      <div class="sb-logo-icon" onclick="goHome()" style="cursor:pointer;display:none;align-items:center;justify-content:center;width:32px">
+        <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <rect width="24" height="24" rx="5" fill="#185FA5"/>
+          <g transform="translate(13,13) rotate(-35) scale(0.39)">
+            <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+            <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+            <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+            <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+            <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+            <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+          </g>
+        </svg>
+      </div>
+      <button class="sb-collapse-btn" id="sbCollapseBtn" onclick="toggleSidebar()" title="Collapse sidebar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+
+    <!-- Nav items -->
+    <nav class="sidebar-nav" style="padding:8px 6px">
+      <button class="sidebar-nav-item active" data-tab="overview" onclick="setTab('overview')">
+        <span class="nav-icon">◈</span><span class="nav-label">Overview</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="matches" onclick="setTab('matches')">
+        <span class="nav-icon">◉</span><span class="nav-label">Matches</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="bymap" onclick="setTab('bymap')">
+        <span class="nav-icon">◫</span><span class="nav-label">Maps</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="charts" onclick="setTab('charts')">
+        <span class="nav-icon">◧</span><span class="nav-label">Stats</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="opponents" onclick="setTab('opponents')">
+        <span class="nav-icon">◐</span><span class="nav-label">Rivals</span>
+      </button>
+    </nav>
+
+    <div style="flex:1"></div>
+
+    <!-- Footer: Leaderboard -->
+    <div style="padding:8px 6px;border-top:1px solid var(--border);flex-shrink:0">
+      <a href="/leaderboard.html" class="sidebar-nav-item" style="text-decoration:none;display:flex">
+        <span class="nav-icon" style="font-size:13px">🏆</span><span class="nav-label">Leaderboard</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="cmd-main">
+  <!-- Persistent search banner — shown when in search mode -->
+  <div id="searchBanner" style="display:none;background:var(--surface2);border-bottom:1px solid var(--accent);padding:8px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:49">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <span id="searchBannerName" style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:var(--text)">—</span>
+      <span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted)">VIEWING SEARCHED PLAYER</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center"><button id="bannerFavBtn" onclick="toggleBannerFavorite()" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px;display:flex;align-items:center;gap:5px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> FAVORITE</button><button onclick="clearSearch()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px;display:flex;align-items:center;gap:5px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> EXIT SEARCH</button></div>
+  </div>
+    <div class="cmd-topbar">
+      <div class="cmd-topbar-left" style="gap:16px">
+        <div onclick="goHome()" style="cursor:pointer;display:flex;align-items:center;gap:8px;flex-shrink:0" title="fragr home">
+          <svg width="106" height="32" viewBox="0 0 106 32" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="7" fill="#185FA5"/>
+            <g transform="translate(19,17) rotate(-35) scale(0.5)">
+              <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+              <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+              <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+              <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+              <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+              <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+              <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+              <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+              <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+              <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+              <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+              <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+            </g>
+            <text x="42" y="21" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="20" fill="var(--text)">fragr</text>
+          </svg>
+        </div>
+        <span class="cmd-topbar-title" id="topbarTitle" style="font-size:10px;color:var(--muted2)">// OVERVIEW</span>
+      </div>
+      <div class="cmd-topbar-right">
+        <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
+        <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+
+        <div class="search-bar search-wrap">
+          <input class="search-input" id="searchInput" placeholder="Search gamertag..." autocomplete="off"
+            onkeydown="handleSuggestKey(event,'suggestDropdown')"
+            oninput="debounceSuggest(this.value,'suggestDropdown','searchInput')">
+          <button class="search-btn" onclick="searchPlayer()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+          <div class="suggest-dropdown" id="suggestDropdown"></div>
+        </div>
+        <button id="compareBtn" onclick="openCompare()" title="Compare players" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);padding:0 11px;height:30px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;letter-spacing:1px;white-space:nowrap;transition:all 0.15s;align-items:center;gap:5px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><line x1="3" y1="3" x2="21" y2="21"/><path d="m14.5 9.5-5 5"/><path d="M3 21 12 12"/><path d="M12 12 21 3"/></svg> VS</button>
+      </div>
+    </div>
+    <!-- Desktop tab navigation -->
+    <nav id="desktopTabBar" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;gap:4px;align-items:center;overflow-x:auto;scrollbar-width:none;position:sticky;top:48px;z-index:49">
+      <button onclick="setTab('overview')" data-tab="overview" class="dtab active" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◈ Overview</button>
+      <button onclick="setTab('matches')" data-tab="matches" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◉ Matches</button>
+      <button onclick="setTab('bymap')" data-tab="bymap" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◫ Maps</button>
+      <button onclick="setTab('charts')" data-tab="charts" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◧ Stats</button>
+      <button onclick="setTab('opponents')" data-tab="opponents" class="dtab" style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;transition:all 0.15s">◐ Rivals</button>
+      <a href="/leaderboard.html" style="margin-left:auto;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;text-transform:uppercase;text-decoration:none;display:flex;align-items:center;transition:color 0.15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">🏆 Leaderboard</a>
+    </nav>
+    <div class="cmd-content">
+<!-- Landing page -->
+<div id="landing" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto;align-items:center;justify-content:center">
+  <div style="width:100%;max-width:560px;padding:clamp(24px,5vw,60px) 24px;text-align:center">
+    <div style="width:100%">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:clamp(24px,4vh,40px)">
+        <svg width="clamp(64px,12vw,96px)" height="clamp(64px,12vw,96px)" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="display:block;margin-bottom:12px">
+          <rect width="96" height="96" rx="20" fill="#185FA5"/>
+          <g transform="translate(57,58) rotate(-35) scale(1.3)">
+    <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+    <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+    <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+    <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+    <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+    <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+    <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+    <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+  </g>
+        </svg>
+        <span style="font-family:system-ui,sans-serif;font-size:clamp(48px,9vw,80px);font-weight:500;letter-spacing:-2px;color:var(--text);line-height:1">fragr</span>
+        <span style="font-family:Share Tech Mono,monospace;font-size:clamp(9px,1.2vw,11px);letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-top:6px">Halo Infinite Stat Tracker</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;max-width:520px;margin-left:auto;margin-right:auto">
+        <div class="search-wrap" style="flex:1;position:relative">
+          <input id="landingSearch" type="text" placeholder="Enter gamertag..." autocomplete="off" autocorrect="off" spellcheck="false"
+            style="width:100%;padding:clamp(10px,2vh,16px) 18px;background:var(--surface);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:clamp(16px,1.8vw,16px);font-family:Share Tech Mono,monospace;outline:none;transition:border-color 0.2s;box-sizing:border-box"
+            onkeydown="handleSuggestKey(event,'landingSuggestDropdown')"
+            oninput="debounceSuggest(this.value,'landingSuggestDropdown','landingSearch')"
+            onfocus="this.style.borderColor='#185FA5'" onblur="this.style.borderColor='var(--border)'">
+          <div class="suggest-dropdown" id="landingSuggestDropdown" style="min-width:100%;top:calc(100% + 2px)"></div>
+        </div>
+        <button onclick="landingSearchPlayer()"
+          style="padding:14px 24px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:Share Tech Mono,monospace;white-space:nowrap;transition:opacity 0.15s"
+          onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          SEARCH
+        </button>
+      </div>
+      <div id="landingError" style="color:var(--loss);font-size:12px;min-height:18px;font-family:Share Tech Mono,monospace;text-align:left;padding-left:2px"></div>
+      <div id="favChips" style="display:none;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;max-width:520px;margin-left:auto;margin-right:auto"></div>
+      <div style="margin-top:clamp(24px,4vh,48px);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg></div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">Service Record</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">K/D, CSR, win rate, medals</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">By Map</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Win rates per map & mode</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;font-family:Rajdhani,sans-serif">Performance</div>
+          <div style="font-size:10px;color:var(--muted);font-family:Share Tech Mono,monospace">Rank progression, kill breakdown & insights</div>
+        </div>
+      </div>
+      <div id="landingStats" style="margin-top:28px;display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:center"></div>
+      <p style="margin-top:20px;font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;line-height:1.8">fragr.live &nbsp;·&nbsp; Not affiliated with 343 Industries or Microsoft &nbsp;·&nbsp; Stats sourced from the Halo Waypoint API<br>We collect anonymous usage data (gamertags searched, device type) to improve the service. No accounts, no cookies, no IP addresses stored.</p>
+      <div style="margin-top:14px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
+        <button onclick="openFeedbackModal('feedback')" style="background:none;border:none;cursor:pointer;font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;padding:0;display:flex;align-items:center;gap:5px;transition:color 0.15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Feedback / Suggestions</button>
+        <button onclick="openFeedbackModal('contact')" style="background:none;border:none;cursor:pointer;font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;padding:0;display:flex;align-items:center;gap:5px;transition:color 0.15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Contact Us</button>
+      </div>
+    </div>
+  </div>
+</div>
+      <div id="app"><div id="skeleton-loader" style="display:none">
+  <div class="skeleton skeleton-hero"></div>
+  <div class="skeleton-cards">
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-card"></div>
+  </div>
+  <div class="skeleton skeleton-row"></div>
+  <div class="skeleton skeleton-row w60"></div>
+  <div class="skeleton skeleton-row w40"></div>
+</div></div>
+    </div><!-- cmd-content -->
+  </div><!-- cmd-main -->
+</div><!-- cmd-layout -->
+
+<!-- Mobile bottom tab bar -->
+<nav class="mobile-tabbar">
+  <div class="mobile-tab active" data-tab="overview" onclick="setTab('overview')"><span>◈</span><span class="mobile-tab-label">Overview</span></div>
+  <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
+  <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">Maps</span></div>
+  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Stats</span></div>
+  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
+  <a href="/leaderboard.html" class="mobile-tab" style="text-decoration:none;color:inherit"><span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span><span class="mobile-tab-label">Leaderboard</span></a>
+</nav>
+
+<!-- Feedback / Contact modal -->
+<div id="feedbackModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box" onclick="if(event.target===this)closeFeedbackModal()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:12px;width:100%;max-width:480px;padding:28px;position:relative;max-height:90vh;overflow-y:auto">
+    <button onclick="closeFeedbackModal()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px" title="Close">✕</button>
+    <!-- Tab switcher -->
+    <div style="display:flex;gap:0;margin-bottom:22px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+      <button id="fbTabFeedback" onclick="setFeedbackTab('feedback')" style="flex:1;padding:8px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;border:none;cursor:pointer;transition:all 0.15s">💬 FEEDBACK</button>
+      <button id="fbTabContact" onclick="setFeedbackTab('contact')" style="flex:1;padding:8px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;border:none;cursor:pointer;transition:all 0.15s;border-left:1px solid var(--border)">✉ CONTACT US</button>
+    </div>
+    <!-- Feedback mode -->
+    <div id="fbPaneFeedback">
+      <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:1px">Feedback &amp; Suggestions</div>
+      <div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace;margin-bottom:18px;line-height:1.6">Found a bug? Have a feature idea? Let us know — we read everything.</div>
+      <textarea id="fbMessageFeedback" placeholder="What's on your mind..." rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Share Tech Mono,monospace;font-size:12px;padding:10px 12px;resize:vertical;outline:none;box-sizing:border-box;line-height:1.5" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+    </div>
+    <!-- Contact mode -->
+    <div id="fbPaneContact" style="display:none">
+      <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:1px">Contact Us</div>
+      <div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace;margin-bottom:18px;line-height:1.6">Need help or want a reply? Leave your email and we'll get back to you.</div>
+      <input id="fbEmailContact" type="email" placeholder="your@email.com" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Share Tech Mono,monospace;font-size:12px;padding:10px 12px;outline:none;box-sizing:border-box;margin-bottom:10px" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      <textarea id="fbMessageContact" placeholder="What can we help you with..." rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:Share Tech Mono,monospace;font-size:12px;padding:10px 12px;resize:vertical;outline:none;box-sizing:border-box;line-height:1.5" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+    </div>
+    <!-- Status + submit -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:12px">
+      <div id="fbStatus" style="font-family:Share Tech Mono,monospace;font-size:11px;min-height:16px"></div>
+      <button id="fbSubmitBtn" onclick="submitFeedback()" style="padding:9px 22px;background:var(--accent);color:#000;border:none;border-radius:6px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;white-space:nowrap;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Sidebar collapse toggle ────────────────────────────────────────────────
+function toggleSidebar(){
+  var layout=document.querySelector('.cmd-layout');
+  if(!layout)return;
+  var collapsed=layout.classList.toggle('sidebar-collapsed');
+  try{localStorage.setItem('fragrSidebarCollapsed',collapsed?'1':'0');}catch(e){}
+}
+// Restore collapsed state before first paint
+(function(){
+  try{
+    if(localStorage.getItem('fragrSidebarCollapsed')==='1'){
+      var layout=document.querySelector('.cmd-layout');
+      if(layout)layout.classList.add('sidebar-collapsed');
+    }
+  }catch(e){}
+})();
+</script>
+<script src="js/globals.js"></script>
+<script src="js/favorites.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/match.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/components.js"></script>
+<script src="js/search.js"></script>
+<script src="js/players.js"></script>
+<script src="js/benchmark.js"></script>
+<script src="js/render.js"></script>
+<script src="js/compare.js"></script>
+</body>
+</html>

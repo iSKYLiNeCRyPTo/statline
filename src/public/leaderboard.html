@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Statline · Leaderboards</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
+      --border:#1a3050;--border2:#254268;--accent:#378ADD;--win:#4CAF82;
+      --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
+    }
+    [data-theme="covenant"]{--bg:#080610;--surface:#0e0b1a;--surface2:#130f22;--surface3:#180c2e;--border:#2a1e50;--border2:#3a2870;--accent:#9b59f5;--win:#7c4dff;--loss:#ff3d57;--gold:#e040fb;--text:#d4c8f8;--muted:#5a4890;--muted2:#3a2870;}
+    [data-theme="forerunner"]{--bg:#080700;--surface:#121000;--surface2:#1a1800;--surface3:#222000;--border:#3a3000;--border2:#4a4000;--accent:#f0b030;--win:#d4a020;--loss:#e05020;--gold:#f0b030;--text:#e8d890;--muted:#7a6830;--muted2:#5a4820;}
+    [data-theme="oni"]{--bg:#050505;--surface:#0c0c0c;--surface2:#121212;--surface3:#181818;--border:#222222;--border2:#2a2a2a;--accent:#e8002a;--win:#00c853;--loss:#e8002a;--gold:#ff6d00;--text:#e0e0e0;--muted:#555555;--muted2:#333333;}
+    [data-theme="flood"]{--bg:#040808;--surface:#080e0a;--surface2:#0c1410;--surface3:#101a14;--border:#1a2e1e;--border2:#243c28;--accent:#2aff7a;--win:#2aff7a;--loss:#ff2a6a;--gold:#aaff00;--text:#b0d8b8;--muted:#3a6845;--muted2:#2a4830;}
+    [data-theme="onyx"]{--bg:#06080c;--surface:#0c1018;--surface2:#111820;--surface3:#162030;--border:#1e2a3a;--border2:#283848;--accent:#00c8ff;--win:#00e5ff;--loss:#ff4040;--gold:#ffd740;--text:#e0eeff;--muted:#4a6a90;--muted2:#2a4060;}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden}
+    body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:0}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(56,138,221,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(56,138,221,0.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+    /* ── Topbar ── */
+    .topbar{background:var(--surface);border-bottom:1px solid var(--border);height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:50}
+    .topbar-logo{font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent);letter-spacing:2px;text-decoration:none}
+    .topbar-back{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-decoration:none;border:1px solid var(--border);padding:5px 12px;border-radius:4px;transition:all .15s}
+    .topbar-back:hover{border-color:var(--accent);color:var(--accent)}
+
+    /* ── Layout ── */
+    .page{max-width:900px;margin:0 auto;padding:28px 16px 60px;position:relative;z-index:1}
+
+    /* ── Header ── */
+    .lb-header{margin-bottom:28px}
+    .lb-title{font-family:'Rajdhani',sans-serif;font-size:32px;font-weight:700;color:var(--text);letter-spacing:2px}
+    .lb-subtitle{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1.5px;margin-top:4px}
+
+    /* ── Tabs ── */
+    .lb-tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0;overflow-x:auto;scrollbar-width:none}
+    .lb-tabs::-webkit-scrollbar{display:none}
+    .lb-tab{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);padding:8px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;background:transparent;border-top:none;border-left:none;border-right:none;white-space:nowrap;flex-shrink:0}
+    .lb-tab:hover{color:var(--text)}
+    .lb-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+    /* ── Table ── */
+    .lb-table{width:100%;border-collapse:collapse;position:relative}
+    .lb-table th{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:1.5px;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);text-transform:uppercase}
+    .lb-table th.right{text-align:right}
+    .lb-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+    .lb-table tr:last-child td{border-bottom:none}
+    .lb-table tr:hover td{background:var(--surface2)}
+    .lb-table tr.top3 td{background:rgba(56,138,221,0.04)}
+
+    .rank-num{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2);width:32px;text-align:center}
+    .rank-1 .rank-num{color:#ffd700;font-weight:700}
+    .rank-2 .rank-num{color:#c0c0c0;font-weight:700}
+    .rank-3 .rank-num{color:#cd7f32;font-weight:700}
+
+    .gt-link{color:var(--text);text-decoration:none;font-weight:600;font-family:'Rajdhani',sans-serif;font-size:15px;letter-spacing:.5px;transition:color .15s}
+    .gt-link:hover{color:var(--accent)}
+
+    .stat-val{font-family:'Share Tech Mono',monospace;font-size:12px;text-align:right}
+    .stat-kd{color:var(--accent)}
+    .stat-wr{color:var(--win)}
+    .stat-csr{color:var(--gold)}
+    .stat-muted{color:var(--muted2);font-size:11px}
+
+    .tier-badge{display:inline-block;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.5px;padding:2px 7px;border-radius:3px;background:var(--surface3);color:var(--muted);border:1px solid var(--border)}
+    .tier-Onyx{background:rgba(0,200,255,0.1);color:#00c8ff;border-color:rgba(0,200,255,0.3)}
+    .tier-Diamond{background:rgba(0,180,255,0.1);color:#60cfff;border-color:rgba(0,180,255,0.3)}
+    .tier-Platinum{background:rgba(100,200,200,0.1);color:#80dddd;border-color:rgba(100,200,200,0.3)}
+    .tier-Gold{background:rgba(212,134,10,0.1);color:var(--gold);border-color:rgba(212,134,10,0.3)}
+    .tier-Silver{background:rgba(180,180,180,0.1);color:#aaa;border-color:rgba(180,180,180,0.3)}
+    .tier-Bronze{background:rgba(180,100,50,0.1);color:#cd7f32;border-color:rgba(180,100,50,0.3)}
+
+    /* ── Empty / loading states ── */
+    .lb-loading{text-align:center;padding:48px 0;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2);letter-spacing:1px}
+    .lb-empty{text-align:center;padding:48px 0}
+    .lb-empty-title{font-family:'Rajdhani',sans-serif;font-size:20px;color:var(--muted);margin-bottom:8px}
+    .lb-empty-sub{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px}
+
+    /* ── Refresh / meta bar ── */
+    .meta-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+    .meta-count{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:1px}
+    .refresh-btn{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);border:1px solid var(--border);background:transparent;padding:5px 12px;border-radius:4px;cursor:pointer;letter-spacing:1px;transition:all .15s}
+    .refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+    /* ── Search bar ── */
+    .lb-search-wrap{position:relative;margin-bottom:12px}
+    .lb-search{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px 8px 34px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);letter-spacing:.5px;outline:none;transition:border-color .15s}
+    .lb-search::placeholder{color:var(--muted2)}
+    .lb-search:focus{border-color:var(--accent)}
+    .lb-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);pointer-events:none}
+    .lb-search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;line-height:1;display:none}
+    .lb-search-clear:hover{color:var(--text)}
+
+    /* ── Pagination ── */
+    .lb-pagination{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap}
+    .pg-btn{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);border:1px solid var(--border);background:transparent;padding:5px 10px;border-radius:4px;cursor:pointer;letter-spacing:.5px;transition:all .15s;min-width:32px}
+    .pg-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+    .pg-btn:disabled{opacity:0.3;cursor:default}
+    .pg-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(55,138,221,0.1)}
+
+    @media(max-width:600px){
+      .page{padding:16px 8px 40px;max-width:100%}
+      .lb-title{font-size:22px}
+      /* Tight mobile table — keep every column but shrink fonts/padding so
+         we don't drop to a CSR-only view. Order: # · GT(+tier) · CSR · K/D · WR% · M */
+      .lb-table th,.lb-table td{padding:6px 4px;font-size:11px}
+      .lb-table th{font-size:8px;letter-spacing:0.6px}
+      .rank-num{width:22px;font-size:10px}
+      .gt-link{font-size:12px;letter-spacing:0;font-weight:600}
+      .tier-badge{font-size:8px;padding:1px 4px;letter-spacing:0.3px;margin-left:4px;vertical-align:1px}
+      .stat-val{font-size:10px}
+      .stat-muted{font-size:9px}
+      /* No horizontal scroll — let the inline-tier-badge wrap under the GT
+         when the screen is narrow. */
+      .lb-mobile-gt-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+      .lb-mobile-gt-cell .gt-link{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw;display:inline-block}
+      .lb-mobile-tier-row{display:flex;gap:4px;align-items:center;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:0.5px}
+      /* Hide the dedicated RANK column on mobile (tier badge now lives under
+         the gamertag), and hide the Matches column on the tightest screens. */
+      .hide-mobile{display:none}
+      .show-mobile{display:table-cell}
+    }
+    @media(min-width:601px){
+      .show-mobile{display:none}
+      .lb-mobile-tier-row{display:none}
+    }
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <a class="topbar-logo" href="/">// STATLINE</a>
+  <a class="topbar-back" id="backBtn" href="/">← BACK</a>
+</div>
+
+<div class="page">
+  <div class="lb-header">
+    <div class="lb-title"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>GLOBAL LEADERBOARDS</div>
+    <div class="lb-subtitle">// RANKED PLAYERS · UPDATED ON SEARCH</div>
+  </div>
+
+  <div style="background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.2);border-radius:6px;padding:8px 14px;margin-bottom:18px;font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(255,193,7,0.7);line-height:1.6;letter-spacing:0.5px">
+    ⚠ Community-sourced data — rankings include players who have been searched on Fragr or appeared as opponents/teammates in tracked matches. Not a complete global ranking. Stats reflect recent match performance, not lifetime averages.
+  </div>
+
+  <div class="lb-tabs">
+    <button class="lb-tab active" onclick="switchTab('csrArena', this)">RANKED ARENA</button>
+    <button class="lb-tab" onclick="switchTab('csrSlayer', this)">RANKED SLAYER</button>
+    <button class="lb-tab" onclick="switchTab('csrLegacy', this)">RANKED LEGACY</button>
+  </div>
+
+  <div class="lb-search-wrap">
+    <svg class="lb-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input class="lb-search" id="lbSearch" type="text" placeholder="Search gamertag..." oninput="onSearch(this.value)" autocomplete="off" spellcheck="false">
+    <button class="lb-search-clear" id="lbSearchClear" onclick="clearSearch()">✕</button>
+  </div>
+
+  <div class="meta-bar">
+    <div class="meta-count" id="meta-count">Loading...</div>
+    <button class="refresh-btn" onclick="load()">↻ REFRESH</button>
+  </div>
+
+  <div id="lb-panel">
+    <div class="lb-loading">// LOADING LEADERBOARD DATA...</div>
+  </div>
+</div>
+
+<script>
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  (function(){
+    var t = localStorage.getItem('fragrTheme');
+    if (t && t !== 'default') document.documentElement.setAttribute('data-theme', t);
+  })();
+
+  // ── Back button — return to the player profile we came from ───────────────
+  (function(){
+    try {
+      var ref = document.referrer;
+      if (ref) {
+        var u = new URL(ref);
+        var player = u.searchParams.get('player');
+        if (player && (u.hostname === location.hostname || u.hostname === 'localhost')) {
+          document.getElementById('backBtn').href = '/?player=' + encodeURIComponent(player);
+        }
+      }
+    } catch(e) {}
+  })();
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  var _data      = null;
+  var _tab       = 'csrArena';
+  var _page      = 1;
+  var _search    = '';
+  var PER_PAGE   = 250;
+
+  // ── Data load ─────────────────────────────────────────────────────────────
+  async function load() {
+    document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING LEADERBOARD DATA...</div>';
+    document.getElementById('meta-count').textContent = 'Loading...';
+    try {
+      var res = await fetch('/api/leaderboard?limit=100000');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      _data = await res.json();
+      render();
+    } catch(e) {
+      document.getElementById('lb-panel').innerHTML =
+        '<div class="lb-empty"><div class="lb-empty-title">Failed to load</div><div class="lb-empty-sub">' + e.message + '</div></div>';
+      document.getElementById('meta-count').textContent = '';
+    }
+  }
+
+  // ── Tab switch ────────────────────────────────────────────────────────────
+  function switchTab(tab, btn) {
+    _tab = tab;
+    _page = 1;
+    document.querySelectorAll('.lb-tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    render();
+  }
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  function onSearch(val) {
+    _search = val.trim().toLowerCase();
+    _page = 1;
+    document.getElementById('lbSearchClear').style.display = _search ? 'block' : 'none';
+    render();
+  }
+
+  function clearSearch() {
+    document.getElementById('lbSearch').value = '';
+    onSearch('');
+  }
+
+  // ── Go to page ────────────────────────────────────────────────────────────
+  function goPage(p) {
+    _page = p;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function render() {
+    if (!_data) return;
+    var allRows = _data[_tab] || [];
+    var panel = document.getElementById('lb-panel');
+
+    // Filter by search (uses global rank positions, not filtered index)
+    var filtered = _search
+      ? allRows.filter(function(p){ return p.gamertag.toLowerCase().indexOf(_search) !== -1; })
+      : allRows;
+
+    if (!filtered.length) {
+      panel.innerHTML = allRows.length
+        ? '<div class="lb-empty"><div class="lb-empty-title">No match</div><div class="lb-empty-sub">No players found for "' + esc(_search) + '"</div></div>'
+        : '<div class="lb-empty"><div class="lb-empty-title">No data yet</div><div class="lb-empty-sub">Search players on Statline to populate the leaderboard</div></div>';
+      document.getElementById('meta-count').textContent = '0 PLAYERS';
+      return;
+    }
+
+    // Pagination
+    var totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+    _page = Math.min(_page, totalPages);
+    var start = (_page - 1) * PER_PAGE;
+    var pageRows = filtered.slice(start, start + PER_PAGE);
+
+    var countLabel = _search
+      ? filtered.length + ' MATCH' + (filtered.length !== 1 ? 'ES' : '') + ' · ' + allRows.length + ' TOTAL'
+      : allRows.length + ' PLAYERS';
+    document.getElementById('meta-count').textContent = countLabel;
+
+    var html = '<table class="lb-table"><thead><tr>' +
+      '<th style="width:40px">#</th>' +
+      '<th>GAMERTAG</th>' +
+      '<th class="right hide-mobile">RANK</th>' +
+      '<th class="right">CSR</th>' +
+      '<th class="right">K/D</th>' +
+      '<th class="right">WIN %</th>' +
+      '<th class="right hide-mobile">MATCHES</th>' +
+      '</tr></thead><tbody>';
+
+    // Compact mobile tier label: D5, P3, G2 — Onyx stays full-name since it
+    // has no subtier digit and "O" alone is ambiguous.
+    function tierShort(tier, sub){
+      if (!tier) return '';
+      if (tier === 'Onyx') return 'Onyx';
+      return (tier[0] || '?').toUpperCase() + (sub != null ? sub : '');
+    }
+    pageRows.forEach(function(p, i) {
+      // Use global rank position (position in full allRows array)
+      var pos = allRows.indexOf(p) + 1;
+      var rankClass = pos <= 3 && !_search ? ' top3 rank-' + pos : '';
+      var medal = !_search && pos <= 3
+        ? (pos === 1
+          ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(255,215,0,0.18);color:#FFD700;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">1</span>'
+          : pos === 2
+          ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(192,192,192,0.18);color:#C0C0C0;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">2</span>'
+          : '<span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:rgba(205,127,50,0.18);color:#CD7F32;font-weight:700;font-size:11px;font-family:Share Tech Mono,monospace">3</span>')
+        : pos;
+      var tier = p.csr_tier || '';
+      var tierBadge = tier
+        ? '<span class="tier-badge tier-' + tier + '">' + tier.toUpperCase() + (p.csr_subtier ? ' ' + p.csr_subtier : '') + '</span>'
+        : '<span class="tier-badge">—</span>';
+      // Compact tier shown inline under the gamertag on mobile (so we keep
+      // K/D + WR% in the table without overflow).
+      var tierMobile = tier
+        ? '<span class="tier-badge tier-' + tier + '">' + tierShort(tier, p.csr_subtier) + '</span>'
+        : '';
+      var matches = p.matches_played != null ? Number(p.matches_played).toLocaleString() : '—';
+
+      html += '<tr class="' + rankClass + '">';
+      html += '<td class="rank-num">' + medal + '</td>';
+      // Gamertag cell — desktop: plain link. Mobile: link + compact tier chip
+      // stacked underneath so the RANK column can be hidden.
+      html += '<td><div class="lb-mobile-gt-cell">'
+            +   '<a class="gt-link" href="/?player=' + encodeURIComponent(p.gamertag) + '">' + esc(p.gamertag) + '</a>'
+            +   (tierMobile ? '<div class="lb-mobile-tier-row">' + tierMobile + '<span>' + matches + ' M</span></div>' : '')
+            + '</div></td>';
+      html += '<td class="hide-mobile" style="text-align:right">' + tierBadge + '</td>';
+      html += '<td class="stat-val stat-csr">' + (p.csr_value || '—') + '</td>';
+      html += '<td class="stat-val stat-kd">' + (p.kd != null ? Number(p.kd).toFixed(2) : '—') + '</td>';
+      html += '<td class="stat-val stat-wr">' + (p.win_rate != null ? Number(p.win_rate).toFixed(1) + '%' : '—') + '</td>';
+      html += '<td class="stat-val stat-muted hide-mobile">' + matches + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+
+    // Pagination controls
+    if (totalPages > 1) {
+      html += '<div class="lb-pagination">';
+      html += '<button class="pg-btn" onclick="goPage(' + (_page - 1) + ')"' + (_page <= 1 ? ' disabled' : '') + '>‹</button>';
+      // Show up to 7 page buttons, windowed around current page
+      var pStart = Math.max(1, _page - 3);
+      var pEnd   = Math.min(totalPages, pStart + 6);
+      pStart = Math.max(1, pEnd - 6);
+      if (pStart > 1) html += '<button class="pg-btn" onclick="goPage(1)">1</button>' + (pStart > 2 ? '<span style="color:var(--muted2);padding:0 4px;font-family:Share Tech Mono,monospace;font-size:10px">…</span>' : '');
+      for (var pi = pStart; pi <= pEnd; pi++) {
+        html += '<button class="pg-btn' + (pi === _page ? ' active' : '') + '" onclick="goPage(' + pi + ')">' + pi + '</button>';
+      }
+      if (pEnd < totalPages) html += (pEnd < totalPages - 1 ? '<span style="color:var(--muted2);padding:0 4px;font-family:Share Tech Mono,monospace;font-size:10px">…</span>' : '') + '<button class="pg-btn" onclick="goPage(' + totalPages + ')">' + totalPages + '</button>';
+      html += '<button class="pg-btn" onclick="goPage(' + (_page + 1) + ')"' + (_page >= totalPages ? ' disabled' : '') + '>›</button>';
+      html += '<span style="color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:10px;margin-left:8px">Page ' + _page + ' of ' + totalPages + '</span>';
+      html += '</div>';
+    }
+
+    panel.innerHTML = html;
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  load();
+</script>
+</body>
+</html>
