@@ -75,8 +75,8 @@ function renderSessionsPage(p, allMatches) {
     });
 
     // Accuracy avg
-    var accMs = matches.filter(function(m){return m.accuracy>0;});
-    var accStr = accMs.length ? (accMs.reduce(function(s,m){return s+m.accuracy;},0)/accMs.length).toFixed(1)+'%' : '';
+    var accMs = matches.filter(function(m){return m.accuracy!=null && parseFloat(m.accuracy)>0;});
+    var accStr = accMs.length ? (accMs.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/accMs.length).toFixed(1)+'%' : '';
 
     // Best game KDA
     var bestKda = matches.reduce(function(best, m) {
@@ -312,11 +312,11 @@ function renderWeaponsPage(p, allMatches) {
   var ranked = allMatches.filter(function(m){return m.isRanked;});
   var ms = ranked.length >= 20 ? ranked : allMatches;
 
-  var accMs    = ms.filter(function(m){return m.accuracy>0;});
+  var accMs    = ms.filter(function(m){return m.accuracy!=null && parseFloat(m.accuracy)>0;});
   var hsMs     = ms.filter(function(m){return m.weaponStats&&m.kills>0;});
   var dmgMs    = ms.filter(function(m){return m.damageDealt>0;});
 
-  var avgAcc   = accMs.length ? accMs.reduce(function(s,m){return s+m.accuracy;},0)/accMs.length : null;
+  var avgAcc   = accMs.length ? accMs.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/accMs.length : null;
   var avgHsR   = hsMs.length  ? hsMs.reduce(function(s,m){return s+(m.weaponStats.headshots||0)/m.kills;},0)/hsMs.length*100 : null;
   var avgDmg   = dmgMs.length ? dmgMs.reduce(function(s,m){return s+m.damageDealt;},0)/dmgMs.length : null;
   var avgDmgTk = dmgMs.length ? dmgMs.reduce(function(s,m){return s+(m.damageTaken||0);},0)/dmgMs.length : null;
@@ -337,13 +337,13 @@ function renderWeaponsPage(p, allMatches) {
   // ── Accuracy trend ───────────────────────────────────────────────────────
   var accTrend = accMs.slice(0,60).reverse();
   if (accTrend.length >= 5) {
-    var maxA = Math.max.apply(null,accTrend.map(function(m){return m.accuracy;}));
-    var minA = Math.min.apply(null,accTrend.map(function(m){return m.accuracy;}));
+    var maxA = Math.max.apply(null,accTrend.map(function(m){return parseFloat(m.accuracy);}));
+    var minA = Math.min.apply(null,accTrend.map(function(m){return parseFloat(m.accuracy);}));
     var rng  = maxA - minA || 1;
     var svgH = 80, svgW = 600, pad = 6;
     var pts  = accTrend.map(function(m,i){
       var x = accTrend.length>1 ? (i/(accTrend.length-1))*(svgW-pad*2)+pad : svgW/2;
-      var y = svgH - pad - ((m.accuracy-minA)/rng)*(svgH-pad*2);
+      var y = svgH - pad - ((parseFloat(m.accuracy)-minA)/rng)*(svgH-pad*2);
       return x+','+y;
     }).join(' ');
     html += sectionHead('Accuracy Trend', 'last '+accTrend.length+' matches · win=green, loss=red');
@@ -357,9 +357,9 @@ function renderWeaponsPage(p, allMatches) {
     html += '<polyline points="'+pts+'" fill="none" stroke="rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.4)" stroke-width="1.5" stroke-linejoin="round"/>';
     accTrend.forEach(function(m,i){
       var x = accTrend.length>1?(i/(accTrend.length-1))*(svgW-pad*2)+pad:svgW/2;
-      var y = svgH - pad - ((m.accuracy-minA)/rng)*(svgH-pad*2);
+      var y = svgH - pad - ((parseFloat(m.accuracy)-minA)/rng)*(svgH-pad*2);
       var c = m.outcome===2?'var(--win)':m.outcome===3?'var(--loss)':'var(--muted2)';
-      html += '<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="'+c+'" stroke="var(--surface)" stroke-width="1"><title>'+m.accuracy.toFixed(1)+'% · '+(m.mapName||'')+'</title></circle>';
+      html += '<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="'+c+'" stroke="var(--surface)" stroke-width="1"><title>'+parseFloat(m.accuracy).toFixed(1)+'% · '+(m.mapName||'')+'</title></circle>';
     });
     html += '</svg>';
     html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:4px"><span>'+minA.toFixed(1)+'%</span><span style="color:rgba(133,183,235,0.5)">avg '+avgAcc.toFixed(1)+'%</span><span>'+maxA.toFixed(1)+'%</span></div>';
@@ -392,7 +392,7 @@ function renderWeaponsPage(p, allMatches) {
   ms.forEach(function(m){
     if (!m.mapName||!m.accuracy) return;
     if (!mapAcc[m.mapName]) mapAcc[m.mapName]={sum:0,count:0,wins:0};
-    mapAcc[m.mapName].sum += m.accuracy;
+    mapAcc[m.mapName].sum += parseFloat(m.accuracy);
     mapAcc[m.mapName].count++;
     if (m.outcome===2) mapAcc[m.mapName].wins++;
   });
