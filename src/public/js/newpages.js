@@ -171,7 +171,7 @@ function renderActivityPage(p, allMatches) {
     var pct = c / maxHour * 100;
     var isPeak = h === peakHour;
     html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
-    html += '<div title="'+(h===0?'12 AM':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM')+' · '+c+' games" style="width:100%;height:'+Math.max(pct,c?3:0)+'%;background:'+(ispeak?'var(--accent)':'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+(0.25+pct/100*0.65)+')')+';border-radius:2px 2px 0 0;min-height:'+(c?2:0)+'px;transition:opacity 0.15s" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"></div>';
+    html += '<div title="'+(h===0?'12 AM':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM')+' · '+c+' games" style="width:100%;height:'+Math.max(pct,c?3:0)+'%;background:'+(isPeak?'var(--accent)':'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+(0.25+pct/100*0.65)+')')+';border-radius:2px 2px 0 0;min-height:'+(c?2:0)+'px;transition:opacity 0.15s" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"></div>';
     html += '</div>';
   });
   html += '</div>';
