@@ -367,17 +367,13 @@ function _lgDoPoll(){
       var bannerEl=document.getElementById('lg-new-banner');
       if(!statusEl) return;
       _lgLastChecked=Date.now();
-      var dot=document.getElementById('lg-live-dot');
       if(d.matchId && currentId && d.matchId !== currentId){
-        // New game detected — show dot as alert indicator
+        // New game detected
         statusEl.textContent='NEW GAME FOUND';
         statusEl.style.color='var(--accent)';
         if(bannerEl) bannerEl.style.display='inline';
-        if(dot) dot.style.display='block';
-        // Set up the refresh handler
         window._lgLoadNewGame=function(){
           if(bannerEl) bannerEl.style.display='none';
-          if(dot) dot.style.display='none';
           statusEl.textContent='LOADING NEW GAME…';
           _stopLastGamePoll();
           doSearch(gt, true, true);
@@ -386,7 +382,6 @@ function _lgDoPoll(){
         statusEl.textContent='WATCHING FOR NEW GAME';
         statusEl.style.color='';
         if(bannerEl) bannerEl.style.display='none';
-        if(dot) dot.style.display='none';
       }
     })
     .catch(function(){});

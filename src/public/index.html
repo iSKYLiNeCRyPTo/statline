@@ -62,7 +62,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .sidebar-nav-item{padding:9px 10px;border-radius:4px;font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:10px;letter-spacing:.5px;text-transform:uppercase;transition:color 0.15s,background 0.15s,border-color 0.15s;border:none;border-left:2px solid transparent;background:transparent;width:100%;text-align:left;outline:none;margin-bottom:1px;-webkit-appearance:none;appearance:none}
 .sidebar-nav-item:hover{color:var(--text);background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.06)}
 .sidebar-nav-item.active{background:rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.1);color:var(--accent);border-left-color:var(--accent)}
-.sidebar-nav-item.active .nav-icon{text-shadow:0 0 8px var(--accent)}
+.sidebar-nav-item.active .nav-icon{text-shadow:0 0 8px var(--accent);position:relative}
+.sidebar-nav-item.active .nav-icon::after{content:'';position:absolute;top:-2px;right:-4px;width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 4px var(--accent)}
 [data-theme="covenant"] .sidebar-nav-item.active{background:rgba(155,89,245,0.12)}
 [data-theme="forerunner"] .sidebar-nav-item.active{background:rgba(240,176,48,0.12)}
 [data-theme="oni"] .sidebar-nav-item.active{background:rgba(232,0,42,0.12)}
@@ -595,7 +596,7 @@ body.on-landing .sidebar{display:none !important}
         <span class="nav-icon">⊞</span><span class="nav-label">Compare</span>
       </button>
       <button class="sidebar-nav-item" data-tab="lastgame" onclick="setTab('lastgame')">
-        <span class="nav-icon" style="position:relative">◈<span id="lg-live-dot" style="display:none;position:absolute;top:-2px;right:-4px;width:5px;height:5px;border-radius:50%;background:var(--win)"></span></span><span class="nav-label">Last Game</span>
+        <span class="nav-icon">◈</span><span class="nav-label">Last Game</span>
       </button>
     </nav>
 
