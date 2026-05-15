@@ -568,7 +568,7 @@ function renderLastGamePage(p, allMatches) {
 
   // ── Your performance cards ───────────────────────────────────────────────
   html += sectionHead('YOUR PERFORMANCE', m.placement != null ? 'ranked #' + m.placement + ' on scoreboard' : null);
-  html += '<div class="stat-cards" style="margin-top:12px">';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px">';
   html += statCard('KILLS',   m.kills);
   html += statCard('DEATHS',  m.deaths);
   html += statCard('ASSISTS', m.assists);
