@@ -160,7 +160,7 @@
 
   <div class="meta-bar">
     <div class="meta-count" id="meta-count">Loading...</div>
-    <button class="refresh-btn" onclick="load()">↻ REFRESH</button>
+    <button class="refresh-btn" onclick="load(true)">↻ REFRESH</button>
   </div>
 
   <div id="lb-panel">
@@ -185,13 +185,32 @@
   var PER_PAGE   = 250;
 
   // ── Data load ─────────────────────────────────────────────────────────────
-  async function load() {
+  var LB_SESSION_KEY = 'fragrLbCache';
+  var LB_SESSION_TTL = 2 * 60 * 1000; // 2 min client-side TTL
+
+  async function load(force) {
+    // Try sessionStorage cache first (instant render on back-navigation)
+    if (!force) {
+      try {
+        var raw = sessionStorage.getItem(LB_SESSION_KEY);
+        if (raw) {
+          var cached = JSON.parse(raw);
+          if (Date.now() - cached.ts < LB_SESSION_TTL) {
+            _data = cached.data;
+            render();
+            return;
+          }
+        }
+      } catch(e) {}
+    }
     document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING LEADERBOARD DATA...</div>';
     document.getElementById('meta-count').textContent = 'Loading...';
     try {
-      var res = await fetch('/api/leaderboard?limit=100000');
+      var url = '/api/leaderboard' + (force ? '?force=1' : '');
+      var res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       _data = await res.json();
+      try { sessionStorage.setItem(LB_SESSION_KEY, JSON.stringify({ ts: Date.now(), data: _data })); } catch(e) {}
       render();
     } catch(e) {
       document.getElementById('lb-panel').innerHTML =

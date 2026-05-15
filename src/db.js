@@ -575,20 +575,7 @@ async function getLeaderboardData(limit = 100000) {
       ORDER BY xuid, ts DESC
     `;
 
-    // Top by K/D
-    const kdRes = await db.query(
-      `SELECT * FROM (${base}) t WHERE kd IS NOT NULL ORDER BY kd DESC LIMIT $1`,
-      [limit]
-    );
-
-    // Top by Win Rate (min 50 matches to prevent small-sample flukes)
-    const wrRes = await db.query(
-      `SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 50 ORDER BY win_rate DESC LIMIT $1`,
-      [limit]
-    );
-
-    // Per-playlist CSR queries — extract value/tier/subtier from JSONB csr column
-    // Playlist key names must match what halo.js stores: 'Ranked Arena', 'Ranked Slayer', 'Ranked Legacy'
+    // Per-playlist CSR query builder
     const csrPlaylistQuery = (playlist) => `
       SELECT gamertag, kd, win_rate, matches_played,
         (csr->'${playlist}'->>'value')::int        AS csr_value,
@@ -601,7 +588,10 @@ async function getLeaderboardData(limit = 100000) {
       LIMIT $1
     `;
 
-    const [arenaRes, slayerRes, legacyRes] = await Promise.all([
+    // Run all 5 queries in parallel — previously kd+winRate were sequential
+    const [kdRes, wrRes, arenaRes, slayerRes, legacyRes] = await Promise.all([
+      db.query(`SELECT * FROM (${base}) t WHERE kd IS NOT NULL ORDER BY kd DESC LIMIT $1`, [limit]),
+      db.query(`SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 50 ORDER BY win_rate DESC LIMIT $1`, [limit]),
       db.query(csrPlaylistQuery('Ranked Arena'),  [limit]),
       db.query(csrPlaylistQuery('Ranked Slayer'), [limit]),
       db.query(csrPlaylistQuery('Ranked Legacy'), [limit]),

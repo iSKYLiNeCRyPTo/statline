@@ -1832,10 +1832,25 @@ app.get('/api/stats', async (req, res) => {
 });
 
 // ── Leaderboard ──────────────────────────────────────────────────────────────
+// ── Leaderboard in-memory cache (2 min TTL) ──────────────────────────────────
+let _lbCache = null, _lbCacheTs = 0;
+const LB_CACHE_TTL = 2 * 60 * 1000;
+
 app.get('/api/leaderboard', async (req, res) => {
   try {
+    const now = Date.now();
+    const force = req.query.force === '1';
+    if (!force && _lbCache && (now - _lbCacheTs) < LB_CACHE_TTL) {
+      res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=60');
+      res.set('X-Cache', 'HIT');
+      return res.json(_lbCache);
+    }
     const limit = parseInt(req.query.limit) || 100000;
     const data = await getLeaderboardData(limit);
+    _lbCache = data;
+    _lbCacheTs = now;
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=60');
+    res.set('X-Cache', 'MISS');
     res.json(data);
   } catch(e) {
     console.error('[Leaderboard]', e.message);
