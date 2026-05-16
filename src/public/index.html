@@ -904,31 +904,31 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   //   Dark panel occupies left ~55% (x 35–640 avg)  |  character on right
   //   Score cx: 310   gamertag y: 90    score y: 340   tier y: 400   stats y: 490
 
-  // Desktop: teal frame interior x:285–980, y:155–575  →  center x=632, center y=365
+  // Desktop: teal frame interior x:215–980, y:155–595  →  center x=598, center y=375
   // Mobile: dark panel interior x:55–620, y:55–710
-  var cx       = isMobile ? 338  : 632;
-  var gtY      = isMobile ? 110  : 210;
-  var scoreY   = isMobile ? 350  : 390;
-  var tierY    = isMobile ? 406  : 436;
-  var divY     = isMobile ? 428  : 458;
-  var statsY   = isMobile ? 474  : 504;
-  var statsLY  = isMobile ? 496  : 525;
+  var cx       = isMobile ? 338  : 598;
+  var gtY      = isMobile ? 110  : 232;
+  var scoreY   = isMobile ? 350  : 415;
+  var tierY    = isMobile ? 406  : 462;
+  var divY     = isMobile ? 428  : 484;
+  var statsY   = isMobile ? 474  : 530;
+  var statsLY  = isMobile ? 496  : 552;
   var scoreFs  = isMobile ? '700 160px' : '700 170px';
   // Stats spread symmetric around cx, within the panel
-  var statSpan = isMobile ? 520  : 580;
+  var statSpan = isMobile ? 520  : 640;
   var statL    = cx - statSpan / 2;
   var statR    = cx + statSpan / 2;
 
   // --- Solid gray fill inside the teal frame — text sits on this ---
   ctx.save();
-  ctx.fillStyle = 'rgba(12, 20, 32, 0.88)';
+  ctx.fillStyle = 'rgba(12, 20, 32, 0.94)';
   ctx.beginPath();
   if (isMobile) {
     // mobile panel interior (inset slightly from the teal border)
     ctx.roundRect ? ctx.roundRect(58, 58, 562, 652, 8) : ctx.rect(58, 58, 562, 652);
   } else {
-    // desktop frame interior (inset 4px from teal border at 285,155 → 980,575)
-    ctx.roundRect ? ctx.roundRect(289, 159, 687, 412, 5) : ctx.rect(289, 159, 687, 412);
+    // desktop frame interior — left edge pulled to x=215, right stays ~980, y pushed down
+    ctx.roundRect ? ctx.roundRect(215, 162, 765, 432, 5) : ctx.rect(215, 162, 765, 432);
   }
   ctx.fill();
   ctx.restore();
