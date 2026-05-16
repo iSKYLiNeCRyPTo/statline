@@ -6,7 +6,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
 const recoveryQueue = require('./recoveryQueue');
 const adminAuth = require('./auth');
@@ -1833,25 +1833,27 @@ app.get('/api/stats', async (req, res) => {
 
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 // ── Leaderboard in-memory cache (2 min TTL) ──────────────────────────────────
-let _lbCache = null, _lbCacheTs = 0;
-const LB_CACHE_TTL = 2 * 60 * 1000;
+const _lbTabCache = {}; // per-tab cache: { csrArena: { data, ts }, ... }
+const LB_CACHE_TTL = 5 * 60 * 1000; // 5 min server-side per tab
+const VALID_LB_TABS = new Set(['csrArena', 'csrSlayer', 'csrLegacy', 'kd', 'winRate']);
 
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const now = Date.now();
     const force = req.query.force === '1';
-    if (!force && _lbCache && (now - _lbCacheTs) < LB_CACHE_TTL) {
+    const tab = VALID_LB_TABS.has(req.query.tab) ? req.query.tab : 'csrArena';
+    const cached = _lbTabCache[tab];
+    if (!force && cached && (now - cached.ts) < LB_CACHE_TTL) {
       res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=60');
       res.set('X-Cache', 'HIT');
-      return res.json(_lbCache);
+      return res.json({ rows: cached.data });
     }
     const limit = parseInt(req.query.limit) || 100000;
-    const data = await getLeaderboardData(limit);
-    _lbCache = data;
-    _lbCacheTs = now;
+    const rows = await getLeaderboardTab(tab, limit);
+    _lbTabCache[tab] = { data: rows, ts: now };
     res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=60');
     res.set('X-Cache', 'MISS');
-    res.json(data);
+    res.json({ rows });
   } catch(e) {
     console.error('[Leaderboard]', e.message);
     res.status(500).json({ error: 'Failed to load leaderboard' });

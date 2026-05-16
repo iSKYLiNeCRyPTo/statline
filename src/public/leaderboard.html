@@ -178,39 +178,28 @@
   // Back button uses history.back() (set inline) — no JS override needed
 
   // ── State ─────────────────────────────────────────────────────────────────
-  var _data      = null;
+  var _tabData   = {};          // per-tab cache: { csrArena: { rows, ts }, ... }
   var _tab       = 'csrArena';
   var _page      = 1;
   var _search    = '';
   var PER_PAGE   = 250;
+  var LB_TTL     = 2 * 60 * 1000; // 2 min per-tab TTL
 
-  // ── Data load ─────────────────────────────────────────────────────────────
-  var LB_SESSION_KEY = 'fragrLbCache';
-  var LB_SESSION_TTL = 2 * 60 * 1000; // 2 min client-side TTL
-
-  async function load(force) {
-    // Try sessionStorage cache first (instant render on back-navigation)
-    if (!force) {
-      try {
-        var raw = sessionStorage.getItem(LB_SESSION_KEY);
-        if (raw) {
-          var cached = JSON.parse(raw);
-          if (Date.now() - cached.ts < LB_SESSION_TTL) {
-            _data = cached.data;
-            render();
-            return;
-          }
-        }
-      } catch(e) {}
+  // ── Per-tab lazy load ─────────────────────────────────────────────────────
+  async function loadTab(tab, force) {
+    // Return cached data if still fresh
+    if (!force && _tabData[tab] && (Date.now() - _tabData[tab].ts) < LB_TTL) {
+      render();
+      return;
     }
-    document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING LEADERBOARD DATA...</div>';
+    document.getElementById('lb-panel').innerHTML = '<div class="lb-loading">// LOADING ' + tab.toUpperCase() + '...</div>';
     document.getElementById('meta-count').textContent = 'Loading...';
     try {
-      var url = '/api/leaderboard' + (force ? '?force=1' : '');
+      var url = '/api/leaderboard?tab=' + encodeURIComponent(tab) + (force ? '&force=1' : '');
       var res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      _data = await res.json();
-      try { sessionStorage.setItem(LB_SESSION_KEY, JSON.stringify({ ts: Date.now(), data: _data })); } catch(e) {}
+      var json = await res.json();
+      _tabData[tab] = { rows: json.rows || [], ts: Date.now() };
       render();
     } catch(e) {
       document.getElementById('lb-panel').innerHTML =
@@ -219,13 +208,16 @@
     }
   }
 
+  // legacy alias used by refresh button
+  function load(force) { return loadTab(_tab, force); }
+
   // ── Tab switch ────────────────────────────────────────────────────────────
   function switchTab(tab, btn) {
     _tab = tab;
     _page = 1;
     document.querySelectorAll('.lb-tab').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
-    render();
+    loadTab(tab);
   }
 
   // ── Search ────────────────────────────────────────────────────────────────
@@ -250,8 +242,8 @@
 
   // ── Render ────────────────────────────────────────────────────────────────
   function render() {
-    if (!_data) return;
-    var allRows = _data[_tab] || [];
+    if (!_tabData[_tab]) return;
+    var allRows = _tabData[_tab].rows || [];
     var panel = document.getElementById('lb-panel');
 
     // Filter by search (uses global rank positions, not filtered index)
@@ -360,7 +352,7 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  load();
+  loadTab(_tab);
 </script>
 </body>
 </html>

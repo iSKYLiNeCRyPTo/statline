@@ -610,6 +610,51 @@ async function getLeaderboardData(limit = 100000) {
   }
 }
 
+// ── Single-tab leaderboard query (lazy load) ────────────────────────────────
+async function getLeaderboardTab(tab, limit = 100000) {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    const base = `
+      SELECT DISTINCT ON (xuid)
+        gamertag, kd, win_rate, accuracy, avg_kills,
+        csr_tier, csr_subtier, csr_value, matches_played, wins, losses, ts, csr
+      FROM player_snapshots
+      WHERE kd IS NOT NULL AND kd > 0 AND kd < 2
+        AND (win_rate IS NULL OR win_rate < 85)
+        AND matches_played >= 25
+      ORDER BY xuid, ts DESC
+    `;
+    const csrPlaylistQuery = (playlist) => `
+      SELECT gamertag, kd, win_rate, matches_played,
+        (csr->'${playlist}'->>'value')::int        AS csr_value,
+        csr->'${playlist}'->>'tier'               AS csr_tier,
+        (csr->'${playlist}'->>'subTier')::int     AS csr_subtier
+      FROM (${base}) t
+      WHERE csr->'${playlist}'->>'value' IS NOT NULL
+        AND (csr->'${playlist}'->>'value')::int > 0
+      ORDER BY (csr->'${playlist}'->>'value')::int DESC
+      LIMIT $1
+    `;
+    let res;
+    if (tab === 'kd') {
+      res = await db.query(`SELECT * FROM (${base}) t WHERE kd IS NOT NULL ORDER BY kd DESC LIMIT $1`, [limit]);
+    } else if (tab === 'winRate') {
+      res = await db.query(`SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 50 ORDER BY win_rate DESC LIMIT $1`, [limit]);
+    } else if (tab === 'csrSlayer') {
+      res = await db.query(csrPlaylistQuery('Ranked Slayer'), [limit]);
+    } else if (tab === 'csrLegacy') {
+      res = await db.query(csrPlaylistQuery('Ranked Legacy'), [limit]);
+    } else {
+      res = await db.query(csrPlaylistQuery('Ranked Arena'), [limit]);
+    }
+    return res.rows;
+  } catch(e) {
+    console.error('[DB] getLeaderboardTab error:', e.message);
+    return [];
+  }
+}
+
 // ── Match participants (private-player fallback) ─────────────────────────────
 // Persist a row per (match, roster slot) every time we fetch a public player's
 // match details. Lets us reconstruct a partial match history for a private
@@ -1439,4 +1484,4 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness };

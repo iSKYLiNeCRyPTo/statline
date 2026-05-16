@@ -226,13 +226,12 @@ function renderActivityPage(p, allMatches) {
   // ── Hour of day chart (SVG so heights are pixel-exact) ───────────────────
   var maxHour = Math.max.apply(null, hourCounts) || 1;
   html += sectionHead('Hour of Day', 'when you queue up');
-  // Wrap in overflow-x:auto so narrow screens can scroll; cap max-width so bars don't get too fat on ultra-wide screens
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px;overflow-x:auto">';
   var chartH = 72, chartPad = 4;
   var barW = 18, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
   var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
-  // Fixed width SVG — bars always proportional, scrolls on narrow screens
-  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgViewW + '" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" style="display:block;min-width:' + svgViewW + 'px">';
+  // Container sized to the SVG — no extra blank space on wide screens
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px;display:inline-block;width:100%;box-sizing:border-box;overflow-x:auto">';
+  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgViewW + '" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" style="display:block">';
   hourCounts.forEach(function(c, h) {
     var barH = c ? Math.max(4, Math.round(c / maxHour * chartH)) : 0;
     var x = chartPad + h * (barW + barGap);
@@ -291,83 +290,102 @@ function renderActivityPage(p, allMatches) {
   html += '</div>';
   html += '</div>'; // end grid
 
-  // ── Activity Heatmap ────────────────────────────────────────────────────
+  // ── Activity Heatmap — columns = days, rows = 6-hour time blocks ──────────
   (function() {
-    var dayMap = {};
+    // Build block map: "dateKey:block" → count  (block 0=12a-6a, 1=6a-12p, 2=12p-6p, 3=6p-12a)
+    var blockMap = {}, daySet = {};
     allMatches.forEach(function(m) {
       if (!m.startTime) return;
       var d = new Date(m.startTime);
-      var key = d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
-      dayMap[key] = (dayMap[key]||0)+1;
+      var block = Math.floor(d.getHours() / 6);
+      var dk = d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+      blockMap[dk+':'+block] = (blockMap[dk+':'+block]||0)+1;
+      daySet[dk] = true;
     });
-    var keys = Object.keys(dayMap);
-    if (keys.length < 1) return;
+    var activeDays = Object.keys(daySet).length;
+    if (!activeDays) return;
+
+    var totalGames2 = allMatches.length;
     var now = new Date(); now.setHours(23,59,59,0);
-    var oldest = keys.reduce(function(mn,k){var p=k.split('-');var t=new Date(+p[0],+p[1]-1,+p[2]).getTime();return t<mn?t:mn;},Infinity);
-    // Always go back at least 20 weeks from today so there are always plenty of columns;
-    // extend further if data spans longer, up to 52 weeks max
+
+    // Show at least 90 days, extend to cover oldest data + padding, max 365 days
+    var oldest = Object.keys(daySet).reduce(function(mn,k){
+      var p=k.split('-'); var t=new Date(+p[0],+p[1]-1,+p[2]).getTime(); return t<mn?t:mn;
+    }, Infinity);
     var dataSpanMs = now.getTime() - oldest;
-    var minSpanMs = 20*7*86400000;
-    var maxSpanMs = 52*7*86400000;
-    var spanMs = Math.min(Math.max(dataSpanMs + 14*86400000, minSpanMs), maxSpanMs);
-    var rangeStart = new Date(now.getTime() - spanMs); // always count back from today
-    var startDate = new Date(rangeStart);
-    startDate.setDate(startDate.getDate()-startDate.getDay());
-    var weeks=[], cur=new Date(startDate);
-    while(cur<=now){
-      var week=[];
-      for(var _d=0;_d<7;_d++){
-        var dd=new Date(cur); dd.setDate(dd.getDate()+_d);
-        if(dd>now){week.push(null);}
-        else{var k2=dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate();week.push({date:new Date(dd),count:dayMap[k2]||0});}
-      }
-      weeks.push(week); cur.setDate(cur.getDate()+7);
-    }
-    var totalGames2=Object.values(dayMap).reduce(function(a,v){return a+v;},0);
-    var activeDays=keys.length;
-    var bestDayKey=keys.reduce(function(bk,k){return(dayMap[k]||0)>(dayMap[bk]||0)?k:bk;},keys[0]);
-    var bestDayCount=dayMap[bestDayKey]||0;
-    var sortedTs=keys.map(function(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime();}).sort(function(a,b){return a-b;});
+    var spanMs = Math.min(Math.max(dataSpanMs + 7*86400000, 90*86400000), 365*86400000);
+    var rangeStart = new Date(now.getTime() - spanMs);
+    rangeStart.setHours(0,0,0,0);
+
+    // Build day list oldest→newest
+    var days = [], cur = new Date(rangeStart);
+    while (cur <= now) { days.push(new Date(cur)); cur.setDate(cur.getDate()+1); }
+
+    // Stats
+    var allDayCounts = Object.keys(daySet).map(function(dk){
+      return [0,1,2,3].reduce(function(s,b){ return s+(blockMap[dk+':'+b]||0); },0);
+    });
+    var bestDayCount = allDayCounts.length ? Math.max.apply(null, allDayCounts) : 0;
+    var sortedTs = Object.keys(daySet).map(function(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime();}).sort(function(a,b){return a-b;});
     var bestSt=1,curSt=1;
     for(var si=1;si<sortedTs.length;si++){if(sortedTs[si]-sortedTs[si-1]===86400000){curSt++;if(curSt>bestSt)bestSt=curSt;}else curSt=1;}
-    var cellSz=14,cellGap=3,step=cellSz+cellGap,leftPad=24,topPad=18;
-    var svgW=leftPad+weeks.length*step+4, svgH=topPad+7*step+4;
-    var maxCount=Math.max.apply(null,Object.values(dayMap))||1;
-    function heatColor(n){
-      if(!n)return'rgba(255,255,255,0.04)';
-      var intensity=Math.min(n/Math.max(maxCount*0.8,1),1);
-      var a=(0.2+intensity*0.8).toFixed(2);
-      return'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+a+')';
+
+    var maxCount = Math.max.apply(null, Object.values(blockMap).concat([1]));
+    function heatColor(n) {
+      if (!n) return 'rgba(255,255,255,0.04)';
+      var intensity = Math.min(n / Math.max(maxCount * 0.75, 1), 1);
+      var a = (0.18 + intensity * 0.82).toFixed(2);
+      return 'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+a+')';
     }
-    var svgBody='';
-    var DAY_LBLS=['S','M','T','W','T','F','S'];
-    [1,3,5].forEach(function(di){svgBody+='<text x="'+(leftPad-3)+'" y="'+(topPad+di*step+cellSz*0.75)+'" text-anchor="end" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+DAY_LBLS[di]+'</text>';});
-    var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var lastMo=-1;
-    weeks.forEach(function(wk,wi){var first=wk.find(function(c){return c;});if(first){var mo=first.date.getMonth();if(mo!==lastMo){lastMo=mo;svgBody+='<text x="'+(leftPad+wi*step)+'" y="'+(topPad-4)+'" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+MONTHS[mo]+'</text>';}}});
-    weeks.forEach(function(wk,wi){
-      wk.forEach(function(cell,di){
-        if(!cell)return;
-        var x=leftPad+wi*step, y=topPad+di*step;
-        var tip=cell.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(cell.count?' · '+cell.count+' game'+(cell.count!==1?'s':''):'');
-        svgBody+='<rect x="'+x+'" y="'+y+'" width="'+cellSz+'" height="'+cellSz+'" rx="2" fill="'+heatColor(cell.count)+'"><title>'+tip+'</title></rect>';
-      });
+
+    var BLOCK_LABELS = ['12a','6a','12p','6p'];
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var cellSz=12, cellGap=2, step=cellSz+cellGap;
+    var leftPad=26, topPad=16, nBlocks=4;
+    var svgW = leftPad + days.length*step + 4;
+    var svgH = topPad + nBlocks*step + 4;
+
+    var svgBody = '';
+    // Row labels (time blocks on left)
+    BLOCK_LABELS.forEach(function(lbl, bi) {
+      svgBody += '<text x="'+(leftPad-3)+'" y="'+(topPad+bi*step+cellSz*0.78)+'" text-anchor="end" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+lbl+'</text>';
     });
-    var spanMonths=Math.round((now.getTime()-startDate.getTime())/(30*86400000));
-    html+=sectionHead('Activity Heatmap', spanMonths+' months of data');
-    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
-    html+='<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px">';
-    html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+totalGames2+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">GAMES LOGGED</div></div>';
-    html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+activeDays+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">ACTIVE DAYS</div></div>';
-    if(bestSt>1)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">'+bestSt+' <span style="font-size:12px;color:var(--muted2)">days</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">BEST STREAK</div></div>';
-    if(bestDayCount>=4)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--loss)">'+bestDayCount+' <span style="font-size:12px;color:var(--muted2)">games</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">MOST IN A DAY</div></div>';
-    html+='</div>';
-    html+='<div id="hm-scroll" style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">'+svgBody+'</svg></div>';
-    html+='<script>setTimeout(function(){var e=document.getElementById("hm-scroll");if(e)e.scrollLeft=e.scrollWidth;},50);</script>';
-    html+='<div style="display:flex;align-items:center;gap:5px;margin-top:10px"><span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">Less</span>';
-    ['var(--surface3)','rgba(56,138,221,0.28)','rgba(56,138,221,0.52)','rgba(56,138,221,0.76)','rgba(56,138,221,0.95)'].forEach(function(c){html+='<div style="width:10px;height:10px;background:'+c+';border-radius:2px"></div>';});
-    html+='<span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">More</span></div>';
-    html+='</div>';
+    // Month labels on top (first day of each new month)
+    var lastMo = -1;
+    days.forEach(function(day, di) {
+      var mo = day.getMonth();
+      if (mo !== lastMo) {
+        lastMo = mo;
+        svgBody += '<text x="'+(leftPad+di*step)+'" y="'+(topPad-4)+'" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+MONTHS[mo]+'</text>';
+      }
+    });
+    // Cells
+    days.forEach(function(day, di) {
+      var dk = day.getFullYear()+'-'+(day.getMonth()+1)+'-'+day.getDate();
+      var dayLabel = day.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      for (var bi=0; bi<4; bi++) {
+        var count = blockMap[dk+':'+bi]||0;
+        var x = leftPad + di*step, y = topPad + bi*step;
+        var tip = dayLabel+' '+BLOCK_LABELS[bi]+'–'+BLOCK_LABELS[bi+1]+(count?' · '+count+' game'+(count!==1?'s':''):'');
+        svgBody += '<rect x="'+x+'" y="'+y+'" width="'+cellSz+'" height="'+cellSz+'" rx="2" fill="'+heatColor(count)+'"><title>'+tip+'</title></rect>';
+      }
+    });
+
+    var spanDays = Math.round(spanMs/86400000);
+    html += sectionHead('Activity Heatmap', Math.round(spanDays/30)+' months · 6h blocks');
+    html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
+    html += '<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px">';
+    html += '<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+totalGames2+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">GAMES LOGGED</div></div>';
+    html += '<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+activeDays+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">ACTIVE DAYS</div></div>';
+    if(bestSt>1) html += '<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">'+bestSt+' <span style="font-size:12px;color:var(--muted2)">days</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">BEST STREAK</div></div>';
+    if(bestDayCount>=4) html += '<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--loss)">'+bestDayCount+' <span style="font-size:12px;color:var(--muted2)">games</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">MOST IN A DAY</div></div>';
+    html += '</div>';
+    html += '<div id="hm-scroll" style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">'+svgBody+'</svg></div>';
+    html += '<script>setTimeout(function(){var e=document.getElementById("hm-scroll");if(e)e.scrollLeft=e.scrollWidth;},50);</script>';
+    html += '<div style="display:flex;align-items:center;gap:5px;margin-top:10px"><span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">Less</span>';
+    ['rgba(255,255,255,0.04)','rgba(56,138,221,0.25)','rgba(56,138,221,0.5)','rgba(56,138,221,0.75)','rgba(56,138,221,0.97)'].forEach(function(c){html+='<div style="width:10px;height:10px;background:'+c+';border-radius:2px"></div>';});
+    html += '<span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">More</span></div>';
+    html += '</div>';
   })();
 
   // ── Top maps with win rate ───────────────────────────────────────────────
