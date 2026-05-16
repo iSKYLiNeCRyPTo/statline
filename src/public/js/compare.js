@@ -6,7 +6,7 @@ var _compareMe   = null; // locked at open-time so globals changing later can't 
 function _getCmpPanel() {
   var tabPanel = document.getElementById('cmpTabPanel');
   if (tabPanel && tabPanel.closest('.tab-panel.active')) return tabPanel;
-  return _getCmpPanel();
+  return document.getElementById('compareOverlay');
 }
 
 // Initialise compare in the tab (called by setTab('compare'))
