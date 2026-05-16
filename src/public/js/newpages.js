@@ -582,10 +582,17 @@ function renderLastGamePage(p, allMatches) {
 
   function parseDur(iso) {
     if (!iso) return '--';
-    var h = iso.match(/(\d+)H/), mn = iso.match(/(\d+)M/), s = iso.match(/(\d+)S/);
-    var hv = h ? parseInt(h[1]) : 0, mv = mn ? parseInt(mn[1]) : 0, sv = s ? parseInt(s[1]) : 0;
+    var h = iso.match(/(\d+)H/), mn = iso.match(/(\d+)M/), s = iso.match(/(\d+(?:\.\d+)?)S/);
+    var hv = h ? parseInt(h[1]) : 0, mv = mn ? parseInt(mn[1]) : 0, sv = s ? parseFloat(s[1]) : 0;
+    // Seconds overflow → stored in milliseconds; reconstruct from ms alone
+    if (sv >= 60) {
+      var totalSec = Math.round(sv / 1000);
+      hv = Math.floor(totalSec / 3600);
+      mv = Math.floor((totalSec % 3600) / 60);
+      sv = totalSec % 60;
+    }
     if (hv) return hv + 'h ' + mv + 'm';
-    return mv + 'm ' + sv + 's';
+    return mv + 'm ' + Math.round(sv) + 's';
   }
 
   function timeAgo(iso) {
