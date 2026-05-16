@@ -216,9 +216,16 @@ function renderActivityPage(p, allMatches, extraTimes) {
 
   var hourLabel  = peakHour === 0 ? '12 AM' : peakHour < 12 ? peakHour+' AM' : peakHour===12 ? '12 PM' : (peakHour-12)+' PM';
 
-  // Strip playlist prefixes for compact display
+  // Strip prefixes + abbreviate long mode names for compact display
+  var MODE_SHORT = {
+    'king of the hill':'KotH', 'capture the flag':'CTF', 'total control':'Total Ctrl',
+    'strongholds':'Strongholds', 'oddball':'Oddball', 'slayer':'Slayer',
+    'fiesta':'Fiesta', 'escalation slayer':'Escalation', 'tactical slayer':'SWAT',
+    'infection':'Infection', 'grifball':'Grifball', 'action sack':'Action Sack'
+  };
   function shortMode(m) {
-    return (m||'').replace(/^(Arena|Legacy|Ranked):\s*/i,'').replace(/^Ranked\s+/i,'');
+    var stripped = (m||'').replace(/^(Arena|Legacy|Ranked):\s*/i,'').replace(/^Ranked\s+/i,'');
+    return MODE_SHORT[stripped.toLowerCase()] || stripped;
   }
 
   var html = '';
@@ -226,7 +233,7 @@ function renderActivityPage(p, allMatches, extraTimes) {
   // Summary cards — use compact inline cards to handle long values
   function summaryCard(label, value, sub) {
     return '<div class="stat-card"><div class="stat-label">'+label+'</div>'
-      +'<div class="stat-value accent" style="font-size:clamp(14px,2.2vw,26px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+value+'">'+value+'</div>'
+      +'<div class="stat-value accent" style="font-size:clamp(13px,2vw,24px);line-height:1.1;word-break:break-word" title="'+value+'">'+value+'</div>'
       +(sub?'<div class="stat-sub">'+sub+'</div>':'')+'</div>';
   }
 
