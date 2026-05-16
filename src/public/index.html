@@ -919,19 +919,7 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   var statL    = cx - statSpan / 2;
   var statR    = cx + statSpan / 2;
 
-  // --- Solid gray fill inside the teal frame — text sits on this ---
-  ctx.save();
-  ctx.fillStyle = 'rgba(12, 20, 32, 0.48)';
-  ctx.beginPath();
-  if (isMobile) {
-    // mobile panel interior (inset slightly from the teal border)
-    ctx.roundRect ? ctx.roundRect(58, 58, 562, 652, 8) : ctx.rect(58, 58, 562, 652);
-  } else {
-    // desktop frame interior — left edge pulled to x=215, right stays ~980, y pushed down
-    ctx.roundRect ? ctx.roundRect(215, 162, 765, 432, 5) : ctx.rect(215, 162, 765, 432);
-  }
-  ctx.fill();
-  ctx.restore();
+  // No gray fill — text sits directly on the background image with drop shadows
 
   // --- Gamertag ---
   ctx.save();
