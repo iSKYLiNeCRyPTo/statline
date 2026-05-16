@@ -223,15 +223,17 @@ function renderActivityPage(p, allMatches) {
   if (topMap)  html += statCard('Top Map', topMap[0], '', topMap[1]+' games played');
   html += '</div>';
 
-  // ── Hour of day chart (SVG so heights are pixel-exact) ───────────────────
+  // ── Hour of day + Day of week + Playlists — three columns ───────────────
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:20px">';
+
+  // Hour of day
   var maxHour = Math.max.apply(null, hourCounts) || 1;
-  html += sectionHead('Hour of Day', 'when you queue up');
   var chartH = 72, chartPad = 4;
-  var barW = 18, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
+  var barW = 14, barGap = 3, totalW = 24 * (barW + barGap) - barGap;
   var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
-  // Container sized to the SVG — no extra blank space on wide screens
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px;display:inline-block;width:100%;box-sizing:border-box;overflow-x:auto">';
-  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgViewW + '" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" style="display:block">';
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px 12px;overflow-x:auto">';
+  html += sectionHead('Hour of Day', 'when you queue up');
+  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgViewW + '" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" style="display:block;min-width:' + svgViewW + 'px">';
   hourCounts.forEach(function(c, h) {
     var barH = c ? Math.max(4, Math.round(c / maxHour * chartH)) : 0;
     var x = chartPad + h * (barW + barGap);
@@ -245,7 +247,6 @@ function renderActivityPage(p, allMatches) {
     } else {
       svgHour += '<rect x="' + x + '" y="' + (chartH-2) + '" width="' + barW + '" height="2" rx="1" fill="rgba(255,255,255,0.05)"></rect>';
     }
-    // Hour labels every 3 hours
     if (h % 3 === 0) {
       var lbl = h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';
       svgHour += '<text x="' + (x + barW/2) + '" y="' + (chartH + 14) + '" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="8" fill="rgba(133,183,235,0.45)">' + lbl + '</text>';
@@ -254,9 +255,6 @@ function renderActivityPage(p, allMatches) {
   svgHour += '</svg>';
   html += svgHour;
   html += '</div>';
-
-  // ── Day of week + Playlists side by side ─────────────────────────────────
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:20px">';
 
   // Day of week
   var maxDay = Math.max.apply(null,dayCounts) || 1;
@@ -288,7 +286,7 @@ function renderActivityPage(p, allMatches) {
     html += '</div>';
   });
   html += '</div>';
-  html += '</div>'; // end grid
+  html += '</div>'; // end 3-col grid
 
   // ── Activity Heatmap — columns = days, rows = 6-hour time blocks ──────────
   (function() {
