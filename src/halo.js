@@ -1062,7 +1062,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           });
 
           if (String(player.PlayerId||'') === `xuid(${xuid})` || String(player.Xuid||'') === String(xuid)) {
-            matchOutcome = player.Outcome || 0;
+            // player.Outcome from detailed stats; fall back to match-list outcome
+            matchOutcome = player.Outcome || m.Outcome || 0;
             kills=pk; deaths=pd; assists=pa; score=pcore.Score||0;
             damageDealt=pcore.DamageDealt||0; damageTaken=pcore.DamageTaken||0;
             shotsFired = pcore.ShotsFired||0; shotsHit = pcore.ShotsHit||0;

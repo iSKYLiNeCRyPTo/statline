@@ -1079,9 +1079,43 @@ async function reconstructMatchHistoryForXuid(xuid, limit = 100) {
       if (myMedals && myMedals.length) coverage.medals++;
       if (my.placement != null) coverage.placement++;
 
+      // ── Outcome inference ─────────────────────────────────────────────────
+      // Many older rows have outcome=NULL/0/1 (unknown/DNF from early ingest).
+      // Strategy: if not a clear 2(win) or 3(loss), first try teammates' rows
+      // (they were often ingested via a different path and have real outcomes),
+      // then fall back to team-score comparison which is always reliable.
+      let effectiveOutcome = my.outcome;
+      if (effectiveOutcome !== 2 && effectiveOutcome !== 3) {
+        const matchRows = byMatch[my.match_id] || [];
+        // 1) Teammate with a real outcome
+        const teammateRow = matchRows.find(r =>
+          r.xuid !== my.xuid &&
+          r.team_id != null && r.team_id === my.team_id &&
+          (r.outcome === 2 || r.outcome === 3)
+        );
+        if (teammateRow) {
+          effectiveOutcome = teammateRow.outcome;
+        } else {
+          // 2) Score comparison across teams
+          const teamScores = {};
+          for (const r of matchRows) {
+            const tid = r.team_id != null ? r.team_id : -1;
+            teamScores[tid] = (teamScores[tid] || 0) + (r.score || 0);
+          }
+          const myTid = my.team_id != null ? my.team_id : -1;
+          const myScore = teamScores[myTid] || 0;
+          const oppMax = Math.max(0, ...Object.entries(teamScores)
+            .filter(([t]) => parseInt(t) !== myTid)
+            .map(([, s]) => s));
+          if (myScore > oppMax) effectiveOutcome = 2;
+          else if (myScore < oppMax) effectiveOutcome = 3;
+          else effectiveOutcome = my.outcome; // genuine draw or no data
+        }
+      }
+
       matches.push({
         matchId: my.match_id,
-        outcome: my.outcome,
+        outcome: effectiveOutcome,
         startTime: my.start_time ? new Date(my.start_time).toISOString() : null,
         duration: durationIso,
         durationSec: typeof my.duration_sec === 'number' ? my.duration_sec : null,
