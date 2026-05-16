@@ -100,11 +100,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 @media(max-width:768px){.mapexp-inner{grid-template-columns:1fr}.mapexp-img{display:none}.mapexp-stats-row{grid-template-columns:repeat(2,1fr);gap:10px}}
 @media(max-width:768px){.map-card-row{flex-wrap:wrap}.map-card-thumb{width:100% !important;height:90px}.map-card-stats{padding:10px 14px !important;flex-wrap:wrap;gap:12px !important}}
 .lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-@media(max-width:768px){.lobby-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.lobby-grid{grid-template-columns:1fr !important}}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
 .mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.mobile-tabbar{display:none;background:var(--surface);border-bottom:1px solid var(--border);z-index:199;padding:4px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.mobile-tabbar{display:none;position:sticky;top:48px;z-index:199;background:var(--surface);border-bottom:1px solid var(--border);padding:4px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
 .mobile-tabbar::-webkit-scrollbar{display:none}
 .mobile-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 10px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:52px}
 .mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap}
