@@ -1854,7 +1854,7 @@ app.get('/api/stats', async (req, res) => {
 // ── Leaderboard in-memory cache (2 min TTL) ──────────────────────────────────
 const _lbTabCache = {}; // per-tab cache: { csrArena: { data, ts }, ... }
 const LB_CACHE_TTL = 5 * 60 * 1000; // 5 min server-side per tab
-const VALID_LB_TABS = new Set(['csrArena', 'csrSlayer', 'csrLegacy', 'kd', 'winRate']);
+const VALID_LB_TABS = new Set(['csrArena', 'csrSlayer', 'csrLegacy', 'csrDoubles', 'kd', 'winRate']);
 
 app.get('/api/leaderboard', async (req, res) => {
   try {

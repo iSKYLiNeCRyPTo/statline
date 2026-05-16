@@ -203,7 +203,7 @@ async function savePlayerSnapshot(player) {
     const csr = player.csr || {};
     // Keys must match the display names from halo.js csrResults (NOT snake_case).
     // Ranked Arena is the authoritative competitive metric — always preferred.
-    const PREFERRED = ['Ranked Arena', 'Ranked Slayer', 'Ranked Legacy'];
+    const PREFERRED = ['Ranked Arena', 'Ranked Slayer', 'Ranked Legacy', 'Ranked Doubles'];
     let primaryPlaylist = null, csrTier = null, csrSubtier = null, csrValue = null;
 
     for (const pl of PREFERRED) {
@@ -560,7 +560,7 @@ async function markRefreshAttempt(xuid, gamertag, currentMatchesPlayed) {
 async function getLeaderboardData(limit = 100000) {
   try {
     const db = await getDb();
-    if (!db) return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [] };
+    if (!db) return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [], csrDoubles: [] };
 
     // One row per player (most recent snapshot only), filtered for quality
     // kd < 2 and win_rate < 85 filter out obvious stat manipulators / cheaters
@@ -588,25 +588,27 @@ async function getLeaderboardData(limit = 100000) {
       LIMIT $1
     `;
 
-    // Run all 5 queries in parallel — previously kd+winRate were sequential
-    const [kdRes, wrRes, arenaRes, slayerRes, legacyRes] = await Promise.all([
+    // Run all queries in parallel
+    const [kdRes, wrRes, arenaRes, slayerRes, legacyRes, doublesRes] = await Promise.all([
       db.query(`SELECT * FROM (${base}) t WHERE kd IS NOT NULL ORDER BY kd DESC LIMIT $1`, [limit]),
       db.query(`SELECT * FROM (${base}) t WHERE win_rate IS NOT NULL AND matches_played >= 50 ORDER BY win_rate DESC LIMIT $1`, [limit]),
-      db.query(csrPlaylistQuery('Ranked Arena'),  [limit]),
-      db.query(csrPlaylistQuery('Ranked Slayer'), [limit]),
-      db.query(csrPlaylistQuery('Ranked Legacy'), [limit]),
+      db.query(csrPlaylistQuery('Ranked Arena'),   [limit]),
+      db.query(csrPlaylistQuery('Ranked Slayer'),  [limit]),
+      db.query(csrPlaylistQuery('Ranked Legacy'),  [limit]),
+      db.query(csrPlaylistQuery('Ranked Doubles'), [limit]),
     ]);
 
     return {
-      kd:         kdRes.rows,
-      winRate:    wrRes.rows,
-      csrArena:   arenaRes.rows,
-      csrSlayer:  slayerRes.rows,
-      csrLegacy:  legacyRes.rows,
+      kd:          kdRes.rows,
+      winRate:     wrRes.rows,
+      csrArena:    arenaRes.rows,
+      csrSlayer:   slayerRes.rows,
+      csrLegacy:   legacyRes.rows,
+      csrDoubles:  doublesRes.rows,
     };
   } catch(e) {
     console.error('[DB] getLeaderboardData error:', e.message);
-    return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [] };
+    return { kd: [], winRate: [], csrArena: [], csrSlayer: [], csrLegacy: [], csrDoubles: [] };
   }
 }
 
@@ -645,6 +647,8 @@ async function getLeaderboardTab(tab, limit = 100000) {
       res = await db.query(csrPlaylistQuery('Ranked Slayer'), [limit]);
     } else if (tab === 'csrLegacy') {
       res = await db.query(csrPlaylistQuery('Ranked Legacy'), [limit]);
+    } else if (tab === 'csrDoubles') {
+      res = await db.query(csrPlaylistQuery('Ranked Doubles'), [limit]);
     } else {
       res = await db.query(csrPlaylistQuery('Ranked Arena'), [limit]);
     }
