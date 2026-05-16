@@ -934,14 +934,20 @@ function render(){
     // Subtle glow behind score
     html+='<div style="position:absolute;left:-20px;top:50%;transform:translateY(-50%);width:160px;height:160px;border-radius:50%;background:'+_tierHex+';opacity:0.06;filter:blur(40px);pointer-events:none"></div>';
     // Left: score block
-    html+='<div style="display:flex;align-items:center;gap:20px">';
-    html+='<div>';
+    html+='<div style="flex:1;min-width:0">';
     html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px;margin-bottom:6px">FRAGR SCORE</div>';
     html+='<div style="font-family:Rajdhani,sans-serif;font-size:64px;font-weight:700;line-height:1;color:'+_tierHex+';letter-spacing:-2px">'+_career+'</div>';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px">';
     html+='<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:'+_tierHex+';letter-spacing:1.5px">'+_tier.toUpperCase()+'</div>';
     html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2)">· '+_fsMatches.length+' ranked matches</div>';
-    html+='</div></div></div>';
+    html+='</div>';
+    // Stats row
+    html+='<div style="display:flex;gap:20px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">';
+    html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1">'+_avgKda+'</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">KDA</div></div>';
+    if(_avgAcc!=null){html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1">'+_avgAcc+'%</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">ACC</div></div>';}
+    html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:'+(_wr>=55?'var(--win)':_wr<=45?'var(--loss)':'var(--gold)')+';line-height:1">'+_wr+'%</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">WIN RATE</div></div>';
+    html+='</div>';
+    html+='</div>';
     // Right: share button
     html+='<button onclick="openFragrShare()" style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border2);color:var(--muted);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:1px;transition:all 0.15s;white-space:nowrap" onmouseover="this.style.borderColor=\''+_tierHex+'\';this.style.color=\''+_tierHex+'\'" onmouseout="this.style.borderColor=\'var(--border2)\';this.style.color=\'var(--muted)\'">';
     html+='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
