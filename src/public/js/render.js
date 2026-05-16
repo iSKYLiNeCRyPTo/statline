@@ -931,7 +931,7 @@ function render(){
     window._fragrScoreData={score:_career,tier:_tier,tierHex:_tierHex,gamertag:p.gamertag,kda:_avgKda,accuracy:_avgAcc,winRate:_wr,matches:_fsMatches.length};
     // ── Display: clean, proprietary — just the number ──
     var _bgIdx=Math.floor(Math.random()*5);
-    var _bgUrl='desktop'+_bgIdx+'.png';
+    var _bgUrl='desktop'+_bgIdx+'.jpg';
     html+='<div style="background:var(--surface);background-image:url('+_bgUrl+');background-size:cover;background-position:right center;background-repeat:no-repeat;border:1px solid var(--border2);border-radius:10px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;overflow:hidden">';
     // Dark overlay so text stays readable (fades left-to-right revealing the art)
     html+='<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,13,23,0.72) 0%,rgba(6,13,23,0.45) 55%,rgba(6,13,23,0.1) 100%);pointer-events:none;border-radius:10px"></div>';
