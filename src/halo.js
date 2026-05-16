@@ -895,16 +895,16 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           const hasZones = !!myPstats.ZonesStats, hasOddball = !!myPstats.OddballStats;
           const isKothByName = ugcLower.includes('king of the hill') || ugcLower.includes('koth') || ugcLower.includes('hill');
 
-          if (catNum === 14) gameMode = (isRankedLegacy ? 'Ranked Legacy: ' : isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'King of the Hill';
-          else if (catNum === 20) gameMode = (isRankedLegacy ? 'Ranked Legacy: ' : isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'Land Grab';
-          else if (catNum === 11) gameMode = (isRankedLegacy ? 'Ranked Legacy: ' : isRanked && !isRankedSlayer ? 'Ranked Arena: ' : '') + 'Strongholds';
-          else if (isKothByName) gameMode = isRankedLegacy ? 'Ranked Legacy: King of the Hill' : isRanked && !isRankedSlayer ? 'Ranked Arena: King of the Hill' : 'King of the Hill';
+          // Helper: prefix for objective modes (Arena gets "Ranked Arena: ", Doubles/Slayer just get name)
+          const _arenaPrefix = isRankedLegacy ? 'Ranked Legacy: ' : (isRanked && !isRankedSlayer && !isRankedDoubles ? 'Ranked Arena: ' : '');
+
+          if (catNum === 14) gameMode = _arenaPrefix + 'King of the Hill';
+          else if (catNum === 20) gameMode = _arenaPrefix + 'Land Grab';
+          else if (catNum === 11) gameMode = _arenaPrefix + 'Strongholds';
+          else if (isKothByName) gameMode = _arenaPrefix + 'King of the Hill';
           else if (hasZones && !hasOddball && (catNum === 12 || catNum === 18)) {
             const z = myPstats.ZonesStats;
-            const prefix = isRankedLegacy ? 'Ranked Legacy: ' : (isRanked&&!isRankedSlayer?'Ranked Arena: ':'');
-            gameMode = ((z.StrongholdCaptures??0)>0||(z.StrongholdSecures??0)>0)
-              ? prefix+'Strongholds'
-              : prefix+'King of the Hill';
+            gameMode = _arenaPrefix + (((z.StrongholdCaptures??0)>0||(z.StrongholdSecures??0)>0) ? 'Strongholds' : 'King of the Hill');
           } else if (ugcName) {
             gameMode = ugcName.replace(/^Arena:\s*/i,'').replace(/:/g,' ').replace(/\s+/g,' ').trim();
             if (isRanked) {
@@ -917,10 +917,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             }
           } else {
             gameMode = (isRanked ? 'Ranked ' : '') + (MODE_NAMES[catNum] || 'Mode ' + catNum);
-            if (isRankedLegacy) gameMode = 'Ranked Legacy: ' + gameMode.replace(/^Ranked\s+/i,'');
-            else if (isRanked && !isRankedSlayer && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
-            else if (isRanked && isRankedDoubles) gameMode = 'Ranked Doubles';
-            else if (isRanked && isRankedSlayer) gameMode = 'Ranked Slayer';
+            if (isRankedDoubles) gameMode = 'Ranked Doubles';
+            else if (isRankedLegacy) gameMode = 'Ranked Legacy: ' + gameMode.replace(/^Ranked\s+/i,'');
+            else if (isRankedSlayer) gameMode = 'Ranked Slayer';
+            else if (isRanked && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
           }
           gameMode = (gameMode||'').replace(/Capture the Flag (\d+) Captures?/gi,'CTF $1').replace(/Capture the Flag/gi,'CTF').trim();
         } catch(e) { gameMode = (isRanked?'Ranked ':'') + (MODE_NAMES[catNum]||'Unknown'); }
