@@ -2,6 +2,22 @@
 var _compareData = null;
 var _compareMe   = null; // locked at open-time so globals changing later can't corrupt it
 
+// Returns the active compare panel — tab panel when on compare tab, overlay otherwise
+function _getCmpPanel() {
+  var tabPanel = document.getElementById('cmpTabPanel');
+  if (tabPanel && tabPanel.closest('.tab-panel.active')) return tabPanel;
+  return _getCmpPanel();
+}
+
+// Initialise compare in the tab (called by setTab('compare'))
+function _initCompareTab() {
+  var p = getAllPlayers()[selectedPlayer] || (data && data.players && data.players[0]);
+  if (!p) return;
+  _compareMe = p;
+  _compareData = null;
+  _renderCompareSearch();
+}
+
 function openCompare() {
   var p = getAllPlayers()[selectedPlayer] || (data && data.players && data.players[0]);
   if (!p) return;
@@ -22,7 +38,7 @@ function closeCompare() {
 }
 
 function _renderCompareSearch() {
-  var panel = document.getElementById('cmpPanel');
+  var panel = _getCmpPanel();
   if (!panel) return;
   var me = _compareMe;
   if (!me) return;
@@ -62,7 +78,7 @@ async function _doFetchCompare() {
   if (!inp) return;
   var gt = inp.value.trim();
   if (!gt) return;
-  var panel = document.getElementById('cmpPanel');
+  var panel = _getCmpPanel();
   if (!panel) return;
 
   panel.innerHTML =
@@ -256,7 +272,7 @@ function _objBreakdown(matches) {
 // ── Main render ───────────────────────────────────────────────────────────────
 
 function _renderComparison() {
-  var panel = document.getElementById('cmpPanel');
+  var panel = _getCmpPanel();
   if (!panel || !_compareData) return;
 
   var me   = _compareMe;

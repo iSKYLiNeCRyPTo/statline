@@ -594,17 +594,21 @@ function renderLastGamePage(p, allMatches) {
   // ── Your performance cards ───────────────────────────────────────────────
   html += sectionHead('YOUR PERFORMANCE', m.placement != null ? 'ranked #' + m.placement + ' on scoreboard' : null);
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px">';
-  html += statCard('KILLS',   m.kills);
-  html += statCard('DEATHS',  m.deaths);
+  var killsClass  = m.kills > m.deaths ? 'win' : m.kills < m.deaths ? 'loss' : '';
+  var deathsClass = m.deaths > m.kills ? 'loss' : m.deaths < m.kills ? 'win' : '';
+  html += statCard('KILLS',   m.kills,  killsClass);
+  html += statCard('DEATHS',  m.deaths, deathsClass);
   html += statCard('ASSISTS', m.assists);
-  html += statCard('KDA', m.kda, myKDA >= 1.5 ? 'win' : myKDA < 0.8 ? 'loss' : '');
+  html += statCard('KDA', m.kda, myKDA >= 1 ? 'win' : 'loss');
   if (myAcc != null) html += statCard('ACCURACY', myAcc.toFixed(1) + '%', myAcc >= 50 ? 'win' : myAcc < 35 ? 'loss' : '');
   if (m.weaponStats && m.weaponStats.headshots != null && m.kills > 0) {
     var hsRate = (m.weaponStats.headshots / m.kills * 100).toFixed(0);
     html += statCard('HEADSHOT %', hsRate + '%', parseInt(hsRate) >= 40 ? 'win' : '');
   }
-  if (m.damageDealt) html += statCard('DMG DEALT',  m.damageDealt.toLocaleString());
-  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), null, m.damageTakenEstimated ? 'est.' : null);
+  var dmgDealtClass = (m.damageDealt && m.damageTaken != null) ? (m.damageDealt > m.damageTaken ? 'win' : m.damageDealt < m.damageTaken ? 'loss' : '') : '';
+  var dmgTakenClass = (m.damageDealt && m.damageTaken != null) ? (m.damageTaken > m.damageDealt ? 'loss' : m.damageTaken < m.damageDealt ? 'win' : '') : '';
+  if (m.damageDealt) html += statCard('DMG DEALT', m.damageDealt.toLocaleString(), dmgDealtClass);
+  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), dmgTakenClass, m.damageTakenEstimated ? 'est.' : null);
   if (m.damageDealt && m.damageTaken) {
     var dmgRatio = (m.damageDealt / Math.max(m.damageTaken, 1)).toFixed(2);
     html += statCard('DMG RATIO', dmgRatio, parseFloat(dmgRatio) >= 1.1 ? 'win' : parseFloat(dmgRatio) < 0.9 ? 'loss' : '', 'dealt÷taken');
@@ -888,10 +892,11 @@ function renderLastGamePage(p, allMatches) {
 // ── COMPARE ──────────────────────────────────────────────────────────────────
 // Opens the existing full-screen compare overlay — it already handles everything
 function renderComparePage(p) {
-  return '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh;gap:20px;text-align:center;padding:40px 20px">'
-    + '<div style="font-family:Rajdhani,sans-serif;font-size:48px;font-weight:700;color:var(--muted2);letter-spacing:8px">VS</div>'
-    + '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted2);letter-spacing:1px">PLAYER COMPARISON</div>'
-    + '<button onclick="openCompare()" style="margin-top:8px;background:var(--accent);border:none;color:var(--bg);padding:12px 32px;border-radius:6px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:2px;transition:opacity 0.15s" onmouseover="this.style.opacity=\'0.85\'" onmouseout="this.style.opacity=\'1\'">OPEN COMPARE</button>'
-    + '<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);max-width:320px;line-height:1.6">Search any gamertag for a side-by-side breakdown of K/D, CSR, win rate, accuracy, and more</div>'
+  // Render a container that the compare functions write into, then init on next tick
+  setTimeout(function() {
+    if (typeof _initCompareTab === 'function') _initCompareTab();
+  }, 0);
+  return '<div id="cmpTabPanel" style="padding:20px 16px;min-height:300px">'
+    + '<div style="text-align:center;padding:60px 20px;color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px">LOADING…</div>'
     + '</div>';
 }

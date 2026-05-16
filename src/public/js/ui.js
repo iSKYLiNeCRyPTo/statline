@@ -319,7 +319,7 @@ function setTab(t){
     if(_cp&&_cp.gamertag) loadFullMatches(_cp.gamertag);
   }
   if(t==='charts'||t==='synergy') setTimeout(resolveSynergyGamertags, 150);
-  if(t==='compare'&&typeof openCompare==='function') setTimeout(openCompare, 0);
+  if(t==='compare'&&typeof _initCompareTab==='function') setTimeout(_initCompareTab, 0);
 
   // Last Game — start live polling when on tab, stop when leaving
   if(t==='lastgame'){
