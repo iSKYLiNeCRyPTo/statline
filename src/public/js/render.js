@@ -876,29 +876,7 @@ function render(){
     +'<div><div class="hero-kd-val">'+s.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div>'
     +'</div>'
     +'</div>';
-  // Stat row — moved up directly below hero
-  var _formCount=window.innerWidth<768?14:10;
-  var streak=0,streakChar='';
-  for(var si=0;si<matches.length;si++){var mo=matches[si].outcome;if(si===0){streakChar=mo===2?'W':mo===3?'L':'D';}var mc=mo===2?'W':mo===3?'L':'D';if(mc===streakChar)streak++;else break;}
-  var streakDots=matches.slice(0,_formCount).map(function(m){var oc=m.outcome===2?'w':m.outcome===3?'l':'d';var lbl=m.outcome===2?'W':m.outcome===3?'L':'D';return'<div class="streak-dot '+oc+'">'+lbl+'</div>';}).join('');
-  function _drSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
-  var _dmgMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_drSecs(m)>=180;});
-  var totalDealt=_dmgMatches.reduce(function(a,m){return a+(m.damageDealt||0);},0);
-  var totalTaken=_dmgMatches.reduce(function(a,m){return a+(m.damageTaken||0);},0);
-  var dmgRatio=totalTaken>0?(totalDealt/totalTaken).toFixed(2):'—';
-  var dmgRatioColor=parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)';
-  html+='<div class="stat-row">'
-    +statCard('Kills',s.kills.toLocaleString(),'',s.avgKillsPerGame+' per game')
-    +statCard('Deaths',s.deaths.toLocaleString(),'','')
-    +statCard('Assists',s.assists.toLocaleString(),'','')
-    +statCard('KDA',s.kda,'accent','')
-    +statCard('Accuracy',s.accuracy!==null?s.accuracy+'%':'N/A','','')
-    +'<div class="stat-card" style="cursor:pointer;transition:border-color 0.15s" onmouseenter="this.style.borderColor=\'var(--gold)\'" onmouseleave="this.style.borderColor=\'\'" onclick="document.getElementById(\'_medals_modal\').style.display=\'flex\'" title="Click to view all medals"><div class="stat-label">Total Medals</div><div class="stat-value" style="color:var(--gold)">'+s.totalMedals.toLocaleString()+'</div><div class="stat-sub">view all ↗</div></div>'
-    +'<div class="stat-card"><div class="stat-label">Damage Ratio</div><div class="stat-value" style="color:'+dmgRatioColor+'">'+dmgRatio+'</div><div class="stat-sub">dealt / taken</div></div>'
-    +'<div class="stat-card"><div class="stat-label">Current Form</div><div class="stat-value" style="font-size:22px">'+(streakChar==='W'?'<span style="color:var(--win)">'+streak+'W</span>':streakChar==='L'?'<span style="color:var(--loss)">'+streak+'L</span>':'<span style="color:var(--muted)">'+streak+'D</span>')+'</div><div class="streak-dots">'+streakDots+'</div></div>'
-    +'</div>';
-
-  // ── Fragr Score ────────────────────────────────────────────────────────────
+  // ── Fragr Score — second thing after hero card ────────────────────────────
   (function(){
     var _clamp=function(v,lo,hi){return v<lo?lo:v>hi?hi:v;};
     function _matchFragr(m){
@@ -933,7 +911,6 @@ function render(){
     var _bgIdx=Math.floor(Math.random()*2);
     var _bgMobIdx=Math.floor(Math.random()*5)+1;
     var _bgUrl=_isDesktop?('desktop'+_bgIdx+'.jpg'):('mobile'+_bgMobIdx+'.jpg');
-    var _bgPos=_isDesktop?'right center':'right center';
     html+='<div style="background:var(--surface);background-image:url('+_bgUrl+');background-size:cover;background-position:right center;background-repeat:no-repeat;border:1px solid var(--border2);border-radius:10px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;overflow:hidden">';
     // Dark overlay — heavy left for text, fades to lighter right to reveal art
     html+='<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,13,23,0.92) 0%,rgba(6,13,23,0.80) 38%,rgba(6,13,23,0.40) 62%,rgba(6,13,23,0.10) 100%);pointer-events:none;border-radius:10px"></div>';
@@ -958,6 +935,28 @@ function render(){
     html+='SHARE</button>';
     html+='</div>';
   })();
+
+  // Stat row
+  var _formCount=window.innerWidth<768?14:10;
+  var streak=0,streakChar='';
+  for(var si=0;si<matches.length;si++){var mo=matches[si].outcome;if(si===0){streakChar=mo===2?'W':mo===3?'L':'D';}var mc=mo===2?'W':mo===3?'L':'D';if(mc===streakChar)streak++;else break;}
+  var streakDots=matches.slice(0,_formCount).map(function(m){var oc=m.outcome===2?'w':m.outcome===3?'l':'d';var lbl=m.outcome===2?'W':m.outcome===3?'L':'D';return'<div class="streak-dot '+oc+'">'+lbl+'</div>';}).join('');
+  function _drSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+  var _dmgMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_drSecs(m)>=180;});
+  var totalDealt=_dmgMatches.reduce(function(a,m){return a+(m.damageDealt||0);},0);
+  var totalTaken=_dmgMatches.reduce(function(a,m){return a+(m.damageTaken||0);},0);
+  var dmgRatio=totalTaken>0?(totalDealt/totalTaken).toFixed(2):'—';
+  var dmgRatioColor=parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)';
+  html+='<div class="stat-row">'
+    +statCard('Kills',s.kills.toLocaleString(),'',s.avgKillsPerGame+' per game')
+    +statCard('Deaths',s.deaths.toLocaleString(),'','')
+    +statCard('Assists',s.assists.toLocaleString(),'','')
+    +statCard('KDA',s.kda,'accent','')
+    +statCard('Accuracy',s.accuracy!==null?s.accuracy+'%':'N/A','','')
+    +'<div class="stat-card" style="cursor:pointer;transition:border-color 0.15s" onmouseenter="this.style.borderColor=\'var(--gold)\'" onmouseleave="this.style.borderColor=\'\'" onclick="document.getElementById(\'_medals_modal\').style.display=\'flex\'" title="Click to view all medals"><div class="stat-label">Total Medals</div><div class="stat-value" style="color:var(--gold)">'+s.totalMedals.toLocaleString()+'</div><div class="stat-sub">view all ↗</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Damage Ratio</div><div class="stat-value" style="color:'+dmgRatioColor+'">'+dmgRatio+'</div><div class="stat-sub">dealt / taken</div></div>'
+    +'<div class="stat-card"><div class="stat-label">Current Form</div><div class="stat-value" style="font-size:22px">'+(streakChar==='W'?'<span style="color:var(--win)">'+streak+'W</span>':streakChar==='L'?'<span style="color:var(--loss)">'+streak+'L</span>':'<span style="color:var(--muted)">'+streak+'D</span>')+'</div><div class="streak-dots">'+streakDots+'</div></div>'
+    +'</div>';
 
   // Career rank cards: desktop shows inside hero, mobile shows standalone below stats
   if(!_isDesktop&&(careerCardHtml||csrHtml))html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
