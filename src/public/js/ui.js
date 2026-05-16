@@ -321,6 +321,25 @@ function setTab(t){
   }
   if(t==='charts'||t==='synergy') setTimeout(resolveSynergyGamertags, 150);
   if(t==='compare'&&typeof _initCompareTab==='function') setTimeout(_initCompareTab, 0);
+  // Activity: fetch extended timestamps (up to 1000 matches) for better heatmap
+  if(t==='activity'){
+    var _actGt=(getAllPlayers()[selectedPlayer]||searchData||{}).gamertag||'';
+    if(_actGt&&!window._activityTimesLoaded){
+      fetch('/api/activity-times?gamertag='+encodeURIComponent(_actGt))
+        .then(function(r){return r.json();})
+        .then(function(d){
+          if(d.ok&&d.times&&d.times.length){
+            window._activityExtraTimes=d.times;
+            window._activityTimesLoaded=true;
+            // Re-render activity tab with the extra data
+            var p2=getAllPlayers()[selectedPlayer]||searchData||{};
+            var am2=p2.allMatches||p2.recentMatches||[];
+            var panel=document.querySelector('.tab-panel[data-tab="activity"]');
+            if(panel) panel.innerHTML=renderActivityPage(p2,am2,window._activityExtraTimes);
+          }
+        }).catch(function(){});
+    }
+  }
 
   // Last Game — start live polling when on tab, stop when leaving
   if(t==='lastgame'){

@@ -6,6 +6,7 @@ async function doSearch(gt, isRefresh, force){
   stopAutoRefresh(); // cancel any existing poller before starting a new search
   hideLanding();
   expandedMatches={}; // clear any open match cards from the previous search
+  window._activityExtraTimes=null; window._activityTimesLoaded=false; // reset per-player activity cache
   // desktopTabBar replaced by sidebar on desktop; keep hidden
   var cb=document.getElementById('clearSearchBtn');if(cb)cb.style.display='inline';
   document.getElementById('searchInput').value=gt;

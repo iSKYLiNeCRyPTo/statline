@@ -2713,7 +2713,7 @@ function render(){
 
   // Activity tab
   html+='<div class="tab-panel'+(activeTab==='activity'?' active':'')+'" data-tab="activity">';
-  if(typeof renderActivityPage==='function') html+=renderActivityPage(p, allMatches);
+  if(typeof renderActivityPage==='function') html+=renderActivityPage(p, allMatches, window._activityExtraTimes||[]);
   else html+='<div style="padding:2rem;color:var(--muted)">Activity data loading...</div>';
   html+='</div>';
 

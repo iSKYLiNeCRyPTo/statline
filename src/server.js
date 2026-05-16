@@ -6,7 +6,7 @@ const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
 const recoveryQueue = require('./recoveryQueue');
 const adminAuth = require('./auth');
@@ -999,6 +999,23 @@ app.get('/api/search', rateLimit, async (req, res) => {
 // if a new match is found so the next /api/search call gets fresh data.
 const _latestMatchCheckCache = {}; // gamertag.lower -> { matchId, checkedAt }
 const LATEST_CHECK_TTL = 60000;    // don't hammer Waypoint — reuse result for 60s
+// Lightweight activity times — just timestamps, up to 1000 matches
+app.get('/api/activity-times', async (req, res) => {
+  try {
+    const { gamertag } = req.query;
+    if (!gamertag) return res.json({ ok: false, times: [] });
+    const key = gamertag.toLowerCase().trim();
+    const entry = searchCache[key];
+    const xuid = entry && entry.data && entry.data.xuid;
+    if (!xuid) return res.json({ ok: false, times: [] });
+    const times = await getActivityTimes(xuid, 1000);
+    res.json({ ok: true, times });
+  } catch (e) {
+    console.error('[activity-times]', e.message);
+    res.json({ ok: false, times: [] });
+  }
+});
+
 app.get('/api/latest-match', async (req, res) => {
   try {
     const { gamertag } = req.query;

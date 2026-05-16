@@ -180,7 +180,7 @@ function renderSessionsPage(p, allMatches) {
 }
 
 // ── ACTIVITY ─────────────────────────────────────────────────────────────────
-function renderActivityPage(p, allMatches) {
+function renderActivityPage(p, allMatches, extraTimes) {
   if (!allMatches || !allMatches.length) {
     return '<div class="empty-state"><div class="empty-state-icon">◎</div><div class="empty-state-msg">No activity data</div><div class="empty-state-sub">Load more match history to see activity</div></div>';
   }
@@ -188,6 +188,9 @@ function renderActivityPage(p, allMatches) {
   var hourCounts = new Array(24).fill(0);
   var dayCounts  = new Array(7).fill(0);
   var modeCounts = {}, mapCounts = {}, mapWins = {};
+
+  // Extra timestamps (ISO strings) from the lightweight endpoint for hour/day/heatmap
+  var extraTimestamps = Array.isArray(extraTimes) ? extraTimes : [];
 
   allMatches.forEach(function(m) {
     if (m.startTime) {
@@ -226,12 +229,12 @@ function renderActivityPage(p, allMatches) {
   // ── Hour of day + Day of week + Playlists — three columns ───────────────
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:20px">';
 
-  // Hour of day
+  // Hour of day — spans 2 cols so bars fit without scrolling
   var maxHour = Math.max.apply(null, hourCounts) || 1;
-  var chartH = 72, chartPad = 4;
-  var barW = 14, barGap = 3, totalW = 24 * (barW + barGap) - barGap;
+  var chartH = 80, chartPad = 4;
+  var barW = 18, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
   var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px 12px;overflow-x:auto">';
+  html += '<div style="grid-column:span 2;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px 12px;overflow-x:auto">';
   html += sectionHead('Hour of Day', 'when you queue up');
   var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgViewW + '" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" style="display:block;min-width:' + svgViewW + 'px">';
   hourCounts.forEach(function(c, h) {
@@ -292,9 +295,17 @@ function renderActivityPage(p, allMatches) {
   (function() {
     // Build block map: "dateKey:block" → count  (block 0=12a-6a, 1=6a-12p, 2=12p-6p, 3=6p-12a)
     var blockMap = {}, daySet = {};
-    allMatches.forEach(function(m) {
-      if (!m.startTime) return;
-      var d = new Date(m.startTime);
+    // Combine allMatches start times with extra lightweight timestamps
+    var allTimes = allMatches.map(function(m){ return m.startTime; }).filter(Boolean);
+    extraTimestamps.forEach(function(t){ if(t) allTimes.push(t); });
+    // Dedupe by rounding to minute to avoid double-counting overlapping data
+    var seenMin = {};
+    allTimes = allTimes.filter(function(t){
+      var k = Math.floor(new Date(t).getTime()/60000);
+      if(seenMin[k]) return false; seenMin[k]=true; return true;
+    });
+    allTimes.forEach(function(t) {
+      var d = new Date(t);
       var block = Math.floor(d.getHours() / 6);
       var dk = d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
       blockMap[dk+':'+block] = (blockMap[dk+':'+block]||0)+1;
@@ -303,7 +314,7 @@ function renderActivityPage(p, allMatches) {
     var activeDays = Object.keys(daySet).length;
     if (!activeDays) return;
 
-    var totalGames2 = allMatches.length;
+    var totalGames2 = allTimes.length;
     var now = new Date(); now.setHours(23,59,59,0);
 
     // Show last 7 days
@@ -481,11 +492,11 @@ function renderWeaponsPage(p, allMatches) {
       var v = hsRates[i];
       var h2 = Math.max((v/maxHs)*52, v>0?2:0);
       var x = i*(600/hsTrend.length);
-      var c = v>=35?'var(--gold)':v>=20?'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.8)':'rgba(133,183,235,0.35)';
+      var c = v>=50?'var(--gold)':v>=30?'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),0.8)':'rgba(133,183,235,0.35)';
       html += '<rect x="'+x.toFixed(1)+'" y="'+(56-h2).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h2.toFixed(1)+'" fill="'+c+'" rx="1"><title>'+v.toFixed(1)+'% · '+(m.mapName||'')+'</title></rect>';
     });
     html += '</svg>';
-    if (avgHsR !== null) html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:4px">avg '+avgHsR.toFixed(1)+'% · gold = 35%+</div>';
+    if (avgHsR !== null) html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:4px">avg '+avgHsR.toFixed(1)+'% · gold = 50%+</div>';
     html += '</div>';
   }
 

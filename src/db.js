@@ -1484,4 +1484,19 @@ async function lookupXuidByGamertag(gamertag) {
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness };
+// Lightweight: just start_times for activity heatmap (no full match objects)
+async function getActivityTimes(xuid, limit = 1000) {
+  const db = await getDb();
+  const r = await db.query(
+    `SELECT DISTINCT ON (match_id) start_time
+     FROM match_participants
+     WHERE xuid = $1 AND start_time IS NOT NULL
+       AND is_custom IS NOT TRUE
+     ORDER BY match_id, start_time DESC
+     LIMIT $2`,
+    [String(xuid), limit]
+  );
+  return r.rows.map(row => row.start_time);
+}
+
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness };
