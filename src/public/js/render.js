@@ -680,10 +680,10 @@ function render(){
   var allMatches=_rawMatches;
   var displayMatches=_rawMatches;
   var filtered=displayMatches;
-  // Last 100 ranked games — used for all non-lifetime stats
-  // If fewer than 100 ranked games exist, fall back to last 100 games of any type
+  // Use ranked-only stats if we found 40+ ranked games within the 150-match scan window.
+  // Below that threshold, fall back to all game types (quickplay/social included).
   var _allRanked=_rawMatches.filter(function(m){return m.isRanked;});
-  var _usingRankedOnly=_allRanked.length>=100;
+  var _usingRankedOnly=_allRanked.length>=40;
   var statMatches=_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100);
   var _statLabel=_usingRankedOnly?'ranked games':'games';
   // Compute nemeses/victims/teammates from current match data
@@ -943,7 +943,7 @@ function render(){
     html+='<div style="font-family:Rajdhani,sans-serif;font-size:64px;font-weight:700;line-height:1;color:'+_tierHex+';letter-spacing:-2px;text-shadow:0 0 24px '+_tierHex+'88,0 2px 8px rgba(0,0,0,0.9)">'+_career+'</div>';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px">';
     html+='<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:'+_tierHex+';letter-spacing:1.5px;text-shadow:0 1px 6px rgba(0,0,0,0.8)">'+_tier.toUpperCase()+'</div>';
-    html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);text-shadow:0 1px 4px rgba(0,0,0,0.8)">· '+_fsMatches.length+' ranked matches</div>';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);text-shadow:0 1px 4px rgba(0,0,0,0.8)">· '+_fsMatches.length+' '+(_usingRankedOnly?'ranked ':'')+'matches</div>';
     html+='</div>';
     // Stats row
     html+='<div style="display:flex;gap:20px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">';

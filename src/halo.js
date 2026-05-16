@@ -742,19 +742,19 @@ async function fetchPlayerStats(gamertag) {
 
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
 async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null, stopAtMatchId = null) {
-  const RANKED_TARGET = 100; // stop as soon as we have this many ranked games — enough for all stats
-  const TOTAL_TARGET  = 250; // fallback cap for players with few ranked games (social-heavy players)
+  const RANKED_TARGET = 40;  // stop early once we have this many ranked games
+  const TOTAL_TARGET  = 150; // hard scan cap — after 150 raw matches, use whatever we have
   const BATCH    = 25;   // matches per API call (API max is 25)
-  const MAX_SCAN = 1000; // give up after scanning this many raw matches
+  const MAX_SCAN = 150;  // never scan more than 150 raw matches total
 
   const headers = getAuthHeaders();
   const rivalStats = {};   // keyed by rawXuid — resolved to gamertag later
   const results = [];
   const pendingTracking = [];
 
-  // Stop as soon as we hit 100 ranked OR 250 total valid — whichever comes first.
-  // This prevents over-scanning for players who mostly play ranked (where 100 ranked
-  // might be reached at match 105 but TARGET=250 would scan all the way to 250).
+  // Stop as soon as we hit 40 ranked OR have scanned 150 total raw matches.
+  // If <40 ranked are found within 150 games, render.js falls back to all game types
+  // (including quickplay) so players without ranked history still get a Fragr Score.
   const _rankedCount = () => results.filter(r => r.isRanked).length;
   const _validCount  = () => results.filter(r => !r.isCustom).length;
   const _isDone      = () => _rankedCount() >= RANKED_TARGET || _validCount() >= TOTAL_TARGET;
