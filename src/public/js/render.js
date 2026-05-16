@@ -2702,39 +2702,6 @@ function render(){
       html+='</div>';
     }
 
-    // ── FREQUENT TEAMMATES ──────────────────────────────────────────────────
-    if(_topMates.length){
-      html+=sectionHead('Frequent Teammates','players on your side most often');
-      html+='<div style="'+_cardGrid+'">';
-      _topMates.forEach(function(r){
-        var _rFav=isFavorite(r.gamertag);
-        var _gtQ=r.gamertag.replace(/"/g,'&quot;');
-        var wr=r.games>0?Math.round(r.wins/r.games*100):0;
-        var wrColor=wr>=60?'var(--win)':wr<=40?'var(--loss)':'var(--gold)';
-        var _winPct=r.games>0?Math.round(r.wins/r.games*100):50;
-        var _starSvg=_rFav
-          ?'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
-          :'<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-        html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:border-color 0.15s,background 0.15s;display:flex;flex-direction:column" '
-          +'onmouseenter="this.style.borderColor=\'var(--accent)\';this.style.background=\'var(--surface2)\'" '
-          +'onmouseleave="this.style.borderColor=\'\';this.style.background=\'var(--surface)\'" '
-          +'onclick="quickSearch(\''+r.gamertag.replace(/'/g,"\\'")+'\')"> '
-          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
-          +rivalAvatar(r,44)
-          +'<span onclick="event.stopPropagation();toggleFav(this.dataset.gt)" data-gt="'+_gtQ+'" style="cursor:pointer;color:#ffc107;opacity:'+(_rFav?'1':'0.28')+';padding:2px;line-height:1">'+_starSvg+'</span>'
-          +'</div>'
-          +'<div style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px">'+r.gamertag+'</div>'
-          +'<div style="font-size:9px;color:var(--accent);font-family:Share Tech Mono,monospace;margin-bottom:10px">'+r.games+' games together</div>'
-          // Win bar
-          +'<div style="height:5px;border-radius:3px;overflow:hidden;background:var(--surface3);margin-bottom:5px">'
-          +'<div style="height:100%;width:'+_winPct+'%;background:var(--win)"></div>'
-          +'</div>'
-          +'<div style="font-size:9px;color:'+wrColor+';font-family:Share Tech Mono,monospace">'+wr+'% win rate together · '+r.wins+'W/'+r.losses+'L</div>'
-          +'</div>';
-      });
-      html+='</div>';
-    }
-
   })();
   html+='</div>'; // end opponents tab
 
