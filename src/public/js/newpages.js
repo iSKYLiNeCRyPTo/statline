@@ -162,20 +162,34 @@ function renderActivityPage(p, allMatches) {
   if (topMap)  html += statCard('Top Map', topMap[0], '', topMap[1]+' games played');
   html += '</div>';
 
-  // ── Hour of day chart ────────────────────────────────────────────────────
+  // ── Hour of day chart (SVG so heights are pixel-exact) ───────────────────
   var maxHour = Math.max.apply(null, hourCounts) || 1;
   html += sectionHead('Hour of Day', 'when you queue up');
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px">';
-  html += '<div style="display:flex;align-items:flex-end;gap:2px;height:64px">';
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px">';
+  var chartH = 72, chartPad = 4;
+  var barW = 14, barGap = 3, totalW = 24 * (barW + barGap) - barGap;
+  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 ' + (totalW + chartPad*2) + ' ' + (chartH + 18) + '" style="display:block;overflow:visible">';
   hourCounts.forEach(function(c, h) {
-    var pct = c / maxHour * 100;
+    var barH = c ? Math.max(4, Math.round(c / maxHour * chartH)) : 0;
+    var x = chartPad + h * (barW + barGap);
+    var y = chartH - barH;
     var isPeak = h === peakHour;
-    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
-    html += '<div title="'+(h===0?'12 AM':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM')+' · '+c+' games" style="width:100%;height:'+Math.max(pct,c?3:0)+'%;background:'+(isPeak?'var(--accent)':'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+(0.25+pct/100*0.65)+')')+';border-radius:2px 2px 0 0;min-height:'+(c?2:0)+'px;transition:opacity 0.15s" onmouseover="this.style.opacity=\'0.7\'" onmouseout="this.style.opacity=\'1\'"></div>';
-    html += '</div>';
+    var label = h===0?'12 AM':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM';
+    var opacity = isPeak ? 1 : (0.25 + (c / maxHour) * 0.65);
+    var fill = isPeak ? 'var(--accent)' : 'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),' + opacity.toFixed(2) + ')';
+    if (barH > 0) {
+      svgHour += '<rect x="' + x + '" y="' + y + '" width="' + barW + '" height="' + barH + '" rx="2" fill="' + fill + '"><title>' + label + ' · ' + c + ' game' + (c!==1?'s':'') + '</title></rect>';
+    } else {
+      svgHour += '<rect x="' + x + '" y="' + (chartH-2) + '" width="' + barW + '" height="2" rx="1" fill="rgba(255,255,255,0.05)"></rect>';
+    }
+    // Hour labels every 3 hours
+    if (h % 3 === 0) {
+      var lbl = h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';
+      svgHour += '<text x="' + (x + barW/2) + '" y="' + (chartH + 14) + '" text-anchor="middle" font-family="Share Tech Mono,monospace" font-size="8" fill="rgba(133,183,235,0.45)">' + lbl + '</text>';
+    }
   });
-  html += '</div>';
-  html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);margin-top:6px;padding:0 1px"><span>12a</span><span>3a</span><span>6a</span><span>9a</span><span>12p</span><span>3p</span><span>6p</span><span>9p</span></div>';
+  svgHour += '</svg>';
+  html += svgHour;
   html += '</div>';
 
   // ── Day of week + Playlists side by side ─────────────────────────────────
@@ -226,7 +240,12 @@ function renderActivityPage(p, allMatches) {
     if (keys.length < 3) return;
     var now = new Date(); now.setHours(23,59,59,0);
     var oldest = keys.reduce(function(mn,k){var p=k.split('-');var t=new Date(+p[0],+p[1]-1,+p[2]).getTime();return t<mn?t:mn;},Infinity);
-    var rangeStart = new Date(Math.max(oldest, now.getTime()-26*7*86400000));
+    // Show at least 12 weeks, at most the full data span + 2 weeks padding
+    var dataSpanMs = now.getTime() - oldest;
+    var minSpanMs = 12*7*86400000;
+    var maxSpanMs = 52*7*86400000;
+    var spanMs = Math.min(Math.max(dataSpanMs + 14*86400000, minSpanMs), maxSpanMs);
+    var rangeStart = new Date(Math.max(oldest - 7*86400000, now.getTime() - spanMs));
     var startDate = new Date(rangeStart);
     startDate.setDate(startDate.getDate()-startDate.getDay());
     var weeks=[], cur=new Date(startDate);
@@ -246,9 +265,15 @@ function renderActivityPage(p, allMatches) {
     var sortedTs=keys.map(function(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime();}).sort(function(a,b){return a-b;});
     var bestSt=1,curSt=1;
     for(var si=1;si<sortedTs.length;si++){if(sortedTs[si]-sortedTs[si-1]===86400000){curSt++;if(curSt>bestSt)bestSt=curSt;}else curSt=1;}
-    var cellSz=11,cellGap=2,step=cellSz+cellGap,leftPad=22,topPad=16;
+    var cellSz=14,cellGap=3,step=cellSz+cellGap,leftPad=24,topPad=18;
     var svgW=leftPad+weeks.length*step+4, svgH=topPad+7*step+4;
-    function heatColor(n){if(!n)return'var(--surface3)';if(n===1)return'rgba(56,138,221,0.28)';if(n<=3)return'rgba(56,138,221,0.52)';if(n<=5)return'rgba(56,138,221,0.76)';return'rgba(56,138,221,0.95)';}
+    var maxCount=Math.max.apply(null,Object.values(dayMap))||1;
+    function heatColor(n){
+      if(!n)return'rgba(255,255,255,0.04)';
+      var intensity=Math.min(n/Math.max(maxCount*0.8,1),1);
+      var a=(0.2+intensity*0.8).toFixed(2);
+      return'rgba(var(--accent-r,56),var(--accent-g,138),var(--accent-b,221),'+a+')';
+    }
     var svgBody='';
     var DAY_LBLS=['S','M','T','W','T','F','S'];
     [1,3,5].forEach(function(di){svgBody+='<text x="'+(leftPad-3)+'" y="'+(topPad+di*step+cellSz*0.75)+'" text-anchor="end" font-family="Share Tech Mono,monospace" font-size="7" fill="rgba(133,183,235,0.45)">'+DAY_LBLS[di]+'</text>';});
