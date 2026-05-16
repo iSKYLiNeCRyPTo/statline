@@ -308,12 +308,8 @@ function renderActivityPage(p, allMatches) {
     var totalGames2 = allMatches.length;
     var now = new Date(); now.setHours(23,59,59,0);
 
-    // Show at least 90 days, extend to cover oldest data + padding, max 365 days
-    var oldest = Object.keys(daySet).reduce(function(mn,k){
-      var p=k.split('-'); var t=new Date(+p[0],+p[1]-1,+p[2]).getTime(); return t<mn?t:mn;
-    }, Infinity);
-    var dataSpanMs = now.getTime() - oldest;
-    var spanMs = Math.min(Math.max(dataSpanMs + 7*86400000, 90*86400000), 365*86400000);
+    // Show last 7 days
+    var spanMs = 7 * 86400000;
     var rangeStart = new Date(now.getTime() - spanMs);
     rangeStart.setHours(0,0,0,0);
 
@@ -371,8 +367,7 @@ function renderActivityPage(p, allMatches) {
       }
     });
 
-    var spanDays = Math.round(spanMs/86400000);
-    html += sectionHead('Activity Heatmap', Math.round(spanDays/30)+' months · 6h blocks');
+    html += sectionHead('Activity Heatmap', '7 days · 6h blocks');
     html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:24px">';
     html += '<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px">';
     html += '<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--text)">'+totalGames2+'</div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">GAMES LOGGED</div></div>';
