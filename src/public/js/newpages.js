@@ -1043,9 +1043,22 @@ function renderLastGamePage(p, allMatches) {
       if (tier==='Onyx') return 3000 + (val||0);
       return (bases[tier]||0) + ((parseInt(sub)||1)-1)*100 + 50;
     }
-    function csrLbl(tier, sub) {
+    function csrLbl(tier, sub, val) {
       if (!tier) return '?';
-      return tier==='Onyx' ? 'Onyx' : tier + ' ' + (sub||'');
+      if (tier==='Onyx') return val ? 'Onyx ' + val : 'Onyx';
+      return tier + ' ' + (sub||'');
+    }
+    function csrLblFromNum(n) {
+      if (n == null) return '?';
+      if (n >= 3000) return 'Onyx ' + (n - 3000);
+      var tiers = [{name:'Diamond',base:2400},{name:'Platinum',base:1800},{name:'Gold',base:1200},{name:'Silver',base:600},{name:'Bronze',base:0}];
+      for (var i=0; i<tiers.length; i++) {
+        if (n >= tiers[i].base) {
+          var sub = Math.floor((n - tiers[i].base) / 100) + 1;
+          return tiers[i].name + ' ' + Math.min(sub, 6);
+        }
+      }
+      return 'Bronze 1';
     }
     var allLobby = [];
     m.teams.forEach(function(t){ (t.players||[]).forEach(function(pl){ allLobby.push(pl); }); });
@@ -1070,10 +1083,10 @@ function renderLastGamePage(p, allMatches) {
       html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:8px">RANK COMPARISON</div>';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">';
       html += '<div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-bottom:3px">LOBBY AVG</div>';
-      html += '<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text)">' + csrLbl(lobbyCsrTierFromNum(lobbyAvg), '') + '</div></div>';
+      html += '<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text)">' + csrLblFromNum(lobbyAvg) + '</div></div>';
       html += '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+diffColor+'">'+diffLabel+'</div>';
       html += '<div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-bottom:3px">YOU</div>';
-      html += '<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--accent)">' + csrLbl(myRow.csrTier, myRow.csrSubTier) + '</div></div>';
+      html += '<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--accent)">' + csrLbl(myRow.csrTier, myRow.csrSubTier, myRow.csrValue) + '</div></div>';
       html += '</div>';
       // Progress bar showing relative position
       if (myNum != null) {
