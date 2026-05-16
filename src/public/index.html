@@ -102,9 +102,10 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
 .mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.mobile-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom))}
-.mobile-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 1px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:0}
-.mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.mobile-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom));overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.mobile-tabbar::-webkit-scrollbar{display:none}
+.mobile-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 10px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:52px}
+.mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap}
 .mobile-tab.active{color:var(--accent)}
 .mobile-tabbar{display:none;/* hidden on desktop */}
 
@@ -343,7 +344,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .cmd-layout{grid-template-columns:1fr}
   .sidebar{transform:translateX(-100%);transition:transform 0.25s ease;width:220px;max-width:80vw}
   .sidebar.open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,0.5)}
-  .cmd-main{margin-left:0 !important;width:100vw !important;transition:none}
+  .cmd-main{margin-left:0 !important;width:100vw !important;transition:none;padding-bottom:72px}
   .cmd-content{padding:10px;width:100%;overflow-x:hidden;box-sizing:border-box}
   .sidebar-toggle{display:block}
   .mobile-tabbar{display:flex}
@@ -527,7 +528,6 @@ body.on-landing .sidebar{display:none !important}
     <text x="35" y="19" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="19" fill="var(--text)">fragr</text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" id="mobileCompareBtn" onclick="openCompare()" title="Compare players" style="display:none;font-size:11px;font-family:Share Tech Mono,monospace;width:auto;padding:0 8px;letter-spacing:.5px;display:none;align-items:center;gap:4px"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="3" x2="21" y2="21"/><path d="m14.5 9.5-5 5"/><path d="M3 21 12 12"/><path d="M12 12 21 3"/></svg>VS</button>
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
@@ -656,7 +656,6 @@ body.on-landing .sidebar{display:none !important}
           <button class="search-btn" onclick="searchPlayer()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
           <div class="suggest-dropdown" id="suggestDropdown"></div>
         </div>
-        <button id="compareBtn" onclick="openCompare()" title="Compare players" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);padding:0 11px;height:30px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;letter-spacing:1px;white-space:nowrap;transition:all 0.15s;align-items:center;gap:5px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><line x1="3" y1="3" x2="21" y2="21"/><path d="m14.5 9.5-5 5"/><path d="M3 21 12 12"/><path d="M12 12 21 3"/></svg> VS</button>
       </div>
     </div>
     <!-- Desktop tab navigation -->
@@ -755,10 +754,16 @@ body.on-landing .sidebar{display:none !important}
 <!-- Mobile bottom tab bar -->
 <nav class="mobile-tabbar">
   <div class="mobile-tab active" data-tab="overview" onclick="setTab('overview')"><span>◈</span><span class="mobile-tab-label">Overview</span></div>
+  <div class="mobile-tab" data-tab="lastgame" onclick="setTab('lastgame')"><span>◎</span><span class="mobile-tab-label">Last Game</span></div>
   <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
+  <div class="mobile-tab" data-tab="sessions" onclick="setTab('sessions')"><span>◷</span><span class="mobile-tab-label">Sessions</span></div>
   <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">Maps</span></div>
   <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Stats</span></div>
+  <div class="mobile-tab" data-tab="weapons" onclick="setTab('weapons')"><span>◆</span><span class="mobile-tab-label">Weapons</span></div>
   <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
+  <div class="mobile-tab" data-tab="activity" onclick="setTab('activity')"><span>◎</span><span class="mobile-tab-label">Activity</span></div>
+  <div class="mobile-tab" data-tab="synergy" onclick="setTab('synergy')"><span>⊕</span><span class="mobile-tab-label">Synergy</span></div>
+  <div class="mobile-tab" data-tab="compare" onclick="setTab('compare')"><span>⊞</span><span class="mobile-tab-label">Compare</span></div>
   <a href="/leaderboard.html" class="mobile-tab" style="text-decoration:none;color:inherit"><span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span><span class="mobile-tab-label">Leaderboard</span></a>
 </nav>
 
