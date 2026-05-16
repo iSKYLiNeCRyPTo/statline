@@ -216,14 +216,25 @@ function renderActivityPage(p, allMatches, extraTimes) {
 
   var hourLabel  = peakHour === 0 ? '12 AM' : peakHour < 12 ? peakHour+' AM' : peakHour===12 ? '12 PM' : (peakHour-12)+' PM';
 
+  // Strip playlist prefixes for compact display
+  function shortMode(m) {
+    return (m||'').replace(/^(Arena|Legacy|Ranked):\s*/i,'').replace(/^Ranked\s+/i,'');
+  }
+
   var html = '';
 
-  // Summary cards
+  // Summary cards — use compact inline cards to handle long values
+  function summaryCard(label, value, sub) {
+    return '<div class="stat-card"><div class="stat-label">'+label+'</div>'
+      +'<div class="stat-value accent" style="font-size:clamp(14px,2.2vw,26px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+value+'">'+value+'</div>'
+      +(sub?'<div class="stat-sub">'+sub+'</div>':'')+'</div>';
+  }
+
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-bottom:24px">';
-  html += statCard('Peak Hour', hourLabel, 'accent', 'most games played');
-  html += statCard('Peak Day', dayNames[peakDay], 'accent', dayCounts[peakDay]+' games');
-  if (topMode) html += statCard('Top Playlist', topMode[0], '', Math.round(topMode[1]/totalGames*100)+'% of games');
-  if (topMap)  html += statCard('Top Map', topMap[0], '', topMap[1]+' games played');
+  html += summaryCard('Peak Hour', hourLabel, 'most games played');
+  html += summaryCard('Peak Day', dayNames[peakDay], dayCounts[peakDay]+' games');
+  if (topMode) html += summaryCard('Top Playlist', shortMode(topMode[0]), Math.round(topMode[1]/totalGames*100)+'% of games');
+  if (topMap)  html += summaryCard('Top Map', topMap[0], topMap[1]+' games played');
   html += '</div>';
 
   // ── Hour of day + Day of week + Playlists — three columns ───────────────
@@ -232,7 +243,7 @@ function renderActivityPage(p, allMatches, extraTimes) {
   // Hour of day — spans 2 cols so bars fit without scrolling
   var maxHour = Math.max.apply(null, hourCounts) || 1;
   var chartH = 80, chartPad = 4;
-  var barW = 18, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
+  var barW = 20, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
   var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
   html += '<div style="grid-column:span 2;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px 12px;overflow-x:auto">';
   html += sectionHead('Hour of Day', 'when you queue up');
