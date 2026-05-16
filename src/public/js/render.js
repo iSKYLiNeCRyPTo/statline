@@ -897,6 +897,90 @@ function render(){
     +'<div class="stat-card"><div class="stat-label">Damage Ratio</div><div class="stat-value" style="color:'+dmgRatioColor+'">'+dmgRatio+'</div><div class="stat-sub">dealt / taken</div></div>'
     +'<div class="stat-card"><div class="stat-label">Current Form</div><div class="stat-value" style="font-size:22px">'+(streakChar==='W'?'<span style="color:var(--win)">'+streak+'W</span>':streakChar==='L'?'<span style="color:var(--loss)">'+streak+'L</span>':'<span style="color:var(--muted)">'+streak+'D</span>')+'</div><div class="streak-dots">'+streakDots+'</div></div>'
     +'</div>';
+
+  // ── Fragr Score ────────────────────────────────────────────────────────────
+  // Per-match score computed then averaged for career score.
+  // Scale: 0–1000, baseline 500 = average ranked player.
+  (function(){
+    var _clamp=function(v,lo,hi){return v<lo?lo:v>hi?hi:v;};
+    function _matchFragr(m){
+      if(!m||m.kills==null) return null;
+      var score=500;
+      // KDA component (±175): primary combat signal
+      var kda=m.deaths>0?(m.kills+(m.assists||0)/3)/m.deaths:Math.min(m.kills+(m.assists||0)/3,4);
+      score+=_clamp((kda-1.0)*175,-175,175);
+      // Accuracy component (±75): shooting precision
+      if(m.accuracy!=null) score+=_clamp((parseFloat(m.accuracy)-50)*1.5,-75,75);
+      // Damage output component (±75): pressure & carry
+      if(m.damageDealt>0) score+=_clamp((m.damageDealt/4500-1)*75,-75,75);
+      // Headshot rate component (±50): execution quality
+      if(m.weaponStats&&m.weaponStats.headshots!=null&&m.kills>0){
+        var hsR=m.weaponStats.headshots/m.kills;
+        score+=_clamp((hsR-0.30)*166,-50,50);
+      }
+      // Win/Loss component (±125): outcome contribution
+      if(m.outcome===2) score+=125; else if(m.outcome===3) score-=125;
+      return _clamp(Math.round(score),0,1000);
+    }
+    // Use ranked W/L matches with min 3 min duration for quality
+    function _dur(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+    var _fsMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_dur(m)>=180;});
+    if(_fsMatches.length<3) return;
+    var _scores=_fsMatches.map(_matchFragr).filter(function(v){return v!=null;});
+    if(!_scores.length) return;
+    var _career=Math.round(_scores.reduce(function(s,v){return s+v;},0)/_scores.length);
+    // Component averages for breakdown
+    var _kdas=_fsMatches.map(function(m){return m.deaths>0?(m.kills+(m.assists||0)/3)/m.deaths:Math.min(m.kills+(m.assists||0)/3,4);});
+    var _avgKda=_kdas.reduce(function(s,v){return s+v;},0)/_kdas.length;
+    var _accMs=_fsMatches.filter(function(m){return m.accuracy!=null;});
+    var _avgAcc=_accMs.length?_accMs.reduce(function(s,m){return s+parseFloat(m.accuracy);},0)/_accMs.length:null;
+    var _dmgMs=_fsMatches.filter(function(m){return m.damageDealt>0;});
+    var _avgDmg=_dmgMs.length?_dmgMs.reduce(function(s,m){return s+m.damageDealt;},0)/_dmgMs.length:null;
+    var _hsMs=_fsMatches.filter(function(m){return m.weaponStats&&m.weaponStats.headshots!=null&&m.kills>0;});
+    var _avgHs=_hsMs.length?_hsMs.reduce(function(s,m){return s+m.weaponStats.headshots/m.kills*100;},0)/_hsMs.length:null;
+    var _wins=_fsMatches.filter(function(m){return m.outcome===2;}).length;
+    var _wr=Math.round(_wins/_fsMatches.length*100);
+    // Tier label
+    var _tier=_career>=850?'Elite':_career>=750?'Expert':_career>=650?'Proficient':_career>=550?'Skilled':_career>=450?'Contender':'Recruit';
+    var _tierColor=_career>=850?'#5bf0ff':_career>=750?'#a78bfa':_career>=650?'#50b0ff':_career>=550?'var(--win)':_career>=450?'var(--muted)':'var(--loss)';
+    // Breakdown deltas
+    function _delta(v,base,scale,cap){return _clamp(Math.round((v-base)*scale),-cap,cap);}
+    var _dKda=_clamp(Math.round((_avgKda-1.0)*175),-175,175);
+    var _dAcc=_avgAcc!=null?_clamp(Math.round((_avgAcc-50)*1.5),-75,75):null;
+    var _dDmg=_avgDmg!=null?_clamp(Math.round((_avgDmg/4500-1)*75),-75,75):null;
+    var _dHs=_avgHs!=null?_clamp(Math.round((_avgHs/100-0.30)*166),-50,50):null;
+    var _dWr=_clamp(Math.round((_wr/100-0.5)*250),-125,125);
+    function _dStr(v,cap){if(v==null)return'—';var pct=Math.round(Math.abs(v)/cap*100);var col=v>0?'var(--win)':v<0?'var(--loss)':'var(--muted2)';return'<span style="color:'+col+'">'+(v>0?'+':'')+v+'</span><span style="font-size:7px;color:var(--muted2);margin-left:2px">('+pct+'%)</span>';}
+    html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">';
+    // Left: big score
+    html+='<div style="text-align:center;min-width:90px">';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1.5px;margin-bottom:4px">FRAGR SCORE</div>';
+    html+='<div style="font-family:Rajdhani,sans-serif;font-size:52px;font-weight:700;line-height:1;color:'+_tierColor+'">'+_career+'</div>';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:'+_tierColor+';letter-spacing:1px;margin-top:4px">'+_tier.toUpperCase()+'</div>';
+    html+='</div>';
+    // Divider
+    html+='<div style="width:1px;height:60px;background:var(--border);flex-shrink:0"></div>';
+    // Right: component breakdown
+    html+='<div style="flex:1;min-width:200px">';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-bottom:8px">SCORE BREAKDOWN · '+_fsMatches.length+' ranked matches</div>';
+    html+='<div class="fragr-score-breakdown" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">';
+    var _comps=[
+      {lbl:'KDA',val:_avgKda.toFixed(2),d:_dStr(_dKda,175)},
+      {lbl:'ACCURACY',val:_avgAcc!=null?_avgAcc.toFixed(1)+'%':'—',d:_dStr(_dAcc,75)},
+      {lbl:'DAMAGE',val:_avgDmg!=null?Math.round(_avgDmg).toLocaleString():'—',d:_dStr(_dDmg,75)},
+      {lbl:'HEADSHOTS',val:_avgHs!=null?_avgHs.toFixed(0)+'%':'—',d:_dStr(_dHs,50)},
+      {lbl:'WIN RATE',val:_wr+'%',d:_dStr(_dWr,125)}
+    ];
+    _comps.forEach(function(c){
+      html+='<div style="background:var(--surface2);border-radius:6px;padding:6px 8px">';
+      html+='<div style="font-family:Share Tech Mono,monospace;font-size:7px;color:var(--muted2);letter-spacing:.5px;margin-bottom:3px">'+c.lbl+'</div>';
+      html+='<div style="font-family:Rajdhani,sans-serif;font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px">'+c.val+'</div>';
+      html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px">'+c.d+'</div>';
+      html+='</div>';
+    });
+    html+='</div></div></div>';
+  })();
+
   // Career rank cards: desktop shows inside hero, mobile shows standalone below stats
   if(!_isDesktop&&(careerCardHtml||csrHtml))html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
 
