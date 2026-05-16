@@ -238,12 +238,12 @@ function renderActivityPage(p, allMatches, extraTimes) {
   html += '</div>';
 
   // ── Hour of day + Day of week + Playlists — three columns ───────────────
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:20px">';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(286px,1fr));gap:16px;margin-bottom:20px">';
 
   // Hour of day — spans 2 cols so bars fit without scrolling
   var maxHour = Math.max.apply(null, hourCounts) || 1;
   var chartH = 80, chartPad = 4;
-  var barW = 20, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
+  var barW = 18, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
   var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
   html += '<div style="grid-column:span 2;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px 12px;overflow-x:auto">';
   html += sectionHead('Hour of Day', 'when you queue up');
