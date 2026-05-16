@@ -851,7 +851,13 @@ function renderLastGamePage(p, allMatches) {
         }
 
         html += '<div style="' + rowStyle + '">';
-        html += '<span style="color:' + (isMe ? 'var(--accent)' : 'var(--text)') + ';font-weight:' + (isMe ? '700' : '400') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + pl.gamertag + (isMe ? ' ←' : '') + csrBadge + '</span>';
+        var nameEl;
+        if (isMe) {
+          nameEl = '<span style="color:var(--accent);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + pl.gamertag + ' ←' + csrBadge + '</span>';
+        } else {
+          nameEl = '<span onclick="doSearch(\'' + pl.gamertag.replace(/'/g,"\\'") + '\')" style="color:var(--text);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(133,183,235,0.3);text-underline-offset:2px" title="Search ' + pl.gamertag.replace(/"/g,'&quot;') + '">' + pl.gamertag + csrBadge + '</span>';
+        }
+        html += nameEl;
         html += '<span style="text-align:center;color:var(--text)">'     + (pl.kills  || 0) + '</span>';
         html += '<span style="text-align:center;color:var(--muted)">'    + (pl.deaths || 0) + '</span>';
         html += '<span style="text-align:center;color:var(--muted)">'    + (pl.assists|| 0) + '</span>';
