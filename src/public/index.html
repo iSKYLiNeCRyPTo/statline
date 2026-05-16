@@ -905,13 +905,13 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   //   Score cx: 310   gamertag y: 90    score y: 340   tier y: 400   stats y: 490
 
   var cx       = isMobile ? 310  : 690;
-  var gtY      = isMobile ? 90   : 192;   // gamertag — just inside top of frame
-  var scoreY   = isMobile ? 340  : 368;   // big number — centered in frame
-  var tierY    = isMobile ? 400  : 418;
-  var divY     = isMobile ? 422  : 440;
-  var statsY   = isMobile ? 478  : 492;
-  var statsLY  = isMobile ? 502  : 516;
-  var scoreFs  = isMobile ? '700 170px' : '700 190px';
+  var gtY      = isMobile ? 90   : 185;   // gamertag — just inside top of frame
+  var scoreY   = isMobile ? 340  : 380;   // big number — plenty of room below tag
+  var tierY    = isMobile ? 400  : 430;
+  var divY     = isMobile ? 422  : 452;
+  var statsY   = isMobile ? 478  : 506;
+  var statsLY  = isMobile ? 502  : 530;
+  var scoreFs  = isMobile ? '700 170px' : '700 175px';
   // Stats spread: mobile panel x 45–620, desktop full frame x 320–960
   var statL    = isMobile ? 55   : 320;
   var statR    = isMobile ? 620  : 960;
@@ -965,14 +965,13 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   ctx.fillText(d.tier.toUpperCase(), cx, tierY);
   ctx.restore();
 
-  // --- Divider — same width as stats spread ---
+  // --- Divider — spans the full stats area ---
   ctx.save();
   ctx.strokeStyle = d.tierHex + '55';
   ctx.lineWidth = 1;
-  var divHalf = (statR - statL) / 2;
   ctx.beginPath();
-  ctx.moveTo(cx - divHalf, divY);
-  ctx.lineTo(cx + divHalf, divY);
+  ctx.moveTo(statL, divY);
+  ctx.lineTo(statR, divY);
   ctx.stroke();
   ctx.restore();
 
