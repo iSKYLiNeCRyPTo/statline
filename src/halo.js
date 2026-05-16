@@ -881,10 +881,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
         const isRankedDoubles = matchPlaylistId === RANKED_DOUBLES_ID;
         isRanked = isRankedArena || isRankedSlayer || isRankedLegacy || isRankedDoubles;
-        if (!isRanked) {
-          results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'Filtered', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
-          continue;
-        }
+        // Non-ranked (quickplay/social) games are allowed through so players
+        // with no ranked games still see match history and a Fragr Score.
+        // render.js statMatches logic falls back to all games when <100 ranked exist.
 
         // Game mode
         try {
