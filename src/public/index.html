@@ -102,12 +102,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
 .mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.mobile-tabbar{display:none;position:sticky;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:200;padding:4px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.mobile-tabbar{display:none;background:var(--surface);border-bottom:1px solid var(--border);z-index:199;padding:4px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
 .mobile-tabbar::-webkit-scrollbar{display:none}
 .mobile-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 10px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:52px}
 .mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap}
 .mobile-tab.active{color:var(--accent)}
-.mobile-tabbar{display:none;/* hidden on desktop */}
 
 /* Topbar search/refresh */
 .last-updated{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted)}
@@ -530,6 +529,22 @@ body.on-landing .sidebar{display:none !important}
     <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
   </div>
 </div>
+
+<!-- Mobile bottom tab bar -->
+<nav class="mobile-tabbar">
+  <div class="mobile-tab active" data-tab="overview" onclick="setTab('overview')"><span>◈</span><span class="mobile-tab-label">Overview</span></div>
+  <div class="mobile-tab" data-tab="lastgame" onclick="setTab('lastgame')"><span>◎</span><span class="mobile-tab-label">Last Game</span></div>
+  <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
+  <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">Maps</span></div>
+  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Stats</span></div>
+  <div class="mobile-tab" data-tab="sessions" onclick="setTab('sessions')"><span>◷</span><span class="mobile-tab-label">Sessions</span></div>
+  <div class="mobile-tab" data-tab="activity" onclick="setTab('activity')"><span>◎</span><span class="mobile-tab-label">Activity</span></div>
+  <div class="mobile-tab" data-tab="weapons" onclick="setTab('weapons')"><span>⊕</span><span class="mobile-tab-label">Precision</span></div>
+  <div class="mobile-tab" data-tab="synergy" onclick="setTab('synergy')"><span>◆</span><span class="mobile-tab-label">Synergy</span></div>
+  <div class="mobile-tab" data-tab="compare" onclick="setTab('compare')"><span>⚔</span><span class="mobile-tab-label">Compare</span></div>
+  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
+  <a href="/leaderboard.html" class="mobile-tab" style="text-decoration:none;color:inherit"><span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span><span class="mobile-tab-label">Leaderboard</span></a>
+</nav>
 <!-- Compare overlay -->
 <div id="compareOverlay" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(5,8,14,0.97);flex-direction:column;overflow:hidden" onclick="if(event.target===this)closeCompare()">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
@@ -750,21 +765,6 @@ body.on-landing .sidebar{display:none !important}
   </div><!-- cmd-main -->
 </div><!-- cmd-layout -->
 
-<!-- Mobile bottom tab bar -->
-<nav class="mobile-tabbar">
-  <div class="mobile-tab active" data-tab="overview" onclick="setTab('overview')"><span>◈</span><span class="mobile-tab-label">Overview</span></div>
-  <div class="mobile-tab" data-tab="lastgame" onclick="setTab('lastgame')"><span>◎</span><span class="mobile-tab-label">Last Game</span></div>
-  <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
-  <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">Maps</span></div>
-  <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Stats</span></div>
-  <div class="mobile-tab" data-tab="sessions" onclick="setTab('sessions')"><span>◷</span><span class="mobile-tab-label">Sessions</span></div>
-  <div class="mobile-tab" data-tab="activity" onclick="setTab('activity')"><span>◎</span><span class="mobile-tab-label">Activity</span></div>
-  <div class="mobile-tab" data-tab="weapons" onclick="setTab('weapons')"><span>⊕</span><span class="mobile-tab-label">Precision</span></div>
-  <div class="mobile-tab" data-tab="synergy" onclick="setTab('synergy')"><span>◆</span><span class="mobile-tab-label">Synergy</span></div>
-  <div class="mobile-tab" data-tab="compare" onclick="setTab('compare')"><span>⚔</span><span class="mobile-tab-label">Compare</span></div>
-  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
-  <a href="/leaderboard.html" class="mobile-tab" style="text-decoration:none;color:inherit"><span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span><span class="mobile-tab-label">Leaderboard</span></a>
-</nav>
 
 <!-- Feedback / Contact modal -->
 <div id="feedbackModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box" onclick="if(event.target===this)closeFeedbackModal()">
