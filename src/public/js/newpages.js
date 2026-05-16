@@ -228,7 +228,8 @@ function renderActivityPage(p, allMatches) {
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px">';
   var chartH = 72, chartPad = 4;
   var barW = 14, barGap = 3, totalW = 24 * (barW + barGap) - barGap;
-  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 ' + (totalW + chartPad*2) + ' ' + (chartH + 18) + '" style="display:block;overflow:visible">';
+  var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
+  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" preserveAspectRatio="none" style="display:block">';
   hourCounts.forEach(function(c, h) {
     var barH = c ? Math.max(4, Math.round(c / maxHour * chartH)) : 0;
     var x = chartPad + h * (barW + barGap);
@@ -357,7 +358,8 @@ function renderActivityPage(p, allMatches) {
     if(bestSt>1)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">'+bestSt+' <span style="font-size:12px;color:var(--muted2)">days</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">BEST STREAK</div></div>';
     if(bestDayCount>=4)html+='<div><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--loss)">'+bestDayCount+' <span style="font-size:12px;color:var(--muted2)">games</span></div><div style="font-size:9px;color:var(--muted2);font-family:Share Tech Mono,monospace;letter-spacing:.8px">MOST IN A DAY</div></div>';
     html+='</div>';
-    html+='<div style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">'+svgBody+'</svg></div>';
+    html+='<div id="hm-scroll" style="overflow-x:auto"><svg xmlns="http://www.w3.org/2000/svg" width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block">'+svgBody+'</svg></div>';
+    html+='<script>setTimeout(function(){var e=document.getElementById("hm-scroll");if(e)e.scrollLeft=e.scrollWidth;},50);</script>';
     html+='<div style="display:flex;align-items:center;gap:5px;margin-top:10px"><span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">Less</span>';
     ['var(--surface3)','rgba(56,138,221,0.28)','rgba(56,138,221,0.52)','rgba(56,138,221,0.76)','rgba(56,138,221,0.95)'].forEach(function(c){html+='<div style="width:10px;height:10px;background:'+c+';border-radius:2px"></div>';});
     html+='<span style="font-size:8px;color:rgba(133,183,235,0.4);font-family:Share Tech Mono,monospace">More</span></div>';
@@ -654,10 +656,9 @@ function renderLastGamePage(p, allMatches) {
   // ── Your performance cards ───────────────────────────────────────────────
   html += sectionHead('YOUR PERFORMANCE', m.placement != null ? 'ranked #' + m.placement + ' on scoreboard' : null);
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px">';
-  var killsClass  = m.kills > m.deaths ? 'win' : m.kills < m.deaths ? 'loss' : '';
-  var deathsClass = m.deaths > m.kills ? 'loss' : m.deaths < m.kills ? 'win' : '';
+  var killsClass = m.kills > m.deaths ? 'win' : m.kills < m.deaths ? 'loss' : '';
   html += statCard('KILLS',   m.kills,  killsClass);
-  html += statCard('DEATHS',  m.deaths, deathsClass);
+  html += statCard('DEATHS',  m.deaths, 'loss');
   html += statCard('ASSISTS', m.assists);
   html += statCard('KDA', m.kda, myKDA >= 1 ? 'win' : 'loss');
   if (myAcc != null) html += statCard('ACCURACY', myAcc.toFixed(1) + '%', myAcc >= 50 ? 'win' : myAcc < 35 ? 'loss' : '');
@@ -665,13 +666,12 @@ function renderLastGamePage(p, allMatches) {
     var hsRate = (m.weaponStats.headshots / m.kills * 100).toFixed(0);
     html += statCard('HEADSHOT %', hsRate + '%', parseInt(hsRate) >= 40 ? 'win' : '');
   }
-  var dmgDealtClass = (m.damageDealt && m.damageTaken != null) ? (m.damageDealt > m.damageTaken ? 'win' : m.damageDealt < m.damageTaken ? 'loss' : '') : '';
-  var dmgTakenClass = (m.damageDealt && m.damageTaken != null) ? (m.damageTaken > m.damageDealt ? 'loss' : m.damageTaken < m.damageDealt ? 'win' : '') : '';
+  var dmgDealtClass = (m.damageDealt && m.damageTaken != null) ? (m.damageDealt > m.damageTaken ? 'win' : '') : '';
   if (m.damageDealt) html += statCard('DMG DEALT', m.damageDealt.toLocaleString(), dmgDealtClass);
-  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), dmgTakenClass, m.damageTakenEstimated ? 'est.' : null);
+  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), 'loss', m.damageTakenEstimated ? 'est.' : null);
   if (m.damageDealt && m.damageTaken) {
     var dmgRatio = (m.damageDealt / Math.max(m.damageTaken, 1)).toFixed(2);
-    html += statCard('DMG RATIO', dmgRatio, parseFloat(dmgRatio) >= 1.1 ? 'win' : parseFloat(dmgRatio) < 0.9 ? 'loss' : '', 'dealt÷taken');
+    html += statCard('DMG RATIO', dmgRatio, parseFloat(dmgRatio) >= 1 ? 'win' : 'loss', 'dealt÷taken');
   }
   if (m.shotsFired && m.shotsHit) html += statCard('SHOTS FIRED', m.shotsFired.toLocaleString(), null, m.shotsHit.toLocaleString() + ' hit');
   html += '</div>';
