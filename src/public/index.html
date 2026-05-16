@@ -904,13 +904,13 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   //   Dark panel occupies left ~55% (x 35–640 avg)  |  character on right
   //   Score cx: 310   gamertag y: 90    score y: 340   tier y: 400   stats y: 490
 
-  var cx       = isMobile ? 310  : 598;
-  var gtY      = isMobile ? 90   : 235;
-  var scoreY   = isMobile ? 340  : 432;
-  var tierY    = isMobile ? 400  : 478;
-  var divY     = isMobile ? 422  : 500;
-  var statsY   = isMobile ? 478  : 542;
-  var statsLY  = isMobile ? 502  : 562;
+  var cx       = isMobile ? 310  : 632;   // center of frame x:285–980
+  var gtY      = isMobile ? 90   : 212;   // just inside top of frame
+  var scoreY   = isMobile ? 340  : 422;   // visually centered in frame
+  var tierY    = isMobile ? 400  : 468;
+  var divY     = isMobile ? 422  : 490;
+  var statsY   = isMobile ? 478  : 534;
+  var statsLY  = isMobile ? 502  : 555;
   var scoreFs  = isMobile ? '700 170px' : '700 175px';
   // Stats spread: mobile panel x 45–620, desktop full frame x 320–960
   var statL    = isMobile ? 55   : 320;
@@ -918,16 +918,18 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
 
   // --- Dark tint over panel area so text pops ---
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.30)';
+  ctx.fillStyle = 'rgba(0,0,0,0.50)';
   if (isMobile) {
-    // left panel: x 35–640, y 35–720 (avg across mobile1-5)
     ctx.fillRect(35, 35, 605, 685);
   } else {
-    // desktop frame interior
-    ctx.roundRect ? ctx.roundRect(285, 155, 695, 420, 6) : ctx.fillRect(285, 155, 695, 420);
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(285, 155, 695, 420, 6);
+    } else {
+      ctx.rect(285, 155, 695, 420);
+    }
     ctx.fill();
   }
-  ctx.fill();
   ctx.restore();
 
   // --- Gamertag ---
@@ -1043,13 +1045,15 @@ function _fragrDoShare(socialUrl) {
   canvas.toBlob(function(blob) {
     var file = new File([blob], 'fragr-score.png', { type: 'image/png' });
 
-    // ── 1. Web Share API (mobile + Safari/Chrome desktop) ─────────────────
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    // ── 1. Web Share API — mobile devices only (iOS/Android)
+    // On macOS desktop navigator.share shows the system sheet (AirDrop/Mail) — not useful
+    var _isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (_isMobileDevice && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       navigator.share({
         title: (d ? d.gamertag : 'My') + ' Fragr Score',
         text: shareText,
         files: [file]
-      }).catch(function() {}); // user cancelled — do nothing
+      }).catch(function() {});
       return;
     }
 
