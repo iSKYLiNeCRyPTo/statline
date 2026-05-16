@@ -123,13 +123,16 @@ function renderSessionsPage(p, allMatches) {
 
     // ── Expanded match list ──────────────────────────────────────────────
     html += '<div id="'+expandId+'" style="display:'+(isFirst?'block':'none')+';border-top:1px solid var(--border)">';
+    // Scrollable wrapper for wide table on mobile
+    html += '<div style="overflow-x:auto">';
 
     // Column headers
-    var cols = '18px 1fr 110px 52px 52px 52px 52px 64px 64px';
-    html += '<div style="display:grid;grid-template-columns:'+cols+';padding:5px 16px;background:var(--surface3);font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;gap:6px">';
+    var cols = '18px minmax(120px,1fr) 70px 40px 40px 40px 46px 56px 70px';
+    var minTableW = '580px';
+    html += '<div style="display:grid;grid-template-columns:'+cols+';min-width:'+minTableW+';padding:5px 16px;background:var(--surface3);font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;gap:4px">';
     html += '<span></span><span>MAP · MODE</span><span style="text-align:center">RESULT</span>';
     html += '<span style="text-align:center">K</span><span style="text-align:center">D</span><span style="text-align:center">A</span>';
-    html += '<span style="text-align:center">ACC</span><span style="text-align:center">DAMAGE</span><span style="text-align:center">KDA / CSR</span>';
+    html += '<span style="text-align:center">ACC</span><span style="text-align:center">DMG</span><span style="text-align:center">KDA / CSR</span>';
     html += '</div>';
 
     matches.forEach(function(gm, gi) {
@@ -147,10 +150,10 @@ function renderSessionsPage(p, allMatches) {
 
       var rowBg = gi%2===0 ? 'var(--surface2)' : 'var(--surface)';
       var rowRadius = isLast ? 'border-radius:0 0 8px 8px' : '';
-      html += '<div style="display:grid;grid-template-columns:'+cols+';padding:8px 16px;background:'+rowBg+';font-family:Share Tech Mono,monospace;font-size:10px;align-items:center;gap:6px;'+rowRadius+'">';
+      html += '<div style="display:grid;grid-template-columns:'+cols+';min-width:'+minTableW+';padding:8px 16px;background:'+rowBg+';font-family:Share Tech Mono,monospace;font-size:10px;align-items:center;gap:4px;'+rowRadius+'">';
 
-      html += '<div style="width:7px;height:7px;border-radius:50%;background:'+outColor+'"></div>';
-      html += '<div>';
+      html += '<div style="width:7px;height:7px;border-radius:50%;background:'+outColor+';flex-shrink:0"></div>';
+      html += '<div style="min-width:0">';
       html += '<div style="color:var(--text);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(gm.mapName||'—')+'</div>';
       html += '<div style="color:var(--muted2);font-size:8px;margin-top:1px">'+modeShort+'</div>';
       html += '</div>';
@@ -168,6 +171,7 @@ function renderSessionsPage(p, allMatches) {
       html += '</div>';
     });
 
+    html += '</div>'; // end scroll wrapper
     html += '</div>'; // end expanded
     html += '</div>'; // end session card
   });
@@ -251,7 +255,7 @@ function renderActivityPage(p, allMatches) {
   html += '</div>';
 
   // ── Day of week + Playlists side by side ─────────────────────────────────
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:20px">';
 
   // Day of week
   var maxDay = Math.max.apply(null,dayCounts) || 1;
@@ -708,7 +712,7 @@ function renderLastGamePage(p, allMatches) {
   // ── Context comparison ───────────────────────────────────────────────────
   html += '<div style="margin-top:28px">';
   html += sectionHead('PERFORMANCE CONTEXT', 'this game vs your averages');
-  html += '<div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  html += '<div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">';
   contexts.forEach(function(ctx) {
     var avgKDA  = avgStat(ctx.matches, function(x){ return parseFloat(x.kda); });
     var avgAcc  = avgStat(ctx.matches, function(x){ return x.accuracy != null ? parseFloat(x.accuracy) : null; });
@@ -761,10 +765,12 @@ function renderLastGamePage(p, allMatches) {
       html += '<span style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2)">TEAM ' + (ti+1) + ' · ' + sorted.length + ' PLAYERS</span>';
       html += '</div>';
 
-      // Header
+      // Scrollable scoreboard wrapper for mobile
+      html += '<div style="overflow-x:auto">';
       var cols = '1fr 36px 36px 36px 52px 72px 60px';
-      html += '<div style="display:grid;grid-template-columns:' + cols + ';background:var(--surface3);border:1px solid var(--border);border-radius:4px 4px 0 0;padding:5px 10px;font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px">';
-      html += '<span>PLAYER</span><span style="text-align:center">K</span><span style="text-align:center">D</span><span style="text-align:center">A</span><span style="text-align:center">ACC</span><span style="text-align:center">DAMAGE</span><span style="text-align:center">KDA</span>';
+      var minScoreW = '420px';
+      html += '<div style="display:grid;grid-template-columns:' + cols + ';min-width:'+minScoreW+';background:var(--surface3);border:1px solid var(--border);border-radius:4px 4px 0 0;padding:5px 10px;font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px">';
+      html += '<span>PLAYER</span><span style="text-align:center">K</span><span style="text-align:center">D</span><span style="text-align:center">A</span><span style="text-align:center">ACC</span><span style="text-align:center">DMG</span><span style="text-align:center">KDA</span>';
       html += '</div>';
 
       sorted.forEach(function(pl, pi) {
@@ -775,6 +781,7 @@ function renderLastGamePage(p, allMatches) {
           isLast ? 'border-radius:0 0 4px 4px' : '',
           'border:1px solid var(--border);border-top:none',
           'display:grid;grid-template-columns:' + cols,
+          'min-width:' + minScoreW,
           'padding:7px 10px;align-items:center;font-family:Share Tech Mono,monospace;font-size:10px',
         ].filter(Boolean).join(';');
 
@@ -802,7 +809,8 @@ function renderLastGamePage(p, allMatches) {
         html += '<span style="text-align:center;color:' + kdaColor + ';font-weight:700">' + (plKda || '—') + '</span>';
         html += '</div>';
       });
-      html += '</div>';
+      html += '</div>'; // end scroll wrapper
+      html += '</div>'; // end team block
     });
     html += '</div>';
   }
