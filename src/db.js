@@ -1491,7 +1491,6 @@ async function getActivityTimes(xuid, limit = 1000) {
     `SELECT DISTINCT ON (match_id) start_time
      FROM match_participants
      WHERE xuid = $1 AND start_time IS NOT NULL
-       AND is_custom IS NOT TRUE
      ORDER BY match_id, start_time DESC
      LIMIT $2`,
     [String(xuid), limit]

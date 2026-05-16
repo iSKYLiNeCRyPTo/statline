@@ -1005,8 +1005,10 @@ app.get('/api/activity-times', async (req, res) => {
     const { gamertag } = req.query;
     if (!gamertag) return res.json({ ok: false, times: [] });
     const key = gamertag.toLowerCase().trim();
+    // Try searchCache first (various shapes), fall back to DB lookup
     const entry = searchCache[key];
-    const xuid = entry && entry.data && entry.data.xuid;
+    let xuid = (entry && (entry.xuid || (entry.data && entry.data.xuid))) || null;
+    if (!xuid) xuid = await lookupXuidByGamertag(gamertag).catch(() => null);
     if (!xuid) return res.json({ ok: false, times: [] });
     const times = await getActivityTimes(xuid, 1000);
     res.json({ ok: true, times });
