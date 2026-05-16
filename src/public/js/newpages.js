@@ -947,24 +947,24 @@ function renderLastGamePage(p, allMatches) {
     html += '<div style="margin-top:28px">';
     html += sectionHead('TEAM BREAKDOWN', 'your team vs opponents');
     html += '<div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">';
+    // Fixed colors: your team = accent blue, opponents = muted coral — never swap
+    var MY_COLOR  = 'var(--accent)';
+    var EN_COLOR  = 'rgba(220,100,80,0.75)';
     comparisons.forEach(function(row) {
       var total = (row.my||0) + (row.en||0) || 1;
       var myPct = (row.my||0) / total * 100;
       var enPct = (row.en||0) / total * 100;
-      // For deaths: fewer is better, so my "winning" means my value is lower
       var hb = row.higherBetter !== false;
       var myLeads = hb ? row.my >= row.en : row.my <= row.en;
-      var myBarColor = myLeads ? 'var(--win)' : 'var(--loss)';
-      var enBarColor = myLeads ? 'var(--loss)' : 'var(--win)';
       html += '<div>';
       html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">';
-      html += '<span style="color:'+(myLeads?'var(--win)':'var(--muted)')+'">YOUR TEAM · ' + row.fmt(row.my||0) + '</span>';
+      html += '<span style="color:'+(myLeads?MY_COLOR:'var(--muted)')+'">YOUR TEAM · ' + row.fmt(row.my||0) + '</span>';
       html += '<span style="letter-spacing:2px">' + row.label + '</span>';
-      html += '<span style="color:'+(!myLeads?'var(--win)':'var(--muted)')+'">OPPONENTS · ' + row.fmt(row.en||0) + '</span>';
+      html += '<span style="color:'+(!myLeads?EN_COLOR:'var(--muted)')+'">OPPONENTS · ' + row.fmt(row.en||0) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;height:10px;border-radius:3px;overflow:hidden;gap:2px">';
-      html += '<div style="width:'+myPct.toFixed(1)+'%;background:'+myBarColor+';border-radius:3px 0 0 3px;transition:width 0.4s ease"></div>';
-      html += '<div style="width:'+enPct.toFixed(1)+'%;background:'+enBarColor+';border-radius:0 3px 3px 0;transition:width 0.4s ease"></div>';
+      html += '<div style="width:'+myPct.toFixed(1)+'%;background:'+MY_COLOR+';border-radius:3px 0 0 3px;transition:width 0.4s ease"></div>';
+      html += '<div style="width:'+enPct.toFixed(1)+'%;background:'+EN_COLOR+';border-radius:0 3px 3px 0;transition:width 0.4s ease"></div>';
       html += '</div>';
       html += '</div>';
     });
