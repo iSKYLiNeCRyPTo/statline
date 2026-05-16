@@ -873,25 +873,20 @@ function openFragrShare() {
   canvas.width = W;
   canvas.height = H;
 
-  var _mob = window.innerWidth < 768;
-  var _bgSrc = _mob
-    ? ('mobile' + (Math.floor(Math.random() * 5) + 1) + '.jpg')
-    : 'sharecard.jpg';
-
-  // Load background image then draw everything on top
+  // Always use the same sharecard background regardless of device
   var bg = new Image();
   bg.onload = function() {
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(bg, 0, 0, W, H);
-    _drawFragrOverlay(ctx, W, H, d, _mob);
+    _drawFragrOverlay(ctx, W, H, d, false);
   };
   bg.onerror = function() {
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#060d17';
     ctx.fillRect(0, 0, W, H);
-    _drawFragrOverlay(ctx, W, H, d, _mob);
+    _drawFragrOverlay(ctx, W, H, d, false);
   };
-  bg.src = _bgSrc;
+  bg.src = 'sharecard.jpg';
 }
 
 function _drawFragrOverlay(ctx, W, H, d, isMobile) {
