@@ -246,9 +246,14 @@ function renderMatchDetail(m,matchCtx,modeBaselines,durSecs){
       var kd = me.deaths > 0 ? me.kills / me.deaths : me.kills;
       if (kd < 0.6 && me.deaths >= 8) insights.push(iCard(icoWarn,'High Death Count','You died '+me.deaths+'x with only '+me.kills+' kills. Focus on positioning — trade gunfights only when you have shield advantage or high ground.','var(--loss)'));
       if (me.kills > 0 && me.damage > 0) {
-        var dmgPerKill = me.damage / me.kills;
+        // Use kills+assists as the denominator — each assist represents damage you
+        // dealt in a fight you didn't finish, so dmg/kill alone would undercount
+        // your real damage output and misread cleanup kills as "efficiency".
+        var fightContribs = me.kills + Math.round((me.assists || 0) * 0.5);
+        var dmgPerFight = me.damage / Math.max(fightContribs, me.kills);
+        var dmgPerKill = me.damage / me.kills; // keep for cleanup check
         if (dmgPerKill > 800) insights.push(iCard(icoWarn,'Low Damage Efficiency',Math.round(dmgPerKill)+' dmg/kill — you\'re finishing enemies your teammates already weakened. Try to open fights rather than clean up.','var(--gold)'));
-        else if (dmgPerKill < 300 && me.kills >= 5) insights.push(iCard(icoOk,'Clean Kills',Math.round(dmgPerKill)+' dmg/kill — you\'re winning gunfights efficiently and finishing opponents quickly.','var(--win)'));
+        else if (dmgPerFight < 310 && me.kills >= 5) insights.push(iCard(icoOk,'Clean Kills',Math.round(dmgPerFight)+' dmg/fight — you\'re winning gunfights efficiently and finishing opponents quickly.','var(--win)'));
       }
       if (m.objStats && m.outcome === 3) {
         var os = m.objStats;
