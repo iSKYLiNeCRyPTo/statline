@@ -294,8 +294,9 @@ function setTab(t){
   var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS',sessions:'// SESSIONS',activity:'// ACTIVITY',weapons:'// PRECISION',synergy:'// SYNERGY',compare:'// COMPARE',lastgame:'// LAST GAME'};
   var el=document.getElementById('topbarTitle');
   if(el)el.textContent=titles[t]||'// '+t.toUpperCase();
-  // Close sidebar on mobile
+  // Close sidebar on mobile + scroll to top
   if(window.innerWidth<768){var sb=document.getElementById('sidebar');if(sb)sb.classList.remove('open');}
+  var cc=document.querySelector('.cmd-content');if(cc)cc.scrollTop=0;window.scrollTo(0,0);
   // Load match history when switching to that tab
   if(t==='matches'){
     var _curGt=(getAllPlayers()[selectedPlayer]||searchData||{}).gamertag||'';

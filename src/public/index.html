@@ -102,7 +102,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
 .mobile-logo-actions{display:flex;gap:8px;align-items:center}
 .mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.mobile-tabbar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom));overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.mobile-tabbar{display:none;position:sticky;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:200;padding:4px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
 .mobile-tabbar::-webkit-scrollbar{display:none}
 .mobile-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 10px;cursor:pointer;color:var(--muted);font-size:14px;transition:color 0.15s;min-width:52px}
 .mobile-tab-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:.2px;text-transform:uppercase;white-space:nowrap}
@@ -344,7 +344,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .cmd-layout{grid-template-columns:1fr}
   .sidebar{transform:translateX(-100%);transition:transform 0.25s ease;width:220px;max-width:80vw}
   .sidebar.open{transform:translateX(0);box-shadow:4px 0 20px rgba(0,0,0,0.5)}
-  .cmd-main{margin-left:0 !important;width:100vw !important;transition:none;padding-bottom:72px}
+  .cmd-main{margin-left:0 !important;width:100vw !important;transition:none}
   .cmd-content{padding:10px;width:100%;overflow-x:hidden;box-sizing:border-box}
   .sidebar-toggle{display:block}
   .mobile-tabbar{display:flex}
@@ -354,7 +354,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   .search-input{font-size:16px !important}
   input[type="text"],input[type="search"]{font-size:16px !important}
   .cmd-topbar{display:none}
-  .cmd-content{padding-bottom:80px}
   .rivals-grid{grid-template-columns:1fr}
   .csr-row{grid-template-columns:1fr}
   .session-bar{flex-direction:column;align-items:flex-start;gap:8px;overflow-x:visible;overflow-y:visible}
