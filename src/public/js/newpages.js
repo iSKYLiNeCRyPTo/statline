@@ -1035,6 +1035,174 @@ function renderLastGamePage(p, allMatches) {
     html += '</div></div>';
   }
 
+  // ── Lobby Strength ───────────────────────────────────────────────────────
+  if (m.teams && m.teams.length >= 2) {
+    function csrNum(tier, sub, val) {
+      var bases = {Bronze:0,Silver:600,Gold:1200,Platinum:1800,Diamond:2400,Onyx:3000};
+      if (!tier) return null;
+      if (tier==='Onyx') return 3000 + (val||0);
+      return (bases[tier]||0) + ((parseInt(sub)||1)-1)*100 + 50;
+    }
+    function csrLbl(tier, sub) {
+      if (!tier) return '?';
+      return tier==='Onyx' ? 'Onyx' : tier + ' ' + (sub||'');
+    }
+    var allLobby = [];
+    m.teams.forEach(function(t){ (t.players||[]).forEach(function(pl){ allLobby.push(pl); }); });
+    var myRow = allLobby.filter(function(pl){ return pl.gamertag.toLowerCase()===myGamertag; })[0];
+    var nums = allLobby.map(function(pl){ return csrNum(pl.csrTier,pl.csrSubTier,pl.csrValue); }).filter(function(v){ return v!=null; });
+    if (nums.length >= 3 && myRow) {
+      var lobbyAvg = Math.round(nums.reduce(function(s,v){return s+v;},0)/nums.length);
+      var myNum = csrNum(myRow.csrTier, myRow.csrSubTier, myRow.csrValue);
+      var diff = myNum != null ? myNum - lobbyAvg : null;
+      var diffLabel = diff == null ? '' : diff > 150 ? '↑ playing down' : diff < -150 ? '↓ playing up' : '≈ even lobby';
+      var diffColor = diff == null ? 'var(--muted)' : diff > 150 ? 'var(--win)' : diff < -150 ? 'var(--loss)' : 'var(--muted)';
+      // Rank distribution dots
+      var tierOrder = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
+      var tierCounts = {};
+      allLobby.forEach(function(pl){ if(pl.csrTier) tierCounts[pl.csrTier]=(tierCounts[pl.csrTier]||0)+1; });
+      var tierColors = {Bronze:'#cd7f32',Silver:'#aaa',Gold:'var(--gold)',Platinum:'#50b0ff',Diamond:'#5bf0ff',Onyx:'var(--win)'};
+      html += '<div style="margin-top:28px">';
+      html += sectionHead('LOBBY STRENGTH', allLobby.length + ' players');
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">';
+      // Left: lobby avg vs you
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px">';
+      html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:8px">RANK COMPARISON</div>';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px">';
+      html += '<div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-bottom:3px">LOBBY AVG</div>';
+      html += '<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text)">' + csrLbl(lobbyCsrTierFromNum(lobbyAvg), '') + '</div></div>';
+      html += '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+diffColor+'">'+diffLabel+'</div>';
+      html += '<div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-bottom:3px">YOU</div>';
+      html += '<div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--accent)">' + csrLbl(myRow.csrTier, myRow.csrSubTier) + '</div></div>';
+      html += '</div>';
+      // Progress bar showing relative position
+      if (myNum != null) {
+        var allSorted = nums.slice().sort(function(a,b){return a-b;});
+        var myRank = allSorted.filter(function(v){return v<=myNum;}).length;
+        var pct = Math.round(myRank/allSorted.length*100);
+        html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-bottom:4px">YOUR PERCENTILE IN LOBBY</div>';
+        html += '<div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">';
+        html += '<div style="height:100%;width:'+pct+'%;background:var(--accent);border-radius:3px"></div></div>';
+        html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-top:3px">'+pct+'th percentile · ranked #'+myRank+' of '+allSorted.length+' ranked players</div>';
+      }
+      html += '</div>';
+      // Right: rank distribution
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px">';
+      html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:10px">RANK DISTRIBUTION</div>';
+      tierOrder.forEach(function(tier) {
+        var cnt = tierCounts[tier]||0;
+        if (!cnt) return;
+        var pct = Math.round(cnt/allLobby.length*100);
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">';
+        html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:'+(tierColors[tier]||'var(--muted)')+';width:60px">'+tier+'</div>';
+        html += '<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+(tierColors[tier]||'var(--muted)')+';border-radius:3px"></div></div>';
+        html += '<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);width:16px;text-align:right">'+cnt+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '</div></div>';
+    }
+    function lobbyCsrTierFromNum(n) {
+      if (n>=3000) return 'Onyx';
+      if (n>=2400) return 'Diamond';
+      if (n>=1800) return 'Platinum';
+      if (n>=1200) return 'Gold';
+      if (n>=600)  return 'Silver';
+      return 'Bronze';
+    }
+  }
+
+  // ── Auto Insights ─────────────────────────────────────────────────────────
+  (function() {
+    var insights = [];
+    var modePool = allMatches.filter(function(x){ return x.gameMode===m.gameMode && x.matchId!==m.matchId; });
+    var pool = modePool.length>=5 ? modePool : allMatches.filter(function(x){ return x.matchId!==m.matchId; });
+    if (pool.length < 3) return;
+
+    function avg(arr, fn) { return arr.reduce(function(s,x){return s+(fn(x)||0);},0)/arr.length; }
+    function pct(val, ref) { return Math.round((val-ref)/Math.max(ref,1)*100); }
+
+    // Expected kills / deaths
+    var expK = avg(pool, function(x){return x.kills;});
+    var expD = avg(pool, function(x){return x.deaths;});
+    var killDiff = m.kills - expK, deathDiff = m.deaths - expD;
+    var killPct = pct(m.kills, expK), deathPct = pct(m.deaths, expD);
+    insights.push({
+      icon: '⚡',
+      text: 'Expected ~' + Math.round(expK) + ' kills / ~' + Math.round(expD) + ' deaths · got '
+        + m.kills + ' kills (' + (killDiff>=0?'+':'') + killDiff.toFixed(1) + ') and '
+        + m.deaths + ' deaths (' + (deathDiff>=0?'+':'') + deathDiff.toFixed(1) + ')',
+      positive: killDiff >= 0 && deathDiff <= 0
+    });
+
+    // KDA vs average
+    var myKDA = parseFloat(m.kda)||0;
+    var avgKDA = avg(pool, function(x){ return parseFloat(x.kda)||0; });
+    if (avgKDA > 0) {
+      var kdaPct = pct(myKDA, avgKDA);
+      insights.push({
+        icon: kdaPct>=0 ? '↑' : '↓',
+        text: 'KDA ' + myKDA + ' was ' + Math.abs(kdaPct) + '% ' + (kdaPct>=0?'above':'below') + ' your '+(modePool.length>=5?'mode':'overall')+' avg (' + avgKDA.toFixed(2) + ')',
+        positive: kdaPct >= 0
+      });
+    }
+
+    // Accuracy
+    var myAcc2 = m.accuracy != null ? parseFloat(m.accuracy) : null;
+    var accPool = pool.filter(function(x){ return x.accuracy!=null; });
+    if (myAcc2 != null && accPool.length >= 3) {
+      var avgAcc2 = avg(accPool, function(x){ return parseFloat(x.accuracy)||0; });
+      var accDiff = (myAcc2 - avgAcc2).toFixed(1);
+      insights.push({
+        icon: myAcc2>=avgAcc2 ? '🎯' : '📉',
+        text: 'Accuracy ' + myAcc2.toFixed(1) + '% — ' + (parseFloat(accDiff)>=0?'+':'') + accDiff + '% vs your avg (' + avgAcc2.toFixed(1) + '%)',
+        positive: myAcc2 >= avgAcc2
+      });
+    }
+
+    // Headshot rate
+    if (m.weaponStats && m.weaponStats.headshots != null && m.kills > 0) {
+      var myHsR = m.weaponStats.headshots / m.kills * 100;
+      var hsPool = pool.filter(function(x){ return x.weaponStats && x.weaponStats.headshots!=null && x.kills>0; });
+      if (hsPool.length >= 3) {
+        var avgHsR2 = avg(hsPool, function(x){ return x.weaponStats.headshots/x.kills*100; });
+        var hsDiff = myHsR - avgHsR2;
+        insights.push({
+          icon: myHsR>=50 ? '💥' : '⚠',
+          text: 'Headshot rate ' + myHsR.toFixed(0) + '% (' + (hsDiff>=0?'+':'') + hsDiff.toFixed(0) + '% vs avg) · ' + (myHsR>=50?'above target':'below 50% target'),
+          positive: myHsR >= 50
+        });
+      }
+    }
+
+    // CSR trend (last 5 ranked)
+    var last5 = allMatches.filter(function(x){ return x.csrDelta!=null; }).slice(0,5);
+    if (last5.length >= 3) {
+      var net5 = last5.reduce(function(s,x){return s+(x.csrDelta||0);},0);
+      var wins5 = last5.filter(function(x){return x.outcome===2;}).length;
+      insights.push({
+        icon: net5>=0 ? '📈' : '📉',
+        text: 'Last 5 ranked games: ' + wins5 + 'W/' + (last5.length-wins5) + 'L, net ' + (net5>0?'+':'') + net5 + ' CSR',
+        positive: net5 >= 0
+      });
+    }
+
+    if (!insights.length) return;
+    html += '<div style="margin-top:28px">';
+    html += sectionHead('INSIGHTS', 'auto-generated');
+    html += '<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">';
+    insights.forEach(function(ins) {
+      var bg = ins.positive ? 'rgba(76,175,130,0.07)' : 'rgba(224,80,80,0.07)';
+      var border = ins.positive ? 'rgba(76,175,130,0.25)' : 'rgba(224,80,80,0.25)';
+      var iconColor = ins.positive ? 'var(--win)' : 'var(--loss)';
+      html += '<div style="display:flex;align-items:flex-start;gap:10px;background:'+bg+';border:1px solid '+border+';border-radius:6px;padding:10px 14px">';
+      html += '<span style="font-size:14px;line-height:1.4;flex-shrink:0;color:'+iconColor+'">'+ins.icon+'</span>';
+      html += '<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text);line-height:1.5">'+ins.text+'</span>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  })();
+
   // ── Recent results on this map ────────────────────────────────────────────
   if (mapMatches.length > 1) {
     var mapSlice = mapMatches.slice(0, 12);
