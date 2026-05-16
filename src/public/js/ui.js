@@ -291,7 +291,7 @@ function setTab(t){
     p.classList.toggle('active', p.dataset.tab===t);
   });
   // Update topbar title
-  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS',sessions:'// SESSIONS',activity:'// ACTIVITY',weapons:'// WEAPONS',synergy:'// SYNERGY',compare:'// COMPARE',lastgame:'// LAST GAME'};
+  var titles={overview:'// OVERVIEW',matches:'// MATCH HISTORY',bymap:'// MAPS',charts:'// STATS',opponents:'// RIVALS',sessions:'// SESSIONS',activity:'// ACTIVITY',weapons:'// PRECISION',synergy:'// SYNERGY',compare:'// COMPARE',lastgame:'// LAST GAME'};
   var el=document.getElementById('topbarTitle');
   if(el)el.textContent=titles[t]||'// '+t.toUpperCase();
   // Close sidebar on mobile
