@@ -553,10 +553,11 @@ async function fetchPlayerStats(gamertag) {
   const freshHeaders = getAuthHeaders();
 
   const RANKED_PLAYLISTS = {
-    'Ranked Arena':  'edfef3ac-9cbe-4fa2-b949-8f29deafd483',
-    'Ranked Slayer': 'f5580605-660c-43f9-ac69-4075c4a05c5d',
+    'Ranked Arena':   'edfef3ac-9cbe-4fa2-b949-8f29deafd483',
+    'Ranked Slayer':  'f5580605-660c-43f9-ac69-4075c4a05c5d',
     'Ranked Slayer2': 'dcb2e24e-05fb-4390-8076-32a0cdb4326e',
-    'Ranked Legacy': 'c94cb508-2fbd-450a-81db-bb74f7741d45',
+    'Ranked Legacy':  'c94cb508-2fbd-450a-81db-bb74f7741d45',
+    'Ranked Doubles': 'fa5aa2a3-2428-4912-a023-e1eeea7b877c',
   };
 
   const [statsRes, countRes, rankedStatsRes, ...csrResponses] = await Promise.all([
@@ -873,11 +874,13 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
         const RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
+        const RANKED_DOUBLES_ID = 'fa5aa2a3-2428-4912-a023-e1eeea7b877c';
         matchPlaylistId = md.MatchInfo?.Playlist?.AssetId || null;
         isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
         isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
-        isRanked = isRankedArena || isRankedSlayer || isRankedLegacy;
+        const isRankedDoubles = matchPlaylistId === RANKED_DOUBLES_ID;
+        isRanked = isRankedArena || isRankedSlayer || isRankedLegacy || isRankedDoubles;
         if (!isRanked) {
           results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'Filtered', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
           continue;
@@ -905,7 +908,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           } else if (ugcName) {
             gameMode = ugcName.replace(/^Arena:\s*/i,'').replace(/:/g,' ').replace(/\s+/g,' ').trim();
             if (isRanked) {
-              if (isRankedSlayer) gameMode = 'Ranked Slayer';
+              if (isRankedDoubles) gameMode = 'Ranked Doubles';
+              else if (isRankedSlayer) gameMode = 'Ranked Slayer';
               else if (isRankedLegacy) {
                 if (!gameMode.toLowerCase().startsWith('ranked legacy')) gameMode = 'Ranked Legacy: ' + gameMode.replace(/^Ranked\s+/i,'');
               } else if (!gameMode.toLowerCase().startsWith('ranked')) gameMode = 'Ranked Arena: ' + gameMode;
@@ -915,6 +919,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             gameMode = (isRanked ? 'Ranked ' : '') + (MODE_NAMES[catNum] || 'Mode ' + catNum);
             if (isRankedLegacy) gameMode = 'Ranked Legacy: ' + gameMode.replace(/^Ranked\s+/i,'');
             else if (isRanked && !isRankedSlayer && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
+            else if (isRanked && isRankedDoubles) gameMode = 'Ranked Doubles';
             else if (isRanked && isRankedSlayer) gameMode = 'Ranked Slayer';
           }
           gameMode = (gameMode||'').replace(/Capture the Flag (\d+) Captures?/gi,'CTF $1').replace(/Capture the Flag/gi,'CTF').trim();
