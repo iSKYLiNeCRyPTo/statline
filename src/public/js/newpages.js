@@ -226,11 +226,13 @@ function renderActivityPage(p, allMatches) {
   // ── Hour of day chart (SVG so heights are pixel-exact) ───────────────────
   var maxHour = Math.max.apply(null, hourCounts) || 1;
   html += sectionHead('Hour of Day', 'when you queue up');
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px">';
+  // Wrap in overflow-x:auto so narrow screens can scroll; cap max-width so bars don't get too fat on ultra-wide screens
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px 12px;margin-bottom:20px;overflow-x:auto">';
   var chartH = 72, chartPad = 4;
-  var barW = 14, barGap = 3, totalW = 24 * (barW + barGap) - barGap;
+  var barW = 18, barGap = 4, totalW = 24 * (barW + barGap) - barGap;
   var svgViewW = totalW + chartPad*2, svgViewH = chartH + 20;
-  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" preserveAspectRatio="none" style="display:block">';
+  // Fixed width SVG — bars always proportional, scrolls on narrow screens
+  var svgHour = '<svg xmlns="http://www.w3.org/2000/svg" width="' + svgViewW + '" height="' + svgViewH + '" viewBox="0 0 ' + svgViewW + ' ' + svgViewH + '" style="display:block;min-width:' + svgViewW + 'px">';
   hourCounts.forEach(function(c, h) {
     var barH = c ? Math.max(4, Math.round(c / maxHour * chartH)) : 0;
     var x = chartPad + h * (barW + barGap);
@@ -299,15 +301,16 @@ function renderActivityPage(p, allMatches) {
       dayMap[key] = (dayMap[key]||0)+1;
     });
     var keys = Object.keys(dayMap);
-    if (keys.length < 3) return;
+    if (keys.length < 1) return;
     var now = new Date(); now.setHours(23,59,59,0);
     var oldest = keys.reduce(function(mn,k){var p=k.split('-');var t=new Date(+p[0],+p[1]-1,+p[2]).getTime();return t<mn?t:mn;},Infinity);
-    // Show at least 12 weeks, at most the full data span + 2 weeks padding
+    // Always go back at least 20 weeks from today so there are always plenty of columns;
+    // extend further if data spans longer, up to 52 weeks max
     var dataSpanMs = now.getTime() - oldest;
-    var minSpanMs = 12*7*86400000;
+    var minSpanMs = 20*7*86400000;
     var maxSpanMs = 52*7*86400000;
     var spanMs = Math.min(Math.max(dataSpanMs + 14*86400000, minSpanMs), maxSpanMs);
-    var rangeStart = new Date(Math.max(oldest - 7*86400000, now.getTime() - spanMs));
+    var rangeStart = new Date(now.getTime() - spanMs); // always count back from today
     var startDate = new Date(rangeStart);
     startDate.setDate(startDate.getDate()-startDate.getDay());
     var weeks=[], cur=new Date(startDate);
