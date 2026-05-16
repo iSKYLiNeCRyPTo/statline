@@ -722,16 +722,15 @@ function renderLastGamePage(p, allMatches) {
   }
 
   // ── Medals ───────────────────────────────────────────────────────────────
+  // ── Medals (using medalImg from utils.js for sprite sheet rendering) ─────
   if (m.topMedals && m.topMedals.length) {
     html += '<div style="margin-top:28px">';
     html += sectionHead('MEDALS', m.topMedals.length + ' earned');
-    html += '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:4px">';
+    html += '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">';
     m.topMedals.forEach(function(medal) {
-      // Use the global renderMedal() from utils.js which handles sprite sheet + medalMeta lookup
-      if (typeof renderMedal === 'function') {
-        html += renderMedal(medal);
+      if (typeof medalImg === 'function') {
+        html += medalImg(medal);
       } else {
-        // Fallback: look up name from medalMeta directly
         var meta = (typeof medalMeta !== 'undefined') ? (medalMeta[String(medal.nameId)] || {}) : {};
         var name = meta.name || medal.name || String(medal.nameId);
         var count = medal.count || 1;
@@ -741,6 +740,100 @@ function renderLastGamePage(p, allMatches) {
         html += '</div>';
       }
     });
+    html += '</div></div>';
+  }
+
+  // ── Objective stats ───────────────────────────────────────────────────────
+  if (m.objStats) {
+    var obj = m.objStats, objMode = obj.mode || '';
+    var objRows = [];
+    if (obj.flagCaptures != null && obj.flagCaptures > 0) objRows.push({ label:'FLAG CAPS',   value: obj.flagCaptures });
+    if (obj.flagReturns  != null && obj.flagReturns  > 0) objRows.push({ label:'FLAG RETURNS', value: obj.flagReturns });
+    if (obj.zoneCaptures != null && obj.zoneCaptures > 0) objRows.push({ label:'ZONE CAPS',   value: obj.zoneCaptures });
+    if (obj.zoneSecures  != null && obj.zoneSecures  > 0) objRows.push({ label:'ZONE SECURES', value: obj.zoneSecures });
+    if (obj.timeAsCarrier!= null && obj.timeAsCarrier> 0) objRows.push({ label:'CARRIER TIME', value: Math.round(obj.timeAsCarrier)+'s' });
+    if (obj.killsAsCarrier!=null && obj.killsAsCarrier>0) objRows.push({ label:'KILLS AS CARRIER', value: obj.killsAsCarrier });
+    if (objRows.length) {
+      html += '<div style="margin-top:28px">';
+      html += sectionHead('OBJECTIVE', objMode.toUpperCase());
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px">';
+      objRows.forEach(function(r) {
+        html += statCard(r.label, r.value, 'accent');
+      });
+      html += '</div></div>';
+    }
+  }
+
+  // ── Team damage comparison ────────────────────────────────────────────────
+  if (m.teams && m.teams.length >= 2) {
+    var myTeamIdx = m.teams.findIndex(function(t){ return t.outcome === m.outcome; });
+    if (myTeamIdx === -1) myTeamIdx = 0;
+    var enemyTeamIdx = myTeamIdx === 0 ? 1 : 0;
+    var myTeamPlayers   = m.teams[myTeamIdx]   ? m.teams[myTeamIdx].players   : [];
+    var enemyTeamPlayers= m.teams[enemyTeamIdx]? m.teams[enemyTeamIdx].players: [];
+
+    function teamTotal(players, fn) {
+      return players.reduce(function(s, p){ return s + (fn(p)||0); }, 0);
+    }
+    var myTotalKills  = teamTotal(myTeamPlayers,   function(p){ return p.kills; });
+    var enTotalKills  = teamTotal(enemyTeamPlayers, function(p){ return p.kills; });
+    var myTotalDmg    = teamTotal(myTeamPlayers,   function(p){ return p.damage; });
+    var enTotalDmg    = teamTotal(enemyTeamPlayers, function(p){ return p.damage; });
+    var myTotalAcc    = myTeamPlayers.filter(function(p){ return p.accuracy!=null; });
+    var enTotalAcc    = enemyTeamPlayers.filter(function(p){ return p.accuracy!=null; });
+    var myAvgAcc = myTotalAcc.length ? myTotalAcc.reduce(function(s,p){ return s+parseFloat(p.accuracy); },0)/myTotalAcc.length : null;
+    var enAvgAcc = enTotalAcc.length ? enTotalAcc.reduce(function(s,p){ return s+parseFloat(p.accuracy); },0)/enTotalAcc.length : null;
+
+    var comparisons = [
+      { label:'TOTAL KILLS', my: myTotalKills, en: enTotalKills, fmt: function(v){ return v; } },
+      { label:'TOTAL DAMAGE', my: myTotalDmg, en: enTotalDmg, fmt: function(v){ return Math.round(v).toLocaleString(); } },
+    ];
+    if (myAvgAcc != null && enAvgAcc != null) {
+      comparisons.push({ label:'AVG ACCURACY', my: myAvgAcc, en: enAvgAcc, fmt: function(v){ return v.toFixed(1)+'%'; } });
+    }
+
+    html += '<div style="margin-top:28px">';
+    html += sectionHead('TEAM BREAKDOWN', 'your team vs opponents');
+    html += '<div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">';
+    comparisons.forEach(function(row) {
+      var total = (row.my||0) + (row.en||0) || 1;
+      var myPct = (row.my||0) / total * 100;
+      var enPct = (row.en||0) / total * 100;
+      var myWins = row.my >= row.en;
+      html += '<div>';
+      html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">';
+      html += '<span style="color:'+(myWins?'var(--win)':'var(--muted)')+'">YOUR TEAM · ' + row.fmt(row.my||0) + '</span>';
+      html += '<span style="letter-spacing:2px">' + row.label + '</span>';
+      html += '<span style="color:'+(!myWins?'var(--win)':'var(--muted)')+'">OPPONENTS · ' + row.fmt(row.en||0) + '</span>';
+      html += '</div>';
+      html += '<div style="display:flex;height:10px;border-radius:3px;overflow:hidden;gap:2px">';
+      html += '<div style="width:'+myPct.toFixed(1)+'%;background:'+(myWins?'var(--win)':'var(--loss)')+';border-radius:3px 0 0 3px;transition:width 0.4s ease"></div>';
+      html += '<div style="width:'+enPct.toFixed(1)+'%;background:'+(myWins?'var(--loss)':'var(--win)')+';border-radius:0 3px 3px 0;transition:width 0.4s ease"></div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // ── CSR trend — where this game sits in your recent history ──────────────
+  var csrHistory = allMatches.filter(function(x){ return x.csrDelta != null; }).slice(0, 20).reverse();
+  if (csrHistory.length >= 3) {
+    html += '<div style="margin-top:28px">';
+    html += sectionHead('CSR HISTORY', 'last ' + csrHistory.length + ' ranked games');
+    html += '<div style="margin-top:10px;display:flex;gap:3px;align-items:flex-end;height:40px">';
+    var maxAbs = Math.max.apply(null, csrHistory.map(function(x){ return Math.abs(x.csrDelta); })) || 1;
+    csrHistory.forEach(function(gm) {
+      var isThis = gm.matchId === m.matchId;
+      var d = gm.csrDelta;
+      var pos = d > 0;
+      var h = Math.max(3, Math.abs(d) / maxAbs * 36);
+      var bg = isThis ? 'var(--accent)' : pos ? 'var(--win)' : 'var(--loss)';
+      var sign = d > 0 ? '+' : '';
+      html += '<div title="' + sign + d + '" style="flex:1;height:' + h + 'px;background:' + bg + ';border-radius:2px;opacity:' + (isThis ? '1' : '0.55') + ';min-width:6px;cursor:default;box-shadow:' + (isThis ? '0 0 6px var(--accent)' : 'none') + '"></div>';
+    });
+    html += '</div>';
+    html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);margin-top:4px">';
+    html += '<span>OLDEST</span><span style="color:var(--accent)">← THIS GAME IS HIGHLIGHTED</span><span>LATEST</span>';
     html += '</div></div>';
   }
 
