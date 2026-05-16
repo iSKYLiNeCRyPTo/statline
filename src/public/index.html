@@ -925,9 +925,13 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   ctx.save();
   ctx.font = '600 32px "Exo 2", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(200,220,240,0.90)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
   ctx.shadowColor = 'rgba(0,0,0,0.8)';
   ctx.shadowBlur = 10;
+  ctx.strokeText(d.gamertag, cx, gtY);
+  ctx.fillStyle = 'rgba(200,220,240,0.90)';
   ctx.fillText(d.gamertag, cx, gtY);
   ctx.restore();
 
@@ -935,13 +939,17 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = scoreFs + ' Rajdhani, sans-serif';
-  // Tier-colored glow
+  ctx.lineJoin = 'round';
+  // Tier-colored glow pass
   ctx.shadowColor = d.tierHex;
   ctx.shadowBlur = 40;
   ctx.fillStyle = d.tierHex;
   ctx.fillText(d.score, cx, scoreY);
   ctx.shadowBlur = 0;
-  // White overlay
+  // Stroke + white fill
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.lineWidth = 3;
+  ctx.strokeText(d.score, cx, scoreY);
   ctx.fillStyle = 'rgba(255,255,255,0.88)';
   ctx.fillText(d.score, cx, scoreY);
   ctx.restore();
@@ -950,9 +958,13 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   ctx.save();
   ctx.font = '700 28px Rajdhani, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = d.tierHex;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.lineWidth = 2;
   ctx.shadowColor = 'rgba(0,0,0,0.6)';
   ctx.shadowBlur = 8;
+  ctx.strokeText(d.tier.toUpperCase(), cx, tierY);
+  ctx.fillStyle = d.tierHex;
   ctx.fillText(d.tier.toUpperCase(), cx, tierY);
   ctx.restore();
 
@@ -979,14 +991,23 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
     var scx = statL + statStep * i + statStep / 2;
     ctx.save();
     ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    // Stat value
     ctx.font = '700 34px Rajdhani, sans-serif';
-    ctx.fillStyle = '#e6f1fb';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.lineWidth = 2;
     ctx.shadowColor = 'rgba(0,0,0,0.7)';
     ctx.shadowBlur = 8;
+    ctx.strokeText(s.value, scx, statsY);
+    ctx.fillStyle = '#e6f1fb';
     ctx.fillText(s.value, scx, statsY);
+    // Stat label
     ctx.font = '500 12px "Share Tech Mono", monospace';
-    ctx.fillStyle = 'rgba(133,183,235,0.75)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+    ctx.lineWidth = 1.5;
     ctx.shadowBlur = 6;
+    ctx.strokeText(s.label, scx, statsLY);
+    ctx.fillStyle = 'rgba(133,183,235,0.75)';
     ctx.fillText(s.label, scx, statsLY);
     ctx.restore();
   });
