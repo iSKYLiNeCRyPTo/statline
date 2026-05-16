@@ -1037,11 +1037,12 @@ function fragrShareDownload() {
   }, 'image/png');
 }
 
-function _fragrDoShare(socialUrl) {
+function _fragrDoShare(socialUrl, copyMsg) {
   var canvas = document.getElementById('fragrShareCanvas');
   var d = window._fragrScoreData;
   var shareText = _fragrShareText();
   var msg = document.getElementById('fragrShareCopyMsg');
+  var successMsg = copyMsg || '✓ Image copied — paste it into your post!';
 
   canvas.toBlob(function(blob) {
     var file = new File([blob], 'fragr-score.png', { type: 'image/png' });
@@ -1058,15 +1059,14 @@ function _fragrDoShare(socialUrl) {
       return;
     }
 
-    // ── 2. Clipboard copy + open social URL (desktop fallback) ────────────
+    // ── 2. Clipboard copy + open social URL (desktop) ────────────────────
     if (navigator.clipboard && window.ClipboardItem) {
       navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
         .then(function() {
-          if (msg) { msg.textContent = '✓ Image copied — just paste it into your post!'; setTimeout(function(){ msg.textContent=''; }, 5000); }
+          if (msg) { msg.textContent = successMsg; setTimeout(function(){ msg.textContent=''; }, 6000); }
           window.open(socialUrl, '_blank');
         })
         .catch(function() {
-          // Clipboard blocked (non-HTTPS or permissions) — fall through to download
           _fragrFallbackDownload(blob, d, socialUrl, msg);
         });
       return;
@@ -1091,14 +1091,15 @@ function _fragrFallbackDownload(blob, d, socialUrl, msg) {
 function fragrShareTwitter() {
   var text = _fragrShareText();
   var socialUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent('https://fragr.live');
-  _fragrDoShare(socialUrl);
+  _fragrDoShare(socialUrl, '✓ Image copied! In the X post window, click the image icon and paste (⌘V / Ctrl+V)');
 }
 
 function fragrShareReddit() {
   var d = window._fragrScoreData;
   var title = (d ? d.gamertag : 'My') + ' Fragr Score: ' + (d ? d.score + ' — ' + d.tier : '') + ' | fragr.live';
-  var socialUrl = 'https://www.reddit.com/submit?url=' + encodeURIComponent('https://fragr.live') + '&title=' + encodeURIComponent(title);
-  _fragrDoShare(socialUrl);
+  // Use type=image so Reddit opens the Images & Video tab — then user just pastes the clipboard image
+  var socialUrl = 'https://www.reddit.com/submit?type=image&title=' + encodeURIComponent(title);
+  _fragrDoShare(socialUrl, '✓ Image copied! On Reddit, choose "Images & Video" tab then paste (⌘V / Ctrl+V)');
 }
 </script>
 
