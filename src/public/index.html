@@ -830,5 +830,216 @@ function toggleSidebar(){
 <script src="js/render.js"></script>
 <script src="js/compare.js"></script>
 <script src="js/newpages.js"></script>
+
+<!-- Fragr Score Share Modal -->
+<div id="fragrShareModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;align-items:center;justify-content:center;padding:16px;box-sizing:border-box" onclick="if(event.target===this)closeFragrShare()">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:540px;padding:24px;position:relative">
+    <button onclick="closeFragrShare()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px" title="Close">✕</button>
+    <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px;letter-spacing:1px">SHARE YOUR FRAGR SCORE</div>
+    <!-- Canvas preview -->
+    <canvas id="fragrShareCanvas" width="1200" height="630" style="width:100%;border-radius:8px;border:1px solid var(--border);display:block;margin-bottom:16px"></canvas>
+    <!-- Action buttons -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button onclick="fragrShareTwitter()" style="flex:1;min-width:120px;padding:10px 16px;background:#1d9bf0;color:#fff;border:none;border-radius:7px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.852L1.254 2.25H8.08l4.261 5.634 5.903-5.634zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        POST TO X
+      </button>
+      <button onclick="fragrShareReddit()" style="flex:1;min-width:120px;padding:10px 16px;background:#ff4500;color:#fff;border:none;border-radius:7px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg>
+        POST TO REDDIT
+      </button>
+      <button onclick="fragrShareDownload()" style="padding:10px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:7px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        SAVE
+      </button>
+    </div>
+    <div id="fragrShareCopyMsg" style="margin-top:10px;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--win);min-height:16px;text-align:center"></div>
+  </div>
+</div>
+
+<script>
+// ── Fragr Score Share Card ─────────────────────────────────────────────────
+function openFragrShare() {
+  var d = window._fragrScoreData;
+  if (!d) return;
+
+  var modal = document.getElementById('fragrShareModal');
+  modal.style.display = 'flex';
+  document.getElementById('fragrShareCopyMsg').textContent = '';
+
+  var canvas = document.getElementById('fragrShareCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = 1200, H = 630;
+
+  // --- Background ---
+  ctx.clearRect(0, 0, W, H);
+  var bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#060d17');
+  bg.addColorStop(1, '#0c1a2b');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(56,138,221,0.06)';
+  ctx.lineWidth = 1;
+  for (var x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (var y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Scanlines
+  for (var sl = 0; sl < H; sl += 4) {
+    ctx.fillStyle = 'rgba(0,0,0,0.03)';
+    ctx.fillRect(0, sl, W, 2);
+  }
+
+  // Tier glow blob (center)
+  var glow = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 360);
+  glow.addColorStop(0, d.tierHex + '22');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  // --- Border ---
+  ctx.strokeStyle = d.tierHex + '55';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(2, 2, W - 4, H - 4);
+
+  // Inner border
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(18, 18, W - 36, H - 36);
+
+  // --- Top left: FRAGR wordmark ---
+  ctx.font = '700 52px Rajdhani, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.fillText('fragr', 54, 82);
+
+  // Dot accent after fragr
+  ctx.fillStyle = d.tierHex;
+  ctx.beginPath();
+  ctx.arc(54 + ctx.measureText('fragr').width + 8, 68, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // --- Top right: fragr.live ---
+  ctx.font = '500 20px "Share Tech Mono", monospace';
+  ctx.fillStyle = 'rgba(133,183,235,0.5)';
+  ctx.textAlign = 'right';
+  ctx.fillText('fragr.live', W - 54, 72);
+
+  // --- Gamertag ---
+  ctx.font = '600 38px "Exo 2", sans-serif';
+  ctx.fillStyle = 'rgba(230,241,251,0.85)';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.gamertag, W / 2, 148);
+
+  // --- Big score number ---
+  ctx.font = '700 240px Rajdhani, sans-serif';
+  ctx.textAlign = 'center';
+
+  // Shadow/glow behind number
+  ctx.shadowColor = d.tierHex;
+  ctx.shadowBlur = 80;
+  ctx.fillStyle = d.tierHex;
+  ctx.fillText(d.score, W / 2, 400);
+  ctx.shadowBlur = 0;
+
+  // Slightly lighter overlay for crisp look
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.9;
+  ctx.fillText(d.score, W / 2, 400);
+  ctx.globalAlpha = 1;
+
+  // --- Tier label ---
+  ctx.font = '700 36px Rajdhani, sans-serif';
+  ctx.fillStyle = d.tierHex;
+  ctx.textAlign = 'center';
+  ctx.letterSpacing = '4px';
+  ctx.fillText(d.tier.toUpperCase(), W / 2, 448);
+  ctx.letterSpacing = '0px';
+
+  // --- Divider ---
+  ctx.strokeStyle = d.tierHex + '44';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 160, 470);
+  ctx.lineTo(W / 2 + 160, 470);
+  ctx.stroke();
+
+  // --- Stats row ---
+  var stats = [
+    { label: 'KDA', value: d.kda != null ? d.kda : '—' },
+    { label: 'ACCURACY', value: d.accuracy != null ? d.accuracy + '%' : '—' },
+    { label: 'WIN RATE', value: d.winRate != null ? d.winRate + '%' : '—' },
+    { label: 'MATCHES', value: d.matches != null ? d.matches : '—' }
+  ];
+
+  var statW = W / stats.length;
+  stats.forEach(function(s, i) {
+    var cx = statW * i + statW / 2;
+    ctx.font = '700 40px Rajdhani, sans-serif';
+    ctx.fillStyle = '#e6f1fb';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.value, cx, 540);
+
+    ctx.font = '500 16px "Share Tech Mono", monospace';
+    ctx.fillStyle = 'rgba(133,183,235,0.6)';
+    ctx.fillText(s.label, cx, 570);
+  });
+
+  // --- "FRAGR SCORE" label below number ---
+  ctx.font = '500 16px "Share Tech Mono", monospace';
+  ctx.fillStyle = 'rgba(133,183,235,0.4)';
+  ctx.textAlign = 'center';
+  ctx.fillText('FRAGR SCORE', W / 2, H - 28);
+}
+
+function closeFragrShare() {
+  document.getElementById('fragrShareModal').style.display = 'none';
+}
+
+function _fragrShareText() {
+  var d = window._fragrScoreData;
+  if (!d) return '';
+  return d.gamertag + ' scored ' + d.score + ' (' + d.tier + ') on fragr.live — Halo Infinite stat tracker';
+}
+
+function fragrShareDownload() {
+  var canvas = document.getElementById('fragrShareCanvas');
+  canvas.toBlob(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var d = window._fragrScoreData;
+    a.download = 'fragr-score-' + (d ? d.gamertag.replace(/\s+/g,'_') : 'card') + '.png';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+
+function fragrShareTwitter() {
+  var text = _fragrShareText();
+  var url = 'https://fragr.live';
+  window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url), '_blank');
+  // Also trigger download so they can attach the image
+  setTimeout(function() {
+    fragrShareDownload();
+    var msg = document.getElementById('fragrShareCopyMsg');
+    if (msg) { msg.textContent = 'Image saved — attach it to your post!'; setTimeout(function(){ msg.textContent=''; }, 4000); }
+  }, 300);
+}
+
+function fragrShareReddit() {
+  var d = window._fragrScoreData;
+  var title = (d ? d.gamertag : 'My') + ' Fragr Score: ' + (d ? d.score + ' — ' + d.tier : '') + ' | fragr.live';
+  var url = 'https://fragr.live';
+  window.open('https://www.reddit.com/submit?url=' + encodeURIComponent(url) + '&title=' + encodeURIComponent(title), '_blank');
+  setTimeout(function() {
+    fragrShareDownload();
+    var msg = document.getElementById('fragrShareCopyMsg');
+    if (msg) { msg.textContent = 'Image saved — attach it to your Reddit post!'; setTimeout(function(){ msg.textContent=''; }, 4000); }
+  }, 300);
+}
+</script>
+
 </body>
 </html>
