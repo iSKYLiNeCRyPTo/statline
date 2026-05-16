@@ -931,7 +931,8 @@ function render(){
     window._fragrScoreData={score:_career,tier:_tier,tierHex:_tierHex,gamertag:p.gamertag,kda:_avgKda,accuracy:_avgAcc,winRate:_wr,matches:_fsMatches.length};
     // ── Display: clean, proprietary — just the number ──
     var _bgIdx=Math.floor(Math.random()*2);
-    var _bgUrl=_isDesktop?('desktop'+_bgIdx+'.jpg'):('mobile'+((_bgIdx % 5)+1)+'.jpg');
+    var _bgMobIdx=Math.floor(Math.random()*5)+1;
+    var _bgUrl=_isDesktop?('desktop'+_bgIdx+'.jpg'):('mobile'+_bgMobIdx+'.jpg');
     var _bgPos=_isDesktop?'right center':'right center';
     html+='<div style="background:var(--surface);background-image:url('+_bgUrl+');background-size:cover;background-position:right center;background-repeat:no-repeat;border:1px solid var(--border2);border-radius:10px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;overflow:hidden">';
     // Dark overlay — heavy left for text, fades to lighter right to reveal art

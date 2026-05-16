@@ -904,41 +904,42 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   //   Dark panel occupies left ~55% (x 35–640 avg)  |  character on right
   //   Score cx: 310   gamertag y: 90    score y: 340   tier y: 400   stats y: 490
 
-  var cx       = isMobile ? 310  : 632;   // center of frame x:285–980
-  var gtY      = isMobile ? 90   : 212;   // just inside top of frame
-  var scoreY   = isMobile ? 340  : 422;   // visually centered in frame
-  var tierY    = isMobile ? 400  : 468;
-  var divY     = isMobile ? 422  : 490;
-  var statsY   = isMobile ? 478  : 534;
-  var statsLY  = isMobile ? 502  : 555;
-  var scoreFs  = isMobile ? '700 170px' : '700 175px';
-  // Stats spread: mobile panel x 45–620, desktop full frame x 320–960
-  var statL    = isMobile ? 55   : 320;
-  var statR    = isMobile ? 620  : 960;
+  // Desktop: teal frame interior x:285–980, y:155–575  →  center x=632, center y=365
+  // Mobile: dark panel interior x:55–620, y:55–710
+  var cx       = isMobile ? 338  : 632;
+  var gtY      = isMobile ? 110  : 210;
+  var scoreY   = isMobile ? 350  : 390;
+  var tierY    = isMobile ? 406  : 436;
+  var divY     = isMobile ? 428  : 458;
+  var statsY   = isMobile ? 474  : 504;
+  var statsLY  = isMobile ? 496  : 525;
+  var scoreFs  = isMobile ? '700 160px' : '700 170px';
+  // Stats spread symmetric around cx, within the panel
+  var statSpan = isMobile ? 520  : 580;
+  var statL    = cx - statSpan / 2;
+  var statR    = cx + statSpan / 2;
 
-  // --- Dark tint over panel area so text pops ---
+  // --- Solid gray fill inside the teal frame — text sits on this ---
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.50)';
+  ctx.fillStyle = 'rgba(12, 20, 32, 0.88)';
+  ctx.beginPath();
   if (isMobile) {
-    ctx.fillRect(35, 35, 605, 685);
+    // mobile panel interior (inset slightly from the teal border)
+    ctx.roundRect ? ctx.roundRect(58, 58, 562, 652, 8) : ctx.rect(58, 58, 562, 652);
   } else {
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(285, 155, 695, 420, 6);
-    } else {
-      ctx.rect(285, 155, 695, 420);
-    }
-    ctx.fill();
+    // desktop frame interior (inset 4px from teal border at 285,155 → 980,575)
+    ctx.roundRect ? ctx.roundRect(289, 159, 687, 412, 5) : ctx.rect(289, 159, 687, 412);
   }
+  ctx.fill();
   ctx.restore();
 
   // --- Gamertag ---
   ctx.save();
-  ctx.font = '700 34px "Exo 2", sans-serif';
+  ctx.font = '600 32px "Exo 2", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(0,0,0,1)';
-  ctx.shadowBlur = 18;
+  ctx.fillStyle = 'rgba(200,220,240,0.90)';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 10;
   ctx.fillText(d.gamertag, cx, gtY);
   ctx.restore();
 
@@ -946,24 +947,24 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = scoreFs + ' Rajdhani, sans-serif';
-  // Glow pass
+  // Tier-colored glow
   ctx.shadowColor = d.tierHex;
-  ctx.shadowBlur = 55;
+  ctx.shadowBlur = 40;
   ctx.fillStyle = d.tierHex;
   ctx.fillText(d.score, cx, scoreY);
   ctx.shadowBlur = 0;
-  // Crisp white overlay — slightly transparent so tier glow shows
-  ctx.fillStyle = 'rgba(255,255,255,0.84)';
+  // White overlay
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
   ctx.fillText(d.score, cx, scoreY);
   ctx.restore();
 
   // --- Tier label ---
   ctx.save();
-  ctx.font = '700 30px Rajdhani, sans-serif';
+  ctx.font = '700 28px Rajdhani, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = d.tierHex;
-  ctx.shadowColor = 'rgba(0,0,0,0.9)';
-  ctx.shadowBlur = 12;
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 8;
   ctx.fillText(d.tier.toUpperCase(), cx, tierY);
   ctx.restore();
 
@@ -990,14 +991,14 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
     var scx = statL + statStep * i + statStep / 2;
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = '700 36px Rajdhani, sans-serif';
+    ctx.font = '700 34px Rajdhani, sans-serif';
     ctx.fillStyle = '#e6f1fb';
-    ctx.shadowColor = 'rgba(0,0,0,1)';
-    ctx.shadowBlur = 12;
-    ctx.fillText(s.value, scx, statsY);
-    ctx.font = '500 13px "Share Tech Mono", monospace';
-    ctx.fillStyle = 'rgba(180,210,240,0.75)';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
     ctx.shadowBlur = 8;
+    ctx.fillText(s.value, scx, statsY);
+    ctx.font = '500 12px "Share Tech Mono", monospace';
+    ctx.fillStyle = 'rgba(133,183,235,0.75)';
+    ctx.shadowBlur = 6;
     ctx.fillText(s.label, scx, statsLY);
     ctx.restore();
   });
