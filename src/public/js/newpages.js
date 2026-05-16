@@ -46,6 +46,9 @@ function renderSessionsPage(p, allMatches) {
   if (bestStreak > 1) html += statCard('Best Streak', bestStreak + ' days', 'gold', 'consecutive active days');
   html += '</div>';
 
+  // Inject toggle helper once
+  html += '<script>if(!window._sgToggle){window._sgToggle=function(id){var el=document.getElementById(id);if(!el)return;var open=el.style.display!=="none";el.style.display=open?"none":"block";var btn=document.getElementById(id+"-chevron");if(btn)btn.textContent=open?"▸":"▾";}}</script>';
+
   html += sectionHead('Session History', days.length + ' active days');
 
   days.forEach(function(day) {
@@ -88,10 +91,17 @@ function renderSessionsPage(p, allMatches) {
     var label = date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
     var isToday = day === (function(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); })();
 
-    html += '<div style="background:var(--surface);border:1px solid '+(isToday?'var(--accent)':'var(--border)')+';border-radius:8px;padding:13px 16px;margin-bottom:8px">';
+    var expandId = 'sg-exp-' + day;
+    var isFirst = day === days[0];
+
+    html += '<div style="background:var(--surface);border:1px solid '+(isToday?'var(--accent)':'var(--border)')+';border-radius:8px;margin-bottom:8px;overflow:hidden">';
+
+    // ── Clickable header ────────────────────────────────────────────────
+    html += '<div onclick="_sgToggle(\''+expandId+'\')" style="padding:13px 16px;cursor:pointer;user-select:none">';
 
     // Row 1: date · game count · K/D · W/L
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">';
+    html += '<span id="'+expandId+'-chevron" style="font-size:11px;color:var(--muted2);margin-right:2px">'+(isFirst?'▾':'▸')+'</span>';
     html += '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+(isToday?'var(--accent)':'var(--text)')+';font-weight:'+(isToday?'700':'400')+';min-width:96px">'+label+'</div>';
     html += '<div style="font-size:11px;color:var(--muted);font-family:Share Tech Mono,monospace">'+matches.length+'g</div>';
     html += '<div style="font-family:Rajdhani,sans-serif;font-size:16px;font-weight:700;color:'+kdColor+'">'+kd+' <span style="font-size:10px;color:var(--muted2)">K/D</span></div>';
@@ -112,7 +122,57 @@ function renderSessionsPage(p, allMatches) {
     // Row 3: CSR pills
     if (csrPills) html += '<div style="display:flex;gap:6px;flex-wrap:wrap">'+csrPills+'</div>';
 
+    html += '</div>'; // end clickable header
+
+    // ── Expanded match list ──────────────────────────────────────────────
+    html += '<div id="'+expandId+'" style="display:'+(isFirst?'block':'none')+';border-top:1px solid var(--border)">';
+
+    // Column headers
+    var cols = '18px 1fr 110px 52px 52px 52px 52px 64px 64px';
+    html += '<div style="display:grid;grid-template-columns:'+cols+';padding:5px 16px;background:var(--surface3);font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;gap:6px">';
+    html += '<span></span><span>MAP · MODE</span><span style="text-align:center">RESULT</span>';
+    html += '<span style="text-align:center">K</span><span style="text-align:center">D</span><span style="text-align:center">A</span>';
+    html += '<span style="text-align:center">ACC</span><span style="text-align:center">DAMAGE</span><span style="text-align:center">KDA / CSR</span>';
     html += '</div>';
+
+    matches.forEach(function(gm, gi) {
+      var isLast = gi === matches.length - 1;
+      var outColor = gm.outcome===2?'var(--win)':gm.outcome===3?'var(--loss)':'var(--muted2)';
+      var outLabel = gm.outcome===2?'WIN':gm.outcome===3?'LOSS':'DRAW';
+      var gmAcc = gm.accuracy!=null ? parseFloat(gm.accuracy).toFixed(0)+'%' : '—';
+      var gmDmg = gm.damageDealt ? Math.round(gm.damageDealt/100)/10+'k' : '—';
+      var gmKda = gm.kda || '—';
+      var kdaNum = parseFloat(gmKda);
+      var kdaColor = !isNaN(kdaNum) ? (kdaNum >= 1 ? 'var(--win)' : 'var(--loss)') : 'var(--muted)';
+      var csrStr = gm.csrDelta != null ? (gm.csrDelta>0?'+':'')+gm.csrDelta : '';
+      var csrColor = gm.csrDelta > 0 ? 'var(--win)' : gm.csrDelta < 0 ? 'var(--loss)' : 'var(--muted2)';
+      var modeShort = (gm.gameMode||'').replace('Ranked ','').replace('Arena: ','');
+
+      var rowBg = gi%2===0 ? 'var(--surface2)' : 'var(--surface)';
+      var rowRadius = isLast ? 'border-radius:0 0 8px 8px' : '';
+      html += '<div style="display:grid;grid-template-columns:'+cols+';padding:8px 16px;background:'+rowBg+';font-family:Share Tech Mono,monospace;font-size:10px;align-items:center;gap:6px;'+rowRadius+'">';
+
+      html += '<div style="width:7px;height:7px;border-radius:50%;background:'+outColor+'"></div>';
+      html += '<div>';
+      html += '<div style="color:var(--text);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(gm.mapName||'—')+'</div>';
+      html += '<div style="color:var(--muted2);font-size:8px;margin-top:1px">'+modeShort+'</div>';
+      html += '</div>';
+      html += '<div style="text-align:center;color:'+outColor+';font-size:9px;font-weight:700;letter-spacing:1px">'+outLabel+'</div>';
+      html += '<div style="text-align:center;color:var(--text)">'+(gm.kills||0)+'</div>';
+      html += '<div style="text-align:center;color:var(--muted)">'+(gm.deaths||0)+'</div>';
+      html += '<div style="text-align:center;color:var(--muted)">'+(gm.assists||0)+'</div>';
+      html += '<div style="text-align:center;color:var(--muted)">'+gmAcc+'</div>';
+      html += '<div style="text-align:center;color:var(--muted)">'+gmDmg+'</div>';
+      html += '<div style="text-align:center">';
+      html += '<span style="color:'+kdaColor+';font-weight:700">'+gmKda+'</span>';
+      if (csrStr) html += ' <span style="color:'+csrColor+';font-size:8px">'+csrStr+'</span>';
+      html += '</div>';
+
+      html += '</div>';
+    });
+
+    html += '</div>'; // end expanded
+    html += '</div>'; // end session card
   });
 
   return html;
@@ -775,19 +835,48 @@ function renderLastGamePage(p, allMatches) {
   // ── Objective stats ───────────────────────────────────────────────────────
   if (m.objStats) {
     var obj = m.objStats, objMode = obj.mode || '';
+    // Historical averages for same objective mode (all maps/this mode)
+    var sameObjMatches = allMatches.filter(function(x){ return x.objStats && x.objStats.mode === objMode; });
+    var mapObjMatches  = sameObjMatches.filter(function(x){ return x.mapName === m.mapName; });
+    function objAvg(field, src) {
+      var pool = src || sameObjMatches;
+      var vals = pool.map(function(x){ return x.objStats[field]; }).filter(function(v){ return v != null && !isNaN(v); });
+      return vals.length >= 2 ? vals.reduce(function(a,b){ return a+b; }, 0) / vals.length : null;
+    }
+    function objSub(field, valRaw, isTime) {
+      // prefer map-level avg, fall back to mode-level
+      var avg = objAvg(field, mapObjMatches.length >= 3 ? mapObjMatches : null) || objAvg(field);
+      if (avg == null) return null;
+      var scope = mapObjMatches.length >= 3 ? 'map avg' : 'mode avg';
+      var avgFmt = isTime ? Math.round(avg) + 's' : avg.toFixed(1);
+      var val = isTime ? valRaw : valRaw;
+      var numVal = isTime ? valRaw : parseFloat(valRaw);
+      var diff = numVal - avg;
+      var better = diff > 0;
+      var diffSign = diff >= 0 ? '+' : '';
+      var diffColor = better ? 'var(--win)' : 'var(--loss)';
+      return scope + ' ' + avgFmt + ' <span style="color:' + diffColor + ';font-size:8px">' + diffSign + (isTime ? Math.round(diff) + 's' : diff.toFixed(1)) + '</span>';
+    }
     var objRows = [];
-    if (obj.flagCaptures != null && obj.flagCaptures > 0) objRows.push({ label:'FLAG CAPS',   value: obj.flagCaptures });
-    if (obj.flagReturns  != null && obj.flagReturns  > 0) objRows.push({ label:'FLAG RETURNS', value: obj.flagReturns });
-    if (obj.zoneCaptures != null && obj.zoneCaptures > 0) objRows.push({ label:'ZONE CAPS',   value: obj.zoneCaptures });
-    if (obj.zoneSecures  != null && obj.zoneSecures  > 0) objRows.push({ label:'ZONE SECURES', value: obj.zoneSecures });
-    if (obj.timeAsCarrier!= null && obj.timeAsCarrier> 0) objRows.push({ label:'CARRIER TIME', value: Math.round(obj.timeAsCarrier)+'s' });
-    if (obj.killsAsCarrier!=null && obj.killsAsCarrier>0) objRows.push({ label:'KILLS AS CARRIER', value: obj.killsAsCarrier });
+    if (obj.flagCaptures  != null && obj.flagCaptures  > 0) objRows.push({ label:'FLAG CAPS',        value: obj.flagCaptures,  sub: objSub('flagCaptures',  obj.flagCaptures)  });
+    if (obj.flagReturns   != null && obj.flagReturns   > 0) objRows.push({ label:'FLAG RETURNS',     value: obj.flagReturns,   sub: objSub('flagReturns',   obj.flagReturns)   });
+    if (obj.flagGrabs     != null && obj.flagGrabs     > 0) objRows.push({ label:'FLAG GRABS',       value: obj.flagGrabs,     sub: objSub('flagGrabs',     obj.flagGrabs)     });
+    if (obj.zoneCaptures  != null && obj.zoneCaptures  > 0) objRows.push({ label:'ZONE CAPS',        value: obj.zoneCaptures,  sub: objSub('zoneCaptures',  obj.zoneCaptures)  });
+    if (obj.zoneSecures   != null && obj.zoneSecures   > 0) objRows.push({ label:'ZONE SECURES',     value: obj.zoneSecures,   sub: objSub('zoneSecures',   obj.zoneSecures)   });
+    if (obj.timeAsCarrier != null && obj.timeAsCarrier > 0) objRows.push({ label:'CARRIER TIME',     value: Math.round(obj.timeAsCarrier) + 's', sub: objSub('timeAsCarrier', obj.timeAsCarrier, true) });
+    if (obj.killsAsCarrier!= null && obj.killsAsCarrier> 0) objRows.push({ label:'KILLS AS CARRIER', value: obj.killsAsCarrier, sub: objSub('killsAsCarrier', obj.killsAsCarrier) });
+    if (obj.ballGrabs     != null && obj.ballGrabs     > 0) objRows.push({ label:'BALL GRABS',       value: obj.ballGrabs,     sub: objSub('ballGrabs',     obj.ballGrabs)     });
+    if (obj.longestCarry  != null && obj.longestCarry  > 0) objRows.push({ label:'LONGEST CARRY',    value: Math.round(obj.longestCarry) + 's', sub: objSub('longestCarry', obj.longestCarry, true) });
+    if (obj.seedsDeposited!= null && obj.seedsDeposited> 0) objRows.push({ label:'SEEDS DEPOSITED',  value: obj.seedsDeposited, sub: objSub('seedsDeposited', obj.seedsDeposited) });
+    if (obj.defensiveKills!= null && obj.defensiveKills> 0) objRows.push({ label:'DEFENSIVE KILLS',  value: obj.defensiveKills, sub: objSub('defensiveKills', obj.defensiveKills) });
+    if (obj.offensiveKills!= null && obj.offensiveKills> 0) objRows.push({ label:'OFFENSIVE KILLS',  value: obj.offensiveKills, sub: objSub('offensiveKills', obj.offensiveKills) });
     if (objRows.length) {
+      var nGames = sameObjMatches.length;
       html += '<div style="margin-top:28px">';
-      html += sectionHead('OBJECTIVE', objMode.toUpperCase());
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px">';
+      html += sectionHead('OBJECTIVE', objMode.toUpperCase() + (nGames >= 2 ? ' · avg from ' + nGames + ' games' : ''));
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:12px">';
       objRows.forEach(function(r) {
-        html += statCard(r.label, r.value, 'accent');
+        html += statCard(r.label, r.value, 'accent', r.sub || null);
       });
       html += '</div></div>';
     }
@@ -813,12 +902,26 @@ function renderLastGamePage(p, allMatches) {
     var myAvgAcc = myTotalAcc.length ? myTotalAcc.reduce(function(s,p){ return s+parseFloat(p.accuracy); },0)/myTotalAcc.length : null;
     var enAvgAcc = enTotalAcc.length ? enTotalAcc.reduce(function(s,p){ return s+parseFloat(p.accuracy); },0)/enTotalAcc.length : null;
 
+    var myTotalDeaths = teamTotal(myTeamPlayers,   function(p){ return p.deaths; });
+    var enTotalDeaths = teamTotal(enemyTeamPlayers, function(p){ return p.deaths; });
+    var myTotalAssists= teamTotal(myTeamPlayers,   function(p){ return p.assists; });
+    var enTotalAssists= teamTotal(enemyTeamPlayers, function(p){ return p.assists; });
+    var myKdaPlayers  = myTeamPlayers.filter(function(p){ return p.kda != null && !isNaN(parseFloat(p.kda)); });
+    var enKdaPlayers  = enemyTeamPlayers.filter(function(p){ return p.kda != null && !isNaN(parseFloat(p.kda)); });
+    var myAvgKda = myKdaPlayers.length ? myKdaPlayers.reduce(function(s,p){ return s+parseFloat(p.kda); },0)/myKdaPlayers.length : null;
+    var enAvgKda = enKdaPlayers.length ? enKdaPlayers.reduce(function(s,p){ return s+parseFloat(p.kda); },0)/enKdaPlayers.length : null;
+
     var comparisons = [
-      { label:'TOTAL KILLS', my: myTotalKills, en: enTotalKills, fmt: function(v){ return v; } },
-      { label:'TOTAL DAMAGE', my: myTotalDmg, en: enTotalDmg, fmt: function(v){ return Math.round(v).toLocaleString(); } },
+      { label:'TOTAL KILLS',   my: myTotalKills,   en: enTotalKills,   higherBetter: true,  fmt: function(v){ return v; } },
+      { label:'TOTAL DEATHS',  my: myTotalDeaths,  en: enTotalDeaths,  higherBetter: false, fmt: function(v){ return v; } },
+      { label:'TOTAL ASSISTS', my: myTotalAssists, en: enTotalAssists, higherBetter: true,  fmt: function(v){ return v; } },
+      { label:'TOTAL DAMAGE',  my: myTotalDmg,     en: enTotalDmg,     higherBetter: true,  fmt: function(v){ return Math.round(v).toLocaleString(); } },
     ];
     if (myAvgAcc != null && enAvgAcc != null) {
-      comparisons.push({ label:'AVG ACCURACY', my: myAvgAcc, en: enAvgAcc, fmt: function(v){ return v.toFixed(1)+'%'; } });
+      comparisons.push({ label:'AVG ACCURACY', my: myAvgAcc, en: enAvgAcc, higherBetter: true, fmt: function(v){ return v.toFixed(1)+'%'; } });
+    }
+    if (myAvgKda != null && enAvgKda != null) {
+      comparisons.push({ label:'AVG KDA', my: myAvgKda, en: enAvgKda, higherBetter: true, fmt: function(v){ return v.toFixed(2); } });
     }
 
     html += '<div style="margin-top:28px">';
@@ -828,16 +931,20 @@ function renderLastGamePage(p, allMatches) {
       var total = (row.my||0) + (row.en||0) || 1;
       var myPct = (row.my||0) / total * 100;
       var enPct = (row.en||0) / total * 100;
-      var myWins = row.my >= row.en;
+      // For deaths: fewer is better, so my "winning" means my value is lower
+      var hb = row.higherBetter !== false;
+      var myLeads = hb ? row.my >= row.en : row.my <= row.en;
+      var myBarColor = myLeads ? 'var(--win)' : 'var(--loss)';
+      var enBarColor = myLeads ? 'var(--loss)' : 'var(--win)';
       html += '<div>';
       html += '<div style="display:flex;justify-content:space-between;font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:4px">';
-      html += '<span style="color:'+(myWins?'var(--win)':'var(--muted)')+'">YOUR TEAM · ' + row.fmt(row.my||0) + '</span>';
+      html += '<span style="color:'+(myLeads?'var(--win)':'var(--muted)')+'">YOUR TEAM · ' + row.fmt(row.my||0) + '</span>';
       html += '<span style="letter-spacing:2px">' + row.label + '</span>';
-      html += '<span style="color:'+(!myWins?'var(--win)':'var(--muted)')+'">OPPONENTS · ' + row.fmt(row.en||0) + '</span>';
+      html += '<span style="color:'+(!myLeads?'var(--win)':'var(--muted)')+'">OPPONENTS · ' + row.fmt(row.en||0) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;height:10px;border-radius:3px;overflow:hidden;gap:2px">';
-      html += '<div style="width:'+myPct.toFixed(1)+'%;background:'+(myWins?'var(--win)':'var(--loss)')+';border-radius:3px 0 0 3px;transition:width 0.4s ease"></div>';
-      html += '<div style="width:'+enPct.toFixed(1)+'%;background:'+(myWins?'var(--loss)':'var(--win)')+';border-radius:0 3px 3px 0;transition:width 0.4s ease"></div>';
+      html += '<div style="width:'+myPct.toFixed(1)+'%;background:'+myBarColor+';border-radius:3px 0 0 3px;transition:width 0.4s ease"></div>';
+      html += '<div style="width:'+enPct.toFixed(1)+'%;background:'+enBarColor+';border-radius:0 3px 3px 0;transition:width 0.4s ease"></div>';
       html += '</div>';
       html += '</div>';
     });
