@@ -46,9 +46,6 @@ function renderSessionsPage(p, allMatches) {
   if (bestStreak > 1) html += statCard('Best Streak', bestStreak + ' days', 'gold', 'consecutive active days');
   html += '</div>';
 
-  // Inject toggle helper once
-  html += '<script>if(!window._sgToggle){window._sgToggle=function(id){var el=document.getElementById(id);if(!el)return;var open=el.style.display!=="none";el.style.display=open?"none":"block";var btn=document.getElementById(id+"-chevron");if(btn)btn.textContent=open?"▸":"▾";}}</script>';
-
   html += sectionHead('Session History', days.length + ' active days');
 
   days.forEach(function(day) {

@@ -334,6 +334,16 @@ function setTab(t){
   });
 }
 
+// ── Session expand/collapse toggle ───────────────────────────────────────────
+window._sgToggle = function(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  var chevron = document.getElementById(id + '-chevron');
+  if (chevron) chevron.textContent = open ? '▸' : '▾';
+};
+
 // ── Last Game live polling ────────────────────────────────────────────────────
 var _lgPollTimer=null, _lgLastChecked=0, _lgCheckedAgoTimer=null;
 function _startLastGamePoll(){
