@@ -1064,7 +1064,7 @@ function renderLastGamePage(p, allMatches) {
       var tierColors = {Bronze:'#cd7f32',Silver:'#aaa',Gold:'var(--gold)',Platinum:'#50b0ff',Diamond:'#5bf0ff',Onyx:'var(--win)'};
       html += '<div style="margin-top:28px">';
       html += sectionHead('LOBBY STRENGTH', allLobby.length + ' players');
-      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">';
+      html += '<div class="lobby-grid">';
       // Left: lobby avg vs you
       html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px">';
       html += '<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:1px;margin-bottom:8px">RANK COMPARISON</div>';
