@@ -879,18 +879,50 @@ function render(){
   // ── Fragr Score — second thing after hero card ────────────────────────────
   (function(){
     var _clamp=function(v,lo,hi){return v<lo?lo:v>hi?hi:v;};
+    function _dur(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
     function _matchFragr(m){
       if(!m||m.kills==null) return null;
-      var score=500;
+      var durationMin=Math.max(_dur(m)/60,1); // never divide by zero; floor at 1min
+
+      // ── Combat efficiency ────────────────────────────────────────────────
       var kda=m.deaths>0?(m.kills+(m.assists||0)/3)/m.deaths:Math.min(m.kills+(m.assists||0)/3,4);
-      score+=_clamp((kda-1.0)*175,-175,175);
-      if(m.accuracy!=null) score+=_clamp((parseFloat(m.accuracy)-50)*1.5,-75,75);
-      if(m.damageDealt>0) score+=_clamp((m.damageDealt/4500-1)*75,-75,75);
-      if(m.weaponStats&&m.weaponStats.headshots!=null&&m.kills>0) score+=_clamp((m.weaponStats.headshots/m.kills-0.30)*166,-50,50);
-      if(m.outcome===2) score+=125; else if(m.outcome===3) score-=125;
-      return _clamp(Math.round(score),0,1000);
+      var combatEff=0;
+      combatEff+=_clamp((kda-1.0)*175,-175,175);
+      if(m.accuracy!=null) combatEff+=_clamp((parseFloat(m.accuracy)-50)*1.5,-75,75);
+      // Damage normalised by duration — baseline 450 dpm for a competitive player
+      var dpm=m.damageDealt>0?m.damageDealt/durationMin:0;
+      combatEff+=_clamp((dpm/450-1)*75,-75,75);
+      if(m.weaponStats&&m.weaponStats.headshots!=null&&m.kills>0)
+        combatEff+=_clamp((m.weaponStats.headshots/m.kills-0.30)*166,-50,50);
+
+      // ── Objective efficiency (replacement path — takes over if higher) ───
+      // Lets flag runners / zone anchors score fairly without needing high damage/KDA
+      var objEff=null;
+      if(m.objStats){
+        var os=m.objStats,raw=0;
+        if(os.mode==='CTF'){
+          // caps are worth most; grabs/returns show participation; carrier kills show defence
+          raw=(os.flagCaptures||0)*3+(os.flagGrabs||0)*1.5+(os.flagReturns||0)*2+(os.flagCarrierKills||0)*1;
+          objEff=_clamp((raw/3.5-1)*200,-175,175); // baseline 3.5 (1 grab + 1 return)
+        } else if(os.mode==='Oddball'){
+          raw=(os.timeAsCarrier||0)+(os.carrierKills||0)*5+(os.ballGrabs||0)*3;
+          objEff=_clamp((raw/60-1)*175,-175,175); // baseline 60s carry
+        } else if(os.captures!=null||os.secures!=null){
+          // Strongholds / KotH / Land Grab
+          raw=(os.captures||0)*2+(os.secures||0)*1.5+(os.defensiveKills||0)*0.5;
+          objEff=_clamp((raw/5.5-1)*200,-175,175); // baseline 2 caps + 1 secure = 5.5
+        } else if(os.seedsDeposited!=null){
+          // Stockpile
+          raw=(os.seedsDeposited||0)*3+(os.seedsPickedUp||0)*1;
+          objEff=_clamp((raw/6-1)*175,-175,175);
+        }
+      }
+
+      // Use whichever efficiency component is higher
+      var eff=(objEff!==null&&objEff>combatEff)?objEff:combatEff;
+      var winLoss=m.outcome===2?125:m.outcome===3?-125:0;
+      return _clamp(Math.round(500+eff+winLoss),0,1000);
     }
-    function _dur(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
     var _fsMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_dur(m)>=180;});
     if(_fsMatches.length<3) return;
     var _scores=_fsMatches.map(_matchFragr).filter(function(v){return v!=null;});
