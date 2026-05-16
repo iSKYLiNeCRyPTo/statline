@@ -891,60 +891,68 @@ function openFragrShare() {
 }
 
 function _drawFragrOverlay(ctx, W, H, d) {
-  // ── Layout zones (tuned to sharecard.jpg 1168×784) ──────────────────────
-  // Panel interior (the dark framed rectangle): x 195–970, y 140–610
-  // Panel content center: x 650 (shifted right of Master Chief), y 375
-  // Stats zone bottom of panel: y 510–580
-  // Bottom bar ("SHARE YOUR FRAGR SCORE"): y 700–760 — leave clear
+  // ── Layout zones (tuned to updated sharecard.jpg 1168×784) ─────────────
+  // Teal frame rect: x ~285–980, y ~155–575
+  // Master Chief (pink) overlaps from the left: clears around x 490+
+  // Score center sweet spot: x 690, y 360  (clean dark space in frame)
+  // Stats span across full frame width at y ~490–520
+  // Above frame (y 60–140): open asteroid sky — gamertag here with strong shadow
 
-  var cx = 648; // horizontal center for score text (clear of Master Chief)
+  var cx = 690;
 
-  // --- Gamertag — sits above the panel, between title and frame ---
+  // --- Subtle dark tint over the frame interior so text pops ---
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.roundRect ? ctx.roundRect(285, 155, 695, 420, 6) : ctx.fillRect(285, 155, 695, 420);
+  ctx.fill();
+  ctx.restore();
+
+  // --- Gamertag ---
   ctx.save();
   ctx.font = '700 34px "Exo 2", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  ctx.shadowColor = 'rgba(0,0,0,0.9)';
-  ctx.shadowBlur = 12;
-  ctx.fillText(d.gamertag, cx, 112);
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,1)';
+  ctx.shadowBlur = 18;
+  ctx.fillText(d.gamertag, cx, 122);
   ctx.restore();
 
   // --- Big score number ---
   ctx.save();
   ctx.textAlign = 'center';
+  ctx.font = '700 190px Rajdhani, sans-serif';
   // Glow pass
-  ctx.font = '700 200px Rajdhani, sans-serif';
   ctx.shadowColor = d.tierHex;
-  ctx.shadowBlur = 60;
+  ctx.shadowBlur = 55;
   ctx.fillStyle = d.tierHex;
-  ctx.fillText(d.score, cx, 390);
+  ctx.fillText(d.score, cx, 385);
   ctx.shadowBlur = 0;
   // Crisp white overlay
-  ctx.fillStyle = 'rgba(255,255,255,0.93)';
-  ctx.fillText(d.score, cx, 390);
+  ctx.fillStyle = 'rgba(255,255,255,0.94)';
+  ctx.fillText(d.score, cx, 385);
   ctx.restore();
 
   // --- Tier label ---
   ctx.save();
-  ctx.font = '700 32px Rajdhani, sans-serif';
+  ctx.font = '700 30px Rajdhani, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = d.tierHex;
-  ctx.shadowColor = 'rgba(0,0,0,0.8)';
-  ctx.shadowBlur = 10;
-  ctx.fillText(d.tier.toUpperCase(), cx, 438);
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 12;
+  ctx.fillText(d.tier.toUpperCase(), cx, 432);
   ctx.restore();
 
-  // --- Divider line ---
+  // --- Divider ---
   ctx.save();
   ctx.strokeStyle = d.tierHex + '66';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx - 140, 460);
-  ctx.lineTo(cx + 140, 460);
+  ctx.moveTo(cx - 130, 452);
+  ctx.lineTo(cx + 130, 452);
   ctx.stroke();
   ctx.restore();
 
-  // --- Stats row (KDA · ACC · WIN RATE · MATCHES) inside panel ---
+  // --- Stats row — spread across full frame width ---
   var stats = [
     { label: 'KDA',      value: d.kda != null ? String(d.kda) : '—' },
     { label: 'ACCURACY', value: d.accuracy != null ? d.accuracy + '%' : '—' },
@@ -952,35 +960,33 @@ function _drawFragrOverlay(ctx, W, H, d) {
     { label: 'MATCHES',  value: d.matches != null ? String(d.matches) : '—' }
   ];
 
-  // Spread stats across the panel's clean area (x 290–970)
-  var statAreaLeft = 310, statAreaRight = 960;
-  var statSpan = statAreaRight - statAreaLeft;
-  var statStep = statSpan / stats.length;
+  var statAreaLeft = 320, statAreaRight = 960;
+  var statStep = (statAreaRight - statAreaLeft) / stats.length;
 
   stats.forEach(function(s, i) {
     var scx = statAreaLeft + statStep * i + statStep / 2;
-
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = '700 38px Rajdhani, sans-serif';
+    ctx.font = '700 36px Rajdhani, sans-serif';
     ctx.fillStyle = '#e6f1fb';
-    ctx.shadowColor = 'rgba(0,0,0,0.9)';
-    ctx.shadowBlur = 10;
-    ctx.fillText(s.value, scx, 520);
-
-    ctx.font = '500 14px "Share Tech Mono", monospace';
-    ctx.fillStyle = 'rgba(180,210,240,0.7)';
-    ctx.shadowBlur = 6;
-    ctx.fillText(s.label, scx, 546);
+    ctx.shadowColor = 'rgba(0,0,0,1)';
+    ctx.shadowBlur = 12;
+    ctx.fillText(s.value, scx, 506);
+    ctx.font = '500 13px "Share Tech Mono", monospace';
+    ctx.fillStyle = 'rgba(180,210,240,0.75)';
+    ctx.shadowBlur = 8;
+    ctx.fillText(s.label, scx, 530);
     ctx.restore();
   });
 
-  // --- fragr.live watermark (bottom-right, above the bar) ---
+  // --- fragr.live watermark ---
   ctx.save();
-  ctx.font = '500 16px "Share Tech Mono", monospace';
+  ctx.font = '500 15px "Share Tech Mono", monospace';
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(133,183,235,0.45)';
-  ctx.fillText('fragr.live', W - 48, 670);
+  ctx.fillStyle = 'rgba(133,183,235,0.5)';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 8;
+  ctx.fillText('fragr.live', W - 40, 660);
   ctx.restore();
 }
 

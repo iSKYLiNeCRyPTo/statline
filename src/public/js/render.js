@@ -930,26 +930,28 @@ function render(){
     // Store globally so the share card renderer can access it
     window._fragrScoreData={score:_career,tier:_tier,tierHex:_tierHex,gamertag:p.gamertag,kda:_avgKda,accuracy:_avgAcc,winRate:_wr,matches:_fsMatches.length};
     // ── Display: clean, proprietary — just the number ──
-    html+='<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;overflow:hidden">';
-    // Subtle glow behind score
-    html+='<div style="position:absolute;left:-20px;top:50%;transform:translateY(-50%);width:160px;height:160px;border-radius:50%;background:'+_tierHex+';opacity:0.06;filter:blur(40px);pointer-events:none"></div>';
-    // Left: score block
-    html+='<div style="flex:1;min-width:0">';
-    html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px;margin-bottom:6px">FRAGR SCORE</div>';
-    html+='<div style="font-family:Rajdhani,sans-serif;font-size:64px;font-weight:700;line-height:1;color:'+_tierHex+';letter-spacing:-2px">'+_career+'</div>';
+    var _bgIdx=Math.floor(Math.random()*5);
+    var _bgUrl='desktop'+_bgIdx+'.png';
+    html+='<div style="background:var(--surface);background-image:url('+_bgUrl+');background-size:cover;background-position:right center;background-repeat:no-repeat;border:1px solid var(--border2);border-radius:10px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:relative;overflow:hidden">';
+    // Dark overlay so text stays readable (fades left-to-right revealing the art)
+    html+='<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,13,23,0.72) 0%,rgba(6,13,23,0.45) 55%,rgba(6,13,23,0.1) 100%);pointer-events:none;border-radius:10px"></div>';
+    // Left: score block (z-index above overlay)
+    html+='<div style="flex:1;min-width:0;position:relative;z-index:1">';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px;margin-bottom:6px;text-shadow:0 1px 4px rgba(0,0,0,0.8)">FRAGR SCORE</div>';
+    html+='<div style="font-family:Rajdhani,sans-serif;font-size:64px;font-weight:700;line-height:1;color:'+_tierHex+';letter-spacing:-2px;text-shadow:0 0 24px '+_tierHex+'88,0 2px 8px rgba(0,0,0,0.9)">'+_career+'</div>';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px">';
-    html+='<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:'+_tierHex+';letter-spacing:1.5px">'+_tier.toUpperCase()+'</div>';
-    html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2)">· '+_fsMatches.length+' ranked matches</div>';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:'+_tierHex+';letter-spacing:1.5px;text-shadow:0 1px 6px rgba(0,0,0,0.8)">'+_tier.toUpperCase()+'</div>';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);text-shadow:0 1px 4px rgba(0,0,0,0.8)">· '+_fsMatches.length+' ranked matches</div>';
     html+='</div>';
     // Stats row
-    html+='<div style="display:flex;gap:20px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">';
-    html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1">'+_avgKda+'</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">KDA</div></div>';
-    if(_avgAcc!=null){html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1">'+_avgAcc+'%</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">ACC</div></div>';}
-    html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:'+(_wr>=55?'var(--win)':_wr<=45?'var(--loss)':'var(--gold)')+';line-height:1">'+_wr+'%</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">WIN RATE</div></div>';
+    html+='<div style="display:flex;gap:20px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1)">';
+    html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1;text-shadow:0 2px 6px rgba(0,0,0,0.9)">'+_avgKda+'</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">KDA</div></div>';
+    if(_avgAcc!=null){html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:var(--text);line-height:1;text-shadow:0 2px 6px rgba(0,0,0,0.9)">'+_avgAcc+'%</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">ACC</div></div>';}
+    html+='<div style="text-align:center"><div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:700;color:'+(_wr>=55?'var(--win)':_wr<=45?'var(--loss)':'var(--gold)')+';line-height:1;text-shadow:0 2px 6px rgba(0,0,0,0.9)">'+_wr+'%</div><div style="font-family:Share Tech Mono,monospace;font-size:8px;color:var(--muted2);letter-spacing:1px;margin-top:3px">WIN RATE</div></div>';
     html+='</div>';
     html+='</div>';
-    // Right: share button
-    html+='<button onclick="openFragrShare()" style="display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--border2);color:var(--muted);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:1px;transition:all 0.15s;white-space:nowrap" onmouseover="this.style.borderColor=\''+_tierHex+'\';this.style.color=\''+_tierHex+'\'" onmouseout="this.style.borderColor=\'var(--border2)\';this.style.color=\'var(--muted)\'">';
+    // Right: share button (z-index above overlay)
+    html+='<button onclick="openFragrShare()" style="position:relative;z-index:1;display:flex;align-items:center;gap:7px;background:rgba(6,13,23,0.55);backdrop-filter:blur(4px);border:1px solid var(--border2);color:var(--muted);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:Share Tech Mono,monospace;font-size:9px;letter-spacing:1px;transition:all 0.15s;white-space:nowrap" onmouseover="this.style.borderColor=\''+_tierHex+'\';this.style.color=\''+_tierHex+'\'" onmouseout="this.style.borderColor=\'var(--border2)\';this.style.color=\'var(--muted)\'">';
     html+='<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     html+='SHARE</button>';
     html+='</div>';
