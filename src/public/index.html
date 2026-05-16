@@ -568,6 +568,9 @@ body.on-landing .sidebar{display:none !important}
       <button class="sidebar-nav-item active" data-tab="overview" onclick="setTab('overview')">
         <span class="nav-icon">◈</span><span class="nav-label">Overview</span>
       </button>
+      <button class="sidebar-nav-item" data-tab="lastgame" onclick="setTab('lastgame')">
+        <span class="nav-icon">◎</span><span class="nav-label">Last Game</span>
+      </button>
       <button class="sidebar-nav-item" data-tab="matches" onclick="setTab('matches')">
         <span class="nav-icon">◉</span><span class="nav-label">Matches</span>
       </button>
@@ -576,9 +579,6 @@ body.on-landing .sidebar{display:none !important}
       </button>
       <button class="sidebar-nav-item" data-tab="charts" onclick="setTab('charts')">
         <span class="nav-icon">◧</span><span class="nav-label">Stats</span>
-      </button>
-      <button class="sidebar-nav-item" data-tab="opponents" onclick="setTab('opponents')">
-        <span class="nav-icon">◐</span><span class="nav-label">Rivals</span>
       </button>
       <button class="sidebar-nav-item" data-tab="sessions" onclick="setTab('sessions')">
         <span class="nav-icon">◷</span><span class="nav-label">Sessions</span>
@@ -595,8 +595,8 @@ body.on-landing .sidebar{display:none !important}
       <button class="sidebar-nav-item" data-tab="compare" onclick="setTab('compare')">
         <span class="nav-icon">⚔</span><span class="nav-label">Compare</span>
       </button>
-      <button class="sidebar-nav-item" data-tab="lastgame" onclick="setTab('lastgame')">
-        <span class="nav-icon">◈</span><span class="nav-label">Last Game</span>
+      <button class="sidebar-nav-item" data-tab="opponents" onclick="setTab('opponents')">
+        <span class="nav-icon">◐</span><span class="nav-label">Rivals</span>
       </button>
     </nav>
 
@@ -756,14 +756,14 @@ body.on-landing .sidebar{display:none !important}
   <div class="mobile-tab active" data-tab="overview" onclick="setTab('overview')"><span>◈</span><span class="mobile-tab-label">Overview</span></div>
   <div class="mobile-tab" data-tab="lastgame" onclick="setTab('lastgame')"><span>◎</span><span class="mobile-tab-label">Last Game</span></div>
   <div class="mobile-tab" data-tab="matches" onclick="setTab('matches')"><span>◉</span><span class="mobile-tab-label">Matches</span></div>
-  <div class="mobile-tab" data-tab="sessions" onclick="setTab('sessions')"><span>◷</span><span class="mobile-tab-label">Sessions</span></div>
   <div class="mobile-tab" data-tab="bymap" onclick="setTab('bymap')"><span>◫</span><span class="mobile-tab-label">Maps</span></div>
   <div class="mobile-tab" data-tab="charts" onclick="setTab('charts')"><span>◧</span><span class="mobile-tab-label">Stats</span></div>
-  <div class="mobile-tab" data-tab="weapons" onclick="setTab('weapons')"><span>◆</span><span class="mobile-tab-label">Precision</span></div>
-  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
+  <div class="mobile-tab" data-tab="sessions" onclick="setTab('sessions')"><span>◷</span><span class="mobile-tab-label">Sessions</span></div>
   <div class="mobile-tab" data-tab="activity" onclick="setTab('activity')"><span>◎</span><span class="mobile-tab-label">Activity</span></div>
+  <div class="mobile-tab" data-tab="weapons" onclick="setTab('weapons')"><span>⊕</span><span class="mobile-tab-label">Precision</span></div>
   <div class="mobile-tab" data-tab="synergy" onclick="setTab('synergy')"><span>◆</span><span class="mobile-tab-label">Synergy</span></div>
   <div class="mobile-tab" data-tab="compare" onclick="setTab('compare')"><span>⚔</span><span class="mobile-tab-label">Compare</span></div>
+  <div class="mobile-tab" data-tab="opponents" onclick="setTab('opponents')"><span>◐</span><span class="mobile-tab-label">Rivals</span></div>
   <a href="/leaderboard.html" class="mobile-tab" style="text-decoration:none;color:inherit"><span><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span><span class="mobile-tab-label">Leaderboard</span></a>
 </nav>
 

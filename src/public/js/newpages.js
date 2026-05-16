@@ -683,14 +683,15 @@ function renderLastGamePage(p, allMatches) {
   html += statCard('DEATHS',  m.deaths, 'loss');
   html += statCard('ASSISTS', m.assists);
   html += statCard('KDA', m.kda, myKDA >= 1 ? 'win' : 'loss');
-  if (myAcc != null) html += statCard('ACCURACY', myAcc.toFixed(1) + '%', myAcc >= 50 ? 'win' : myAcc < 35 ? 'loss' : '');
+  if (myAcc != null) html += statCard('ACCURACY', myAcc.toFixed(1) + '%', myAcc >= 50 ? 'win' : 'loss');
   if (m.weaponStats && m.weaponStats.headshots != null && m.kills > 0) {
     var hsRate = (m.weaponStats.headshots / m.kills * 100).toFixed(0);
     html += statCard('HEADSHOT %', hsRate + '%', parseInt(hsRate) >= 40 ? 'win' : '');
   }
   var dmgDealtClass = (m.damageDealt && m.damageTaken != null) ? (m.damageDealt > m.damageTaken ? 'win' : '') : '';
+  var dmgTakenClass = (m.damageTaken != null && m.damageDealt != null) ? (m.damageTaken > m.damageDealt ? 'loss' : '') : '';
   if (m.damageDealt) html += statCard('DMG DEALT', m.damageDealt.toLocaleString(), dmgDealtClass);
-  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), 'loss', m.damageTakenEstimated ? 'est.' : null);
+  if (m.damageTaken != null) html += statCard('DMG TAKEN', m.damageTaken.toLocaleString(), dmgTakenClass, m.damageTakenEstimated ? 'est.' : null);
   if (m.damageDealt && m.damageTaken) {
     var dmgRatio = (m.damageDealt / Math.max(m.damageTaken, 1)).toFixed(2);
     html += statCard('DMG RATIO', dmgRatio, parseFloat(dmgRatio) >= 1 ? 'win' : 'loss', 'dealt÷taken');
