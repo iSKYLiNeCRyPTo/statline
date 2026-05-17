@@ -500,6 +500,10 @@ async function landingSearchPlayer(){
   var gt=document.getElementById('landingSearch').value.trim();
   var errEl=document.getElementById('landingError');
   if(!gt){if(errEl)errEl.textContent='Please enter a gamertag.';return;}
+  if(typeof _activeGame!=='undefined'&&_activeGame==='rivals'){
+    window.location.href='/rivals?player='+encodeURIComponent(gt);
+    return;
+  }
   if(errEl)errEl.textContent='Searching...';
   document.getElementById('searchInput').value=gt;
   await doSearch(gt);

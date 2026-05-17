@@ -709,10 +709,38 @@ body.on-landing .sidebar{display:none !important}
         </svg>
         <span style="font-family:system-ui,sans-serif;font-size:clamp(48px,9vw,80px);font-weight:500;letter-spacing:-2px;color:var(--text);line-height:1">fragr</span>
         <span style="font-family:Share Tech Mono,monospace;font-size:clamp(9px,1.2vw,11px);letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-top:6px">Stat Tracker</span>
-        <div style="display:flex;gap:6px;margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px">
-          <span style="padding:6px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--accent);color:#fff;font-weight:700;cursor:default">Halo Infinite</span>
-          <a href="/rivals" style="padding:6px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Marvel Rivals</a>
+        <div style="display:flex;gap:6px;margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px" id="gameSwitcher">
+          <button id="btnHalo" onclick="setGame('halo')" style="padding:6px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;border:none;transition:all 0.15s">Halo Infinite</button>
+          <button id="btnRivals" onclick="setGame('rivals')" style="padding:6px 16px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:transparent;border:none;cursor:pointer;transition:all 0.15s">Marvel Rivals</button>
         </div>
+        <script>
+        var _activeGame='halo';
+        function setGame(game){
+          _activeGame=game;
+          var root=document.documentElement;
+          var btnH=document.getElementById('btnHalo');
+          var btnR=document.getElementById('btnRivals');
+          var sub=document.querySelector('#landing .landing-game-sub');
+          var inp=document.getElementById('landingSearch');
+          if(game==='rivals'){
+            root.style.setProperty('--accent','#e8002a');
+            root.style.setProperty('--accent-r','232');
+            root.style.setProperty('--accent-g','0');
+            root.style.setProperty('--accent-b','42');
+            btnR.style.background='#e8002a';btnR.style.color='#fff';btnR.style.fontWeight='700';
+            btnH.style.background='transparent';btnH.style.color='var(--muted)';btnH.style.fontWeight='400';
+            if(inp)inp.placeholder='Enter username...';
+          } else {
+            root.style.setProperty('--accent','#185FA5');
+            root.style.setProperty('--accent-r','24');
+            root.style.setProperty('--accent-g','95');
+            root.style.setProperty('--accent-b','165');
+            btnH.style.background='#185FA5';btnH.style.color='#fff';btnH.style.fontWeight='700';
+            btnR.style.background='transparent';btnR.style.color='var(--muted)';btnR.style.fontWeight='400';
+            if(inp)inp.placeholder='Enter gamertag...';
+          }
+        }
+        </script>
       </div>
       <div style="display:flex;gap:10px;margin-bottom:12px;max-width:520px;margin-left:auto;margin-right:auto">
         <div class="search-wrap" style="flex:1;position:relative">
