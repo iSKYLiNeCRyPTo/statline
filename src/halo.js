@@ -1378,6 +1378,16 @@ async function fetchAndApplySkillData(xuid, matches) {
   console.log(`[SkillBG] Skill data applied to ${ranked.length} matches (xuid=${xuid})`);
 }
 
+// Known playlist IDs whose names the API sometimes omits
+const KNOWN_PLAYLISTS = {
+  '1b1691dc-d8b9-4b1f-825d-cb1c065184c1': 'Quick Play',
+  'edfef3ac-9cbe-4fa2-b949-8f29deafd483': 'Ranked Arena',
+  'f5580605-660c-43f9-ac69-4075c4a05c5d': 'Ranked Slayer',
+  'dcb2e24e-05fb-4390-8076-32a0cdb4326e': 'Ranked Slayer',
+  'c94cb508-2fbd-450a-81db-bb74f7741d45': 'Ranked Legacy',
+  'fa5aa2a3-2428-4912-a023-e1eeea7b877c': 'Ranked Doubles',
+};
+
 // Standalone playlist discovery — fetches the player's 25 most recent matches and
 // returns every unique playlist ID + name found. Runs completely outside the TARGET
 // filter so it always sees recent matches regardless of how many ranked ones exist.
@@ -1410,7 +1420,7 @@ async function discoverPlaylists(xuid, gamertag) {
       } else {
         seen.set(playlistId, {
           id: playlistId,
-          name: md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || '(no name in API)',
+          name: md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || KNOWN_PLAYLISTS[playlistId] || '(no name in API)',
           exp: md.MatchInfo?.PlaylistExperience || '',
           lifecycle: md.MatchInfo?.LifecycleMode,
           matchId: m.MatchId,
