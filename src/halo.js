@@ -151,7 +151,7 @@ async function fetchClearanceToken(xuid) {
           cachedClearance = data.FlightConfigurationId || data.flightConfigurationId || null;
           clearanceFetchedAt = Date.now();
           clearanceFailedAt = 0; // reset failure timestamp on success
-          console.log('[Clearance] OK:', cachedClearance ? 'set' : 'null');
+          // [Clearance] OK logged at debug level only
           getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
           break;
         } else {
@@ -372,12 +372,7 @@ async function resolveEmblemForXuid(xuid) {
       }
       if (custRes.ok) {
         const custData = await custRes.json();
-        // Log full Appearance keys once so we can find the nameplate field
-        if (!resolveEmblemForXuid._loggedAppearance) {
-          resolveEmblemForXuid._loggedAppearance = true;
-          console.log('[Emblem] Appearance keys:', Object.keys(custData?.Appearance || {}));
-          console.log('[Emblem] Full Appearance:', JSON.stringify(custData?.Appearance, null, 2).slice(0, 2000));
-        }
+        // Appearance debug logging removed (was too verbose)
         // Try to read nameplate/backdrop directly from Appearance before falling back to emblem mapping
         const appearance = custData?.Appearance || {};
         // Cache service tag
@@ -398,11 +393,7 @@ async function resolveEmblemForXuid(xuid) {
               const npJsonRes = await fetch(npJsonUrl, { headers: freshHeaders });
               if (npJsonRes.ok) {
                 const npJson = await npJsonRes.json();
-                // Log full backdrop JSON structure once so we can identify nameplate vs backdrop fields
-                if (!resolveEmblemForXuid._loggedBackdropJson) {
-                  resolveEmblemForXuid._loggedBackdropJson = true;
-                  console.log('[Emblem] Full backdrop JSON:', JSON.stringify(npJson, null, 2).slice(0, 3000));
-                }
+                // Backdrop JSON debug logging removed (was too verbose)
                 // The backdrop JSON has two distinct images:
                 // 1) CommonData.DisplayPath → the background/backdrop (gray V-shape)
                 // 2) Nameplate-specific field → the colored overlay plate (blue nameplate)
@@ -894,9 +885,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
                        || md.MatchInfo?.GameVariant?.Name
                        || (!isRanked ? KNOWN_PLAYLISTS[matchPlaylistId] : '')
                        || '';
-          // Always log non-ranked game mode info to the debug buffer for admin inspection
+          // Push non-ranked game mode info to debug buffer for admin inspection (no console log)
           if (!isRanked) {
-            console.log(`[GameModeDebug] non-ranked match ${m.MatchId} for ${gamertag} | playlistId=${matchPlaylistId} | ugcName="${ugcName}" | cat=${catNum}`);
             _pushGameModeDebug({
               ts: new Date().toISOString(),
               matchId: m.MatchId,
@@ -1225,7 +1215,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
     const rankedNow = _rankedCount();
     const validNow  = _validCount();
-    console.log(`[MatchFetch] scanned=${start} ranked=${rankedNow}/${RANKED_TARGET} valid=${validNow}/${TOTAL_TARGET} for ${gamertag}`);
+    // [MatchFetch] per-batch progress logging removed (too verbose)
     if (onProgress) onProgress(rankedNow, start, RANKED_TARGET);
   } // end while
   const finalRanked = _rankedCount();

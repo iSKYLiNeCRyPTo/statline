@@ -344,11 +344,7 @@ async function _processSnapQueue() {
         const matchesPlayed = result.stats && result.stats.matchesPlayed != null
           ? Number(result.stats.matchesPlayed) : null;
         const meta = await markRefreshAttempt(result.xuid, gamertag, matchesPlayed).catch(() => null);
-        if (meta && !meta.hadNewData) {
-          console.log(`[SnapQueue] saved snapshot for ${gamertag} (${xuid}) — no new matches since last refresh (strikes=${meta.consecutiveEmptyRefreshes})`);
-        } else {
-          console.log(`[SnapQueue] saved snapshot for ${gamertag} (${xuid})`);
-        }
+        // individual snapshot save logs removed (too verbose)
       }
     } catch(e) {
       // Non-fatal — player may have changed gamertag or be unavailable
@@ -433,7 +429,7 @@ async function enqueueOpponentSnapshots(matches, myXuid) {
     if (skipFresh)         parts.push(`${skipFresh} fresh-snapshot (≤${SNAPSHOT_STALE_RESCAN_DAYS}d)`);
     if (skipRecentRefresh) parts.push(`${skipRecentRefresh} recently refreshed (≤${SNAPSHOT_RECENT_TTL_HOURS}h)`);
     if (skipCooldown)      parts.push(`${skipCooldown} no-new-data cooldown`);
-    console.log(`[SnapQueue] skip ${parts.join(' · ')}`);
+    // skip log removed (noisy)
   }
 
   for (const c of toQueue) {
@@ -725,7 +721,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
           const merged = [...filteredNew, ...existing].slice(0, 250);
           const advancedStats = computeAdvancedStats(merged);
           const haloDNA = generateHaloDNA(merged, advancedStats, null);
-          console.log(`[Search/phase] ${gamertag} incremental:fetched +${Date.now() - _cachedT0}ms (${filteredNew.length} new)`);
+          // [Search/phase] timing log removed
           // Refresh player stats (CSR, service record) — fast, just 2-3 API calls
           const freshStats = await fetchPlayerStats(gamertag).catch(() => null);
           const updated = {
@@ -927,7 +923,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
     let _phLast = _phT0;
     const _phase = (label) => {
       const now = Date.now();
-      console.log(`[Search/phase] ${gamertag} ${label} +${now - _phLast}ms (t=${now - _phT0}ms)`);
+      // [Search/phase] timing log removed
       _phLast = now;
     };
     try {
