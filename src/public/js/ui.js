@@ -480,7 +480,7 @@ function showLanding(){
   var _csb=document.getElementById('clearSearchBtn');if(_csb)_csb.style.display='none';
   var _si=document.getElementById('searchInput');if(_si)_si.value='';
   document.title='fragr — Halo Infinite Stat Tracker';
-  try{var url=new URL(window.location);url.searchParams.delete('player');url.searchParams.delete('search');
+  try{var url=new URL(window.location);url.searchParams.delete('player');url.searchParams.delete('search');url.searchParams.delete('view');
   window.history.pushState({},'',url);}catch(e){}
   renderFavChips();
 }
@@ -669,10 +669,15 @@ async function loadStats(){
       +'<div style="width:1px;height:40px;background:var(--border)"></div>'
       +'<div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--accent)">'+d.uniquePlayers.toLocaleString()+'</div><div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;margin-top:2px;letter-spacing:1px">PLAYERS TRACKED</div></div>';
   }).catch(function(){});
-  // Check URL for player param
+  // Check URL for view/player params
   var params=new URLSearchParams(window.location.search);
   var gt=params.get('player')||params.get('search');
-  if(gt){
+  var view=params.get('view');
+  if(view==='leaderboard'){
+    await medalMetaPromise;
+    if(typeof showLeaderboard==='function') showLeaderboard();
+    else showLanding();
+  } else if(gt){
     // Don't await medals first — doSearch shows the loading screen immediately.
     // Medals will finish loading in the background well before the final render.
     document.getElementById('searchInput').value=gt;

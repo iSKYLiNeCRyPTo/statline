@@ -9,7 +9,13 @@ function getRivalsKey() {
 }
 
 function rivalsHeaders() {
-  return { 'x-api-key': getRivalsKey(), 'Accept': 'application/json' };
+  return {
+    'x-api-key': getRivalsKey(),
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (compatible; fragr/1.0)',
+    'Origin': 'https://fragr.live',
+    'Referer': 'https://fragr.live/',
+  };
 }
 
 // ── In-memory cache ────────────────────────────────────────────────────────────
@@ -85,10 +91,14 @@ async function fetchRivalsPlayer(username) {
   // v1 player stats — includes match_history in the same response
   const statsUrl = `${RIVALS_BASE_V1}/player/${encodeURIComponent(username)}`;
   const statsRes = await fetch(statsUrl, { headers: rivalsHeaders() });
-  if (statsRes.status === 404) throw new Error('Player not found');
-  if (statsRes.status === 401) throw new Error('Invalid API key (401)');
-  if (statsRes.status === 403) throw new Error('Invalid API key (403) — check RIVALS_API_KEY on Render');
-  if (!statsRes.ok) throw new Error(`Rivals API error: ${statsRes.status}`);
+  if (!statsRes.ok) {
+    const body = await statsRes.text().catch(() => '');
+    console.error(`[Rivals] ${statsRes.status} from ${statsUrl} — body: ${body.slice(0, 200)}`);
+    if (statsRes.status === 404) throw new Error('Player not found');
+    if (statsRes.status === 401) throw new Error('Invalid API key (401)');
+    if (statsRes.status === 403) throw new Error('Invalid API key (403) — check RIVALS_API_KEY on Render');
+    throw new Error(`Rivals API error: ${statsRes.status}`);
+  }
   const statsData = await statsRes.json();
 
   if (statsData.isPrivate) {
