@@ -69,6 +69,83 @@ app.set('trust proxy', 1); // trust Render's proxy for real IPs
 app.use(compression());
 app.use(cors());
 app.use(express.json());
+
+// ── Dynamic sitemap ───────────────────────────────────────────────────────────
+// Serves /sitemap.xml with static pages + all tracked players from DB
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const db = await getDb();
+    let playerUrls = '';
+    if (db) {
+      // Pull all gamertags from player_snapshots, ordered by most recently updated
+      const result = await db.query(
+        `SELECT DISTINCT ON (LOWER(gamertag)) gamertag
+         FROM player_snapshots
+         ORDER BY LOWER(gamertag), ts DESC
+         LIMIT 10000`
+      );
+      playerUrls = result.rows.map(r => {
+        const enc = encodeURIComponent(r.gamertag);
+        return `  <url>\n    <loc>https://fragr.live/?player=${enc}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.5</priority>\n  </url>`;
+      }).join('\n');
+    }
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://fragr.live/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://fragr.live/?view=leaderboard</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+${playerUrls}
+</urlset>`;
+    res.set('Content-Type', 'application/xml');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(xml);
+  } catch (e) {
+    console.error('[Sitemap] error:', e.message);
+    res.status(500).send('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>');
+  }
+});
+
+// ── Player page meta injection ────────────────────────────────────────────────
+// When ?player=X is present, serve index.html with dynamic <title> and <meta> tags
+// so Google can index and preview individual player pages.
+const _indexHtmlPath = path.join(__dirname, 'public', 'index.html');
+let _indexHtmlCache = null;
+function getIndexHtml() {
+  if (!_indexHtmlCache) {
+    try { _indexHtmlCache = require('fs').readFileSync(_indexHtmlPath, 'utf8'); } catch(e) { _indexHtmlCache = ''; }
+  }
+  return _indexHtmlCache;
+}
+app.get('/', (req, res, next) => {
+  const gt = req.query.player || req.query.search;
+  if (!gt) return next(); // no player param — fall through to static
+  const safe = gt.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const title = `${safe} — Halo Stats | fragr`;
+  const desc  = `View ${safe}'s Halo Infinite stats on fragr — K/D, CSR rank, win rate, match history, maps, and more.`;
+  const canonical = `https://fragr.live/?player=${encodeURIComponent(gt)}`;
+  let html = getIndexHtml();
+  // Replace default title + meta tags with player-specific ones
+  html = html
+    .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+    .replace(/<meta name="description"[^>]*>/,  `<meta name="description" content="${desc}">`)
+    .replace(/<link rel="canonical"[^>]*>/,      `<link rel="canonical" href="${canonical}">`)
+    .replace(/<meta property="og:title"[^>]*>/,  `<meta property="og:title" content="${title}">`)
+    .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${desc}">`)
+    .replace(/<meta property="og:url"[^>]*>/,    `<meta property="og:url" content="${canonical}">`)
+    .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
+    .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${desc}">`);
+  res.set('Content-Type', 'text/html');
+  res.set('Cache-Control', 'public, max-age=300'); // 5 min cache per player
+  res.send(html);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
