@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>fragr — Marvel Rivals Tracker</title>
 <meta name="description" content="fragr — Marvel Rivals stat tracker. Search any player for rank, K/D, hero stats, and match history.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-32 -32 64 64'%3E%3Ccircle cx='0' cy='0' r='30' fill='none' stroke='%23e8002a' stroke-width='3'/%3E%3Ccircle cx='0' cy='0' r='9' fill='none' stroke='%23e8002a' stroke-width='2.5'/%3E%3Ccircle cx='0' cy='0' r='3' fill='%23e8002a'/%3E%3Cline x1='0' y1='-30' x2='0' y2='-13' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='0' y1='13' x2='0' y2='30' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='-30' y1='0' x2='-13' y2='0' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='13' y1='0' x2='30' y2='0' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='6' fill='%23e8002a'/%3E%3Cg transform='translate(15,15) rotate(-35) scale(0.42)'%3E%3Cellipse cx='0' cy='-3' rx='16' ry='15' fill='white'/%3E%3Crect x='-11' y='5.5' width='22' height='7' rx='3' fill='white'/%3E%3Cellipse cx='-5.5' cy='-4' rx='4' ry='4.5' fill='%23e8002a'/%3E%3Cellipse cx='5.5' cy='-4' rx='4' ry='4.5' fill='%23e8002a'/%3E%3Cpath d='M-2 1.5 L0 -0.5 L2 1.5 Z' fill='%23e8002a'/%3E%3Cline x1='-5.5' y1='5.5' x2='-5.5' y2='12.5' stroke='%23e8002a' stroke-width='1.6'/%3E%3Cline x1='-1.8' y1='5.5' x2='-1.8' y2='12.5' stroke='%23e8002a' stroke-width='1.6'/%3E%3Cline x1='1.8' y1='5.5' x2='1.8' y2='12.5' stroke='%23e8002a' stroke-width='1.6'/%3E%3Cline x1='5.5' y1='5.5' x2='5.5' y2='12.5' stroke='%23e8002a' stroke-width='1.6'/%3E%3Crect x='-5' y='-20' width='10' height='5.5' rx='1.5' fill='white'/%3E%3Crect x='-13' y='-23' width='9.5' height='4' rx='2' fill='white'/%3E%3Ccircle cx='-13' cy='-29' r='4' fill='none' stroke='white' stroke-width='2.2'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -180,18 +180,24 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <div class="logo-row">
-      <svg class="logo-mark" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="14" cy="14" r="12" stroke="#e8002a" stroke-width="2"/>
-        <circle cx="14" cy="14" r="4" stroke="#e8002a" stroke-width="1.5"/>
-        <circle cx="14" cy="14" r="1.5" fill="#e8002a"/>
-        <line x1="14" y1="2" x2="14" y2="10" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="14" y1="18" x2="14" y2="26" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="2" y1="14" x2="10" y2="14" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="18" y1="14" x2="26" y2="14" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-      <span class="logo-text">fr<span>a</span>gr</span>
-    </div>
+    <svg width="110" height="28" viewBox="0 0 110 28" xmlns="http://www.w3.org/2000/svg">
+      <rect width="28" height="28" rx="6" fill="#e8002a"/>
+      <g transform="translate(15,15) rotate(-35) scale(0.42)">
+        <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+        <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+        <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#e8002a"/>
+        <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#e8002a"/>
+        <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#e8002a"/>
+        <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#e8002a" stroke-width="1.6"/>
+        <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#e8002a" stroke-width="1.6"/>
+        <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#e8002a" stroke-width="1.6"/>
+        <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#e8002a" stroke-width="1.6"/>
+        <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+        <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+        <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+      </g>
+      <text x="35" y="19" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="19" fill="var(--text)">fragr</text>
+    </svg>
   </div>
   <div class="game-badge">⚡ Marvel Rivals</div>
   <div class="sidebar-search">
