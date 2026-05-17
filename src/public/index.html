@@ -452,6 +452,7 @@ body.on-landing .sidebar{display:none !important}
   .cmd-layout.sidebar-collapsed .sb-chevron{transform:rotate(180deg)}
   .cmd-layout.sidebar-collapsed .sidebar-nav-item{justify-content:center;padding:10px 0}
   .cmd-layout.sidebar-collapsed .sidebar-footer a{justify-content:center;padding:10px 0}
+  .cmd-layout.sidebar-collapsed .sb-search-section{display:none}
 }
 
 /* ── Desktop readability enhancements ─────────────────────────────────────── */
@@ -580,6 +581,21 @@ body.on-landing .sidebar{display:none !important}
       <svg class="sb-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
 
+    <!-- Sidebar search -->
+    <div class="sb-search-section" style="padding:10px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div class="search-wrap" style="position:relative">
+        <input id="searchInput" placeholder="Search gamertag..." autocomplete="off"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;outline:none;transition:border-color 0.15s"
+          onkeydown="handleSuggestKey(event,'suggestDropdown')"
+          oninput="debounceSuggest(this.value,'suggestDropdown','searchInput')"
+          onfocus="this.style.borderColor='var(--accent)'"
+          onblur="this.style.borderColor='var(--border2)'"
+          onkeypress="if(event.key==='Enter')searchPlayer()">
+        <div class="suggest-dropdown" id="suggestDropdown" style="min-width:100%"></div>
+      </div>
+      <button onclick="searchPlayer()" style="margin-top:6px;width:100%;background:var(--accent);border:none;color:var(--bg);padding:7px 0;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Search</button>
+    </div>
+
     <!-- Nav items -->
     <nav class="sidebar-nav" style="padding:8px 6px">
       <button class="sidebar-nav-item active" data-tab="overview" onclick="setTab('overview')">
@@ -666,13 +682,6 @@ body.on-landing .sidebar{display:none !important}
         <span class="last-updated" id="lastUpdated" style="display:flex;align-items:center;gap:4px"><span class="live-dot" id="liveDot"></span><span id="lastUpdatedText">—</span></span>
         <button id="favHeaderBtn" onclick="toggleCurrentFav()" title="Favorite this player" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:4px;font-size:14px;cursor:pointer;transition:all 0.15s;align-items:center;justify-content:center" onmouseover="this.style.borderColor='#ffc107';this.style.color='#ffc107'" onmouseout="updateFavBtn()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
 
-        <div class="search-bar search-wrap">
-          <input class="search-input" id="searchInput" placeholder="Search gamertag..." autocomplete="off"
-            onkeydown="handleSuggestKey(event,'suggestDropdown')"
-            oninput="debounceSuggest(this.value,'suggestDropdown','searchInput')">
-          <button class="search-btn" onclick="searchPlayer()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-          <div class="suggest-dropdown" id="suggestDropdown"></div>
-        </div>
       </div>
     </div>
     <!-- Desktop tab navigation -->

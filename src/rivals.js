@@ -93,7 +93,8 @@ async function fetchRivalsPlayer(username) {
   const statsUrl = `${RIVALS_BASE}/player/${encodeURIComponent(username)}`;
   const statsRes = await fetch(statsUrl, { headers: rivalsHeaders() });
   if (statsRes.status === 404) throw new Error('Player not found');
-  if (statsRes.status === 401) throw new Error('Invalid API key');
+  if (statsRes.status === 401) throw new Error('Invalid API key (401)');
+  if (statsRes.status === 403) throw new Error('Invalid or missing API key (403) — set RIVALS_API_KEY on Render');
   if (!statsRes.ok) throw new Error(`Rivals API error: ${statsRes.status}`);
   const statsData = await statsRes.json();
 
