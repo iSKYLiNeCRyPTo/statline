@@ -673,7 +673,7 @@ function renderLastGamePage(p, allMatches) {
   html += '<span id="lg-pulse-dot" style="width:7px;height:7px;border-radius:50%;background:var(--win);flex-shrink:0;animation:lgPulse 2.4s ease-in-out infinite"></span>';
   html += '<span id="lg-poll-status">WATCHING FOR NEW GAME</span>';
   html += '<span id="lg-checked-ago" style="color:var(--muted2);margin-left:4px"></span>';
-  html += '<span id="lg-new-banner" style="display:none;margin-left:auto;color:var(--accent);font-weight:700;cursor:pointer;letter-spacing:1px;animation:lgBlink 1s step-end infinite" onclick="window._lgLoadNewGame && window._lgLoadNewGame()">▶ NEW GAME DETECTED — CLICK TO LOAD</span>';
+  html += '<span id="lg-new-banner" style="display:none;margin-left:auto;color:var(--accent);font-weight:700;letter-spacing:1px;animation:lgBlink 1s step-end infinite">▶ NEW GAME DETECTED — LOADING…</span>';
   html += '</div>';
 
   // ── Map hero ─────────────────────────────────────────────────────────────

@@ -409,16 +409,12 @@ function _lgDoPoll(){
       if(!statusEl) return;
       _lgLastChecked=Date.now();
       if(d.matchId && currentId && d.matchId !== currentId){
-        // New game detected
-        statusEl.textContent='NEW GAME FOUND';
+        // New game detected — auto-load immediately
+        statusEl.textContent='NEW GAME DETECTED — LOADING…';
         statusEl.style.color='var(--accent)';
-        if(bannerEl) bannerEl.style.display='inline';
-        window._lgLoadNewGame=function(){
-          if(bannerEl) bannerEl.style.display='none';
-          statusEl.textContent='LOADING NEW GAME…';
-          _stopLastGamePoll();
-          doSearch(gt, true, true);
-        };
+        if(bannerEl) bannerEl.style.display='none';
+        _stopLastGamePoll();
+        doSearch(gt, true, true);
       } else {
         statusEl.textContent='WATCHING FOR NEW GAME';
         statusEl.style.color='';
