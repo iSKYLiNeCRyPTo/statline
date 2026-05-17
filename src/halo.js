@@ -887,7 +887,22 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
         // Game mode
         try {
-          const ugcName = md.MatchInfo?.UgcGameVariant?.Name || '';
+          // Try multiple name sources — QP games sometimes have empty UgcGameVariant.Name
+          const ugcName = md.MatchInfo?.UgcGameVariant?.Name
+                       || md.MatchInfo?.UgcGameVariant?.Tags?.[0]
+                       || md.MatchInfo?.PlaylistMapModePair?.Name
+                       || md.MatchInfo?.GameVariant?.Name
+                       || '';
+          // Debug: log raw fields for non-ranked games to identify missing name sources
+          if (!isRanked && ugcName === '') {
+            console.log('[GameMode Debug] QP game missing ugcName — raw fields:', JSON.stringify({
+              UgcGameVariant: md.MatchInfo?.UgcGameVariant,
+              PlaylistMapModePair: md.MatchInfo?.PlaylistMapModePair,
+              PlaylistExperience: md.MatchInfo?.PlaylistExperience,
+              GameVariantCategory: catNum,
+              PlaylistId: matchPlaylistId,
+            }));
+          }
           const ugcLower = ugcName.toLowerCase();
           const myPd = (md.Players||[]).find(p => String(p.PlayerId||'').replace('xuid(','').replace(')','') === String(xuid));
           const myPstats = myPd?.PlayerTeamStats?.[0]?.Stats || {};
