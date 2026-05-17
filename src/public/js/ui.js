@@ -376,11 +376,19 @@ window._sgToggle = function(id) {
 };
 
 // ── Last Game live polling ────────────────────────────────────────────────────
-var _lgPollTimer=null, _lgLastChecked=0, _lgCheckedAgoTimer=null;
+var _lgPollTimer=null, _lgLastChecked=0, _lgCheckedAgoTimer=null, _lgBaselineId=null;
 function _startLastGamePoll(){
   _stopLastGamePoll(); // clear any existing
+  // Snapshot the current latest matchId as baseline — don't re-read it each tick
+  // so background fullMatchCache updates can't cause false negatives
+  var _p=getAllPlayers()[selectedPlayer]||searchData;
+  var _gt=_p&&_p.gamertag;
+  var _allM=_p&&(_p.allMatches||_p.recentMatches)||[];
+  var _fc=_gt&&(fullMatchCache[_gt.toLowerCase()]||fullMatchCache[_gt])||[];
+  var _src=_allM.length>_fc.length?_allM:_fc;
+  _lgBaselineId=_src[0]&&_src[0].matchId||null;
   _lgDoPoll(); // immediate first check
-  _lgPollTimer=setInterval(_lgDoPoll, 30000);
+  _lgPollTimer=setInterval(_lgDoPoll, 20000); // poll every 20s
   // "last checked X sec ago" ticker
   _lgCheckedAgoTimer=setInterval(function(){
     var el=document.getElementById('lg-checked-ago');
@@ -392,13 +400,13 @@ function _startLastGamePoll(){
 function _stopLastGamePoll(){
   if(_lgPollTimer){clearInterval(_lgPollTimer);_lgPollTimer=null;}
   if(_lgCheckedAgoTimer){clearInterval(_lgCheckedAgoTimer);_lgCheckedAgoTimer=null;}
+  _lgBaselineId=null;
 }
 function _lgDoPoll(){
   var p=getAllPlayers()[selectedPlayer]||searchData;
   var gt=p&&p.gamertag;
   if(!gt) return;
-  var allM=(p.allMatches||p.recentMatches||fullMatchCache[gt.toLowerCase()]||[]);
-  var currentId=allM[0]&&allM[0].matchId;
+  var currentId=_lgBaselineId;
   _lgLastChecked=Date.now();
   fetch('/api/latest-match?gamertag='+encodeURIComponent(gt))
     .then(function(r){return r.json();})

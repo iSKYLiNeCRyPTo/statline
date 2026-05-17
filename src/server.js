@@ -1090,7 +1090,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
 // then compares against cached data. Triggers a full force-refresh on the server
 // if a new match is found so the next /api/search call gets fresh data.
 const _latestMatchCheckCache = {}; // gamertag.lower -> { matchId, checkedAt }
-const LATEST_CHECK_TTL = 60000;    // don't hammer Waypoint — reuse result for 60s
+const LATEST_CHECK_TTL = 15000;    // 15s TTL — fast enough to catch new games
 // Lightweight activity times — just timestamps, up to 1000 matches
 app.get('/api/activity-times', async (req, res) => {
   try {
@@ -1151,7 +1151,7 @@ app.get('/api/latest-match', async (req, res) => {
 
     // Persist result to Redis (60s TTL) and memory
     if (_lmRedis) {
-      _lmRedis.set('latestmatch:' + key, JSON.stringify({ matchId: latestMatchId, startTime: latestStartTime }), { EX: 60 })
+      _lmRedis.set('latestmatch:' + key, JSON.stringify({ matchId: latestMatchId, startTime: latestStartTime }), { EX: 15 })
         .catch(() => {});
     }
     _latestMatchCheckCache[key] = { matchId: latestMatchId, startTime: latestStartTime, checkedAt: Date.now() };
