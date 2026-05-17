@@ -715,29 +715,26 @@ body.on-landing .sidebar{display:none !important}
         </div>
         <script>
         var _activeGame='halo';
+        var _HALO_COLOR='#185FA5';
+        var _RIVALS_COLOR='#e8002a';
         function setGame(game){
           _activeGame=game;
-          var root=document.documentElement;
+          var color=game==='rivals'?_RIVALS_COLOR:_HALO_COLOR;
           var btnH=document.getElementById('btnHalo');
           var btnR=document.getElementById('btnRivals');
-          var sub=document.querySelector('#landing .landing-game-sub');
           var inp=document.getElementById('landingSearch');
-          if(game==='rivals'){
-            root.style.setProperty('--accent','#e8002a');
-            root.style.setProperty('--accent-r','232');
-            root.style.setProperty('--accent-g','0');
-            root.style.setProperty('--accent-b','42');
-            btnR.style.background='#e8002a';btnR.style.color='#fff';btnR.style.fontWeight='700';
-            btnH.style.background='transparent';btnH.style.color='var(--muted)';btnH.style.fontWeight='400';
-            if(inp)inp.placeholder='Enter username...';
-          } else {
-            root.style.setProperty('--accent','#185FA5');
-            root.style.setProperty('--accent-r','24');
-            root.style.setProperty('--accent-g','95');
-            root.style.setProperty('--accent-b','165');
-            btnH.style.background='#185FA5';btnH.style.color='#fff';btnH.style.fontWeight='700';
-            btnR.style.background='transparent';btnR.style.color='var(--muted)';btnR.style.fontWeight='400';
-            if(inp)inp.placeholder='Enter gamertag...';
+          var srchBtn=document.getElementById('landingSearchBtn');
+          // Only touch the landing page elements — never root CSS vars
+          btnH.style.background=game==='halo'?_HALO_COLOR:'transparent';
+          btnH.style.color=game==='halo'?'#fff':'';
+          btnH.style.fontWeight=game==='halo'?'700':'400';
+          btnR.style.background=game==='rivals'?_RIVALS_COLOR:'transparent';
+          btnR.style.color=game==='rivals'?'#fff':'';
+          btnR.style.fontWeight=game==='rivals'?'700':'400';
+          if(srchBtn)srchBtn.style.background=color;
+          if(inp){
+            inp.placeholder=game==='rivals'?'Enter username...':'Enter gamertag...';
+            inp.onfocus=function(){this.style.borderColor=color;};
           }
         }
         </script>
@@ -751,8 +748,8 @@ body.on-landing .sidebar{display:none !important}
             onfocus="this.style.borderColor='#185FA5'" onblur="this.style.borderColor='var(--border)'">
           <div class="suggest-dropdown" id="landingSuggestDropdown" style="min-width:100%;top:calc(100% + 2px)"></div>
         </div>
-        <button onclick="landingSearchPlayer()"
-          style="padding:14px 24px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:Share Tech Mono,monospace;white-space:nowrap;transition:opacity 0.15s"
+        <button id="landingSearchBtn" onclick="landingSearchPlayer()"
+          style="padding:14px 24px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:Share Tech Mono,monospace;white-space:nowrap;transition:background 0.15s,opacity 0.15s"
           onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
           SEARCH
         </button>
