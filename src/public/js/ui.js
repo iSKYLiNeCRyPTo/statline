@@ -270,6 +270,16 @@ window.addEventListener('beforeunload', function(){ flushTabTime('__exit__'); })
 function setTab(t){
   // Objectives tab was merged into Stats — redirect any stored/legacy references
   if(t==='objectives') t='charts';
+  // If leaderboard is showing, #app has no tab panels — restore player view first
+  if(!document.querySelector('.tab-panel')){
+    var _p=getAllPlayers()[selectedPlayer]||searchData;
+    if(_p&&_p.gamertag){
+      doSearch(_p.gamertag,false).then(function(){setTab(t);});
+    } else {
+      goHome();
+    }
+    return;
+  }
   // Clear expanded match state for the tab we're leaving so cards render cleanly on return
   var _prevTab=activeTab;
   flushTabTime(t);

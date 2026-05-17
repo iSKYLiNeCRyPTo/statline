@@ -19,10 +19,13 @@ function showLeaderboard() {
   document.title = 'fragr — Leaderboard';
   var el = document.getElementById('topbarTitle');
   if (el) el.textContent = '// LEADERBOARD';
-  // Sidebar active state — clear player tabs, highlight LB button
+  // Sidebar + mobile tab active state — clear all, highlight LB
   document.querySelectorAll('.sidebar-nav-item').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.mobile-tab[data-tab]').forEach(function(b){ b.classList.remove('active'); });
   var lbBtn = document.getElementById('lbSidebarBtn');
   if (lbBtn) lbBtn.classList.add('active');
+  var lbMobileTab = document.querySelector('.mobile-tab[data-tab="leaderboard"]');
+  if (lbMobileTab) lbMobileTab.classList.add('active');
   // Render shell into #app
   document.getElementById('app').innerHTML = _lbShell();
   // Load data
