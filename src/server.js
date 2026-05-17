@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog } = require('./halo');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
@@ -2261,6 +2261,11 @@ app.post('/api/admin/backfill-participants', express.json(), async (req, res) =>
 });
 
 // ── Admin: search log UI ──────────────────────────────────────────────────────
+app.get('/api/admin/gamemode-debug', (req, res) => {
+  if (!adminAuth.checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  res.json({ entries: getGameModeDebugLog() });
+});
+
 app.get('/api/admin', (req, res) => {
   const pass = req.query.pass || '';
   const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
@@ -2301,6 +2306,12 @@ app.get('/api/admin', (req, res) => {
     <button class="action-btn" onclick="refreshPlayer()">force refresh player</button>
   </div>
   <div class="table-wrap"><table><thead><tr><th>TIME</th><th>GAMERTAG</th><th>DEVICE</th><th>CACHED</th><th>DURATION</th><th>STATUS</th><th></th></tr></thead><tbody id="tbody"></tbody></table></div>
+  <h2>// gamemode debug log</h2>
+  <div class="action-row" style="margin-bottom:8px">
+    <button class="action-btn" onclick="loadGamemodeDebug()">↺ refresh</button>
+    <span style="font-size:10px;color:#555">last 100 non-ranked games processed — newest first</span>
+  </div>
+  <div class="table-wrap"><table id="gm-table"><thead><tr><th>TIME</th><th>GAMERTAG</th><th>MATCH ID</th><th>RESOLVED NAME</th><th>UGC NAME</th><th>PLAYLIST NAME</th><th>PLAYLIST ID</th><th>EXPERIENCE</th><th>CAT#</th></tr></thead><tbody id="gmtbody"><tr><td colspan="9" class="muted">Loading...</td></tr></tbody></table></div>
   <script>
   var allRows=[];
   function ua2device(ua){if(!ua)return'<span class="ua-pill">?</span>';var u=ua.toLowerCase();if(/iphone/.test(u))return'<span class="ua-pill" style="color:#4caf50">iPhone</span>';if(/ipad/.test(u))return'<span class="ua-pill" style="color:#2196f3">iPad</span>';if(/android/.test(u))return'<span class="ua-pill" style="color:#ff9800">Android</span>';if(/mac/.test(u))return'<span class="ua-pill" style="color:#9c27b0">Mac</span>';if(/windows/.test(u))return'<span class="ua-pill" style="color:#00bcd4">Windows</span>';return'<span class="ua-pill">desktop</span>';}
@@ -2469,7 +2480,6 @@ app.get('/api/admin', (req, res) => {
       }).join(''):'<tr><td colspan="4" class="muted">No feedback yet</td></tr>';
     }).catch(function(){document.getElementById('fbtbody').innerHTML='<tr><td colspan="4" class="muted">Failed to load</td></tr>';});
   }
-  loadData();loadFeedback();loadCache();setInterval(loadData,30000);setInterval(loadFeedback,60000);setInterval(loadCache,15000);
   function renderRows(rows){
     document.getElementById('tbody').innerHTML=rows.map(function(s){
       var cached=String(s.cached);
@@ -2488,6 +2498,36 @@ app.get('/api/admin', (req, res) => {
     }).join('');
   }
   function filterRows(){var q=document.getElementById('filter').value.toLowerCase();renderRows(q?allRows.filter(function(r){return r.gamertag.toLowerCase().includes(q);}):allRows);}
+
+  function loadGamemodeDebug(){
+    fetch('/api/admin/gamemode-debug?pass=${pass}').then(function(r){return r.json();}).then(function(d){
+      var rows=d.entries||[];
+      var tb=document.getElementById('gmtbody');
+      if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="muted">No non-ranked games logged yet — play some games and reload</td></tr>';return;}
+      tb.innerHTML=rows.map(function(e){
+        var ts=new Date(e.ts).toISOString().replace('T',' ').slice(0,19);
+        var mid=e.matchId?e.matchId.slice(0,8)+'…':'--';
+        var ugcName=(e.UgcGameVariant&&e.UgcGameVariant.Name)||'<span class="muted">--</span>';
+        var plName=e.PlaylistName||'<span class="muted">--</span>';
+        var plId=e.PlaylistId?('<span style="font-family:monospace;font-size:10px;color:#555">'+e.PlaylistId.slice(0,8)+'…</span>'):'<span class="muted">--</span>';
+        var exp=e.PlaylistExperience||'<span class="muted">--</span>';
+        var cat=e.GameVariantCategory!=null?e.GameVariantCategory:'<span class="muted">--</span>';
+        var resolved=e.resolvedName?('<span style="color:#00d4ff">'+e.resolvedName+'</span>'):'<span class="loss">--</span>';
+        return'<tr>'
+          +'<td class="muted" style="white-space:nowrap">'+ts+'</td>'
+          +'<td style="color:#00d4ff">'+e.gamertag+'</td>'
+          +'<td style="font-family:monospace;font-size:10px;color:#555">'+mid+'</td>'
+          +'<td>'+resolved+'</td>'
+          +'<td>'+ugcName+'</td>'
+          +'<td>'+plName+'</td>'
+          +'<td>'+plId+'</td>'
+          +'<td class="muted">'+exp+'</td>'
+          +'<td class="muted">'+cat+'</td>'
+          +'</tr>';
+      }).join('');
+    }).catch(function(e){document.getElementById('gmtbody').innerHTML='<tr><td colspan="9" style="color:#f44336">Error: '+e.message+'</td></tr>';});
+  }
+  loadData();loadFeedback();loadCache();loadGamemodeDebug();setInterval(loadData,30000);setInterval(loadFeedback,60000);setInterval(loadCache,15000);setInterval(loadGamemodeDebug,30000);
 </script></body></html>`);
 });
 

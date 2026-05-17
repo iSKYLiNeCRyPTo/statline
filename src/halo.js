@@ -893,15 +893,20 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
                        || md.MatchInfo?.PlaylistMapModePair?.Name
                        || md.MatchInfo?.GameVariant?.Name
                        || '';
-          // Debug: log raw fields for non-ranked games to identify missing name sources
-          if (!isRanked && ugcName === '') {
-            console.log('[GameMode Debug] QP game missing ugcName — raw fields:', JSON.stringify({
-              UgcGameVariant: md.MatchInfo?.UgcGameVariant,
-              PlaylistMapModePair: md.MatchInfo?.PlaylistMapModePair,
-              PlaylistExperience: md.MatchInfo?.PlaylistExperience,
+          // Always log non-ranked game mode info to the debug buffer for admin inspection
+          if (!isRanked) {
+            _pushGameModeDebug({
+              ts: new Date().toISOString(),
+              matchId: m.MatchId,
+              gamertag,
+              resolvedName: ugcName || null,
+              UgcGameVariant: md.MatchInfo?.UgcGameVariant || null,
+              PlaylistMapModePair: md.MatchInfo?.PlaylistMapModePair || null,
+              PlaylistExperience: md.MatchInfo?.PlaylistExperience || null,
               GameVariantCategory: catNum,
               PlaylistId: matchPlaylistId,
-            }));
+              PlaylistName: md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || null,
+            });
           }
           const ugcLower = ugcName.toLowerCase();
           const myPd = (md.Players||[]).find(p => String(p.PlayerId||'').replace('xuid(','').replace(')','') === String(xuid));
@@ -1393,9 +1398,17 @@ async function fetchAndApplySkillData(xuid, matches) {
   console.log(`[SkillBG] Skill data applied to ${ranked.length} matches (xuid=${xuid})`);
 }
 
+// In-memory ring buffer for gamemode debug entries (newest first, capped at 100)
+const _gameModeDebugLog = [];
+function _pushGameModeDebug(entry) {
+  _gameModeDebugLog.unshift(entry);
+  if (_gameModeDebugLog.length > 100) _gameModeDebugLog.pop();
+}
+
 // Known playlist IDs whose names the API sometimes omits
 const KNOWN_PLAYLISTS = {
   '1b1691dc-d8b9-4b1f-825d-cb1c065184c1': 'Quick Play',
+  '57f4f0c0-bce9-4a34-b1b0-6188ed0f0198': 'Quick Play',
   'edfef3ac-9cbe-4fa2-b949-8f29deafd483': 'Ranked Arena',
   'f5580605-660c-43f9-ac69-4075c4a05c5d': 'Ranked Slayer',
   'dcb2e24e-05fb-4390-8076-32a0cdb4326e': 'Ranked Slayer',
@@ -1596,4 +1609,5 @@ module.exports = {
   isMatchListBackoffActive,
   matchListBackoffSecondsRemaining,
   isClearanceUnavailable,
+  getGameModeDebugLog: () => _gameModeDebugLog,
 };
