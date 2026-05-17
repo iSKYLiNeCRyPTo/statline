@@ -892,7 +892,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
                        || md.MatchInfo?.UgcGameVariant?.Tags?.[0]
                        || md.MatchInfo?.PlaylistMapModePair?.Name
                        || md.MatchInfo?.GameVariant?.Name
-                       || KNOWN_PLAYLISTS[matchPlaylistId]
+                       || (!isRanked ? KNOWN_PLAYLISTS[matchPlaylistId] : '')
                        || '';
           // Always log non-ranked game mode info to the debug buffer for admin inspection
           if (!isRanked) {
