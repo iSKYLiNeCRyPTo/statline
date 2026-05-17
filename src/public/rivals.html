@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fragr — Marvel Rivals Tracker</title>
+<meta name="description" content="fragr — Marvel Rivals stat tracker. Search any player for rank, K/D, hero stats, and match history.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-32 -32 64 64'%3E%3Ccircle cx='0' cy='0' r='30' fill='none' stroke='%23e8002a' stroke-width='3'/%3E%3Ccircle cx='0' cy='0' r='9' fill='none' stroke='%23e8002a' stroke-width='2.5'/%3E%3Ccircle cx='0' cy='0' r='3' fill='%23e8002a'/%3E%3Cline x1='0' y1='-30' x2='0' y2='-13' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='0' y1='13' x2='0' y2='30' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='-30' y1='0' x2='-13' y2='0' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3Cline x1='13' y1='0' x2='30' y2='0' stroke='%23e8002a' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0608;--surface:#130a0e;--surface2:#1a0d12;--surface3:#200e14;
+  --border:#2a1018;--border2:#3a1822;--accent:#e8002a;--accent-r:232;--accent-g:0;--accent-b:42;
+  --win:#4CAF82;--loss:#e05050;--gold:#d4860a;--text:#F0E0E4;--muted:#a06070;--muted2:#5a3040;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);pointer-events:none;z-index:0}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(232,0,42,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(232,0,42,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+/* Layout */
+.layout{display:flex;min-height:100vh}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);width:200px;flex-shrink:0;position:fixed;top:0;left:0;bottom:0;z-index:100;display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:none}
+.sidebar::-webkit-scrollbar{display:none}
+.sidebar-logo{padding:14px 16px;border-bottom:1px solid var(--border)}
+.logo-row{display:flex;align-items:center;gap:10px}
+.logo-mark{width:28px;height:28px;flex-shrink:0}
+.logo-text{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;letter-spacing:3px;color:var(--text)}
+.logo-text span{color:var(--accent)}
+.game-badge{margin:0 16px 12px;background:rgba(232,0,42,0.1);border:1px solid rgba(232,0,42,0.3);border-radius:4px;padding:5px 10px;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
+.sidebar-search{padding:10px 12px;border-bottom:1px solid var(--border)}
+.sidebar-input{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;outline:none}
+.sidebar-input:focus{border-color:var(--accent)}
+.sidebar-input::placeholder{color:var(--muted)}
+.sidebar-btn{margin-top:6px;width:100%;background:var(--accent);border:none;color:#fff;padding:7px;border-radius:4px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s}
+.sidebar-btn:hover{opacity:0.85}
+.sidebar-nav{padding:10px 8px;flex:1}
+.nav-item{padding:8px 10px;border-radius:4px;font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:10px;letter-spacing:.5px;text-transform:uppercase;transition:color 0.15s,background 0.15s;border:none;border-left:2px solid transparent;background:transparent;width:100%;text-align:left;margin-bottom:1px}
+.nav-item:hover{color:var(--text);background:rgba(232,0,42,0.06)}
+.nav-item.active{background:rgba(232,0,42,0.1);color:var(--accent);border-left-color:var(--accent)}
+.nav-icon{font-size:14px}
+.sidebar-footer{padding:10px 12px;border-top:1px solid var(--border)}
+.back-link{display:flex;align-items:center;gap:6px;color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:10px;text-decoration:none;padding:6px 8px;border-radius:4px;transition:color 0.15s}
+.back-link:hover{color:var(--text)}
+
+/* Main */
+.main{margin-left:200px;min-height:100vh;width:calc(100vw - 200px)}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar-title{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase}
+.topbar-search{display:flex;gap:6px;align-items:center}
+.topbar-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;width:160px;outline:none}
+.topbar-input:focus{border-color:var(--accent)}
+.topbar-input::placeholder{color:var(--muted)}
+.topbar-search-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:11px;cursor:pointer}
+.topbar-search-btn:hover{border-color:var(--accent);color:var(--accent)}
+.refresh-btn{background:transparent;border:1px solid var(--border);color:var(--accent);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Share Tech Mono',monospace;letter-spacing:.5px}
+.refresh-btn:hover{background:rgba(232,0,42,0.08)}
+.refresh-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+.content{padding:20px 24px;position:relative;z-index:1}
+
+/* Landing state */
+.landing{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;gap:20px}
+.landing-logo{font-family:'Rajdhani',sans-serif;font-size:64px;font-weight:700;letter-spacing:6px;line-height:1}
+.landing-logo span{color:var(--accent)}
+.landing-sub{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.landing-search{display:flex;gap:8px;align-items:center;margin-top:8px}
+.landing-input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:10px 16px;border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:13px;width:280px;outline:none;transition:border-color 0.15s}
+.landing-input:focus{border-color:var(--accent);box-shadow:0 0 0 1px rgba(232,0,42,0.2)}
+.landing-input::placeholder{color:var(--muted)}
+.landing-btn{background:var(--accent);border:none;color:#fff;padding:10px 20px;border-radius:6px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity 0.15s}
+.landing-btn:hover{opacity:0.85}
+
+/* Error / loading */
+.status-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;gap:12px}
+.status-icon{font-size:40px;opacity:0.4}
+.status-text{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);text-align:center;letter-spacing:1px}
+.spinner{width:28px;height:28px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Hero card */
+.hero-card{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 60%,var(--bg) 100%);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.hero-card::before{content:'';position:absolute;top:-60px;right:-60px;width:300px;height:300px;background:radial-gradient(circle,rgba(232,0,42,0.08) 0%,transparent 70%);pointer-events:none}
+.hero-left{display:flex;align-items:center;gap:16px;flex:1;min-width:200px}
+.hero-avatar{width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid var(--accent);background:var(--surface3);flex-shrink:0}
+.hero-avatar-placeholder{width:60px;height:60px;border-radius:8px;border:2px solid var(--border2);background:var(--surface3);display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);flex-shrink:0}
+.hero-info{}
+.hero-name{font-family:'Rajdhani',sans-serif;font-size:36px;font-weight:700;letter-spacing:2px;line-height:1}
+.hero-name span{color:var(--accent)}
+.hero-sub{font-size:12px;color:var(--muted);margin-top:6px;font-family:'Share Tech Mono',monospace;display:flex;gap:12px;flex-wrap:wrap}
+.hero-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.hero-rank-wrap{display:flex;align-items:center;gap:10px}
+.hero-rank-icon{width:44px;height:44px;object-fit:contain}
+.hero-rank-info{text-align:right}
+.hero-rank-name{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;line-height:1}
+.hero-rank-score{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px}
+.hero-peak{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);margin-top:4px}
+
+/* Stats row */
+.stat-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.stat-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:600}
+.stat-value{font-family:'Rajdhani',sans-serif;font-size:26px;font-weight:700;line-height:1}
+.stat-value.accent{color:var(--accent)}.stat-value.win{color:var(--win)}.stat-value.gold{color:var(--gold)}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px;font-family:'Share Tech Mono',monospace}
+
+/* Section header */
+.section-head{display:flex;align-items:center;gap:10px;margin:28px 0 14px}
+.section-line{flex:1;height:1px;background:var(--border)}
+.section-label{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
+
+/* Season cards */
+.season-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px}
+.season-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.season-card.current{border-color:var(--accent);background:rgba(232,0,42,0.04)}
+.season-label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase}
+.season-rank{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;line-height:1}
+.season-score{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-top:3px}
+.season-wins{font-size:11px;color:var(--muted2);margin-top:4px;font-family:'Share Tech Mono',monospace}
+
+/* Hero table */
+.hero-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px}
+.hero-table th{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.8px;padding:6px 10px;text-align:left;font-family:'Share Tech Mono',monospace;border-bottom:1px solid var(--border)}
+.hero-table td{padding:8px 10px;border-bottom:1px solid rgba(42,16,24,0.5)}
+.hero-table tr:last-child td{border-bottom:none}
+.hero-table tr:hover td{background:var(--surface2)}
+.hero-cell{display:flex;align-items:center;gap:8px}
+.hero-thumb{width:32px;height:32px;border-radius:4px;object-fit:cover;background:var(--surface3);flex-shrink:0}
+.hero-thumb-placeholder{width:32px;height:32px;border-radius:4px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);flex-shrink:0}
+.hero-n{font-weight:600;font-size:13px;text-transform:capitalize}
+.win-pct{font-family:'Share Tech Mono',monospace;font-size:12px}
+.win-pct.good{color:var(--win)}.win-pct.bad{color:var(--loss)}.win-pct.mid{color:var(--gold)}
+
+/* Match history */
+.match-list{display:flex;flex-direction:column;margin-bottom:24px}
+.match-card{background:var(--surface);border:1px solid var(--border);border-bottom:none;cursor:pointer;overflow:hidden;transition:background 0.15s;border-left-width:3px}
+.match-card:first-child{border-radius:8px 8px 0 0}
+.match-card:last-child{border-radius:0 0 8px 8px;border-bottom:1px solid var(--border)}
+.match-card:only-child{border-radius:8px;border-bottom:1px solid var(--border)}
+.match-card:hover{background:var(--surface2)}
+.match-card.win{border-left-color:var(--win)}
+.match-card.loss{border-left-color:var(--loss)}
+.match-card.unknown{border-left-color:var(--border)}
+.match-row{display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:nowrap;overflow:hidden}
+.match-hero-thumb{width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--surface3);flex-shrink:0}
+.match-hero-placeholder{width:36px;height:36px;border-radius:6px;background:var(--surface3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted)}
+.match-outcome{width:32px;text-align:center;flex-shrink:0}
+.match-outcome-w{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--win)}
+.match-outcome-l{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;color:var(--loss)}
+.match-hero-name{font-weight:600;font-size:13px;text-transform:capitalize;flex:1;min-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.match-kda{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--text);flex-shrink:0;white-space:nowrap}
+.match-kda .sep{color:var(--muted2)}
+.match-delta{font-family:'Share Tech Mono',monospace;font-size:11px;flex-shrink:0;width:52px;text-align:right}
+.match-delta.up{color:var(--win)}.match-delta.dn{color:var(--loss)}.match-delta.zero{color:var(--muted2)}
+.match-badge{font-size:9px;font-family:'Share Tech Mono',monospace;padding:2px 5px;border-radius:3px;background:rgba(212,134,10,0.15);color:var(--gold);border:1px solid rgba(212,134,10,0.3);flex-shrink:0}
+.match-time{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);flex-shrink:0;white-space:nowrap}
+.match-dur{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2);flex-shrink:0}
+
+.private-notice{background:rgba(232,0,42,0.06);border:1px solid rgba(232,0,42,0.2);border-radius:8px;padding:20px 24px;text-align:center;font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:24px}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{width:0;overflow:hidden;transition:width 0.2s}
+  .sidebar.open{width:200px}
+  .main{margin-left:0;width:100vw}
+  .topbar{padding:0 12px}
+  .content{padding:14px}
+  .hero-card{padding:18px}
+  .hero-name{font-size:26px}
+  .match-time{display:none}
+  .topbar-input{width:120px}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-row">
+      <svg class="logo-mark" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="14" r="12" stroke="#e8002a" stroke-width="2"/>
+        <circle cx="14" cy="14" r="4" stroke="#e8002a" stroke-width="1.5"/>
+        <circle cx="14" cy="14" r="1.5" fill="#e8002a"/>
+        <line x1="14" y1="2" x2="14" y2="10" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="14" y1="18" x2="14" y2="26" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="2" y1="14" x2="10" y2="14" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="18" y1="14" x2="26" y2="14" stroke="#e8002a" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="logo-text">fr<span>a</span>gr</span>
+    </div>
+  </div>
+  <div class="game-badge">⚡ Marvel Rivals</div>
+  <div class="sidebar-search">
+    <input class="sidebar-input" id="sidebarInput" placeholder="Search player..." onkeydown="if(event.key==='Enter')doSearch(this.value)">
+    <button class="sidebar-btn" onclick="doSearch(document.getElementById('sidebarInput').value)">Search</button>
+  </div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" onclick="scrollTo(0,0)"><span class="nav-icon">⊕</span> Overview</button>
+    <button class="nav-item" onclick="scrollToSection('sec-seasons')"><span class="nav-icon">◈</span> Season Rank</button>
+    <button class="nav-item" onclick="scrollToSection('sec-heroes')"><span class="nav-icon">⬡</span> Top Heroes</button>
+    <button class="nav-item" onclick="scrollToSection('sec-matches')"><span class="nav-icon">▣</span> Match History</button>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="/" class="back-link">← Halo Infinite</a>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;display:none" id="menuBtn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <span class="topbar-title" id="topbarTitle">// marvel rivals</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="topbar-search">
+        <input class="topbar-input" id="topbarInput" placeholder="Search player..." onkeydown="if(event.key==='Enter')doSearch(this.value)">
+        <button class="topbar-search-btn" onclick="doSearch(document.getElementById('topbarInput').value)">→</button>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" onclick="doRefresh()" style="display:none">↺ refresh</button>
+    </div>
+  </div>
+
+  <div class="content" id="content">
+    <!-- Landing -->
+    <div class="landing" id="landing">
+      <div>
+        <div class="landing-logo">fr<span>a</span>gr</div>
+        <div class="landing-sub" style="margin-top:6px">Marvel Rivals Tracker</div>
+      </div>
+      <div class="landing-search">
+        <input class="landing-input" id="landingInput" placeholder="Enter username..." onkeydown="if(event.key==='Enter')doSearch(this.value)" autofocus>
+        <button class="landing-btn" onclick="doSearch(document.getElementById('landingInput').value)">Search</button>
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted2)">ranks · K/D · hero stats · match history</div>
+    </div>
+
+    <!-- Player view (hidden until loaded) -->
+    <div id="playerView" style="display:none"></div>
+  </div>
+</div>
+</div>
+
+<script>
+var _currentPlayer = null;
+
+function scrollToSection(id) {
+  var el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function doSearch(name) {
+  name = (name || '').trim();
+  if (!name) return;
+  history.pushState(null, '', '/rivals?player=' + encodeURIComponent(name));
+  loadPlayer(name);
+}
+
+function doRefresh() {
+  if (!_currentPlayer) return;
+  var btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = '↺ refreshing…';
+  fetch('/api/rivals/refresh?name=' + encodeURIComponent(_currentPlayer), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() { loadPlayer(_currentPlayer); })
+    .catch(function() { btn.disabled = false; btn.textContent = '↺ refresh'; });
+}
+
+function showLoading() {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('playerView').style.display = 'block';
+  document.getElementById('playerView').innerHTML =
+    '<div class="status-wrap"><div class="spinner"></div><div class="status-text">fetching player data…</div></div>';
+}
+
+function showError(msg) {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('playerView').style.display = 'block';
+  document.getElementById('playerView').innerHTML =
+    '<div class="status-wrap"><div class="status-icon">✕</div><div class="status-text">' + esc(msg) + '</div></div>';
+}
+
+function loadPlayer(name) {
+  _currentPlayer = name;
+  document.title = 'fragr — ' + name + ' (Rivals)';
+  document.getElementById('topbarTitle').textContent = '// ' + name.toLowerCase();
+  document.getElementById('refreshBtn').style.display = '';
+  document.getElementById('refreshBtn').disabled = false;
+  document.getElementById('refreshBtn').textContent = '↺ refresh';
+  showLoading();
+  fetch('/api/rivals/player?name=' + encodeURIComponent(name))
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
+    .then(function(res) {
+      if (!res.ok) { showError(res.d.error || 'Player not found'); return; }
+      renderPlayer(res.d);
+    })
+    .catch(function(e) { showError(e.message); });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function relTime(iso) {
+  if (!iso) return '';
+  var diff = Date.now() - new Date(iso).getTime();
+  var m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+function modeLabel(gameModeId, playModeId) {
+  // play_mode_id: 0=normal, 1=ranked, 2=arcade
+  // game_mode_id: 1=conquest(domination), 2=convoy, 3=flashpoint etc.
+  var modes = { 1: 'Domination', 2: 'Convoy', 3: 'Convergence', 4: 'Conquest', 5: 'Ranked', 0: 'Quick Play' };
+  if (playModeId === 1) return 'Ranked';
+  if (playModeId === 2) return 'Arcade';
+  return modes[gameModeId] || 'Match';
+}
+
+function rankScoreLevel(level) {
+  // level → rank name mapping
+  var ranks = [
+    'Bronze III','Bronze II','Bronze I',
+    'Silver III','Silver II','Silver I',
+    'Gold III','Gold II','Gold I',
+    'Platinum III','Platinum II','Platinum I',
+    'Diamond III','Diamond II','Diamond I',
+    'Grandmaster III','Grandmaster II','Grandmaster I',
+    'Celestial III','Celestial II','Celestial I',
+    'Eternity','One Above All',
+  ];
+  return ranks[level - 1] || ('Level ' + level);
+}
+
+function renderPlayer(d) {
+  var view = document.getElementById('playerView');
+  if (d.isPrivate) {
+    view.innerHTML = '<div class="hero-card"><div class="hero-left"><div class="hero-avatar-placeholder">?</div>'
+      + '<div class="hero-info"><div class="hero-name">' + esc(d.username) + '</div>'
+      + '<div class="hero-sub"><span>Private Profile</span></div></div></div></div>'
+      + '<div class="private-notice">This player\'s profile is set to private. Stats are unavailable.</div>';
+    return;
+  }
+
+  var html = '';
+
+  // ── Hero card ──
+  var avatarHtml = d.avatarUrl
+    ? '<img class="hero-avatar" src="' + esc(d.avatarUrl) + '" onerror="this.style.display=\'none\'">'
+    : '<div class="hero-avatar-placeholder">' + esc((d.name||'?')[0].toUpperCase()) + '</div>';
+
+  var rankIconHtml = d.rank.icon
+    ? '<img class="hero-rank-icon" src="' + esc(d.rank.icon) + '" onerror="this.style.display=\'none\'">'
+    : '';
+
+  var nameParts = esc(d.name).split('');
+  var nameHtml = nameParts.length > 1
+    ? nameParts.slice(0, -1).join('') + '<span>' + nameParts[nameParts.length - 1] + '</span>'
+    : '<span>' + esc(d.name) + '</span>';
+
+  var peakHtml = '';
+  if (d.rank.peak && d.rank.peak.name !== d.rank.name) {
+    peakHtml = '<div class="hero-peak">Peak: ' + esc(d.rank.peak.name) + ' · ' + esc(d.rank.peak.score) + ' RS</div>';
+  }
+
+  html += '<div class="hero-card">'
+    + '<div class="hero-left">' + avatarHtml
+    + '<div class="hero-info">'
+    + '<div class="hero-name">' + nameHtml + '</div>'
+    + '<div class="hero-sub"><span>Level ' + esc(d.level) + '</span><span>' + esc(d.stats.playtime) + ' played</span></div>'
+    + '</div></div>'
+    + '<div class="hero-right">'
+    + '<div class="hero-rank-wrap">' + rankIconHtml
+    + '<div class="hero-rank-info">'
+    + '<div class="hero-rank-name" style="color:' + esc(d.rank.color) + '">' + esc(d.rank.name) + '</div>'
+    + '<div class="hero-rank-score">' + esc(d.rank.score) + ' RS</div>'
+    + '</div></div>'
+    + peakHtml
+    + '</div></div>';
+
+  // ── Stats row ──
+  var winColor = parseFloat(d.stats.winPct) >= 55 ? 'win' : parseFloat(d.stats.winPct) < 45 ? 'accent' : 'gold';
+  html += '<div class="stat-row">'
+    + '<div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value ' + winColor + '">' + d.stats.winPct + '%</div><div class="stat-sub">' + d.stats.totalWins + ' / ' + d.stats.totalMatches + ' matches</div></div>'
+    + '<div class="stat-card"><div class="stat-label">K / D</div><div class="stat-value accent">' + d.stats.kd + '</div><div class="stat-sub">overall</div></div>'
+    + '<div class="stat-card"><div class="stat-label">KDA</div><div class="stat-value">' + d.stats.kda + '</div><div class="stat-sub">w/ assists</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Dmg / Min</div><div class="stat-value gold">' + (d.stats.dmgPerMin || 0).toLocaleString() + '</div><div class="stat-sub">avg per minute</div></div>'
+    + (d.stats.healPerMin > 0 ? '<div class="stat-card"><div class="stat-label">Heal / Min</div><div class="stat-value" style="color:#4caf82">' + (d.stats.healPerMin || 0).toLocaleString() + '</div><div class="stat-sub">avg per minute</div></div>' : '')
+    + '</div>';
+
+  // ── Season ranks ──
+  if (d.seasons && d.seasons.length) {
+    html += '<div id="sec-seasons"><div class="section-head"><div class="section-label">Season Rank</div><div class="section-line"></div></div></div>';
+    html += '<div class="season-row">';
+    var latestId = d.seasons[d.seasons.length - 1]?.id;
+    d.seasons.slice().reverse().forEach(function(s) {
+      var isCurrent = s.id === latestId;
+      var rName = rankScoreLevel(s.level);
+      var diff = s.diffScore > 0 ? '<span style="color:var(--win)">+' + Math.round(s.diffScore) + ' RS</span>'
+                : s.diffScore < 0 ? '<span style="color:var(--loss)">' + Math.round(s.diffScore) + ' RS</span>'
+                : '';
+      html += '<div class="season-card' + (isCurrent ? ' current' : '') + '">'
+        + '<div class="season-label">' + esc(s.label) + (isCurrent ? ' · current' : '') + '</div>'
+        + '<div class="season-rank">' + esc(rName) + '</div>'
+        + '<div class="season-score">' + s.rankScore.toLocaleString() + ' RS' + (diff ? ' &nbsp;' + diff : '') + '</div>'
+        + '<div class="season-wins">' + s.winCount + ' wins</div>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ── Top heroes ──
+  if (d.topHeroes && d.topHeroes.length) {
+    html += '<div id="sec-heroes"><div class="section-head"><div class="section-label">Top Heroes</div><div class="section-line"></div></div></div>';
+    html += '<table class="hero-table"><thead><tr>'
+      + '<th>HERO</th><th>GAMES</th><th>WIN %</th><th>K/D</th><th>KDA</th>'
+      + '</tr></thead><tbody>';
+    d.topHeroes.forEach(function(h) {
+      var wpct = parseFloat(h.winPct);
+      var wpctClass = wpct >= 55 ? 'good' : wpct < 45 ? 'bad' : 'mid';
+      var imgHtml = h.heroIcon
+        ? '<img class="hero-thumb" src="' + esc(h.heroIcon) + '" onerror="this.style.display=\'none\'">'
+        : '<div class="hero-thumb-placeholder">?</div>';
+      html += '<tr>'
+        + '<td><div class="hero-cell">' + imgHtml + '<span class="hero-n">' + esc(h.heroName) + '</span></div></td>'
+        + '<td>' + h.games + '</td>'
+        + '<td><span class="win-pct ' + wpctClass + '">' + h.winPct + '%</span></td>'
+        + '<td><span style="font-family:\'Share Tech Mono\',monospace">' + h.kd + '</span></td>'
+        + '<td><span style="font-family:\'Share Tech Mono\',monospace;color:var(--muted)">' + h.kda + '</span></td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  // ── Match history ──
+  if (d.matches && d.matches.length) {
+    html += '<div id="sec-matches"><div class="section-head"><div class="section-label">Match History</div><div class="section-line"></div><span style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--muted2)">' + d.matches.length + ' matches</span></div></div>';
+    html += '<div class="match-list">';
+    d.matches.forEach(function(m) {
+      var outcomeClass = m.win === true ? 'win' : m.win === false ? 'loss' : 'unknown';
+      var outcomeLabel = m.win === true ? '<span class="match-outcome-w">W</span>' : m.win === false ? '<span class="match-outcome-l">L</span>' : '<span style="color:var(--muted2)">-</span>';
+      var kda = m.kills + '/' + m.deaths + '/' + m.assists;
+      var heroImg = m.heroIcon
+        ? '<img class="match-hero-thumb" src="' + esc(m.heroIcon) + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">'
+        + '<div class="match-hero-placeholder" style="display:none">?</div>'
+        : '<div class="match-hero-placeholder">?</div>';
+      var delta = m.scoreDelta != null
+        ? '<span class="match-delta ' + (m.scoreDelta > 0 ? 'up' : m.scoreDelta < 0 ? 'dn' : 'zero') + '">'
+          + (m.scoreDelta > 0 ? '+' : '') + m.scoreDelta + '</span>'
+        : '<span class="match-delta zero">--</span>';
+      var badge = (m.isMvp ? '<span class="match-badge">MVP</span>' : m.isSvp ? '<span class="match-badge">SVP</span>' : '');
+      var mode = modeLabel(m.gameModeId, m.playModeId);
+      html += '<div class="match-card ' + outcomeClass + '">'
+        + '<div class="match-row">'
+        + heroImg
+        + '<div class="match-outcome">' + outcomeLabel + '</div>'
+        + '<div class="match-hero-name">' + esc(m.heroName) + '</div>'
+        + '<div class="match-kda">' + m.kills + '<span class="sep">/</span>' + m.deaths + '<span class="sep">/</span>' + m.assists + '</div>'
+        + delta
+        + badge
+        + '<div class="match-dur">' + esc(m.duration) + '</div>'
+        + '<div class="match-time">' + relTime(m.timestamp) + '</div>'
+        + '</div></div>';
+    });
+    html += '</div>';
+  }
+
+  view.innerHTML = html;
+}
+
+// Init from URL
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var p = params.get('player');
+  if (p) loadPlayer(p);
+
+  // Mobile menu button
+  if (window.innerWidth <= 768) {
+    document.getElementById('menuBtn').style.display = '';
+  }
+})();
+</script>
+</body>
+</html>

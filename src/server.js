@@ -4,6 +4,7 @@ const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog } = require('./halo');
+const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
@@ -3320,6 +3321,37 @@ function renderResults(d) {
 </body>
 </html>
 `);
+});
+
+// ── Marvel Rivals ─────────────────────────────────────────────────────────────
+
+// Serve rivals page
+app.get('/rivals', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'rivals.html'));
+});
+
+// Player stats + match history
+app.get('/api/rivals/player', async (req, res) => {
+  const { name } = req.query;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  try {
+    const data = await fetchRivalsPlayer(name.trim());
+    res.json(data);
+  } catch(e) {
+    const status = e.message?.includes('not found') ? 404
+                 : e.message?.includes('API key')   ? 503
+                 : 500;
+    res.status(status).json({ error: e.message });
+  }
+});
+
+// Force-refresh player data from Rivals API
+app.post('/api/rivals/refresh', async (req, res) => {
+  const { name } = req.query;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  clearRivalsCache(name);
+  const upd = await refreshRivalsPlayer(name.trim());
+  res.json(upd);
 });
 
 app.listen(PORT, () => {
