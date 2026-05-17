@@ -895,33 +895,31 @@ function render(){
       if(m.weaponStats&&m.weaponStats.headshots!=null&&m.kills>0)
         combatEff+=_clamp((m.weaponStats.headshots/m.kills-0.30)*166,-50,50);
 
-      // ── Objective efficiency (replacement path — takes over if higher) ───
-      // Lets flag runners / zone anchors score fairly without needing high damage/KDA
-      var objEff=null;
+      // ── Objective bonus (additive on top of combat, capped at +100) ────────
+      // Stacks with combat stats — a good fragger who also plays obj scores higher,
+      // and a low-KDA obj player still gets pulled up meaningfully.
+      var objBonus=0;
       if(m.objStats){
         var os=m.objStats,raw=0;
         if(os.mode==='CTF'){
-          // caps are worth most; grabs/returns show participation; carrier kills show defence
           raw=(os.flagCaptures||0)*3+(os.flagGrabs||0)*1.5+(os.flagReturns||0)*2+(os.flagCarrierKills||0)*1;
-          objEff=_clamp((raw/3.5-1)*200,-175,175); // baseline 3.5 (1 grab + 1 return)
+          objBonus=_clamp((raw/3.5)*50,0,100); // baseline 3.5 → 50pts; double baseline → 100pts
         } else if(os.mode==='Oddball'){
           raw=(os.timeAsCarrier||0)+(os.carrierKills||0)*5+(os.ballGrabs||0)*3;
-          objEff=_clamp((raw/60-1)*175,-175,175); // baseline 60s carry
+          objBonus=_clamp((raw/60)*50,0,100); // baseline 60s → 50pts
         } else if(os.captures!=null||os.secures!=null){
           // Strongholds / KotH / Land Grab
           raw=(os.captures||0)*2+(os.secures||0)*1.5+(os.defensiveKills||0)*0.5;
-          objEff=_clamp((raw/5.5-1)*200,-175,175); // baseline 2 caps + 1 secure = 5.5
+          objBonus=_clamp((raw/5.5)*50,0,100); // baseline 5.5 → 50pts
         } else if(os.seedsDeposited!=null){
           // Stockpile
           raw=(os.seedsDeposited||0)*3+(os.seedsPickedUp||0)*1;
-          objEff=_clamp((raw/6-1)*175,-175,175);
+          objBonus=_clamp((raw/6)*50,0,100);
         }
       }
 
-      // Use whichever efficiency component is higher
-      var eff=(objEff!==null&&objEff>combatEff)?objEff:combatEff;
       var winLoss=m.outcome===2?125:m.outcome===3?-125:0;
-      return _clamp(Math.round(500+eff+winLoss),0,1000);
+      return _clamp(Math.round(500+combatEff+objBonus+winLoss),0,1000);
     }
     var _fsMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_dur(m)>=180;});
     if(_fsMatches.length<3) return;
