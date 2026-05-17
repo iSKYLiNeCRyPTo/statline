@@ -1141,7 +1141,7 @@ function renderLastGamePage(p, allMatches) {
     var killDiff = m.kills - expK, deathDiff = m.deaths - expD;
     var killPct = pct(m.kills, expK), deathPct = pct(m.deaths, expD);
     insights.push({
-      icon: '⚡',
+      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
       text: 'Expected ~' + Math.round(expK) + ' kills / ~' + Math.round(expD) + ' deaths · got '
         + m.kills + ' kills (' + (killDiff>=0?'+':'') + killDiff.toFixed(1) + ') and '
         + m.deaths + ' deaths (' + (deathDiff>=0?'+':'') + deathDiff.toFixed(1) + ')',
@@ -1154,7 +1154,9 @@ function renderLastGamePage(p, allMatches) {
     if (avgKDA > 0) {
       var kdaPct = pct(myKDA, avgKDA);
       insights.push({
-        icon: kdaPct>=0 ? '↑' : '↓',
+        icon: kdaPct>=0
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
         text: 'KDA ' + myKDA + ' was ' + Math.abs(kdaPct) + '% ' + (kdaPct>=0?'above':'below') + ' your '+(modePool.length>=5?'mode':'overall')+' avg (' + avgKDA.toFixed(2) + ')',
         positive: kdaPct >= 0
       });
@@ -1167,7 +1169,9 @@ function renderLastGamePage(p, allMatches) {
       var avgAcc2 = avg(accPool, function(x){ return parseFloat(x.accuracy)||0; });
       var accDiff = (myAcc2 - avgAcc2).toFixed(1);
       insights.push({
-        icon: myAcc2>=avgAcc2 ? '🎯' : '📉',
+        icon: myAcc2>=avgAcc2
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1"/><line x1="12" y1="3" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21"/><line x1="3" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21" y2="12"/></svg>'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
         text: 'Accuracy ' + myAcc2.toFixed(1) + '% — ' + (parseFloat(accDiff)>=0?'+':'') + accDiff + '% vs your avg (' + avgAcc2.toFixed(1) + '%)',
         positive: myAcc2 >= avgAcc2
       });
@@ -1181,7 +1185,9 @@ function renderLastGamePage(p, allMatches) {
         var avgHsR2 = avg(hsPool, function(x){ return x.weaponStats.headshots/x.kills*100; });
         var hsDiff = myHsR - avgHsR2;
         insights.push({
-          icon: myHsR>=50 ? '💥' : '⚠',
+          icon: myHsR>=50
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
           text: 'Headshot rate ' + myHsR.toFixed(0) + '% (' + (hsDiff>=0?'+':'') + hsDiff.toFixed(0) + '% vs avg) · ' + (myHsR>=50?'above target':'below 50% target'),
           positive: myHsR >= 50
         });
@@ -1194,7 +1200,9 @@ function renderLastGamePage(p, allMatches) {
       var net5 = last5.reduce(function(s,x){return s+(x.csrDelta||0);},0);
       var wins5 = last5.filter(function(x){return x.outcome===2;}).length;
       insights.push({
-        icon: net5>=0 ? '📈' : '📉',
+        icon: net5>=0
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>'
+          : '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
         text: 'Last 5 ranked games: ' + wins5 + 'W/' + (last5.length-wins5) + 'L, net ' + (net5>0?'+':'') + net5 + ' CSR',
         positive: net5 >= 0
       });
@@ -1209,7 +1217,7 @@ function renderLastGamePage(p, allMatches) {
       var border = ins.positive ? 'rgba(76,175,130,0.25)' : 'rgba(224,80,80,0.25)';
       var iconColor = ins.positive ? 'var(--win)' : 'var(--loss)';
       html += '<div style="display:flex;align-items:flex-start;gap:10px;background:'+bg+';border:1px solid '+border+';border-radius:6px;padding:10px 14px">';
-      html += '<span style="font-size:14px;line-height:1.4;flex-shrink:0;color:'+iconColor+'">'+ins.icon+'</span>';
+      html += '<span style="display:flex;align-items:center;flex-shrink:0;color:'+iconColor+'">'+ins.icon+'</span>';
       html += '<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text);line-height:1.5">'+ins.text+'</span>';
       html += '</div>';
     });
