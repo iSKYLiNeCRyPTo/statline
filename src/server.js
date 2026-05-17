@@ -13,6 +13,7 @@ const adminAuth = require('./auth');
 const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
+const _serverStartTime = new Date().toISOString();
 let _dbPool = null;
 
 async function getDb() {
@@ -2280,7 +2281,8 @@ app.post('/api/admin/backfill-participants', express.json(), async (req, res) =>
 // ── Admin: search log UI ──────────────────────────────────────────────────────
 app.get('/api/admin/gamemode-debug', (req, res) => {
   if (!adminAuth.checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
-  res.json({ entries: getGameModeDebugLog() });
+  const entries = getGameModeDebugLog();
+  res.json({ entries, count: entries.length, serverStarted: _serverStartTime });
 });
 
 app.get('/api/admin', (req, res) => {
@@ -2326,7 +2328,7 @@ app.get('/api/admin', (req, res) => {
   <h2>// gamemode debug log</h2>
   <div class="action-row" style="margin-bottom:8px">
     <button class="action-btn" onclick="loadGamemodeDebug()">↺ refresh</button>
-    <span style="font-size:10px;color:#555">last 100 non-ranked games processed — newest first</span>
+    <span id="gm-meta" style="font-size:10px;color:#555">last 100 non-ranked games processed — newest first</span>
   </div>
   <div class="table-wrap"><table id="gm-table"><thead><tr><th>TIME</th><th>GAMERTAG</th><th>MATCH ID</th><th>RESOLVED NAME</th><th>UGC NAME</th><th>PLAYLIST NAME</th><th>PLAYLIST ID</th><th>EXPERIENCE</th><th>CAT#</th></tr></thead><tbody id="gmtbody"><tr><td colspan="9" class="muted">Loading...</td></tr></tbody></table></div>
   <script>
@@ -2518,6 +2520,8 @@ app.get('/api/admin', (req, res) => {
 
   function loadGamemodeDebug(){
     fetch('/api/admin/gamemode-debug?pass=${pass}').then(function(r){return r.json();}).then(function(d){
+      var meta=document.getElementById('gm-meta');
+      if(meta) meta.textContent='entries: '+(d.count||0)+' | server started: '+(d.serverStarted||'?');
       var rows=d.entries||[];
       var tb=document.getElementById('gmtbody');
       if(!rows.length){tb.innerHTML='<tr><td colspan="9" class="muted">No non-ranked games logged yet — play some games and reload</td></tr>';return;}

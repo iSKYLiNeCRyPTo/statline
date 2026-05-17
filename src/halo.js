@@ -896,6 +896,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
                        || '';
           // Always log non-ranked game mode info to the debug buffer for admin inspection
           if (!isRanked) {
+            console.log(`[GameModeDebug] non-ranked match ${m.MatchId} for ${gamertag} | playlistId=${matchPlaylistId} | ugcName="${ugcName}" | cat=${catNum}`);
             _pushGameModeDebug({
               ts: new Date().toISOString(),
               matchId: m.MatchId,
