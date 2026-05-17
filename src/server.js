@@ -523,6 +523,23 @@ app.get('/api/admin/test-api', async (req, res) => {
   }
 });
 
+// Raw match detail dump — returns full Halo API JSON for a single match (for debugging)
+app.get('/api/admin/match-raw', async (req, res) => {
+  if (!adminAuth.checkAdminPass(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const { matchId } = req.query;
+  if (!matchId) return res.status(400).json({ error: 'matchId required' });
+  try {
+    const headers = getAuthHeaders();
+    const url = `https://halostats.svc.halowaypoint.com/hi/matches/${matchId}/stats`;
+    const r = await fetch(url, { headers });
+    if (!r.ok) return res.status(r.status).json({ error: `Halo API ${r.status}`, url });
+    const data = await r.json();
+    res.json(data);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Force-trigger a Spartan token refresh on demand (same flow as the scheduled auto-refresh)
 app.post('/api/admin/refresh-token', async (req, res) => {
   const pass = req.query.pass || req.headers['x-admin-pass'];
