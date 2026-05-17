@@ -221,7 +221,9 @@ async function doSearch(gt, isRefresh, force){
 
   try{
     // ── Step 1: Service record ───────────────────────────────────────────
-    var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1'+(force?'&force=1':''));
+    var _ac1=new AbortController(),_t1=setTimeout(function(){_ac1.abort();},35000);
+    var statsRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+'&statsOnly=1'+(force?'&force=1':''),{signal:_ac1.signal});
+    clearTimeout(_t1);
     var statsD=await statsRes.json();
     _phase('statsOnly response');
     if(!isCurrent()) return; // newer search started while we waited
@@ -268,7 +270,9 @@ async function doSearch(gt, isRefresh, force){
       },400);
     }
 
-    var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+(force?'&force=1':''));
+    var _ac2=new AbortController(),_t2=setTimeout(function(){_ac2.abort();},60000);
+    var fullRes=await fetch('/api/search?gamertag='+encodeURIComponent(gt)+(force?'&force=1':''),{signal:_ac2.signal});
+    clearTimeout(_t2);
     var fullD=await fullRes.json();
     if(_progressPoll) clearInterval(_progressPoll);
     _phase('match history response'+(fullD&&fullD.cached?' [cached]':''));
@@ -370,7 +374,10 @@ async function doSearch(gt, isRefresh, force){
       }
     }
   } catch(e){
-    document.getElementById('app').innerHTML='<div class="error-card">Search failed: '+e.message+'</div>';
+    var msg=e.name==='AbortError'
+      ?'Request timed out — the server took too long. Try again in a moment.'
+      :'Search failed: '+e.message;
+    document.getElementById('app').innerHTML='<div class="error-card">'+msg+'<br><br><button onclick="doSearch(\''+gt.replace(/'/g,"\\'")+'\')" style="margin-top:8px;padding:8px 20px;background:var(--accent);border:none;color:var(--bg);border-radius:4px;font-family:Share Tech Mono,monospace;font-size:11px;cursor:pointer;letter-spacing:1px">RETRY</button></div>';
   }
 }
 async function searchPlayer(){
