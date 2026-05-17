@@ -895,27 +895,27 @@ function render(){
       if(m.weaponStats&&m.weaponStats.headshots!=null&&m.kills>0)
         combatEff+=_clamp((m.weaponStats.headshots/m.kills-0.30)*166,-50,50);
 
-      // ── Objective bonus (additive on top of combat, capped at +100) ────────
-      // Stacks with combat stats — a good fragger who also plays obj scores higher,
-      // and a low-KDA obj player still gets pulled up meaningfully.
+      // ── Objective component (-75 → +100) ─────────────────────────────────
+      // Only fires when objStats exist (objective modes). Slayer games = 0, untouched.
+      // At average contribution → 0. Ignoring obj entirely → -75. Double baseline → +100.
       var objBonus=0;
       if(m.objStats){
-        var os=m.objStats,raw=0;
+        var os=m.objStats,raw=0,baseline=1;
         if(os.mode==='CTF'){
           raw=(os.flagCaptures||0)*3+(os.flagGrabs||0)*1.5+(os.flagReturns||0)*2+(os.flagCarrierKills||0)*1;
-          objBonus=_clamp((raw/3.5)*50,0,100); // baseline 3.5 → 50pts; double baseline → 100pts
+          baseline=3.5; // 1 grab + 1 return
         } else if(os.mode==='Oddball'){
           raw=(os.timeAsCarrier||0)+(os.carrierKills||0)*5+(os.ballGrabs||0)*3;
-          objBonus=_clamp((raw/60)*50,0,100); // baseline 60s → 50pts
+          baseline=60; // 60s carry time
         } else if(os.captures!=null||os.secures!=null){
-          // Strongholds / KotH / Land Grab
           raw=(os.captures||0)*2+(os.secures||0)*1.5+(os.defensiveKills||0)*0.5;
-          objBonus=_clamp((raw/5.5)*50,0,100); // baseline 5.5 → 50pts
+          baseline=5.5; // 2 caps + 1 secure
         } else if(os.seedsDeposited!=null){
-          // Stockpile
           raw=(os.seedsDeposited||0)*3+(os.seedsPickedUp||0)*1;
-          objBonus=_clamp((raw/6)*50,0,100);
+          baseline=6;
         }
+        // (raw/baseline - 1) × 100: avg=0, zero contrib=-100→floored at -75, double=+100
+        objBonus=_clamp((raw/baseline-1)*100,-75,100);
       }
 
       var winLoss=m.outcome===2?125:m.outcome===3?-125:0;
