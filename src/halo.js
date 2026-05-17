@@ -892,6 +892,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
                        || md.MatchInfo?.UgcGameVariant?.Tags?.[0]
                        || md.MatchInfo?.PlaylistMapModePair?.Name
                        || md.MatchInfo?.GameVariant?.Name
+                       || KNOWN_PLAYLISTS[matchPlaylistId]
                        || '';
           // Always log non-ranked game mode info to the debug buffer for admin inspection
           if (!isRanked) {
@@ -1408,7 +1409,7 @@ function _pushGameModeDebug(entry) {
 // Known playlist IDs whose names the API sometimes omits
 const KNOWN_PLAYLISTS = {
   '1b1691dc-d8b9-4b1f-825d-cb1c065184c1': 'Quick Play',
-  '57f4f0c0-bce9-4a34-b1b0-6188ed0f0198': 'Quick Play',
+  '57f4f0c0-bce9-4a34-b1b0-6188ed0f0198': 'Team Snipers',
   'edfef3ac-9cbe-4fa2-b949-8f29deafd483': 'Ranked Arena',
   'f5580605-660c-43f9-ac69-4075c4a05c5d': 'Ranked Slayer',
   'dcb2e24e-05fb-4390-8076-32a0cdb4326e': 'Ranked Slayer',
