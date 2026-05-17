@@ -116,8 +116,14 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 @media(max-width:768px){.lobby-grid{grid-template-columns:1fr !important}}
 @media(max-width:768px){.fragr-score-breakdown{grid-template-columns:repeat(3,1fr) !important}}
 .mobile-logo-bar svg{display:block;height:32px;width:auto}
-.mobile-logo-actions{display:flex;gap:8px;align-items:center}
-.mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:26px;height:26px;border-radius:4px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.mobile-logo-actions{display:flex;gap:8px;align-items:center;flex:1;justify-content:flex-end}
+.mobile-action-btn{background:transparent;border:1px solid var(--border);color:var(--muted);width:32px;height:32px;border-radius:6px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:border-color 0.15s,color 0.15s}
+.mobile-action-btn:hover{border-color:var(--accent);color:var(--accent)}
+.mobile-search-wrap{flex:1;position:relative;display:flex;align-items:center}
+.mobile-search-wrap svg{position:absolute;left:8px;pointer-events:none;color:var(--muted2)}
+.mobile-search-input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:11px;padding:6px 8px 6px 28px;border-radius:6px;outline:none;letter-spacing:0.3px;transition:border-color 0.15s}
+.mobile-search-input::placeholder{color:var(--muted2)}
+.mobile-search-input:focus{border-color:var(--accent)}
 .mobile-tabbar{display:none;position:sticky;top:48px;z-index:199;background:var(--surface);border-bottom:1px solid var(--border);padding:4px 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
 .mobile-tabbar::-webkit-scrollbar{display:none}
 .mobile-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px 10px;cursor:pointer;color:var(--muted);transition:color 0.15s;min-width:56px}
@@ -606,7 +612,17 @@ body.on-landing .sidebar{display:none !important}
     <text x="35" y="19" font-family="system-ui,sans-serif" font-weight="500" letter-spacing="-0.8px" font-size="19" fill="var(--text)">fragr</text>
   </svg>
   <div class="mobile-logo-actions">
-    <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+    <div class="mobile-search-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="mobile-search-input" id="topbarMobileSearchInput" type="text" placeholder="Search gamertag..." autocomplete="off" spellcheck="false"
+        oninput="debounceSuggest(this.value,'topbarMobileSuggestDropdown','topbarMobileSearchInput')"
+        onkeydown="handleSuggestKey(event,'topbarMobileSuggestDropdown');if(event.key==='Enter'&&!document.getElementById('topbarMobileSuggestDropdown').classList.contains('open')){var _v=this.value.trim();if(_v)doSearch(_v);}"
+        onfocus="debounceSuggest(this.value,'topbarMobileSuggestDropdown','topbarMobileSearchInput')">
+      <div id="topbarMobileSuggestDropdown" class="suggest-dropdown" style="min-width:100%"></div>
+    </div>
+    <button class="mobile-action-btn" id="mobileRefreshBtn" onclick="refreshStats()" title="Refresh">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+    </button>
   </div>
 </div>
 

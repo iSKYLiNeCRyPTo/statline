@@ -583,7 +583,7 @@ window.addEventListener('resize',function(){
   if(dtb&&dtb.style.display!=='none')dtb.style.display=window.innerWidth>=768?'flex':'none';
 });
 document.addEventListener('click',function(e){
-  ['suggestDropdown','mobileSuggestDropdown','landingSuggestDropdown'].forEach(function(id){
+  ['suggestDropdown','mobileSuggestDropdown','landingSuggestDropdown','topbarMobileSuggestDropdown'].forEach(function(id){
     var drop=document.getElementById(id);
     if(drop&&drop.parentElement&&!drop.parentElement.contains(e.target))drop.classList.remove('open');
   });
