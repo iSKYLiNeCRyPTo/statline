@@ -326,7 +326,7 @@ async function doSearch(gt, isRefresh, force){
       delete fullMatchCache[_canonicalGt];
       activeTab='overview';
       render();
-      updateFavBtn(); // heroFavBtn now in DOM — apply correct star state
+      setTimeout(updateFavBtn, 0); // wait for DOM paint before applying star state
       _phase('rendered');
 
       // Background poller: detect new matches without manual refresh
