@@ -3356,6 +3356,8 @@ app.post('/api/rivals/refresh', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log('fragr listening on port ' + PORT);
+  const rivalsKey = process.env.RIVALS_API_KEY || '';
+  console.log(`[Rivals] API key: ${rivalsKey ? `set (${rivalsKey.length} chars, starts "${rivalsKey.slice(0,4)}...")` : 'NOT SET'}`);
 
   // On startup: pull the latest rotated refresh token from Redis.
   // Redis may have a newer token than the env var (rotated on a previous run that
