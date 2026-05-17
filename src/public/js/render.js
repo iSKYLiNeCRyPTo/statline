@@ -887,7 +887,7 @@ function render(){
       // ── Combat efficiency ────────────────────────────────────────────────
       var kda=m.deaths>0?(m.kills+(m.assists||0)/3)/m.deaths:Math.min(m.kills+(m.assists||0)/3,4);
       var combatEff=0;
-      combatEff+=_clamp((kda-1.0)*175,-175,175);
+      combatEff+=_clamp((kda-1.0)*175,-175,250);
       if(m.accuracy!=null) combatEff+=_clamp((parseFloat(m.accuracy)-50)*1.5,-75,75);
       // Damage normalised by duration — baseline 450 dpm for a competitive player
       var dpm=m.damageDealt>0?m.damageDealt/durationMin:0;
