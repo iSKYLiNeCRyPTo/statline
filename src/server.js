@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog, fillCachedMapImages } = require('./halo');
 const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
@@ -870,6 +870,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
         saveToCache(gamertag, cached).catch(() => {});
       } catch(e) { /* non-fatal */ }
     }
+    // Fill any null mapImageUrl values from in-memory cache (no API calls)
+    fillCachedMapImages(cached.allMatches || cached.recentMatches || []);
     logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
     await enrichForResponse(cached);
     _attachRecoveryMeta(cached, gamertag);

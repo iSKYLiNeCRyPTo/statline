@@ -1253,7 +1253,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         : null;
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
-        mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
+        mapName, mapImageUrl, _mapAssetId: md.MatchInfo?.MapVariant?.AssetId || null,
+        gameMode, isRanked, kills, deaths, assists, score,
         kda: (kills - deaths + assists/3).toFixed(1),
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
         shotsFired, shotsHit,
@@ -1698,4 +1699,15 @@ module.exports = {
   matchListBackoffSecondsRemaining,
   isClearanceUnavailable,
   getGameModeDebugLog: () => _gameModeDebugLog,
+  // Fill null mapImageUrl values on cached match objects using the in-memory
+  // mapImageCache. No API calls — instant. Works whenever another player's
+  // fetch has already resolved those maps. Updates the objects in-place.
+  fillCachedMapImages: function(matches) {
+    if (!matches) return;
+    for (const m of matches) {
+      if (!m.mapImageUrl && m._mapAssetId && mapImageCache[m._mapAssetId]) {
+        m.mapImageUrl = mapImageCache[m._mapAssetId];
+      }
+    }
+  },
 };
