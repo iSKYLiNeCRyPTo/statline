@@ -139,29 +139,42 @@ async function fetchClearanceToken(xuid) {
   }
   if (clearanceInFlight) return clearanceInFlight;
   clearanceInFlight = (async () => {
-    const MAX_ATTEMPTS = 2; // reduced from 3 — failing fast is fine since we have a cooldown
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const res = await fetch(
-          `https://settings.svc.halowaypoint.com/oban/flight-configurations/titles/hi/audiences/RETAIL/players/xuid(${xuid})/active?sandbox=UNUSED&build=6.10022.18539`,
-          { headers: { 'x-343-authorization-spartan': process.env.SPARTAN_TOKEN || '', 'Accept': 'application/json' } }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          cachedClearance = data.FlightConfigurationId || data.flightConfigurationId || null;
-          clearanceFetchedAt = Date.now();
-          clearanceFailedAt = 0; // reset failure timestamp on success
-          // [Clearance] OK logged at debug level only
-          getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
-          break;
-        } else {
-          console.warn(`[Clearance] HTTP ${res.status} (attempt ${attempt}/${MAX_ATTEMPTS})`);
-          if (attempt < MAX_ATTEMPTS) await sleep(1000);
+    const baseHeaders = { 'x-343-authorization-spartan': process.env.SPARTAN_TOKEN || '', 'Accept': 'application/json' };
+    // Try without build param first — works regardless of current game version.
+    // Fall back to a known build in case the endpoint requires it.
+    const urls = [
+      `https://settings.svc.halowaypoint.com/oban/flight-configurations/titles/hi/audiences/RETAIL/players/xuid(${xuid})/active?sandbox=UNUSED`,
+      `https://settings.svc.halowaypoint.com/oban/flight-configurations/titles/hi/audiences/RETAIL/players/xuid(${xuid})/active?sandbox=UNUSED&build=6.10022.18539`,
+    ];
+    for (const url of urls) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const res = await fetch(url, { headers: baseHeaders });
+          if (res.ok) {
+            const data = await res.json();
+            const token = data.FlightConfigurationId || data.flightConfigurationId || null;
+            if (token) {
+              cachedClearance = token;
+              clearanceFetchedAt = Date.now();
+              clearanceFailedAt = 0;
+              getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
+              clearanceInFlight = null;
+              return cachedClearance;
+            }
+          } else if (res.status === 403) {
+            // 403 = build mismatch or token issue — try next URL
+            if (attempt === 2) console.warn(`[Clearance] HTTP 403 on ${url.includes('build=') ? 'fallback' : 'primary'} URL`);
+            break;
+          } else {
+            console.warn(`[Clearance] HTTP ${res.status} (attempt ${attempt}/2)`);
+            if (attempt < 2) await sleep(1000);
+          }
+        } catch(e) {
+          console.error(`[Clearance] attempt ${attempt} error:`, e.message);
+          if (attempt < 2) await sleep(1000);
         }
-      } catch(e) {
-        console.error(`[Clearance] attempt ${attempt} error:`, e.message);
-        if (attempt < MAX_ATTEMPTS) await sleep(1000);
       }
+      if (cachedClearance) break;
     }
     if (!cachedClearance) {
       clearanceFailedAt = Date.now();
@@ -265,13 +278,16 @@ async function _runGtResolver() {
       if (!todo.length) break;
 
       console.log(`[GT] Resolving ${todo.length} unknown xuids`);
-      const headers = getAuthHeaders();
 
       for (let i = 0; i < todo.length; i += BATCH_SIZE) {
         if (i > 0) await sleep(INTER_BATCH_DELAY);
         const batch = todo.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
+        // Refresh clearance + headers per-batch — ensures we have a valid 343-clearance
+        // header even if the Spartan token was rotated mid-run (which nulls cachedClearance).
+        try { await fetchClearanceToken(batch[0]); } catch(e) {}
+        const headers = getAuthHeaders();
 
         let success = false;
         let backoff = 8000; // start at 8s — gives API more breathing room
@@ -312,6 +328,10 @@ async function _runGtResolver() {
               console.log(`[GT] Rate limited batch ${batchNum} — backing off ${backoff/1000}s (attempt ${attempt}/3)`);
               await sleep(backoff);
               backoff *= 2; // 8s → 16s → 32s
+            } else if (r.status === 400) {
+              // 400 = missing/invalid clearance — no point retrying, skip batch
+              console.log(`[GT] Batch ${batchNum} got 400 (clearance unavailable) — skipping`);
+              break;
             } else {
               console.log(`[GT] Batch ${batchNum} unexpected status ${r.status} — skipping`);
               break;

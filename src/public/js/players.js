@@ -78,10 +78,16 @@ async function loadFullMatches(gamertag, force, bannerLabel){
   var _hideBanner=function(){
     var b=document.getElementById('_fullMatchBanner');if(b)b.remove();
   };
+  var _safetyTimer=null,_abortCtrl=null,_abortTimer=null;
   try{
     _showBanner();
-    var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=250');
+    _safetyTimer=setTimeout(_hideBanner,28000); // always hide after 28s (e.g. server restarts mid-deploy)
+    _abortCtrl=new AbortController();
+    _abortTimer=setTimeout(function(){_abortCtrl.abort();},25000);
+    var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=250',{signal:_abortCtrl.signal});
+    clearTimeout(_abortTimer);
     var d=await res.json();
+    clearTimeout(_safetyTimer);
     _hideBanner();
     if(d.matches&&d.matches.length>0){
       d.matches._fetchedAt=Date.now();
@@ -101,7 +107,7 @@ async function loadFullMatches(gamertag, force, bannerLabel){
         renderMatchHistory(_upd,matchHistoryData._clientPage||1);
       }
     }
-  }catch(e){ _hideBanner(); console.warn('[loadFullMatches]',e.message); }
+  }catch(e){ clearTimeout(_abortTimer);clearTimeout(_safetyTimer);_hideBanner(); if(e.name!=='AbortError')console.warn('[loadFullMatches]',e.message); }
 }
 function switchPlayer(idx){
   selectedPlayer=idx;expandedMatches={};activeTab='overview';render();
