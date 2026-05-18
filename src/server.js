@@ -2477,6 +2477,16 @@ app.get('/api/admin', (req, res) => {
     },300);
   }
 
+  function showDiscRaw(i){
+    var existing=document.getElementById('disc-raw-overlay');
+    if(existing){existing.remove();}
+    var el=document.createElement('div');
+    el.id='disc-raw-overlay';
+    el.style.cssText='position:fixed;top:5%;left:5%;width:90%;max-height:88vh;overflow:auto;background:#111;border:1px solid #444;padding:16px;font-size:11px;z-index:9999;border-radius:6px';
+    el.innerHTML='<button onclick="document.getElementById(\'disc-raw-overlay\').remove()" style="float:right;background:#333;border:1px solid #555;color:#aaa;cursor:pointer;padding:2px 8px;border-radius:3px">✕ close</button>'
+      +'<pre style="white-space:pre-wrap;margin-top:24px;color:#ccc">'+JSON.stringify(window._discRawData[i]||{},null,2)+'</pre>';
+    document.body.appendChild(el);
+  }
   function discoverPlaylists(){
     var gt=(document.getElementById('disc-gt').value||'').trim();
     if(!gt){alert('Enter a gamertag first');return;}
@@ -2490,12 +2500,12 @@ app.get('/api/admin', (req, res) => {
         if(d.error){tbody.innerHTML='<tr><td colspan="12" style="color:#f44336">'+d.error+'</td></tr>';return;}
         var rows=d.playlists||[];
         if(!rows.length){tbody.innerHTML='<tr><td colspan="12" class="muted">no playlists found</td></tr>';return;}
+        window._discRawData={};
         tbody.innerHTML=rows.map(function(p,i){
           var known=['edfef3ac-9cbe-4fa2-b949-8f29deafd483','f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
           var isNew=known.indexOf(p.id)===-1;
           var dur=p.durationSec?Math.floor(p.durationSec/60)+'m'+(p.durationSec%60)+'s':'';
-          var rawId='disc-raw-'+i;
-          var rawJson=JSON.stringify(p.rawMatchInfo||{},null,2);
+          window._discRawData[i]=p.rawMatchInfo||{};
           return'<tr>'
             +'<td style="font-family:monospace;font-size:10px;color:'+(isNew?'#ffc107':'#555')+'">'+p.id+(isNew?' ★':'')+'</td>'
             +'<td style="color:'+(isNew?'#00d4ff':'#ccc')+'">'+p.name+'</td>'
@@ -2508,8 +2518,7 @@ app.get('/api/admin', (req, res) => {
             +'<td class="muted" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+p.mapName+'">'+p.mapName+'</td>'
             +'<td class="muted">'+dur+'</td>'
             +'<td>'+p.count+'</td>'
-            +'<td><button onclick="var el=document.getElementById(\''+rawId+'\');el.style.display=el.style.display===\'none\'?\'block\':\'none\'" style="font-size:9px;padding:2px 6px;background:#222;border:1px solid #444;color:#aaa;cursor:pointer;border-radius:3px">RAW</button>'
-            +'<pre id="'+rawId+'" style="display:none;position:fixed;top:10%;left:10%;width:80%;max-height:75vh;overflow:auto;background:#111;border:1px solid #333;padding:12px;font-size:10px;z-index:9999;white-space:pre-wrap;text-align:left">'+rawJson+'</pre></td>'
+            +'<td><button onclick="showDiscRaw('+i+')" style="font-size:9px;padding:2px 6px;background:#222;border:1px solid #444;color:#aaa;cursor:pointer;border-radius:3px">RAW</button></td>'
             +'</tr>';
         }).join('');
       })
