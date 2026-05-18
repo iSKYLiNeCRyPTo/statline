@@ -2851,7 +2851,7 @@ function render(){
 
   // Sessions tab
   html+='<div class="tab-panel'+(activeTab==='sessions'?' active':'')+'" data-tab="sessions">';
-  if(typeof renderSessionsPage==='function') html+=renderSessionsPage(p, allMatches);
+  if(typeof renderSessionsPage==='function') html+=renderSessionsPage(p, _mapMatches);
   else html+='<div style="padding:2rem;color:var(--muted)">Sessions data loading...</div>';
   html+='</div>';
 
@@ -2863,13 +2863,13 @@ function render(){
 
   // Weapons tab
   html+='<div class="tab-panel'+(activeTab==='weapons'?' active':'')+'" data-tab="weapons">';
-  if(typeof renderWeaponsPage==='function') html+=renderWeaponsPage(p, allMatches);
+  if(typeof renderWeaponsPage==='function') html+=renderWeaponsPage(p, _mapMatches);
   else html+='<div style="padding:2rem;color:var(--muted)">Weapons data loading...</div>';
   html+='</div>';
 
   // Synergy tab
   html+='<div class="tab-panel'+(activeTab==='synergy'?' active':'')+'" data-tab="synergy">';
-  if(typeof renderSynergyPage==='function') html+=renderSynergyPage(p, allMatches);
+  if(typeof renderSynergyPage==='function') html+=renderSynergyPage(p, _mapMatches);
   else html+='<div style="padding:2rem;color:var(--muted)">Synergy data loading...</div>';
   html+='</div>';
 
