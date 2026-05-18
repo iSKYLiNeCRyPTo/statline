@@ -106,15 +106,17 @@ function isClearanceUnavailable() {
   return !cachedClearance && clearanceFailedAt > 0 && (Date.now() - clearanceFailedAt) < CLEARANCE_FAIL_COOLDOWN;
 }
 
-// Called by tokenRefresh after a new Spartan token is issued — wipes the old
-// clearance so the next request fetches a fresh one bound to the new token.
+// Called by tokenRefresh after a new Spartan token is issued.
+// We mark clearance as stale so it re-fetches on next use, but we do NOT null
+// it out — the FlightConfigurationId UUID is long-lived and will keep working
+// even across Spartan token rotations. If the re-fetch fails we fall back to
+// the existing token rather than leaving everything clearance-less.
 function resetClearanceCache() {
-  cachedClearance = null;
-  clearanceFetchedAt = 0;
+  clearanceFetchedAt = 0;   // mark stale — will re-fetch on next use
   clearanceInFlight = null;
-  clearanceFailedAt = 0;
-  getRedis().then(r => r && r.del('clearanceToken')).catch(() => {});
-  console.log('[Clearance] Cache reset after Spartan token refresh');
+  clearanceFailedAt = 0;    // allow retry immediately
+  // leave cachedClearance intact as fallback
+  console.log('[Clearance] Marked stale after Spartan token refresh (existing token kept as fallback)');
 }
 
 // Match IDs that the skill API permanently 404s — skip on all future fetches
@@ -179,6 +181,11 @@ async function fetchClearanceToken(xuid) {
     if (!cachedClearance) {
       clearanceFailedAt = Date.now();
       console.warn(`[Clearance] All attempts failed — suppressing retries for ${CLEARANCE_FAIL_COOLDOWN/60000} min`);
+    } else {
+      // Re-fetch failed but we still have an existing token — extend its TTL so
+      // we don't spam the endpoint on every request while it's 403ing.
+      clearanceFetchedAt = Date.now();
+      console.warn('[Clearance] Re-fetch failed, continuing with existing token');
     }
     clearanceInFlight = null;
     return cachedClearance;
