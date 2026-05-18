@@ -2384,7 +2384,7 @@ app.get('/api/admin', (req, res) => {
     <span style="font-size:10px;color:#555">finds playlist IDs from last 25 matches — use to get Ranked Legacy/Doubles IDs</span>
   </div>
   <div id="disc-result" style="font-size:11px;margin-bottom:24px;display:none">
-    <table style="width:auto;font-size:11px"><thead><tr><th>PLAYLIST ID</th><th>NAME</th><th>EXP</th><th>VARIANT</th><th>PLAYERS</th><th>TEAMS</th><th>FFA</th><th>MAP</th><th>MATCHES (of 25)</th></tr></thead><tbody id="disc-tbody"></tbody></table>
+    <table style="width:auto;font-size:11px"><thead><tr><th>PLAYLIST ID</th><th>NAME</th><th>EXP</th><th>GAME MODE</th><th>CAT</th><th>PLAYERS</th><th>TEAMS</th><th>FFA</th><th>MAP</th><th>DUR</th><th>MATCHES</th></tr></thead><tbody id="disc-tbody"></tbody></table>
   </div>
   <div class="summary" id="summary">Loading...</div>
   <h2>// active cache</h2>
@@ -2482,31 +2482,34 @@ app.get('/api/admin', (req, res) => {
     if(!gt){alert('Enter a gamertag first');return;}
     var resultDiv=document.getElementById('disc-result');
     var tbody=document.getElementById('disc-tbody');
-    tbody.innerHTML='<tr><td colspan="9" class="muted">scanning…</td></tr>';
+    tbody.innerHTML='<tr><td colspan="11" class="muted">scanning…</td></tr>';
     resultDiv.style.display='block';
     fetch('/api/discover-playlists?gamertag='+encodeURIComponent(gt))
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.error){tbody.innerHTML='<tr><td colspan="9" style="color:#f44336">'+d.error+'</td></tr>';return;}
+        if(d.error){tbody.innerHTML='<tr><td colspan="11" style="color:#f44336">'+d.error+'</td></tr>';return;}
         var rows=d.playlists||[];
-        if(!rows.length){tbody.innerHTML='<tr><td colspan="9" class="muted">no playlists found</td></tr>';return;}
+        if(!rows.length){tbody.innerHTML='<tr><td colspan="11" class="muted">no playlists found</td></tr>';return;}
         tbody.innerHTML=rows.map(function(p){
           var known=['edfef3ac-9cbe-4fa2-b949-8f29deafd483','f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
           var isNew=known.indexOf(p.id)===-1;
+          var dur=p.durationSec?Math.floor(p.durationSec/60)+'m'+(p.durationSec%60)+'s':'';
           return'<tr>'
-            +'<td style="font-family:monospace;color:'+(isNew?'#ffc107':'#555')+'">'+p.id+(isNew?' ★':'')+'</td>'
+            +'<td style="font-family:monospace;font-size:10px;color:'+(isNew?'#ffc107':'#555')+'">'+p.id+(isNew?' ★':'')+'</td>'
             +'<td style="color:'+(isNew?'#00d4ff':'#ccc')+'">'+p.name+'</td>'
             +'<td class="muted">'+p.exp+'</td>'
-            +'<td class="muted">'+(p.gameVariant||'')+'</td>'
+            +'<td class="muted" style="color:#aaa">'+(p.gameVariant||'')+'</td>'
+            +'<td class="muted">'+p.gameCategory+'</td>'
             +'<td class="muted">'+p.playerCount+'</td>'
             +'<td class="muted">'+p.teamCount+'</td>'
-            +'<td class="muted">'+(p.teamsEnabled===false?'YES':'')+'</td>'
-            +'<td class="muted" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.mapName+'</td>'
+            +'<td class="muted">'+(p.teamsEnabled===false?'<span style="color:#ffc107">YES</span>':'')+'</td>'
+            +'<td class="muted" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+p.mapName+'">'+p.mapName+'</td>'
+            +'<td class="muted">'+dur+'</td>'
             +'<td>'+p.count+'</td>'
             +'</tr>';
         }).join('');
       })
-      .catch(function(e){tbody.innerHTML='<tr><td colspan="9" style="color:#f44336">'+e.message+'</td></tr>';});
+      .catch(function(e){tbody.innerHTML='<tr><td colspan="11" style="color:#f44336">'+e.message+'</td></tr>';});
   }
 
   function loadCache(){

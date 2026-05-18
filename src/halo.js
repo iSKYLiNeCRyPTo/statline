@@ -1477,16 +1477,22 @@ async function discoverPlaylists(xuid, gamertag) {
       } else {
         const players = md.Players || [];
         const teams = md.Teams || [];
+        const mi = md.MatchInfo || {};
+        const durationSec = mi.Duration ? Math.round(
+          (mi.Duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/)||[]).slice(1).reduce((acc,v,i)=>acc+(parseFloat(v)||0)*[3600,60,1][i],0)
+        ) : null;
         seen.set(playlistId, {
           id: playlistId,
-          name: md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || KNOWN_PLAYLISTS[playlistId] || '(no name in API)',
-          exp: md.MatchInfo?.PlaylistExperience || '',
-          lifecycle: md.MatchInfo?.LifecycleMode,
-          gameVariant: md.MatchInfo?.GameVariantCategory ?? md.MatchInfo?.UgcGameVariant?.PublicName ?? '',
-          teamsEnabled: md.MatchInfo?.TeamsEnabled ?? null,
+          name: mi.Playlist?.PublicName || mi.Playlist?.Name || KNOWN_PLAYLISTS[playlistId] || '(no name in API)',
+          exp: mi.PlaylistExperience || '',
+          lifecycle: mi.LifecycleMode,
+          gameVariant: mi.UgcGameVariant?.PublicName || mi.UgcGameVariant?.Name || '',
+          gameCategory: mi.GameVariantCategory ?? '',
+          teamsEnabled: mi.TeamsEnabled ?? null,
           playerCount: players.length,
           teamCount: teams.length,
-          mapName: md.MatchInfo?.MapVariant?.PublicName || md.MatchInfo?.MapVariant?.Name || '',
+          mapName: mi.MapVariant?.PublicName || mi.MapVariant?.Name || mi.Map?.PublicName || mi.Map?.Name || '',
+          durationSec,
           matchId: m.MatchId,
           count: 1,
         });
@@ -1497,7 +1503,8 @@ async function discoverPlaylists(xuid, gamertag) {
   const playlists = [...seen.values()].sort((a, b) => b.count - a.count);
   console.log(`[PlaylistDiscover] Results for ${gamertag} (${xuid}):`);
   playlists.forEach(p => {
-    console.log(`  ${p.id}  "${p.name}"  exp="${p.exp}"  lifecycle=${p.lifecycle}  variant=${p.gameVariant}  players=${p.playerCount}  teams=${p.teamCount}  teamsEnabled=${p.teamsEnabled}  map="${p.mapName}"  (${p.count} of last 25 matches)`);
+    const dur = p.durationSec ? `${Math.floor(p.durationSec/60)}m${p.durationSec%60}s` : '?';
+    console.log(`  ${p.id}  "${p.name}"  exp="${p.exp}"  lifecycle=${p.lifecycle}  variant="${p.gameVariant}"  cat=${p.gameCategory}  players=${p.playerCount}  teams=${p.teamCount}  ffa=${!p.teamsEnabled}  map="${p.mapName}"  dur=${dur}  (${p.count} of last 25)`);
   });
   return playlists;
 }
