@@ -1,3 +1,16 @@
+// ── View mode: 'ranked' (default) or 'social' ────────────────────────────────
+window._viewMode = window._viewMode || 'ranked';
+function setViewMode(mode) {
+  window._viewMode = mode;
+  window._filterLogged = false; // reset filter debug log on mode switch
+  // Update pill styles
+  var pr = document.getElementById('pillRanked');
+  var ps = document.getElementById('pillSocial');
+  if(pr) { pr.style.background = mode==='ranked' ? 'var(--accent)' : 'transparent'; pr.style.borderColor = mode==='ranked' ? 'var(--accent)' : 'var(--border)'; pr.style.color = mode==='ranked' ? '#fff' : 'var(--muted)'; }
+  if(ps) { ps.style.background = mode==='social' ? 'var(--accent)' : 'transparent'; ps.style.borderColor = mode==='social' ? 'var(--accent)' : 'var(--border)'; ps.style.color = mode==='social' ? '#fff' : 'var(--muted)'; }
+  render();
+}
+
 function toggleSynCard(id){
   var panel=document.getElementById(id);
   var arr=document.getElementById(id+'_arr');
@@ -611,6 +624,13 @@ function render(){
   var p=getAllPlayers()[selectedPlayer]||(data.players||[])[0];
   var updated=data.lastUpdated?new Date(data.lastUpdated).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+' · '+new Date(data.lastUpdated).toLocaleDateString():'—';
   document.getElementById('lastUpdated').textContent=updated;
+  // Sync pill highlight state on every render
+  (function(){
+    var _m=window._viewMode||'ranked';
+    var pr=document.getElementById('pillRanked');var ps=document.getElementById('pillSocial');
+    if(pr){pr.style.background=_m==='ranked'?'var(--accent)':'transparent';pr.style.borderColor=_m==='ranked'?'var(--accent)':'var(--border)';pr.style.color=_m==='ranked'?'#fff':'var(--muted)';}
+    if(ps){ps.style.background=_m==='social'?'var(--accent)':'transparent';ps.style.borderColor=_m==='social'?'var(--accent)':'var(--border)';ps.style.color=_m==='social'?'#fff':'var(--muted)';}
+  })();
   if(!p||!p.stats){document.getElementById('app').innerHTML=p&&p._loading?'<div class="loading"><div class="spinner"></div><p>Loading stats for <strong>'+p.gamertag+'</strong>...</p></div>':p&&p.error?'<div class="error-card">'+p.error+'<br><small style="color:var(--muted)">Token may have expired — auto-refresh should fix this shortly.</small></div>':'<div class="loading"><p>No stats yet — click <strong>REFRESH</strong> to load.</p></div>';return;}
   // Show a non-blocking warning banner if last fetch failed but we have cached data
   var fetchErrBanner = data.fetchError ? '<div style="background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);border-radius:8px;padding:10px 16px;color:var(--loss);font-size:12px;margin-bottom:16px"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Last refresh failed: '+data.fetchError+' — showing cached data from '+updated+'</div>' : '';
@@ -684,8 +704,33 @@ function render(){
   // Below that threshold, fall back to all game types (quickplay/social included).
   var _allRanked=_rawMatches.filter(function(m){return m.isRanked;});
   var _usingRankedOnly=_allRanked.length>=40;
-  var statMatches=_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100);
-  var _statLabel=_usingRankedOnly?'ranked games':'games';
+  var _isSocialMode=window._viewMode==='social';
+  // Social matches: non-ranked, non-custom PvP games
+  var _socialMatches=_rawMatches.filter(function(m){return !m.isRanked&&!m.isCustom;});
+  var statMatches=_isSocialMode?_socialMatches.slice(0,100):(_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100));
+  var _statLabel=_isSocialMode?'social games':(_usingRankedOnly?'ranked games':'games');
+  // Build display stats: server stats for ranked mode, computed from social matches for social mode
+  var _dispS=s;
+  if(_isSocialMode){
+    var _sk=_socialMatches.reduce(function(a,m){return a+(m.kills||0);},0);
+    var _sd=_socialMatches.reduce(function(a,m){return a+(m.deaths||0);},0);
+    var _sa=_socialMatches.reduce(function(a,m){return a+(m.assists||0);},0);
+    var _sw=_socialMatches.filter(function(m){return m.outcome===2;}).length;
+    var _sl=_socialMatches.filter(function(m){return m.outcome===3;}).length;
+    var _skd=_sd>0?(_sk/_sd).toFixed(2):_sk>0?_sk.toFixed(2):'0.00';
+    var _swr=(_sw+_sl)>0?((_sw/(_sw+_sl))*100).toFixed(1):'0.0';
+    var _sAccMs=_socialMatches.filter(function(m){return m.accuracy!=null;});
+    var _sacc=_sAccMs.length?(_sAccMs.reduce(function(a,m){return a+parseFloat(m.accuracy);},0)/_sAccMs.length).toFixed(1):null;
+    var _skda=_sd>0?((_sk+_sa/3)/_sd).toFixed(2):(_sk+_sa/3).toFixed(2);
+    _dispS={
+      kills:_sk,deaths:_sd,assists:_sa,
+      kd:_skd,kda:_skda,accuracy:_sacc,
+      wins:_sw,losses:_sl,winRate:_swr,
+      matchesPlayed:_socialMatches.length,
+      avgKillsPerGame:_socialMatches.length?(_sk/_socialMatches.length).toFixed(1):'0.0',
+      totalMedals:s.totalMedals
+    };
+  }
   // Compute nemeses/victims/teammates from current match data
   var nemeses, victims;
   var _rivalMap={};
@@ -805,7 +850,7 @@ function render(){
       +(cr.xpToNext!=null?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">+'+cr.xpToNext.toLocaleString()+' XP to next grade</div>':cr.xp?'<div style="margin-top:6px;font-size:10px;font-family:Share Tech Mono,monospace;color:var(--muted)">'+cr.xp.toLocaleString()+' XP earned</div>':'')
       +'</div></div>';
   }
-  var csrHtml=renderCsrCards(p.csr,matches); // used for mobile csr-row below
+  var csrHtml=_isSocialMode?'':renderCsrCards(p.csr,matches); // used for mobile csr-row below; hidden in social mode
 
   // Build compact inline rank cards for hero middle slot (desktop only)
   // These are leaner than the full csr-card — just icon + tier name + CSR + mode
@@ -861,19 +906,19 @@ function render(){
       });
     }
   }
-  var _hasHeroRank=_heroRankCards.length>0;
+  var _hasHeroRank=!_isSocialMode&&_heroRankCards.length>0;
 
   html+='<div class="tab-panel'+(activeTab==='overview'?' active':'')+'" data-tab="overview">';
   html+='<div class="hero">'
     +(p.nameplateUrl?'<div class="hero-nameplate" style="background-image:url(\''+p.nameplateUrl+'\')"></div>':'')
     // Left: emblem + name/stats/win bar
-    +'<div style="display:flex;align-items:flex-start;gap:14px;position:relative">'+playerEmblem(p,72)+'<div><div style="display:flex;align-items:center;gap:8px"><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><button id="heroFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="background:transparent;border:none;padding:2px;cursor:pointer;color:var(--muted);flex-shrink:0;line-height:1" onmouseover="this.style.color=\'#ffc107\'" onmouseout="updateFavBtn()"><svg id="heroFavIcon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>'+(p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1.5px;margin-top:2px;margin-bottom:2px">['+p.serviceTag+']</div>':'')+'<div class="hero-sub">Halo Infinite · '+s.matchesPlayed.toLocaleString()+' matches · '+s.wins+'W / '+s.losses+'L'+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+s.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+s.winRate+'%"></div></div></div></div></div>'
+    +'<div style="display:flex;align-items:flex-start;gap:14px;position:relative">'+playerEmblem(p,72)+'<div><div style="display:flex;align-items:center;gap:8px"><div class="hero-name">'+(function(){var gt=p.gamertag,sp=gt.indexOf(' ');return sp>-1?gt.slice(0,sp)+' <span>'+gt.slice(sp+1)+'</span>':'<span>'+gt+'</span>';}())+'</div><button id="heroFavBtn" onclick="toggleCurrentFav()" title="Favorite" style="background:transparent;border:none;padding:2px;cursor:pointer;color:var(--muted);flex-shrink:0;line-height:1" onmouseover="this.style.color=\'#ffc107\'" onmouseout="updateFavBtn()"><svg id="heroFavIcon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button></div>'+(p.serviceTag?'<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1.5px;margin-top:2px;margin-bottom:2px">['+p.serviceTag+']</div>':'')+'<div class="hero-sub">Halo Infinite · '+_dispS.matchesPlayed.toLocaleString()+' matches · '+_dispS.wins+'W / '+_dispS.losses+'L'+(_isSocialMode?' <span style="font-size:9px;color:var(--muted2);letter-spacing:0.5px">[SOCIAL]</span>':'')+'</div><div class="win-bar-wrap"><div class="win-bar-label"><span>Win rate</span><span>'+_dispS.winRate+'%</span></div><div class="win-bar"><div class="win-bar-fill" style="width:'+_dispS.winRate+'%"></div></div></div></div></div>'
     // Middle: compact rank cards (desktop only, between name and K/D)
     +(_hasHeroRank?'<div style="display:flex;flex-direction:row;gap:10px;align-self:center;flex-shrink:0">'+_heroRankCards+'</div>':'')
     // Right: adornment + K/D
     +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;position:relative;flex-shrink:0">'
     +(p.careerRank&&p.careerRank.adornmentUrl?'<img class="hero-adornment" src="'+p.careerRank.adornmentUrl+'" alt="Career Rank" onerror="this.style.display=\'none\'">':'')
-    +'<div><div class="hero-kd-val">'+s.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div>'
+    +'<div><div class="hero-kd-val">'+_dispS.kd+'</div><div class="hero-kd-label">K / D Ratio</div></div>'
     +'</div>'
     +'</div>';
   // ── Fragr Score — second thing after hero card ────────────────────────────
@@ -978,18 +1023,18 @@ function render(){
   var dmgRatio=totalTaken>0?(totalDealt/totalTaken).toFixed(2):'—';
   var dmgRatioColor=parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)';
   html+='<div class="stat-row">'
-    +statCard('Kills',s.kills.toLocaleString(),'',s.avgKillsPerGame+' per game')
-    +statCard('Deaths',s.deaths.toLocaleString(),'','')
-    +statCard('Assists',s.assists.toLocaleString(),'','')
-    +statCard('KDA',s.kda,'accent','')
-    +statCard('Accuracy',s.accuracy!==null?s.accuracy+'%':'N/A','','')
-    +'<div class="stat-card" style="cursor:pointer;transition:border-color 0.15s" onmouseenter="this.style.borderColor=\'var(--gold)\'" onmouseleave="this.style.borderColor=\'\'" onclick="document.getElementById(\'_medals_modal\').style.display=\'flex\'" title="Click to view all medals"><div class="stat-label">Total Medals</div><div class="stat-value" style="color:var(--gold)">'+s.totalMedals.toLocaleString()+'</div><div class="stat-sub">view all ↗</div></div>'
+    +statCard('Kills',(_dispS.kills||0).toLocaleString(),'',_dispS.avgKillsPerGame+' per game')
+    +statCard('Deaths',(_dispS.deaths||0).toLocaleString(),'','')
+    +statCard('Assists',(_dispS.assists||0).toLocaleString(),'','')
+    +statCard('KDA',_dispS.kda,'accent','')
+    +statCard('Accuracy',_dispS.accuracy!==null&&_dispS.accuracy!==undefined?_dispS.accuracy+'%':'N/A','','')
+    +'<div class="stat-card" style="cursor:pointer;transition:border-color 0.15s" onmouseenter="this.style.borderColor=\'var(--gold)\'" onmouseleave="this.style.borderColor=\'\'" onclick="document.getElementById(\'_medals_modal\').style.display=\'flex\'" title="Click to view all medals"><div class="stat-label">Total Medals</div><div class="stat-value" style="color:var(--gold)">'+(_dispS.totalMedals||0).toLocaleString()+'</div><div class="stat-sub">view all ↗</div></div>'
     +'<div class="stat-card"><div class="stat-label">Damage Ratio</div><div class="stat-value" style="color:'+dmgRatioColor+'">'+dmgRatio+'</div><div class="stat-sub">dealt / taken</div></div>'
     +'<div class="stat-card"><div class="stat-label">Current Form</div><div class="stat-value" style="font-size:22px">'+(streakChar==='W'?'<span style="color:var(--win)">'+streak+'W</span>':streakChar==='L'?'<span style="color:var(--loss)">'+streak+'L</span>':'<span style="color:var(--muted)">'+streak+'D</span>')+'</div><div class="streak-dots">'+streakDots+'</div></div>'
     +'</div>';
 
-  // Career rank cards: desktop shows inside hero, mobile shows standalone below stats
-  if(!_isDesktop&&(careerCardHtml||csrHtml))html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
+  // Career rank cards: desktop shows inside hero, mobile shows standalone below stats (hidden in social mode)
+  if(!_isSocialMode&&!_isDesktop&&(careerCardHtml||csrHtml))html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
 
   // Daily session — count today's matches from recent match history
   var todayStr=new Date().toDateString();
@@ -1338,7 +1383,7 @@ function render(){
   })();
 
   // ── Rank Benchmark card (populated async by benchmark.js after render) ──────
-  if(p.csr&&Object.keys(p.csr).length){
+  if(!_isSocialMode&&p.csr&&Object.keys(p.csr).length){
     html+=sectionHead('Rank Benchmark');
     html+='<div id="rankBenchmarkCard" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:20px"></div>';
   }
@@ -2604,7 +2649,8 @@ function render(){
     html+='</div>';
   })();
 
-  // CSR History
+  // CSR History (ranked mode only)
+  if(!_isSocialMode){
   html+=sectionHead('CSR History');
   var _csrMatches=_allRanked.slice(0,100);
   // csrDelta is populated by background skill enrichment — check if it's still loading.
@@ -2633,6 +2679,7 @@ function render(){
         +'</div>';
     }
   }
+  } // end if(!_isSocialMode) for CSR history block
   // Objective stats live in Stats tab (Objectives tab removed; synergy removed in favour of Rivals tab)
   html+=renderObjectiveStats(matches);
   html+='</div>'; // end stats tab

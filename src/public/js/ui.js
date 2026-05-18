@@ -555,7 +555,7 @@ function hideLanding(){
 function goHome(){
   playerData=null; data=null; searchData=null; searchMode=false;
   var dtb=document.getElementById('desktopTabBar');if(dtb)dtb.style.display='none';
-  var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='none';
+  var fb=document.getElementById('viewModePills');if(fb)fb.style.display='none';
   showLanding();
 }
 async function landingSearchPlayer(){
@@ -684,14 +684,7 @@ function updateFavBtn() {
   var fav = isFragrFav(playerData.gamertag);
   var _starF='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
   var _starE='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
-  // Desktop header button
-  var btn = document.getElementById('favHeaderBtn');
-  if(btn) {
-    btn.innerHTML = fav ? _starF : _starE;
-    btn.style.color = fav ? '#ffc107' : 'var(--muted)';
-    btn.style.borderColor = fav ? '#ffc107' : 'var(--border)';
-    btn.title = fav ? 'Remove from favorites' : 'Add to favorites';
-  }
+  // Desktop header fav button removed — hero fav button handles this now
   // Hero fav button (inline next to player name)
   var hbtn = document.getElementById('heroFavBtn');
   if(hbtn) {

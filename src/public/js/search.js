@@ -237,7 +237,8 @@ async function doSearch(gt, isRefresh, force){
     searchData=playerData; searchMode=false; selectedPlayer=0;
     var url=new URL(window.location);url.searchParams.set('player',gt);window.history.pushState({},'',url);
     document.title=gt+' — fragr';
-    var fb=document.getElementById('favHeaderBtn');if(fb)fb.style.display='flex';
+    var fb=document.getElementById('viewModePills');if(fb)fb.style.display='flex';
+    window._viewMode='ranked'; // reset to ranked on new player load
     updateFavBtn();
 
     if(isRefresh){
