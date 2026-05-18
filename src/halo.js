@@ -534,7 +534,8 @@ function markEmblemMissing(xuid) {
 const MODE_NAMES = {
   5:'Slayer',6:'Slayer',9:'Team Slayer',10:'Slayer',
   11:'Strongholds',12:'Oddball',13:'CTF',14:'King of the Hill',
-  15:'CTF',16:'Infection',17:'Escalation Slayer',18:'Oddball',
+  15:'CTF 3',16:'Infection',17:'Escalation Slayer',18:'Oddball',
+  42:'CTF 5',
   19:'Tactical Slayer',20:'Land Grab',21:'Attrition',22:'Elimination',
   23:'Dodgeball',24:'Stockpile',25:'VIP',26:'Husky Raid',
   27:'Firefight',28:'Gruntpocalypse',29:'Extraction',30:'Grifball',
@@ -900,8 +901,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           continue;
         }
         const catNum = md.MatchInfo?.GameVariantCategory;
-        if ([27,28,29,21,31].includes(catNum)) {
-          results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'PvE', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
+        const gameplayInteraction = md.MatchInfo?.GameplayInteraction;
+        if (gameplayInteraction === 2 || [27,28,29,21,31].includes(catNum)) {
+          results.push({ matchId: m.MatchId, isCustom: true, gameMode: 'Firefight', kills: 0, deaths: 0, assists: 0, damageDealt: 0, damageTaken: 0 });
           continue;
         }
 
@@ -1455,6 +1457,7 @@ const KNOWN_PLAYLISTS = {
   'fa5aa2a3-2428-4912-a023-e1eeea7b877c': 'Ranked Doubles',
   '2825d417-93e6-4366-98f9-839a2dc41fe4': 'Big Team Battle',
   'a7d20ef6-ebdc-4c01-b96c-69b27afa88d7': 'FFA',
+  '87783719-4b5c-45f9-834e-d0272292d573': 'Firefight',
 };
 
 // Standalone playlist discovery — fetches the player's 25 most recent matches and
