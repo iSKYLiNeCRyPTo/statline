@@ -859,6 +859,14 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
       try {
         const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
         const md = r.ok ? await r.json() : null;
+        // Piggyback clearance from match data — every match response contains the
+        // ClearanceId (FlightConfigurationId) that was active, saving us a settings.svc call.
+        if (md?.MatchInfo?.ClearanceId && md.MatchInfo.ClearanceId !== cachedClearance) {
+          cachedClearance = md.MatchInfo.ClearanceId;
+          clearanceFetchedAt = Date.now();
+          clearanceFailedAt = 0;
+          getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
+        }
         return { m, md, skillData: null };
       } catch(e) { return { m, md: null, skillData: null }; }
     }, 6);
@@ -1474,6 +1482,12 @@ async function discoverPlaylists(xuid, gamertag) {
       const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
       if (!r.ok) continue;
       const md = await r.json();
+      if (md?.MatchInfo?.ClearanceId && md.MatchInfo.ClearanceId !== cachedClearance) {
+        cachedClearance = md.MatchInfo.ClearanceId;
+        clearanceFetchedAt = Date.now();
+        clearanceFailedAt = 0;
+        getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
+      }
       const playlistId = md.MatchInfo?.Playlist?.AssetId;
       if (!playlistId) continue;
       if (seen.has(playlistId)) {
