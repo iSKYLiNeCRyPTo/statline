@@ -87,6 +87,7 @@ async function loadFullMatches(gamertag, force, bannerLabel){
       d.matches._fetchedAt=Date.now();
       fullMatchCache[gamertag]=d.matches;
       render(); // re-render with full match data including hitreg and insights
+      setTimeout(updateFavBtn, 0); // restore star state after render wipes heroFavBtn
       // Resolve gamertags for any match cards that were already open before the re-render
       setTimeout(function(){
         document.querySelectorAll('.match-card.expanded').forEach(function(card){

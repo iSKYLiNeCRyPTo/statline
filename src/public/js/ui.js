@@ -417,12 +417,9 @@ function _lgDoPoll(){
       if(!statusEl) return;
       _lgLastChecked=Date.now();
       if(d.matchId && currentId && d.matchId !== currentId){
-        // New game detected — auto-load immediately
-        statusEl.textContent='NEW GAME DETECTED — LOADING…';
-        statusEl.style.color='var(--accent)';
-        if(bannerEl) bannerEl.style.display='none';
+        // New game detected — refresh just the Last Game tab, no full page reload
         _stopLastGamePoll();
-        doSearch(gt, true, true);
+        _lgAutoRefresh(gt);
       } else {
         statusEl.textContent='WATCHING FOR NEW GAME';
         statusEl.style.color='';
@@ -430,6 +427,56 @@ function _lgDoPoll(){
       }
     })
     .catch(function(){});
+}
+
+// Refresh just the Last Game tab panel when a new match is detected.
+// No full page reload — stays on the tab, shows inline spinner, then repopulates.
+function _lgAutoRefresh(gt) {
+  var panel = document.querySelector('.tab-panel[data-tab="lastgame"]');
+  var statusEl = document.getElementById('lg-poll-status');
+
+  // Show inline spinner inside the panel
+  if (panel) {
+    panel.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:60px 20px;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);letter-spacing:1px">'
+      + '<div style="width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite"></div>'
+      + '<div>NEW GAME DETECTED — UPDATING...</div>'
+      + '</div>';
+  }
+
+  // Fetch fresh full data (uses force to bypass cache)
+  fetch('/api/search?gamertag=' + encodeURIComponent(gt) + '&force=1')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.player) throw new Error('no player data');
+      var allM = d.player.allMatches || d.player.recentMatches || [];
+      // Patch in-memory data without triggering a full re-render
+      if (playerData) {
+        playerData.allMatches  = allM;
+        playerData.recentMatches = allM;
+        if (d.player.csr)   playerData.csr   = d.player.csr;
+        if (d.player.stats) playerData.stats = d.player.stats;
+      }
+      if (searchData) {
+        searchData.allMatches  = allM;
+        searchData.recentMatches = allM;
+      }
+      fullMatchCache[gt.toLowerCase()] = allM;
+      fullMatchCache[gt] = allM;
+      // Re-render just the lastgame panel
+      if (panel) {
+        panel.innerHTML = (typeof renderLastGamePage === 'function')
+          ? renderLastGamePage(playerData || searchData, allM)
+          : '<div style="padding:20px;color:var(--muted)">Loaded — switch to Last Game tab</div>';
+      }
+      // Update baseline and restart polling for the next new game
+      _lgBaselineId = allM[0] && allM[0].matchId || null;
+      _startLastGamePoll();
+    })
+    .catch(function(e) {
+      if (panel) {
+        panel.innerHTML = '<div style="padding:20px;font-family:Share Tech Mono,monospace;font-size:11px;color:var(--loss)">Failed to load new game — <span style="color:var(--accent);cursor:pointer" onclick="_lgAutoRefresh(\'' + gt.replace(/'/g,"\\'") + '\')">retry</span></div>';
+      }
+    });
 }
 
 function toast(msg,type,duration){
