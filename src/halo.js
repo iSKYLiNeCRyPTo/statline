@@ -901,7 +901,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
         const RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
         const RANKED_DOUBLES_ID = 'fa5aa2a3-2428-4912-a023-e1eeea7b877c';
+        const FFA_IDS = ['a7d20ef6-ebdc-4c01-b96c-69b27afa88d7'];
         matchPlaylistId = md.MatchInfo?.Playlist?.AssetId || null;
+        const isFFA = FFA_IDS.includes(matchPlaylistId) || md.MatchInfo?.TeamsEnabled === false;
         isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
         isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
@@ -969,7 +971,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             else if (isRanked && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
           }
           gameMode = (gameMode||'').replace(/Capture the Flag (\d+) Captures?/gi,'CTF $1').replace(/Capture the Flag/gi,'CTF').trim();
-        } catch(e) { gameMode = (isRanked?'Ranked ':'') + (MODE_NAMES[catNum]||'Unknown'); }
+          // FFA override — prefix any mode that landed as unqualified "Slayer" (or similar)
+          if (isFFA && !gameMode.toLowerCase().startsWith('ffa')) gameMode = 'FFA ' + gameMode;
+        } catch(e) { gameMode = (isFFA?'FFA ':isRanked?'Ranked ':'') + (MODE_NAMES[catNum]||'Unknown'); }
 
         const _mapAssetId = md.MatchInfo?.MapVariant?.AssetId;
         mapName = await resolveMapName(_mapAssetId, md.MatchInfo?.MapVariant?.VersionId, headers);
