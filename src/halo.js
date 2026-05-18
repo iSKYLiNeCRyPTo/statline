@@ -1467,10 +1467,11 @@ async function discoverPlaylists(xuid, gamertag) {
   await fetchClearanceToken(xuid);
   const headers = getAuthHeaders();
 
-  const listRes = await fetch(
-    `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=25&start=0`,
-    { headers }
-  );
+  const _listAc = new AbortController();
+  const _listAt = setTimeout(() => _listAc.abort(), 10000);
+  let listRes;
+  try { listRes = await fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=25&start=0`, { headers, signal: _listAc.signal }); }
+  finally { clearTimeout(_listAt); }
   if (!listRes.ok) throw new Error(`Match list failed: ${listRes.status}`);
   const data = await listRes.json();
   const matches = data.Results || [];
@@ -1482,7 +1483,11 @@ async function discoverPlaylists(xuid, gamertag) {
     const m = matches[i];
     try {
       if (i > 0 && i % 6 === 0) await sleep(300); // gentle rate limiting
-      const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
+      const _ac = new AbortController();
+      const _at = setTimeout(() => _ac.abort(), 8000);
+      let r;
+      try { r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers, signal: _ac.signal }); }
+      finally { clearTimeout(_at); }
       if (!r.ok) continue;
       const md = await r.json();
       if (md?.MatchInfo?.ClearanceId && md.MatchInfo.ClearanceId !== cachedClearance) {
