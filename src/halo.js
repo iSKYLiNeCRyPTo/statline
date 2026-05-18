@@ -247,10 +247,7 @@ async function resolveMapName(assetId, versionId, headers) {
       const data = await res.json();
       const rawName = data.PublicName || data.Name || null;
       if (rawName) {
-        const name = rawName
-          .replace(/\s*-\s*(Ranked|Competitive|Social|Arena|BTB|Big Team Battle)$/i, '')
-          .replace(/\s+(Heavies|Rockets|Snipers|Fiesta|Super Fiesta|Ninja Snipers?|Shotty Snipers?|Tactical Slayer|Escalation|Minigame|Husky Raid|Heatwave|Shotguns?)$/i, '')
-          .trim();
+        const name = rawName.replace(/\s*-\s*(Ranked|Competitive|Social|Arena|BTB|Big Team Battle)$/i, '').trim();
         mapNameCache[assetId] = name;
         // Extract thumbnail URL from Files prefix + paths
         const prefix = data.Files?.Prefix || '';
@@ -258,13 +255,10 @@ async function resolveMapName(assetId, versionId, headers) {
         const thumb = paths.find(p => /thumbnail/i.test(p)) || paths.find(p => /screenshot/i.test(p)) || paths.find(p => /\.png$/i.test(p)) || paths.find(p => /\.jpg$/i.test(p));
         if (prefix && thumb) mapImageCache[assetId] = prefix + thumb;
         else if (prefix) mapImageCache[assetId] = prefix + 'images/thumbnail.png';
-        else console.log(`[MapImg] no Files for "${name}" (${assetId}) — keys: ${Object.keys(data).join(',')}`);
         return name;
       }
-    } else {
-      console.log(`[MapImg] discovery ${res.status} for assetId=${assetId}`);
     }
-  } catch(e) { console.log(`[MapImg] error for ${assetId}:`, e.message); }
+  } catch(e) {}
   return null;
 }
 
@@ -1259,10 +1253,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         : null;
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
-        mapName, mapImageUrl,
-        mapAssetId: md.MatchInfo?.MapVariant?.AssetId || null,
-        mapVersionId: md.MatchInfo?.MapVariant?.VersionId || null,
-        gameMode, isRanked, kills, deaths, assists, score,
+        mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
         kda: (kills - deaths + assists/3).toFixed(1),
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
         shotsFired, shotsHit,
@@ -1707,26 +1698,4 @@ module.exports = {
   matchListBackoffSecondsRemaining,
   isClearanceUnavailable,
   getGameModeDebugLog: () => _gameModeDebugLog,
-  // Re-resolve missing map image URLs for an array of match objects.
-  // Uses mapAssetId + mapVersionId stored on each match; fills mapImageUrl in-place.
-  // Safe to call on cached data — skips matches that already have a URL.
-  resolveMapImages: async function(matches) {
-    if (!matches || !matches.length) return;
-    const headers = getAuthHeaders();
-    const needsImage = matches.filter(m => m.mapAssetId && m.mapVersionId && !m.mapImageUrl);
-    if (!needsImage.length) return;
-    // Dedupe — only call resolveMapName once per unique assetId
-    const seen = new Set();
-    for (const m of needsImage) {
-      if (seen.has(m.mapAssetId)) continue;
-      seen.add(m.mapAssetId);
-      if (!mapImageCache[m.mapAssetId]) {
-        await resolveMapName(m.mapAssetId, m.mapVersionId, headers).catch(() => {});
-      }
-    }
-    // Fill in URLs from cache
-    for (const m of needsImage) {
-      if (mapImageCache[m.mapAssetId]) m.mapImageUrl = mapImageCache[m.mapAssetId];
-    }
-  },
 };
