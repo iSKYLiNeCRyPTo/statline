@@ -258,10 +258,13 @@ async function resolveMapName(assetId, versionId, headers) {
         const thumb = paths.find(p => /thumbnail/i.test(p)) || paths.find(p => /screenshot/i.test(p)) || paths.find(p => /\.png$/i.test(p)) || paths.find(p => /\.jpg$/i.test(p));
         if (prefix && thumb) mapImageCache[assetId] = prefix + thumb;
         else if (prefix) mapImageCache[assetId] = prefix + 'images/thumbnail.png';
+        else console.log(`[MapImg] no Files for "${name}" (${assetId}) — keys: ${Object.keys(data).join(',')}`);
         return name;
       }
+    } else {
+      console.log(`[MapImg] discovery ${res.status} for assetId=${assetId}`);
     }
-  } catch(e) {}
+  } catch(e) { console.log(`[MapImg] error for ${assetId}:`, e.message); }
   return null;
 }
 
