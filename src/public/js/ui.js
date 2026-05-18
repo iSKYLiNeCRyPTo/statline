@@ -154,7 +154,14 @@ function loadMatchHistory(page){
 function renderMatchHistory(d,clientPage){
   var container=document.getElementById('matchHistoryContainer');
   if(!container)return;
-  var allMatches=d.matches||[];
+  var _rawAll=d.matches||[];
+  // Filter by view mode: social mode shows only non-ranked non-custom games
+  var _isSocial=window._viewMode==='social';
+  var allMatches=_isSocial?_rawAll.filter(function(m){return !m.isRanked&&!m.isCustom;}):_rawAll;
+  if(_isSocial&&allMatches.length===0&&_rawAll.length>0){
+    container.innerHTML='<div class="empty-state"><div class="empty-state-msg">No social matches found</div><div class="empty-state-sub">Quick Play, BTB and other non-ranked games will appear here</div></div>';
+    return;
+  }
   var PER_PAGE=25; // full history paginated — all loaded matches shown
   var page=clientPage||1;
   var totalPages=Math.max(1,Math.ceil(allMatches.length/PER_PAGE));
