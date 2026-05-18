@@ -258,6 +258,11 @@ async function resolveMapName(assetId, versionId, headers) {
         const thumb = paths.find(p => /thumbnail/i.test(p)) || paths.find(p => /screenshot/i.test(p)) || paths.find(p => /\.png$/i.test(p)) || paths.find(p => /\.jpg$/i.test(p));
         if (prefix && thumb) mapImageCache[assetId] = prefix + thumb;
         else if (prefix) mapImageCache[assetId] = prefix + 'images/thumbnail.png';
+        // Fallback: construct standard blob URL using assetId + versionId (works for most maps
+        // whose discovery response omits Files entirely, e.g. some social/BTB variants)
+        if (!mapImageCache[assetId] && assetId && versionId) {
+          mapImageCache[assetId] = `https://blobs.svc.halowaypoint.com/hi/images/maps/${assetId}/versions/${versionId}/thumbnail.png`;
+        }
         return name;
       }
     }
