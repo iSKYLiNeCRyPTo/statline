@@ -1426,6 +1426,7 @@ const KNOWN_PLAYLISTS = {
   'dcb2e24e-05fb-4390-8076-32a0cdb4326e': 'Ranked Slayer',
   'c94cb508-2fbd-450a-81db-bb74f7741d45': 'Ranked Legacy',
   'fa5aa2a3-2428-4912-a023-e1eeea7b877c': 'Ranked Doubles',
+  '2825d417-93e6-4366-98f9-839a2dc41fe4': 'Big Team Battle',
 };
 
 // Standalone playlist discovery — fetches the player's 25 most recent matches and
