@@ -1289,10 +1289,10 @@ function render(){
   // Hidden — not enough historical data to fill the grid meaningfully yet
   html+='<div style="display:none">';
   (function(){
-    if(!allMatches.length) return;
-    // Build day → count map from all available matches
+    if(!_mapMatches.length) return;
+    // Build day → count map, strictly filtered by mode
     var dayMap={};
-    allMatches.forEach(function(m){
+    _mapMatches.forEach(function(m){
       if(!m.startTime) return;
       var d=new Date(m.startTime);
       var key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
@@ -2857,7 +2857,7 @@ function render(){
 
   // Activity tab
   html+='<div class="tab-panel'+(activeTab==='activity'?' active':'')+'" data-tab="activity">';
-  if(typeof renderActivityPage==='function') html+=renderActivityPage(p, allMatches, window._activityExtraTimes||[]);
+  if(typeof renderActivityPage==='function') html+=renderActivityPage(p, _mapMatches, window._activityExtraTimes||[]);
   else html+='<div style="padding:2rem;color:var(--muted)">Activity data loading...</div>';
   html+='</div>';
 
