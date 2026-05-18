@@ -516,8 +516,11 @@ const searchInFlight = {};
 
 // --- Medal meta (loaded once) ---
 let medalMeta = {};
+let _medalMetaFailedAt = 0;
+const MEDAL_META_RETRY_MS = 15 * 60 * 1000; // 15 min cooldown after all sources fail
 async function loadMedalMeta() {
   if (Object.keys(medalMeta).length) return;
+  if (_medalMetaFailedAt && Date.now() - _medalMetaFailedAt < MEDAL_META_RETRY_MS) return; // still in cooldown
   try {
     const headers = getAuthHeaders();
     // Medal metadata with sprite sheet indices
@@ -562,7 +565,7 @@ async function loadMedalMeta() {
         }
       } catch(e) { console.log('[Medals] Error from', url, ':', e.message); }
     }
-    if (!Object.keys(medalMeta).length) console.log('[Medals] All sources failed');
+    if (!Object.keys(medalMeta).length) { _medalMetaFailedAt = Date.now(); console.log('[Medals] All sources failed — will retry in 15 min'); }
   } catch(e) { console.log('[Medals] Fatal:', e.message); }
 }
 loadMedalMeta();

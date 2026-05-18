@@ -2,6 +2,12 @@ const fetch = require('node-fetch');
 const { flushXuidCache } = require('./db');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// fetch with hard abort timeout — prevents Halo API hangs from blocking forever
+function fetchT(url, opts, ms = 15000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(t));
+}
 
 // --- Redis ---
 const { createClient } = require('redis');
@@ -567,7 +573,7 @@ async function fetchPlayerStats(gamertag) {
   // Check caches first
   for (const [x, gt] of Object.entries(xuidToGt)) { if (gt.toLowerCase() === gamertag.toLowerCase()) { xuid = x; break; } }
   if (!xuid) {
-    const xuidRes = await fetch(`https://profile.svc.halowaypoint.com/users/gt(${encoded})`, { headers });
+    const xuidRes = await fetchT(`https://profile.svc.halowaypoint.com/users/gt(${encoded})`, { headers }, 12000);
     if (!xuidRes.ok) throw new Error(`Could not resolve gamertag: ${gamertag} (${xuidRes.status})`);
     const xuidData = await xuidRes.json();
     xuid = xuidData.xuid;
@@ -589,11 +595,11 @@ async function fetchPlayerStats(gamertag) {
   };
 
   const [statsRes, countRes, rankedStatsRes, ...csrResponses] = await Promise.all([
-    fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord`, { headers: freshHeaders }),
-    fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches/count`, { headers: freshHeaders }),
-    fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord?isRanked=true`, { headers: freshHeaders }).catch(() => null),
+    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord`, { headers: freshHeaders }, 15000),
+    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches/count`, { headers: freshHeaders }, 12000),
+    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord?isRanked=true`, { headers: freshHeaders }, 15000).catch(() => null),
     ...Object.entries(RANKED_PLAYLISTS).map(([, id]) =>
-      fetch(`https://skill.svc.halowaypoint.com/hi/playlist/${id}/csrs?players=xuid(${xuid})`, { headers: freshHeaders }).catch(() => null)
+      fetchT(`https://skill.svc.halowaypoint.com/hi/playlist/${id}/csrs?players=xuid(${xuid})`, { headers: freshHeaders }, 10000).catch(() => null)
     ),
   ]);
 
@@ -636,7 +642,7 @@ async function fetchPlayerStats(gamertag) {
   // Career rank
   let finalCareerRank = null;
   try {
-    const crRes = await fetch(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/careerranks`, { headers: freshHeaders });
+    const crRes = await fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/careerranks`, { headers: freshHeaders }, 12000);
     if (crRes.ok) {
       const crData = await crRes.json();
       const cr = crData?.RewardTracks?.[0]?.Result?.CurrentProgress || crData?.CurrentProgress || null;
