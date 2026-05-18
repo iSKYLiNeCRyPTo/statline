@@ -155,11 +155,15 @@ function renderMatchHistory(d,clientPage){
   var container=document.getElementById('matchHistoryContainer');
   if(!container)return;
   var _rawAll=d.matches||[];
-  // Filter by view mode: social mode shows only non-ranked non-custom games
-  var _isSocial=window._viewMode==='social';
-  var allMatches=_isSocial?_rawAll.filter(function(m){return !m.isRanked&&!m.isCustom;}):_rawAll;
-  if(_isSocial&&allMatches.length===0&&_rawAll.length>0){
-    container.innerHTML='<div class="empty-state"><div class="empty-state-msg">No social matches found</div><div class="empty-state-sub">Quick Play, BTB and other non-ranked games will appear here</div></div>';
+  // Filter by view mode
+  var _vm=window._viewMode||'ranked';
+  var allMatches=_vm==='social'
+    ?_rawAll.filter(function(m){return !m.isRanked&&!m.isCustom;})
+    :_rawAll.filter(function(m){return m.isRanked;});
+  // Fall back to all matches if the filtered set is empty (e.g. player has no ranked games yet)
+  if(allMatches.length===0)allMatches=_rawAll;
+  if(allMatches.length===0){
+    container.innerHTML='<div class="empty-state"><div class="empty-state-msg">No '+(  _vm==='social'?'social':'ranked')+' matches found</div><div class="empty-state-sub">'+(_vm==='social'?'Quick Play, BTB and other non-ranked games will appear here':'Play some ranked games to see history here')+'</div></div>';
     return;
   }
   var PER_PAGE=25; // full history paginated — all loaded matches shown

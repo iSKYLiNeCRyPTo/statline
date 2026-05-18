@@ -3,18 +3,8 @@ window._viewMode = window._viewMode || 'ranked';
 function setViewMode(mode) {
   window._viewMode = mode;
   window._filterLogged = false; // reset filter debug log on mode switch
-  // Invalidate match history cache so the Matches tab re-renders with the new mode filter
+  // Invalidate match history cache so Matches tab re-renders with the new mode filter
   if(typeof matchHistoryData !== 'undefined') matchHistoryData = null;
-  // If already on the Matches tab, re-render it immediately with the new filter
-  if(typeof activeTab !== 'undefined' && activeTab === 'matches' && typeof renderMatchHistory === 'function' && typeof fullMatchCache !== 'undefined') {
-    var _p = (typeof getAllPlayers === 'function' ? getAllPlayers() : [])[typeof selectedPlayer !== 'undefined' ? selectedPlayer : 0] || {};
-    var _cached = _p.gamertag ? fullMatchCache[_p.gamertag] : null;
-    if(_cached && _cached.length > 0) {
-      var _d = {matches:_cached, page:1, totalPages:Math.max(1,Math.ceil(_cached.length/25)), total:_cached.length, _gamertag:_p.gamertag};
-      matchHistoryData = _d;
-      renderMatchHistory(_d, 1);
-    }
-  }
   // Update pill styles
   var pr = document.getElementById('pillRanked');
   var ps = document.getElementById('pillSocial');
@@ -2905,6 +2895,13 @@ function render(){
     document.querySelectorAll('.match-card.expanded').forEach(function(card){
       resolveMatchGamertags(card);
     });
+  }, 0);
+  // If Matches tab is active, re-render it with the current mode filter (no spinner)
+  setTimeout(function(){
+    if(activeTab==='matches'&&typeof loadMatchHistory==='function'){
+      matchHistoryLoading=false; // reset any stuck loading flag
+      loadMatchHistory(1);
+    }
   }, 0);
 }
 loadStats();
