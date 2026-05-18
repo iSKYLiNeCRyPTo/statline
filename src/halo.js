@@ -246,7 +246,10 @@ async function resolveMapName(assetId, versionId, headers) {
       const data = await res.json();
       const rawName = data.PublicName || data.Name || null;
       if (rawName) {
-        const name = rawName.replace(/\s*-\s*(Ranked|Competitive|Social|Arena|BTB|Big Team Battle)$/i, '').trim();
+        const name = rawName
+          .replace(/\s*-\s*(Ranked|Competitive|Social|Arena|BTB|Big Team Battle)$/i, '')
+          .replace(/\s+(Heavies|Rockets|Snipers|Fiesta|Super Fiesta|Ninja Snipers?|Shotty Snipers?|Tactical Slayer|Escalation|Minigame|Husky Raid|Heatwave|Shotguns?)$/i, '')
+          .trim();
         mapNameCache[assetId] = name;
         // Extract thumbnail URL from Files prefix + paths
         const prefix = data.Files?.Prefix || '';
@@ -912,8 +915,12 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         const RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
         const RANKED_DOUBLES_ID = 'fa5aa2a3-2428-4912-a023-e1eeea7b877c';
         const FFA_IDS = ['a7d20ef6-ebdc-4c01-b96c-69b27afa88d7'];
+        const BTB_IDS = ['2825d417-93e6-4366-98f9-839a2dc41fe4'];
+        const QUICK_PLAY_IDS = ['1b1691dc-d8b9-4b1f-825d-cb1c065184c1','57f4f0c0-bce9-4a34-b1b0-6188ed0f0198'];
         matchPlaylistId = md.MatchInfo?.Playlist?.AssetId || null;
         const isFFA = FFA_IDS.includes(matchPlaylistId) || md.MatchInfo?.TeamsEnabled === false;
+        const isBTB = BTB_IDS.includes(matchPlaylistId);
+        const isQuickPlay = QUICK_PLAY_IDS.includes(matchPlaylistId);
         isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
         isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
         isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
@@ -981,9 +988,17 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             else if (isRanked && !gameMode.toLowerCase().startsWith('ranked arena')) gameMode = gameMode.replace(/^Ranked /i,'Ranked Arena: ');
           }
           gameMode = (gameMode||'').replace(/Capture the Flag (\d+) Captures?/gi,'CTF $1').replace(/Capture the Flag/gi,'CTF').trim();
-          // FFA override — prefix any mode that landed as unqualified "Slayer" (or similar)
+          // FFA override
           if (isFFA && !gameMode.toLowerCase().startsWith('ffa')) gameMode = 'FFA ' + gameMode;
-        } catch(e) { gameMode = (isFFA?'FFA ':isRanked?'Ranked ':'') + (MODE_NAMES[catNum]||'Unknown'); }
+          // BTB override — slayer stays "BTB Slayer", everything else gets "Big Team Battle: " prefix
+          if (isBTB && !gameMode.toLowerCase().startsWith('big team') && !gameMode.toLowerCase().startsWith('btb')) {
+            gameMode = /slayer/i.test(gameMode) ? 'BTB Slayer' : 'Big Team Battle: ' + gameMode;
+          }
+          // Quick Play prefix
+          if (isQuickPlay && !gameMode.toLowerCase().startsWith('quick play')) {
+            gameMode = 'Quick Play: ' + gameMode;
+          }
+        } catch(e) { gameMode = (isFFA?'FFA ':isBTB?'BTB ':isQuickPlay?'Quick Play: ':isRanked?'Ranked ':'') + (MODE_NAMES[catNum]||'Unknown'); }
 
         const _mapAssetId = md.MatchInfo?.MapVariant?.AssetId;
         mapName = await resolveMapName(_mapAssetId, md.MatchInfo?.MapVariant?.VersionId, headers);
