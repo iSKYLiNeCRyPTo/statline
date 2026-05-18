@@ -1042,9 +1042,9 @@ function render(){
   // Career rank cards: desktop shows inside hero, mobile shows standalone below stats (hidden in social mode)
   if(!_isSocialMode&&!_isDesktop&&(careerCardHtml||csrHtml))html+='<div class="csr-row">'+careerCardHtml+csrHtml+'</div>';
 
-  // Daily session — count today's matches from recent match history
+  // Daily session — count today's matches, strictly filtered by mode (ranked only in ranked mode)
   var todayStr=new Date().toDateString();
-  var todayMatches=matches.filter(function(m){return m.startTime&&new Date(m.startTime).toDateString()===todayStr;});
+  var todayMatches=_mapMatches.filter(function(m){return m.startTime&&new Date(m.startTime).toDateString()===todayStr;});
   if(todayMatches.length>0){
     // Filter to real competitive games for K/D — exclude draws and sub-3-min games
     function _tgSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
@@ -1067,7 +1067,7 @@ function render(){
 
     // 7-day baseline K/D — use matches from the past 7 days, excluding today
     var _7dAgo=new Date(); _7dAgo.setDate(_7dAgo.getDate()-7);
-    var _baseMatches=allMatches.filter(function(m){
+    var _baseMatches=_mapMatches.filter(function(m){
       if(!m.startTime) return false;
       var d=new Date(m.startTime);
       return d>=_7dAgo && d.toDateString()!==todayStr && (m.outcome===2||m.outcome===3);
