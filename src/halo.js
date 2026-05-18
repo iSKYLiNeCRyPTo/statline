@@ -85,6 +85,7 @@ let cachedClearance = null;
 let clearanceFetchedAt = 0;
 let clearanceInFlight = null;
 let clearanceFailedAt = 0;      // timestamp of last all-attempts failure
+let _lastClearanceXuid = null;  // last xuid used to successfully fetch clearance — reused on proactive refresh
 const CLEARANCE_FAIL_COOLDOWN = 5 * 60 * 1000; // 5 minutes before retrying after total failure
 
 // Shared backoff for the halostats /matches list endpoint. When it 429s or
@@ -115,8 +116,14 @@ function resetClearanceCache() {
   clearanceFetchedAt = 0;   // mark stale — will re-fetch on next use
   clearanceInFlight = null;
   clearanceFailedAt = 0;    // allow retry immediately
-  // leave cachedClearance intact as fallback
+  // Leave cachedClearance intact as fallback — it's a game config UUID, not an
+  // auth credential, so it stays valid across Spartan token rotations.
   console.log('[Clearance] Marked stale after Spartan token refresh (existing token kept as fallback)');
+  // Proactively re-fetch in the background using the last known xuid so
+  // the fresh Spartan token is bound to clearance before any GT batches need it.
+  if (_lastClearanceXuid) {
+    fetchClearanceToken(_lastClearanceXuid).catch(() => {});
+  }
 }
 
 // Match IDs that the skill API permanently 404s — skip on all future fetches
@@ -159,6 +166,7 @@ async function fetchClearanceToken(xuid) {
               cachedClearance = token;
               clearanceFetchedAt = Date.now();
               clearanceFailedAt = 0;
+              _lastClearanceXuid = xuid;
               getRedis().then(c => c && c.set('clearanceToken', JSON.stringify({ token: cachedClearance, fetchedAt: clearanceFetchedAt }))).catch(() => {});
               clearanceInFlight = null;
               return cachedClearance;
@@ -1429,7 +1437,7 @@ const KNOWN_PLAYLISTS = {
   '1b1691dc-d8b9-4b1f-825d-cb1c065184c1': 'Quick Play',
   '57f4f0c0-bce9-4a34-b1b0-6188ed0f0198': 'Quick Play',
   'edfef3ac-9cbe-4fa2-b949-8f29deafd483': 'Ranked Arena',
-  'f5580605-660c-43f9-ac69-4075c4a05c5d': 'Ranked Slayer',
+  'f5580605-660c-43f9-ac69-4075c4a05c5d': 'Big Team Battle Slayer',
   'dcb2e24e-05fb-4390-8076-32a0cdb4326e': 'Ranked Slayer',
   'c94cb508-2fbd-450a-81db-bb74f7741d45': 'Ranked Legacy',
   'fa5aa2a3-2428-4912-a023-e1eeea7b877c': 'Ranked Doubles',
