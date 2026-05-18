@@ -712,6 +712,9 @@ function render(){
   // _isSocialMode and _socialMatches already declared above
   var statMatches=_isSocialMode?_socialMatches.slice(0,100):(_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100));
   var _statLabel=_isSocialMode?'social games':(_usingRankedOnly?'ranked games':'games');
+  // mapMatches: always strictly filtered by mode — ranked mode = ranked only, social = social only.
+  // Never falls back to _rawMatches so quick play never bleeds into the ranked Maps tab.
+  var _mapMatches=_isSocialMode?_socialMatches:_allRanked;
   // Build display stats: server stats for ranked mode, computed from social matches for social mode
   var _dispS=s;
   if(_isSocialMode){
@@ -1479,7 +1482,7 @@ function render(){
   // Build rich per-map data including mode breakdown and streaks
   var mapData={};
   function _mapDurSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
-  statMatches.forEach(function(m){
+  _mapMatches.forEach(function(m){
     var map=m.mapName||'Unknown';
     if(!mapData[map])mapData[map]={map:map,wins:0,losses:0,kills:0,deaths:0,count:0,assists:0,dmgDealt:0,dmgTaken:0,
       accGames:0,accTotal:0,csrGames:0,csrTotal:0,hsKills:0,totalKillsHs:0,
@@ -1524,7 +1527,7 @@ function render(){
     var _qualMaps=mapRows.filter(function(e){return e.count>=2;});
     var bestMapWR=_qualMaps.length?Math.max.apply(null,_qualMaps.map(function(e){return e.wins/e.count;})):-1;
     var worstMapWR=_qualMaps.length?Math.min.apply(null,_qualMaps.map(function(e){return e.wins/e.count;})):2;
-    html+=sectionHead('By Map', statMatches.length+' '+_statLabel);
+    html+=sectionHead('By Map', _mapMatches.length+' '+_statLabel);
     html+='<div style="display:flex;flex-direction:column;gap:6px">';
     mapRows.forEach(function(e,idx){
       var wr=Math.round((e.wins/e.count)*100);
@@ -1808,7 +1811,7 @@ function render(){
 
     // By Mode section
     var modeData={};
-    statMatches.forEach(function(m){
+    _mapMatches.forEach(function(m){
       var mode=(m.gameMode||'Unknown').replace(/Ranked Arena:/i,'').replace(/Ranked /i,'').trim();
       if(!modeData[mode])modeData[mode]={mode:mode,wins:0,losses:0,kills:0,deaths:0,count:0};
       var md=modeData[mode];md.count++;md.kills+=m.kills||0;md.deaths+=m.deaths||0;
@@ -1818,7 +1821,7 @@ function render(){
     if(modeRows.length){
       var bestMWR2=Math.max.apply(null,modeRows.map(function(m){return m.wins/m.count;}));
       var worstMWR2=Math.min.apply(null,modeRows.map(function(m){return m.wins/m.count;}));
-      html+=sectionHead('By Game Mode', statMatches.length+' '+_statLabel);
+      html+=sectionHead('By Game Mode', _mapMatches.length+' '+_statLabel);
       html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden"><table class="mode-table"><thead><tr><th>Mode</th><th style="text-align:right">Games</th><th style="text-align:right">W</th><th style="text-align:right">L</th><th style="text-align:right">Win%</th><th style="text-align:right">K/D</th></tr></thead><tbody>';
       modeRows.forEach(function(md){
         var wr=Math.round((md.wins/md.count)*100);
@@ -2336,7 +2339,7 @@ function render(){
     }
 
     var mapAccData={};
-    statMatches.forEach(function(m){
+    _mapMatches.forEach(function(m){
       if(!m.mapName||m.accuracy==null) return;
       if(m.outcome!==2&&m.outcome!==3) return; // skip draws — unreliable accuracy data
       var _ms=_durSecs(m);if(_ms<180) return; // skip sub-3-min games
