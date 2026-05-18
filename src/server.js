@@ -332,9 +332,11 @@ async function _processSnapQueue() {
   _snapRunning = true;
   while (_snapQueue.length > 0) {
     const { xuid, gamertag } = _snapQueue.shift();
-    _snapQueued.delete(xuid);
+    // Keep xuid in _snapQueued during the entire fetch so concurrent
+    // enqueueOpponentSnapshots calls can't re-add it while it's in-flight.
+    // We only delete it after the fetch (and markRefreshAttempt) complete.
     // Skip obviously unresolved gamertags ("Spartan 1234")
-    if (/^Spartan\s+\w+$/i.test(gamertag)) { continue; }
+    if (/^Spartan\s+\w+$/i.test(gamertag)) { _snapQueued.delete(xuid); continue; }
     try {
       const result = await fetchPlayerStats(gamertag);
       if (result && result.xuid) {
@@ -344,12 +346,13 @@ async function _processSnapQueue() {
         const matchesPlayed = result.stats && result.stats.matchesPlayed != null
           ? Number(result.stats.matchesPlayed) : null;
         const meta = await markRefreshAttempt(result.xuid, gamertag, matchesPlayed).catch(() => null);
-        // individual snapshot save logs removed (too verbose)
       }
     } catch(e) {
       // Non-fatal — player may have changed gamertag or be unavailable
       console.warn(`[SnapQueue] failed for ${gamertag}:`, e.message);
     }
+    // Remove from in-flight guard only after fetch + markRefreshAttempt are done
+    _snapQueued.delete(xuid);
     // Throttle: wait 2.5s between each fetch to respect rate limits
     await new Promise(r => setTimeout(r, 2500));
   }

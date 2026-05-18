@@ -67,6 +67,7 @@ async function getRedis() {
 // --- In-memory caches ---
 const xuidToGt = {};           // xuid -> gamertag
 const xuidToGamerpic = {};     // xuid -> gamerpic URL
+const _rivalGtBackoff = {};    // xuid -> timestamp; skip GT resolution for 30min after 429
 const mapNameCache = {};        // assetId -> map name
 const mapImageCache = {};       // assetId -> image URL
 const emblemPathCache = {};     // xuid -> gamecms image path
@@ -1335,7 +1336,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     .slice(0, 50)
     .map(([x]) => x);
 
-  const unknownRivalXuids = topRivalXuids.filter(x => !xuidToGt[x]);
+  const _rivalBackoffMs = 30 * 60 * 1000; // 30 min
+  const now30 = Date.now();
+  const unknownRivalXuids = topRivalXuids.filter(x => !xuidToGt[x] && !((_rivalGtBackoff[x] || 0) > now30 - _rivalBackoffMs));
   if (unknownRivalXuids.length > 0) {
     console.log(`[Rivals] Resolving ${unknownRivalXuids.length} rival gamertags`);
     try {
@@ -1358,7 +1361,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
             if (ux && gp && !xuidToGamerpic[ux]) xuidToGamerpic[ux] = gp;
           }
         } else if (r.status === 429) {
-          console.log('[Rivals] Rate limited — skipping remaining rival GT resolution');
+          // Back off unresolved xuids for 30 min so we stop hammering on every fetch
+          const resolved = new Set(Object.keys(xuidToGt));
+          for (const x of batch) { if (!resolved.has(x)) _rivalGtBackoff[x] = Date.now(); }
+          console.log('[Rivals] Rate limited — backing off unresolved rivals for 30min');
           break;
         }
       }
