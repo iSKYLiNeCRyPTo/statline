@@ -277,7 +277,7 @@ function aggregateStatsFromMatches(matches, base) {
   return {
     ...(base || {}),
     matchesPlayed, wins, losses,
-    winRate: matchesPlayed > 0 ? ((wins / matchesPlayed) * 100).toFixed(1) : '0.0',
+    winRate: (wins + losses) > 0 ? ((wins / (wins + losses)) * 100).toFixed(1) : '0.0',
     kills, deaths, assists,
     kd, kda,
     accuracy,
