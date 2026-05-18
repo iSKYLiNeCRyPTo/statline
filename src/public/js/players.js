@@ -84,7 +84,7 @@ async function loadFullMatches(gamertag, force, bannerLabel){
     _safetyTimer=setTimeout(_hideBanner,28000); // always hide after 28s (e.g. server restarts mid-deploy)
     _abortCtrl=new AbortController();
     _abortTimer=setTimeout(function(){_abortCtrl.abort();},25000);
-    var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=250',{signal:_abortCtrl.signal});
+    var res=await fetch('/api/matches?gamertag='+encodeURIComponent(gamertag)+'&page=1&perPage=2000',{signal:_abortCtrl.signal});
     clearTimeout(_abortTimer);
     var d=await res.json();
     clearTimeout(_safetyTimer);

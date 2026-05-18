@@ -39,7 +39,7 @@ function loadMatchHistory(page){
     matchHistoryLoading=true;
     var container=document.getElementById('matchHistoryContainer');
     if(container)container.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading match history...</p></div>';
-    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page=1&perPage=250';
+    var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page=1&perPage=2000';
     // Render immediately from searchData if available, fetch API in background
     var _sImmediate=searchData.allMatches||searchData.recentMatches||[];
     if(_sImmediate.length>0){
@@ -79,7 +79,7 @@ function loadMatchHistory(page){
   var gt=p.gamertag;
   if(!gt){container.innerHTML='<div class="empty-state"><div class="empty-state-icon"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" style=\"vertical-align:-4px\"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4"/><circle cx="15" cy="11" r="1"/><circle cx="18" cy="13" r="1"/></svg></div><div class="empty-state-msg">No player selected</div></div>';matchHistoryLoading=false;return;}
 
-  // Prefer the full match cache (populated by loadFullMatches with perPage=250)
+  // Prefer the full match cache (populated by loadFullMatches with perPage=2000)
   // This avoids a separate API call that would return fewer matches and shrink pagination
   var _cachedMatches=fullMatchCache[gt];
   if(_cachedMatches&&_cachedMatches.length>0){
@@ -100,7 +100,7 @@ function loadMatchHistory(page){
     else{container.innerHTML='<div class="error-card">Match history unavailable — try refreshing</div>';}
   },5000);
   // Fetch full history (matches the perPage used by loadFullMatches)
-  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page=1&perPage=250';
+  var url='/api/matches?gamertag='+encodeURIComponent(gt)+'&page=1&perPage=2000';
   // If we already have some matches in memory, render them immediately while the full fetch loads
   var _existing=getAllPlayers()[selectedPlayer];
   var _existingMatches=_existing&&(_existing.allMatches||_existing.recentMatches)||[];
