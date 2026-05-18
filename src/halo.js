@@ -1442,6 +1442,7 @@ const KNOWN_PLAYLISTS = {
   'c94cb508-2fbd-450a-81db-bb74f7741d45': 'Ranked Legacy',
   'fa5aa2a3-2428-4912-a023-e1eeea7b877c': 'Ranked Doubles',
   '2825d417-93e6-4366-98f9-839a2dc41fe4': 'Big Team Battle',
+  'a7d20ef6-ebdc-4c01-b96c-69b27afa88d7': 'FFA',
 };
 
 // Standalone playlist discovery — fetches the player's 25 most recent matches and
@@ -1474,11 +1475,18 @@ async function discoverPlaylists(xuid, gamertag) {
       if (seen.has(playlistId)) {
         seen.get(playlistId).count++;
       } else {
+        const players = md.Players || [];
+        const teams = md.Teams || [];
         seen.set(playlistId, {
           id: playlistId,
           name: md.MatchInfo?.Playlist?.PublicName || md.MatchInfo?.Playlist?.Name || KNOWN_PLAYLISTS[playlistId] || '(no name in API)',
           exp: md.MatchInfo?.PlaylistExperience || '',
           lifecycle: md.MatchInfo?.LifecycleMode,
+          gameVariant: md.MatchInfo?.GameVariantCategory ?? md.MatchInfo?.UgcGameVariant?.PublicName ?? '',
+          teamsEnabled: md.MatchInfo?.TeamsEnabled ?? null,
+          playerCount: players.length,
+          teamCount: teams.length,
+          mapName: md.MatchInfo?.MapVariant?.PublicName || md.MatchInfo?.MapVariant?.Name || '',
           matchId: m.MatchId,
           count: 1,
         });
@@ -1489,7 +1497,7 @@ async function discoverPlaylists(xuid, gamertag) {
   const playlists = [...seen.values()].sort((a, b) => b.count - a.count);
   console.log(`[PlaylistDiscover] Results for ${gamertag} (${xuid}):`);
   playlists.forEach(p => {
-    console.log(`  ${p.id}  "${p.name}"  exp="${p.exp}"  lifecycle=${p.lifecycle}  (${p.count} of last 25 matches)`);
+    console.log(`  ${p.id}  "${p.name}"  exp="${p.exp}"  lifecycle=${p.lifecycle}  variant=${p.gameVariant}  players=${p.playerCount}  teams=${p.teamCount}  teamsEnabled=${p.teamsEnabled}  map="${p.mapName}"  (${p.count} of last 25 matches)`);
   });
   return playlists;
 }
