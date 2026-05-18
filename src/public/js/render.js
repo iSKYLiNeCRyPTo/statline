@@ -696,17 +696,18 @@ function render(){
   // Use fullMatchCache if available (loaded from /api/matches), else fall back to p.allMatches/recentMatches
   var _fullMatches=fullMatchCache[p.gamertag]||(p.allMatches||p.recentMatches||[]);
   var _rawMatches=_fullMatches.filter(filterMatch);
-  var matches=_rawMatches;
-  var allMatches=_rawMatches;
-  var displayMatches=_rawMatches;
+  // In social mode, all display lists (recent matches, maps tab, etc.) show only social games
+  var _isSocialMode=window._viewMode==='social';
+  var _socialMatches=_rawMatches.filter(function(m){return !m.isRanked&&!m.isCustom;});
+  var matches=_isSocialMode?_socialMatches:_rawMatches;
+  var allMatches=_isSocialMode?_socialMatches:_rawMatches;
+  var displayMatches=_isSocialMode?_socialMatches:_rawMatches;
   var filtered=displayMatches;
   // Use ranked-only stats if we found 40+ ranked games within the 150-match scan window.
   // Below that threshold, fall back to all game types (quickplay/social included).
   var _allRanked=_rawMatches.filter(function(m){return m.isRanked;});
   var _usingRankedOnly=_allRanked.length>=40;
-  var _isSocialMode=window._viewMode==='social';
-  // Social matches: non-ranked, non-custom PvP games
-  var _socialMatches=_rawMatches.filter(function(m){return !m.isRanked&&!m.isCustom;});
+  // _isSocialMode and _socialMatches already declared above
   var statMatches=_isSocialMode?_socialMatches.slice(0,100):(_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100));
   var _statLabel=_isSocialMode?'social games':(_usingRankedOnly?'ranked games':'games');
   // Build display stats: server stats for ranked mode, computed from social matches for social mode
@@ -991,7 +992,7 @@ function render(){
     html+='<div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,13,23,0.92) 0%,rgba(6,13,23,0.80) 38%,rgba(6,13,23,0.40) 62%,rgba(6,13,23,0.10) 100%);pointer-events:none;border-radius:10px"></div>';
     // Left: score block (z-index above overlay, nudged right)
     html+='<div style="flex:1;min-width:0;position:relative;z-index:1;padding-left:12px">';
-    html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px;margin-bottom:6px;text-shadow:0 1px 4px rgba(0,0,0,0.8)">FRAGR SCORE</div>';
+    html+='<div style="font-family:Share Tech Mono,monospace;font-size:9px;color:var(--muted2);letter-spacing:2px;margin-bottom:6px;text-shadow:0 1px 4px rgba(0,0,0,0.8)">'+(_isSocialMode?'SOCIAL':'RANKED')+' SCORE</div>';
     html+='<div style="font-family:Rajdhani,sans-serif;font-size:64px;font-weight:700;line-height:1;color:'+_tierHex+';letter-spacing:-2px;text-shadow:0 0 24px '+_tierHex+'88,0 2px 8px rgba(0,0,0,0.9)">'+_career+'</div>';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px">';
     html+='<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:'+_tierHex+';letter-spacing:1.5px;text-shadow:0 1px 6px rgba(0,0,0,0.8)">'+_tier.toUpperCase()+'</div>';

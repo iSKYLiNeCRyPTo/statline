@@ -1547,6 +1547,7 @@ app.get('/api/matches', async (req, res) => {
     const pp = Math.min(parseInt(perPage) || 100, 2000);
     const totalPages = Math.max(1, Math.ceil(all.length / pp));
     const matches = all.slice((pg-1)*pp, (pg-1)*pp+pp);
+    fillCachedMapImages(matches);
     res.json({ matches, page: pg, perPage: pp, totalPages, total: all.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
