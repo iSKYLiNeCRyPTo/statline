@@ -7,7 +7,7 @@ const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHead
 const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, savePlayerMatchHistory, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
 const recoveryQueue = require('./recoveryQueue');
 const adminAuth = require('./auth');
@@ -15,6 +15,90 @@ const _memSearchLog = [];
 const _memTabLog = [];
 const _memFeedbackLog = [];
 const _serverStartTime = new Date().toISOString();
+
+// ── Deep-scan queue ───────────────────────────────────────────────────────────
+// Lazily loads a player's full match history in 25-match batches, persisting
+// results to player_match_history.  At most 2 concurrent workers run at once.
+// Each XUID is only queued once — a Set guards against duplicate entries.
+const _deepScanQueue   = [];   // [{ xuid, gamertag }]
+const _deepScanQueued  = new Set(); // xuids currently queued or in-flight
+let   _deepScanRunning = 0;    // count of active worker coroutines
+const DEEP_SCAN_CONCURRENCY = 2;
+
+function enqueueDeepScan(xuid, gamertag) {
+  if (!xuid || _deepScanQueued.has(xuid)) return;
+  _deepScanQueued.add(xuid);
+  _deepScanQueue.push({ xuid, gamertag });
+  _drainDeepScanQueue();
+}
+
+function _drainDeepScanQueue() {
+  while (_deepScanRunning < DEEP_SCAN_CONCURRENCY && _deepScanQueue.length > 0) {
+    const item = _deepScanQueue.shift();
+    _deepScanRunning++;
+    _deepScanWorker(item).finally(() => {
+      _deepScanRunning--;
+      _drainDeepScanQueue(); // pick up next item when a worker finishes
+    });
+  }
+}
+
+async function _deepScanWorker({ xuid, gamertag }) {
+  try {
+    // Read cursor (or start fresh)
+    const cursor = await getDeepScanCursor(xuid).catch(() => null);
+    if (cursor && cursor.completed) {
+      // Already fully scanned — nothing to do
+      _deepScanQueued.delete(xuid);
+      return;
+    }
+    const startOffset = (cursor && cursor.next_start != null) ? cursor.next_start : 0;
+    const prevTotal   = (cursor && cursor.total_fetched != null) ? cursor.total_fetched : 0;
+
+    console.log(`[DeepScan] ${gamertag} (${xuid}) — scanning from offset ${startOffset}`);
+
+    // Fetch one batch (25 matches) so the worker is light-weight and
+    // yields quickly to other requests.  noRankedCap lets us walk the
+    // entire history without the 100-ranked cap.
+    const result = await fetchMatchHistory(
+      xuid, gamertag, 100,
+      null,   // no onProgress callback
+      null,   // no stopAtMatchId
+      { startOffset, batchLimit: 1, lean: false, noRankedCap: true }
+    );
+
+    const fetched = result.matches || [];
+    const scanEnd = result.scanEndOffset != null ? result.scanEndOffset : startOffset + 25;
+    const isDone  = fetched.length === 0 || result.stopReason === 'no more history' || fetched.length < 25;
+
+    if (fetched.length > 0) {
+      await savePlayerMatchHistory(xuid, fetched).catch(e =>
+        console.warn(`[DeepScan] savePlayerMatchHistory failed for ${xuid}:`, e.message)
+      );
+    }
+
+    const newTotal = prevTotal + fetched.length;
+    await upsertDeepScanCursor(xuid, gamertag, scanEnd, newTotal, isDone).catch(e =>
+      console.warn(`[DeepScan] upsertDeepScanCursor failed for ${xuid}:`, e.message)
+    );
+
+    console.log(`[DeepScan] ${gamertag} — batch done: +${fetched.length} matches, total=${newTotal}, offset=${scanEnd}, done=${isDone}`);
+
+    if (!isDone) {
+      // Re-enqueue for next batch after a brief pause (respect rate limits)
+      setTimeout(() => {
+        _deepScanQueued.delete(xuid); // allow re-queue
+        enqueueDeepScan(xuid, gamertag);
+      }, 1500);
+    } else {
+      _deepScanQueued.delete(xuid);
+    }
+  } catch(e) {
+    console.warn(`[DeepScan] worker error for ${gamertag} (${xuid}):`, e.message);
+    _deepScanQueued.delete(xuid);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 let _dbPool = null;
 
 async function getDb() {
@@ -761,6 +845,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
           enqueueOpponentSnapshots(filteredNew, cached.xuid).catch(() => {});
           // Persist participants for the newly-fetched matches.
           saveMatchParticipants(filteredNew, cached.xuid).catch(() => {});
+          // Resume deep-scan for returning players.
+          enqueueDeepScan(cached.xuid, gamertag);
           await enrichForResponse(updated);
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
@@ -1048,6 +1134,8 @@ app.get('/api/search', rateLimit, async (req, res) => {
     enqueueOpponentSnapshots(_bgMatchesForQueue, result.xuid).catch(() => {});
     // Persist participants — powers private-player history reconstruction.
     saveMatchParticipants(_bgMatchesForQueue, result.xuid).catch(() => {});
+    // Kick off lazy deep-scan so this player's full history accumulates in DB.
+    if (result.xuid) enqueueDeepScan(result.xuid, result.gamertag || gamertag);
     // If we just served a reconstructed history (private direct match endpoint),
     // schedule a background expansion: queue this player's frequent co-players
     // so the next visit has more coverage. We reuse the snapshot queue with its
@@ -1542,16 +1630,64 @@ app.get('/api/matches', async (req, res) => {
   try {
     const { gamertag, page = 1, perPage = 100 } = req.query;
     if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
+
+    // ── Memory cache (the regular 100/250 match load) ──────────────────────
     const cached = await getFromCache(gamertag);
-    const source = cached?.allMatches || cached?.recentMatches || [];
+    const memMatches = cached?.allMatches || cached?.recentMatches || [];
+
+    // ── DB deep-scan history (may be empty until first scan completes) ──────
+    let dbMatches = [];
+    if (cached?.xuid) {
+      try {
+        dbMatches = await getPlayerMatchHistory(cached.xuid, 5000, 0);
+      } catch(e) {
+        console.warn('[/api/matches] DB history fetch failed:', e.message);
+      }
+    }
+
+    // ── Merge: deduplicate by matchId, memory wins on conflicts ─────────────
+    const seenIds = new Set();
+    const merged = [];
+    for (const m of memMatches) {
+      if (m.matchId && !seenIds.has(m.matchId)) {
+        seenIds.add(m.matchId);
+        merged.push(m);
+      }
+    }
+    for (const m of dbMatches) {
+      if (m.matchId && !seenIds.has(m.matchId)) {
+        seenIds.add(m.matchId);
+        merged.push(m);
+      }
+    }
+    // Sort newest-first
+    merged.sort((a, b) => {
+      const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
+      return tb - ta;
+    });
+
+    // ── Filter + paginate ────────────────────────────────────────────────────
     const ranked = req.query.ranked === '1';
-    const all = source.filter(m => !ranked || m.isRanked);
+    const all = ranked ? merged.filter(m => m.isRanked) : merged;
     const pg = parseInt(page) || 1;
     const pp = Math.min(parseInt(perPage) || 100, 2000);
     const totalPages = Math.max(1, Math.ceil(all.length / pp));
     const matches = all.slice((pg-1)*pp, (pg-1)*pp+pp);
     fillCachedMapImages(matches);
-    res.json({ matches, page: pg, perPage: pp, totalPages, total: all.length });
+
+    // Tell client how much of the full history has been scanned so far
+    let scanCursor = null;
+    if (cached?.xuid) {
+      scanCursor = await getDeepScanCursor(cached.xuid).catch(() => null);
+    }
+
+    res.json({
+      matches, page: pg, perPage: pp, totalPages, total: all.length,
+      deepScan: scanCursor
+        ? { completed: !!scanCursor.completed, totalFetched: scanCursor.total_fetched || 0 }
+        : null,
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

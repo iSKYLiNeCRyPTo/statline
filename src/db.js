@@ -111,6 +111,29 @@ async function getDb() {
           last_matches_played INT,
           consecutive_empty_refreshes INT NOT NULL DEFAULT 0
         )`);
+        // player_match_history: persistent store for a player's own full match list.
+        // Populated by the background deep-scan worker; serves the /api/matches
+        // endpoint for players whose history exceeds the initial 250-match window.
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS player_match_history (
+          xuid       TEXT        NOT NULL,
+          match_id   TEXT        NOT NULL,
+          match_json JSONB       NOT NULL,
+          start_time TIMESTAMPTZ,
+          is_ranked  BOOLEAN,
+          fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (xuid, match_id)
+        )`);
+        await _dbPool.query(`CREATE INDEX IF NOT EXISTS idx_pmh_xuid_time ON player_match_history(xuid, start_time DESC)`);
+        // match_scan_cursors: tracks how far the deep-scan worker has scanned for
+        // each player so restarts pick up where they left off.
+        await _dbPool.query(`CREATE TABLE IF NOT EXISTS match_scan_cursors (
+          xuid          TEXT        PRIMARY KEY,
+          gamertag      TEXT,
+          next_start    INT         NOT NULL DEFAULT 0,
+          total_fetched INT         NOT NULL DEFAULT 0,
+          completed     BOOLEAN     NOT NULL DEFAULT FALSE,
+          last_scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`);
       } catch(e) { console.error('[DB] schema error:', e.message); }
       return _dbPool;
     })();
@@ -1536,4 +1559,93 @@ async function getActivityTimes(xuid, limit = 1000) {
   return r.rows.map(row => row.start_time);
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness };
+// ── Deep-scan match history persistence ────────────────────────────────────
+
+// Upsert processed match objects into player_match_history.
+// Ignores conflicts so re-scanning the same batch is safe.
+async function savePlayerMatchHistory(xuid, matches) {
+  if (!matches || !matches.length) return 0;
+  try {
+    const db = await getDb();
+    if (!db) return 0;
+    const xuidStr = String(xuid);
+    let saved = 0;
+    for (const m of matches) {
+      if (!m.matchId) continue;
+      try {
+        await db.query(
+          `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (xuid, match_id) DO NOTHING`,
+          [xuidStr, m.matchId, JSON.stringify(m), m.startTime ? new Date(m.startTime) : null, m.isRanked || false]
+        );
+        saved++;
+      } catch(e) { /* ignore per-row errors */ }
+    }
+    return saved;
+  } catch(e) {
+    console.error('[DB] savePlayerMatchHistory error:', e.message);
+    return 0;
+  }
+}
+
+// Retrieve stored matches for a player, newest first.
+// limit/offset support pagination from /api/matches.
+async function getPlayerMatchHistory(xuid, limit = 500, offset = 0) {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    const res = await db.query(
+      `SELECT match_json FROM player_match_history
+       WHERE xuid = $1
+       ORDER BY start_time DESC NULLS LAST
+       LIMIT $2 OFFSET $3`,
+      [String(xuid), limit, offset]
+    );
+    return res.rows.map(r => r.match_json);
+  } catch(e) {
+    console.error('[DB] getPlayerMatchHistory error:', e.message);
+    return [];
+  }
+}
+
+// Get the deep-scan cursor for a player.
+// Returns { next_start, total_fetched, completed } — or defaults if not started.
+async function getDeepScanCursor(xuid) {
+  try {
+    const db = await getDb();
+    if (!db) return { next_start: 0, total_fetched: 0, completed: false };
+    const res = await db.query(
+      `SELECT next_start, total_fetched, completed FROM match_scan_cursors WHERE xuid = $1`,
+      [String(xuid)]
+    );
+    if (!res.rows.length) return { next_start: 0, total_fetched: 0, completed: false };
+    return res.rows[0];
+  } catch(e) {
+    console.error('[DB] getDeepScanCursor error:', e.message);
+    return { next_start: 0, total_fetched: 0, completed: false };
+  }
+}
+
+// Create or update the scan cursor for a player.
+async function upsertDeepScanCursor(xuid, gamertag, nextStart, totalFetched, completed) {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.query(
+      `INSERT INTO match_scan_cursors (xuid, gamertag, next_start, total_fetched, completed, last_scanned_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (xuid) DO UPDATE SET
+         gamertag = EXCLUDED.gamertag,
+         next_start = EXCLUDED.next_start,
+         total_fetched = EXCLUDED.total_fetched,
+         completed = EXCLUDED.completed,
+         last_scanned_at = NOW()`,
+      [String(xuid), gamertag || '', nextStart, totalFetched, completed]
+    );
+  } catch(e) {
+    console.error('[DB] upsertDeepScanCursor error:', e.message);
+  }
+}
+
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness, savePlayerMatchHistory, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor };

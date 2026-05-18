@@ -252,6 +252,15 @@ function renderMatchHistory(d,clientPage){
     html+='</div>';
   }
 
+  // Deep-scan progress banner: show when history is still being scanned
+  var _ds=d.deepScan;
+  if(_ds&&!_ds.completed){
+    html+='<div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.03)">';
+    html+='<div style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease-in-out infinite;flex-shrink:0"></div>';
+    html+='<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.5px">SCANNING FULL HISTORY — '+(_ds.totalFetched||0)+' matches cached so far</span>';
+    html+='</div>';
+  }
+
   container.innerHTML=html;
   expandedMatches={};
 }

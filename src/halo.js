@@ -775,11 +775,20 @@ async function fetchPlayerStats(gamertag) {
 }
 
 // --- Match history: fetch in batches of 10 until 25 valid (non-custom) matches ---
-async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null, stopAtMatchId = null) {
+async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null, stopAtMatchId = null, _opts = {}) {
+  // _opts.startOffset   — start scanning from this offset (for deep-scan continuation)
+  // _opts.batchLimit    — stop after this many batches (1 batch = 25 matches)
+  // _opts.lean          — skip rivals/DNA/advancedStats (faster, for background deep scan)
+  // _opts.noRankedCap   — don't stop when RANKED_TARGET is reached (scan everything)
+  const _startOffset  = _opts.startOffset  || 0;
+  const _batchLimit   = _opts.batchLimit   || null;
+  const _lean         = _opts.lean         || false;
+  const _noRankedCap  = _opts.noRankedCap  || false;
+
   const RANKED_TARGET = 100; // collect up to 100 ranked games for reliable stats
-  const TOTAL_TARGET  = 250; // scan cap for players with few ranked games
+  const TOTAL_TARGET  = _noRankedCap ? Infinity : 250; // scan cap for players with few ranked games
   const BATCH    = 25;   // matches per API call (API max is 25)
-  const MAX_SCAN = 250;  // never scan more than 250 raw matches total
+  const MAX_SCAN = _noRankedCap ? Infinity : 250;  // never scan more than 250 raw matches total
 
   const headers = getAuthHeaders();
   const rivalStats = {};   // keyed by rawXuid — resolved to gamertag later
@@ -793,7 +802,8 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   const _validCount  = () => results.filter(r => !r.isCustom).length;
   const _isDone      = () => _rankedCount() >= RANKED_TARGET || _validCount() >= TOTAL_TARGET;
 
-  let start = 0;
+  let start = _startOffset;
+  let batchScanned = 0; // counts batches fetched this invocation (for _batchLimit)
   let stopReason = 'done'; // tracks why the loop exited
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -880,9 +890,15 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     }, 6);
 
     start += BATCH;
+    batchScanned++;
     // Brief pause between batches to avoid bursting halostats rate limit
     if (!_isDone() && start < MAX_SCAN && !hitStop) {
       await sleep(200);
+    }
+    // If caller set a batchLimit (deep-scan worker uses 1), stop after that many batches
+    if (_batchLimit !== null && batchScanned >= _batchLimit) {
+      stopReason = 'batchLimit';
+      break;
     }
 
     for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {
@@ -1391,7 +1407,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
   const advancedStats = computeAdvancedStats(results);
   const haloDNA = generateHaloDNA(results, advancedStats, null);
-  return { matches: results, advancedStats, haloDNA, rivals, nemesisList, victimsList };
+  return { matches: results, advancedStats, haloDNA, rivals, nemesisList, victimsList, scanEndOffset: start };
 }
 
 // Fetch skill data (MMR, expected K/D) for ranked matches in the background.
