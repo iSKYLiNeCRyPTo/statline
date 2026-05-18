@@ -2483,8 +2483,15 @@ app.get('/api/admin', (req, res) => {
     var el=document.createElement('div');
     el.id='disc-raw-overlay';
     el.style.cssText='position:fixed;top:5%;left:5%;width:90%;max-height:88vh;overflow:auto;background:#111;border:1px solid #444;padding:16px;font-size:11px;z-index:9999;border-radius:6px';
-    el.innerHTML='<button onclick="document.getElementById(\'disc-raw-overlay\').remove()" style="float:right;background:#333;border:1px solid #555;color:#aaa;cursor:pointer;padding:2px 8px;border-radius:3px">✕ close</button>'
-      +'<pre style="white-space:pre-wrap;margin-top:24px;color:#ccc">'+JSON.stringify(window._discRawData[i]||{},null,2)+'</pre>';
+    var closeBtn=document.createElement('button');
+    closeBtn.textContent='x close';
+    closeBtn.style.cssText='float:right;background:#333;border:1px solid #555;color:#aaa;cursor:pointer;padding:2px 8px;border-radius:3px';
+    closeBtn.onclick=function(){el.remove();};
+    var pre=document.createElement('pre');
+    pre.style.cssText='white-space:pre-wrap;margin-top:24px;color:#ccc';
+    pre.textContent=JSON.stringify(window._discRawData[i]||{},null,2);
+    el.appendChild(closeBtn);
+    el.appendChild(pre);
     document.body.appendChild(el);
   }
   function discoverPlaylists(){
