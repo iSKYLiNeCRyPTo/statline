@@ -1498,6 +1498,7 @@ async function discoverPlaylists(xuid, gamertag) {
           mapName: mi.MapVariant?.PublicName || mi.MapVariant?.Name || mi.Map?.PublicName || mi.Map?.Name || '',
           durationSec,
           matchId: m.MatchId,
+          rawMatchInfo: mi,
           count: 1,
         });
       }
