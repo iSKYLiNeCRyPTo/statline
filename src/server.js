@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog, resolveMapImages } = require('./halo');
 const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
@@ -869,6 +869,12 @@ app.get('/api/search', rateLimit, async (req, res) => {
         cached.haloDNA = generateHaloDNA(_allM, _adv, null);
         saveToCache(gamertag, cached).catch(() => {});
       } catch(e) { /* non-fatal */ }
+    }
+    // Background: re-resolve any missing map image URLs using stored assetId/versionId
+    const _allForImg = cached.allMatches || cached.recentMatches || [];
+    const _missingImg = _allForImg.filter(m => m.mapAssetId && m.mapVersionId && !m.mapImageUrl);
+    if (_missingImg.length) {
+      resolveMapImages(_allForImg).then(() => saveToCache(gamertag, cached)).catch(() => {});
     }
     logSearch(gamertag, req.headers['user-agent'], 'cached', true, null);
     await enrichForResponse(cached);

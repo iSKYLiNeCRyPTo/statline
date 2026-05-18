@@ -1259,7 +1259,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         : null;
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
-        mapName, mapImageUrl, gameMode, isRanked, kills, deaths, assists, score,
+        mapName, mapImageUrl,
+        mapAssetId: md.MatchInfo?.MapVariant?.AssetId || null,
+        mapVersionId: md.MatchInfo?.MapVariant?.VersionId || null,
+        gameMode, isRanked, kills, deaths, assists, score,
         kda: (kills - deaths + assists/3).toFixed(1),
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
         shotsFired, shotsHit,
@@ -1704,4 +1707,26 @@ module.exports = {
   matchListBackoffSecondsRemaining,
   isClearanceUnavailable,
   getGameModeDebugLog: () => _gameModeDebugLog,
+  // Re-resolve missing map image URLs for an array of match objects.
+  // Uses mapAssetId + mapVersionId stored on each match; fills mapImageUrl in-place.
+  // Safe to call on cached data — skips matches that already have a URL.
+  resolveMapImages: async function(matches) {
+    if (!matches || !matches.length) return;
+    const headers = getAuthHeaders();
+    const needsImage = matches.filter(m => m.mapAssetId && m.mapVersionId && !m.mapImageUrl);
+    if (!needsImage.length) return;
+    // Dedupe — only call resolveMapName once per unique assetId
+    const seen = new Set();
+    for (const m of needsImage) {
+      if (seen.has(m.mapAssetId)) continue;
+      seen.add(m.mapAssetId);
+      if (!mapImageCache[m.mapAssetId]) {
+        await resolveMapName(m.mapAssetId, m.mapVersionId, headers).catch(() => {});
+      }
+    }
+    // Fill in URLs from cache
+    for (const m of needsImage) {
+      if (mapImageCache[m.mapAssetId]) m.mapImageUrl = mapImageCache[m.mapAssetId];
+    }
+  },
 };
