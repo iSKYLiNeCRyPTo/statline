@@ -785,7 +785,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   const _lean         = _opts.lean         || false;
   const _noRankedCap  = _opts.noRankedCap  || false;
 
-  const RANKED_TARGET = 100; // collect up to 100 ranked games for reliable stats
+  const RANKED_TARGET = _noRankedCap ? Infinity : 100; // deep-scan: no ranked cap — fetch entire history
   const TOTAL_TARGET  = _noRankedCap ? Infinity : 250; // scan cap for players with few ranked games
   const BATCH    = 25;   // matches per API call (API max is 25)
   const MAX_SCAN = _noRankedCap ? Infinity : 250;  // never scan more than 250 raw matches total
