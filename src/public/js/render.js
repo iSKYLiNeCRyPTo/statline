@@ -988,7 +988,7 @@ function render(){
     var _wins=_fsMatches.filter(function(m){return m.outcome===2;}).length;
     var _wr=Math.round(_wins/_fsMatches.length*100);
     // Store globally so the share card renderer can access it
-    window._fragrScoreData={score:_career,tier:_tier,tierHex:_tierHex,gamertag:p.gamertag,kda:_avgKda,accuracy:_avgAcc,winRate:_wr,matches:_fsMatches.length};
+    window._fragrScoreData={score:_career,tier:_tier,tierHex:_tierHex,gamertag:p.gamertag,kda:_avgKda,accuracy:_avgAcc,winRate:_wr,matches:_fsMatches.length,mode:_isSocialMode?'SOCIAL':'RANKED'};
     // ── Display: clean, proprietary — just the number ──
     var _bgIdx=Math.floor(Math.random()*2);
     var _bgMobIdx=Math.floor(Math.random()*5)+1;

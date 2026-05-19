@@ -1145,14 +1145,38 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
     ctx.restore();
   });
 
-  // --- fragr.live watermark ---
+  // --- RANKED / SOCIAL mode badge (above tier label) ---
+  if (d.mode) {
+    ctx.save();
+    ctx.font = '600 14px "Share Tech Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.letterSpacing = '2px';
+    var badgeW = 90, badgeH = 20, badgeX = cx - badgeW / 2, badgeY = tierY - 46;
+    // Pill background
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+    ctx.fill();
+    // Border in tier color
+    ctx.strokeStyle = d.tierHex + '88';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Text
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = d.tierHex;
+    ctx.fillText(d.mode, cx, badgeY + 14);
+    ctx.restore();
+  }
+
+  // --- fragr.live watermark (larger, more visible) ---
   ctx.save();
-  ctx.font = '500 15px "Share Tech Mono", monospace';
+  ctx.font = '600 22px "Share Tech Mono", monospace';
   ctx.textAlign = isMobile ? 'left' : 'right';
-  ctx.fillStyle = 'rgba(133,183,235,0.5)';
-  ctx.shadowColor = 'rgba(0,0,0,0.8)';
-  ctx.shadowBlur = 8;
-  ctx.fillText('fragr.live', isMobile ? 55 : W - 40, isMobile ? H - 50 : 660);
+  ctx.fillStyle = 'rgba(133,183,235,0.75)';
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 10;
+  ctx.fillText('fragr.live', isMobile ? 55 : W - 40, isMobile ? H - 44 : 660);
   ctx.restore();
 }
 
