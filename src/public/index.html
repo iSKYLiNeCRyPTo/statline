@@ -1175,13 +1175,13 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
     ctx.restore();
   });
 
-  // --- RANKED / SOCIAL mode label (above the big score number) ---
+  // --- RANKED / SOCIAL mode label (just below gamertag) ---
   if (d.mode) {
     ctx.save();
     ctx.font = '600 13px "Share Tech Mono", monospace';
     ctx.textAlign = 'center';
-    // Sits just above the score number (~60px above its baseline)
-    var modeY = scoreY - (isMobile ? 62 : 65);
+    // Sits ~26px below the gamertag baseline
+    var modeY = gtY + (isMobile ? 24 : 26);
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 8;
     ctx.fillStyle = d.tierHex + 'cc';
