@@ -978,8 +978,14 @@ function toggleSidebar(){
   <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:540px;padding:24px;position:relative">
     <button onclick="closeFragrShare()" style="position:absolute;top:14px;right:16px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px" title="Close">✕</button>
     <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px;letter-spacing:1px">SHARE YOUR FRAGR SCORE</div>
-    <!-- Canvas preview -->
-    <canvas id="fragrShareCanvas" width="1168" height="784" style="width:100%;border-radius:8px;border:1px solid var(--border);display:block;margin-bottom:16px"></canvas>
+    <!-- Canvas preview with prev/next arrows -->
+    <div style="position:relative;margin-bottom:12px">
+      <canvas id="fragrShareCanvas" width="1168" height="784" style="width:100%;border-radius:8px;border:1px solid var(--border);display:block"></canvas>
+      <button onclick="fragrCardStep(-1)" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)">‹</button>
+      <button onclick="fragrCardStep(1)"  style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)">›</button>
+    </div>
+    <!-- Card picker dots -->
+    <div id="fragrCardDots" style="display:flex;justify-content:center;gap:6px;margin-bottom:14px"></div>
     <!-- Action buttons -->
     <div style="display:flex;gap:10px">
       <button onclick="fragrCopyImage(this)" style="flex:1;padding:11px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:7px;font-family:Share Tech Mono,monospace;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity 0.15s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
@@ -997,21 +1003,35 @@ function toggleSidebar(){
 
 <script>
 // ── Fragr Score Share Card ─────────────────────────────────────────────────
+var _fragrCards = ['desktop0.jpg','desktop1.jpg','desktop2.jpg','desktop3.jpg','desktop4.jpg'];
+var _fragrCardIdx = 0;
+
 function openFragrShare() {
   var d = window._fragrScoreData;
   if (!d) return;
-
   var modal = document.getElementById('fragrShareModal');
   modal.style.display = 'flex';
   document.getElementById('fragrShareCopyMsg').textContent = '';
+  _fragrRenderCard();
+}
 
+function _fragrRenderCard() {
+  var d = window._fragrScoreData;
+  if (!d) return;
   var canvas = document.getElementById('fragrShareCanvas');
   var ctx = canvas.getContext('2d');
   var W = 1168, H = 784;
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = W; canvas.height = H;
 
-  // Always use the same sharecard background regardless of device
+  // Update dots
+  var dotsEl = document.getElementById('fragrCardDots');
+  if (dotsEl) {
+    dotsEl.innerHTML = _fragrCards.map(function(_, i) {
+      var active = i === _fragrCardIdx;
+      return '<div onclick="fragrCardGoto('+i+')" style="width:'+(active?'20':'8')+'px;height:8px;border-radius:4px;background:'+(active?'var(--accent)':'rgba(255,255,255,0.25)')+';cursor:pointer;transition:all 0.2s"></div>';
+    }).join('');
+  }
+
   var bg = new Image();
   bg.onload = function() {
     ctx.clearRect(0, 0, W, H);
@@ -1024,7 +1044,17 @@ function openFragrShare() {
     ctx.fillRect(0, 0, W, H);
     _drawFragrOverlay(ctx, W, H, d, false);
   };
-  bg.src = 'sharecard.jpg';
+  bg.src = _fragrCards[_fragrCardIdx];
+}
+
+function fragrCardStep(dir) {
+  _fragrCardIdx = (_fragrCardIdx + dir + _fragrCards.length) % _fragrCards.length;
+  _fragrRenderCard();
+}
+
+function fragrCardGoto(i) {
+  _fragrCardIdx = i;
+  _fragrRenderCard();
 }
 
 function _drawFragrOverlay(ctx, W, H, d, isMobile) {
