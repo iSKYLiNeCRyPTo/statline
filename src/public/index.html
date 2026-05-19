@@ -1145,27 +1145,17 @@ function _drawFragrOverlay(ctx, W, H, d, isMobile) {
     ctx.restore();
   });
 
-  // --- RANKED / SOCIAL mode badge (above tier label) ---
+  // --- RANKED / SOCIAL mode label (above the big score number) ---
   if (d.mode) {
     ctx.save();
-    ctx.font = '600 14px "Share Tech Mono", monospace';
+    ctx.font = '600 13px "Share Tech Mono", monospace';
     ctx.textAlign = 'center';
-    ctx.letterSpacing = '2px';
-    var badgeW = 90, badgeH = 20, badgeX = cx - badgeW / 2, badgeY = tierY - 46;
-    // Pill background
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.beginPath();
-    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-    ctx.fill();
-    // Border in tier color
-    ctx.strokeStyle = d.tierHex + '88';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // Text
-    ctx.shadowColor = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur = 6;
-    ctx.fillStyle = d.tierHex;
-    ctx.fillText(d.mode, cx, badgeY + 14);
+    // Sits just above the score number (~60px above its baseline)
+    var modeY = scoreY - (isMobile ? 62 : 65);
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = d.tierHex + 'cc';
+    ctx.fillText(d.mode + ' SCORE', cx, modeY);
     ctx.restore();
   }
 
