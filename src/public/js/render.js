@@ -712,28 +712,29 @@ function render(){
   // _isSocialMode and _socialMatches already declared above
   var statMatches=_isSocialMode?_socialMatches.slice(0,100):(_usingRankedOnly?_allRanked.slice(0,100):_rawMatches.slice(0,100));
   var _statLabel=_isSocialMode?'social games':(_usingRankedOnly?'ranked games':'games');
-  // mapMatches: always strictly filtered by mode — ranked mode = ranked only, social = social only.
+  // mapMatches: always strictly filtered by mode, capped at latest 100 for consistent analysis.
   // Never falls back to _rawMatches so quick play never bleeds into the ranked Maps tab.
-  var _mapMatches=_isSocialMode?_socialMatches:_allRanked;
+  var _mapMatches=_isSocialMode?_socialMatches.slice(0,100):_allRanked.slice(0,100);
   // Build display stats: server stats for ranked mode, computed from social matches for social mode
   var _dispS=s;
   if(_isSocialMode){
-    var _sk=_socialMatches.reduce(function(a,m){return a+(m.kills||0);},0);
-    var _sd=_socialMatches.reduce(function(a,m){return a+(m.deaths||0);},0);
-    var _sa=_socialMatches.reduce(function(a,m){return a+(m.assists||0);},0);
-    var _sw=_socialMatches.filter(function(m){return m.outcome===2;}).length;
-    var _sl=_socialMatches.filter(function(m){return m.outcome===3;}).length;
+    var _s100=_socialMatches.slice(0,100); // cap to latest 100 for consistent analysis
+    var _sk=_s100.reduce(function(a,m){return a+(m.kills||0);},0);
+    var _sd=_s100.reduce(function(a,m){return a+(m.deaths||0);},0);
+    var _sa=_s100.reduce(function(a,m){return a+(m.assists||0);},0);
+    var _sw=_s100.filter(function(m){return m.outcome===2;}).length;
+    var _sl=_s100.filter(function(m){return m.outcome===3;}).length;
     var _skd=_sd>0?(_sk/_sd).toFixed(2):_sk>0?_sk.toFixed(2):'0.00';
     var _swr=(_sw+_sl)>0?((_sw/(_sw+_sl))*100).toFixed(1):'0.0';
-    var _sAccMs=_socialMatches.filter(function(m){return m.accuracy!=null;});
+    var _sAccMs=_s100.filter(function(m){return m.accuracy!=null;});
     var _sacc=_sAccMs.length?(_sAccMs.reduce(function(a,m){return a+parseFloat(m.accuracy);},0)/_sAccMs.length).toFixed(1):null;
     var _skda=_sd>0?((_sk+_sa/3)/_sd).toFixed(2):(_sk+_sa/3).toFixed(2);
     _dispS={
       kills:_sk,deaths:_sd,assists:_sa,
       kd:_skd,kda:_skda,accuracy:_sacc,
       wins:_sw,losses:_sl,winRate:_swr,
-      matchesPlayed:_socialMatches.length,
-      avgKillsPerGame:_socialMatches.length?(_sk/_socialMatches.length).toFixed(1):'0.0',
+      matchesPlayed:_s100.length,
+      avgKillsPerGame:_s100.length?(_sk/_s100.length).toFixed(1):'0.0',
       totalMedals:s.totalMedals
     };
   }
