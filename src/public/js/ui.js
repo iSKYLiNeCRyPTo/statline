@@ -252,17 +252,53 @@ function renderMatchHistory(d,clientPage){
     html+='</div>';
   }
 
-  // Deep-scan progress banner: show when history is still being scanned
+  // Deep-scan footer: status + manual trigger button
   var _ds=d.deepScan;
+  var _gt=d._gamertag||(searchData&&searchData.gamertag)||((getAllPlayers()[selectedPlayer]||{}).gamertag)||'';
+  html+='<div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.03);flex-wrap:wrap">';
   if(_ds&&!_ds.completed){
-    html+='<div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.03)">';
     html+='<div style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.5s ease-in-out infinite;flex-shrink:0"></div>';
-    html+='<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.5px">SCANNING FULL HISTORY — '+(_ds.totalFetched||0)+' matches cached so far</span>';
-    html+='</div>';
+    html+='<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;flex:1">SCANNING FULL HISTORY — '+(_ds.totalFetched||0)+' matches cached so far</span>';
+  } else if(_ds&&_ds.completed){
+    html+='<div style="width:8px;height:8px;border-radius:50%;background:var(--win);flex-shrink:0"></div>';
+    html+='<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;flex:1">FULL HISTORY LOADED — '+(_ds.totalFetched||0)+' matches cached</span>';
+  } else {
+    html+='<span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:.5px;flex:1">FULL HISTORY NOT YET SCANNED</span>';
   }
+  if(_gt){
+    html+='<button id="deepScanBtn" onclick="triggerDeepScan(\''+_gt.replace(/'/g,"\\'")+'\')" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:4px;font-family:Share Tech Mono,monospace;font-size:10px;cursor:pointer;letter-spacing:.5px;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">LOAD MORE</button>';
+  }
+  html+='</div>';
 
   container.innerHTML=html;
   expandedMatches={};
+}
+
+function triggerDeepScan(gamertag){
+  var btn=document.getElementById('deepScanBtn');
+  if(btn){btn.textContent='QUEUING...';btn.disabled=true;btn.style.opacity='0.5';}
+  fetch('/api/deepscan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gamertag:gamertag})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(btn){
+        if(d.queued){
+          btn.textContent='QUEUED ✓';
+          btn.style.color='var(--win)';
+          btn.style.borderColor='var(--win)';
+          // Reload matches after a few seconds to show progress
+          setTimeout(function(){
+            if(typeof loadMatchHistory==='function') loadMatchHistory(1);
+          }, 4000);
+        } else {
+          btn.textContent='ERROR';
+          btn.disabled=false;
+          btn.style.opacity='1';
+        }
+      }
+    })
+    .catch(function(){
+      if(btn){btn.textContent='LOAD MORE';btn.disabled=false;btn.style.opacity='1';}
+    });
 }
 
 function paginationBtnStyle(disabled){

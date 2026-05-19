@@ -1691,6 +1691,23 @@ app.get('/api/matches', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Manual deep-scan trigger
+app.post('/api/deepscan', async (req, res) => {
+  try {
+    const { gamertag } = req.body || {};
+    if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
+    const cached = await getFromCache(gamertag);
+    if (!cached || !cached.xuid) return res.status(404).json({ error: 'Player not in cache — search them first' });
+    const cursor = await getDeepScanCursor(cached.xuid).catch(() => null);
+    // Reset completed flag so scan resumes from current offset
+    if (cursor && cursor.completed) {
+      await upsertDeepScanCursor(cached.xuid, gamertag, cursor.next_start || 0, cursor.total_fetched || 0, false).catch(() => {});
+    }
+    enqueueDeepScan(cached.xuid, cached.gamertag || gamertag);
+    res.json({ queued: true, xuid: cached.xuid, cursor: cursor || null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Medal sprite sheet proxy
 app.get('/api/medal-sheet', async (req, res) => {
   try {
