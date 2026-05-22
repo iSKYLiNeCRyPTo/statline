@@ -49,6 +49,7 @@ function _lbShell() {
     +   '<button class="lb-tab' + (_lbTab==='csrSlayer' ?' active':'') + '" onclick="_lbSwitchTab(\'csrSlayer\',this)">RANKED SLAYER</button>'
     +   '<button class="lb-tab' + (_lbTab==='csrLegacy' ?' active':'') + '" onclick="_lbSwitchTab(\'csrLegacy\',this)">RANKED LEGACY</button>'
     +   '<button class="lb-tab' + (_lbTab==='csrDoubles'?' active':'') + '" onclick="_lbSwitchTab(\'csrDoubles\',this)">RANKED DOUBLES</button>'
+    +   '<button class="lb-tab' + (_lbTab==='insights'  ?' active':'') + '" onclick="_lbSwitchTab(\'insights\',this)">📊 INSIGHTS</button>'
     + '</div>'
     + '<div class="lb-search-wrap">'
     +   '<svg class="lb-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
@@ -89,7 +90,136 @@ function _lbSwitchTab(tab, btn) {
   _lbTab = tab; _lbPage = 1;
   document.querySelectorAll('.lb-tab').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
-  _lbLoadTab(tab);
+  var sw = document.querySelector('.lb-search-wrap');
+  if (tab === 'insights') {
+    if (sw) sw.style.display = 'none';
+    _lbRenderInsights();
+  } else {
+    if (sw) sw.style.display = '';
+    _lbLoadTab(tab);
+  }
+}
+
+function _lbRenderInsights() {
+  var panel = document.getElementById('lb-panel');
+  var mc    = document.getElementById('meta-count');
+  var src   = _lbTabData['csrArena'] || _lbTabData['csrSlayer'] || _lbTabData['csrLegacy'] || _lbTabData['csrDoubles'];
+  if (!src) {
+    if (panel) panel.innerHTML = '<div class="lb-loading">// LOADING ARENA DATA...</div>';
+    if (mc)    mc.textContent  = '';
+    fetch('/api/leaderboard?tab=csrArena').then(function(r){ return r.json(); }).then(function(json){
+      _lbTabData['csrArena'] = { rows: json.rows || [], ts: Date.now() };
+      _lbRenderInsights();
+    });
+    return;
+  }
+  var rows = src.rows;
+  if (mc) mc.textContent = rows.length.toLocaleString() + ' PLAYERS ANALYZED';
+
+  var TIERS = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
+  var TIER_COLORS = { Bronze:'#cd7f32', Silver:'#aaaaaa', Gold:'#d4860a', Platinum:'#80dddd', Diamond:'#60cfff', Onyx:'#00c8ff' };
+  var stats = {};
+  TIERS.forEach(function(t){ stats[t] = { count:0, kd:[], wr:[] }; });
+  rows.forEach(function(p){
+    var t = p.csr_tier;
+    if (!t || !stats[t]) return;
+    stats[t].count++;
+    if (p.kd      != null) stats[t].kd.push(parseFloat(p.kd));
+    if (p.win_rate != null) stats[t].wr.push(parseFloat(p.win_rate));
+  });
+  function _avg(arr){ return arr.length ? arr.reduce(function(a,b){return a+b},0)/arr.length : null; }
+  var counts = TIERS.map(function(t){ return stats[t].count; });
+  var avgKds = TIERS.map(function(t){ var a=_avg(stats[t].kd);  return a!=null?+a.toFixed(2):null; });
+  var avgWrs = TIERS.map(function(t){ var a=_avg(stats[t].wr);  return a!=null?+a.toFixed(1):null; });
+  var colors = TIERS.map(function(t){ return TIER_COLORS[t]; });
+  var total  = counts.reduce(function(a,b){return a+b},0);
+
+  var tableRows = TIERS.map(function(t,i){
+    var pct = total>0?(stats[t].count/total*100).toFixed(1):'0.0';
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:7px 8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+TIER_COLORS[t]+';margin-right:6px;vertical-align:middle"></span>'
+      +   '<span style="color:'+TIER_COLORS[t]+'">'+t.toUpperCase()+'</span></td>'
+      + '<td style="text-align:right;padding:7px 8px;color:var(--text)">'+stats[t].count.toLocaleString()+'</td>'
+      + '<td style="text-align:right;padding:7px 8px;color:var(--muted2)">'+pct+'%</td>'
+      + '<td style="text-align:right;padding:7px 8px;color:var(--accent)">'+(avgKds[i]!=null?avgKds[i]:'—')+'</td>'
+      + '<td style="text-align:right;padding:7px 8px;color:var(--win)">'+(avgWrs[i]!=null?avgWrs[i]+'%':'—')+'</td>'
+      + '</tr>';
+  }).join('');
+
+  if (panel) panel.innerHTML =
+    '<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:20px">'
+    +  '// COMMUNITY ANALYTICS · '+rows.length.toLocaleString()+' TRACKED PLAYERS · RANKED ARENA'
+    +'</div>'
+    +'<div style="display:grid;gap:16px">'
+      +'<div class="chart-card">'
+        +'<div class="chart-title">RANK DISTRIBUTION</div>'
+        +'<div class="chart-sub">Player count per tier across tracked community</div>'
+        +'<canvas id="lbChartDist" height="160"></canvas>'
+      +'</div>'
+      +'<div class="chart-grid">'
+        +'<div class="chart-card">'
+          +'<div class="chart-title">AVG K/D BY TIER</div>'
+          +'<div class="chart-sub">Kill / death ratio per rank tier</div>'
+          +'<canvas id="lbChartKd" height="200"></canvas>'
+        +'</div>'
+        +'<div class="chart-card">'
+          +'<div class="chart-title">AVG WIN RATE BY TIER</div>'
+          +'<div class="chart-sub">Win percentage per rank tier</div>'
+          +'<canvas id="lbChartWr" height="200"></canvas>'
+        +'</div>'
+      +'</div>'
+      +'<div class="chart-card">'
+        +'<div class="chart-title">TIER BREAKDOWN</div>'
+        +'<table style="width:100%;border-collapse:collapse;font-family:Share Tech Mono,monospace;font-size:11px">'
+          +'<thead><tr style="border-bottom:1px solid var(--border2)">'
+            +'<th style="text-align:left;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">TIER</th>'
+            +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">PLAYERS</th>'
+            +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">SHARE</th>'
+            +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">AVG K/D</th>'
+            +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">AVG WIN%</th>'
+          +'</tr></thead>'
+          +'<tbody>'+tableRows+'</tbody>'
+        +'</table>'
+      +'</div>'
+    +'</div>';
+
+  function _lbBuildCharts() {
+    var gridColor = 'rgba(56,138,221,0.07)';
+    var tickColor = 'rgba(133,183,235,0.55)';
+    var baseScales = {
+      x:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{family:'Share Tech Mono',size:10}} },
+      y:{ grid:{color:gridColor}, ticks:{color:tickColor,font:{family:'Share Tech Mono',size:10}}, beginAtZero:true }
+    };
+    var baseOpts = {
+      responsive:true, animation:{duration:600},
+      plugins:{ legend:{display:false}, tooltip:{bodyFont:{family:'Share Tech Mono'},titleFont:{family:'Share Tech Mono'}} },
+      scales:baseScales
+    };
+    new window.Chart(document.getElementById('lbChartDist'), {
+      type:'bar',
+      data:{labels:TIERS,datasets:[{data:counts,backgroundColor:colors.map(function(c){return c+'30';}),borderColor:colors,borderWidth:2,borderRadius:5}]},
+      options:Object.assign({},baseOpts,{plugins:Object.assign({},baseOpts.plugins,{tooltip:{callbacks:{label:function(ctx){var p=total>0?(ctx.raw/total*100).toFixed(1):0;return ' '+ctx.raw.toLocaleString()+' players ('+p+'%)';}}}})})
+    });
+    new window.Chart(document.getElementById('lbChartKd'), {
+      type:'bar',
+      data:{labels:TIERS,datasets:[{data:avgKds,backgroundColor:colors.map(function(c){return c+'30';}),borderColor:colors,borderWidth:2,borderRadius:5}]},
+      options:Object.assign({},baseOpts,{plugins:Object.assign({},baseOpts.plugins,{tooltip:{callbacks:{label:function(ctx){return ' '+ctx.raw+' K/D';}}}}),scales:Object.assign({},baseScales,{y:Object.assign({},baseScales.y,{min:0})})})
+    });
+    new window.Chart(document.getElementById('lbChartWr'), {
+      type:'bar',
+      data:{labels:TIERS,datasets:[{data:avgWrs,backgroundColor:colors.map(function(c){return c+'30';}),borderColor:colors,borderWidth:2,borderRadius:5}]},
+      options:Object.assign({},baseOpts,{plugins:Object.assign({},baseOpts.plugins,{tooltip:{callbacks:{label:function(ctx){return ' '+ctx.raw+'%';}}}}),scales:Object.assign({},baseScales,{y:Object.assign({},baseScales.y,{min:0,suggestedMax:80})})})
+    });
+  }
+
+  if (window.Chart) {
+    _lbBuildCharts();
+  } else {
+    var _s = document.createElement('script');
+    _s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    _s.onload = _lbBuildCharts;
+    document.head.appendChild(_s);
+  }
 }
 
 function _lbOnSearch(val) {

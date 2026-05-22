@@ -359,6 +359,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .lb-search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted2);pointer-events:none}
 .lb-search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted2);cursor:pointer;font-size:14px;line-height:1}
 .lb-search-clear:hover{color:var(--text)}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px}
+.chart-title{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);letter-spacing:1.5px;margin-bottom:2px}
+.chart-sub{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:.5px;margin-bottom:14px}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.chart-grid{grid-template-columns:1fr}}
 .lb-pagination{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:16px;flex-wrap:wrap}
 .pg-btn{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);border:1px solid var(--border);background:transparent;padding:5px 10px;border-radius:4px;cursor:pointer;letter-spacing:.5px;transition:all .15s;min-width:32px}
 .pg-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}

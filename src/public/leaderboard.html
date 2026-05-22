@@ -113,6 +113,13 @@
     .pg-btn:disabled{opacity:0.3;cursor:default}
     .pg-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(55,138,221,0.1)}
 
+    /* ── Insights / Charts ── */
+    .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:0}
+    .chart-title{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);letter-spacing:1.5px;margin-bottom:2px}
+    .chart-sub{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--muted2);letter-spacing:.5px;margin-bottom:14px}
+    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+    @media(max-width:600px){.chart-grid{grid-template-columns:1fr}}
+
     @media(max-width:600px){
       .page{padding:16px 8px 40px;max-width:100%}
       .lb-title{font-size:22px}
@@ -162,6 +169,7 @@
     <button class="lb-tab" onclick="switchTab('csrSlayer', this)">RANKED SLAYER</button>
     <button class="lb-tab" onclick="switchTab('csrLegacy', this)">RANKED LEGACY</button>
     <button class="lb-tab" onclick="switchTab('csrDoubles', this)">RANKED DOUBLES</button>
+    <button class="lb-tab" onclick="switchTab('insights', this)">📊 INSIGHTS</button>
   </div>
 
   <div class="lb-search-wrap">
@@ -229,7 +237,155 @@
     _page = 1;
     document.querySelectorAll('.lb-tab').forEach(function(b){ b.classList.remove('active'); });
     btn.classList.add('active');
-    loadTab(tab);
+    if (tab === 'insights') {
+      document.getElementById('lbSearch').parentElement.style.display = 'none';
+      renderInsights();
+    } else {
+      document.getElementById('lbSearch').parentElement.style.display = '';
+      loadTab(tab);
+    }
+  }
+
+  // ── Insights ──────────────────────────────────────────────────────────────
+  function renderInsights() {
+    var panel = document.getElementById('lb-panel');
+    var mc    = document.getElementById('meta-count');
+    // Use arena data (most players), fall back to any loaded tab
+    var src = _tabData['csrArena'] || _tabData['csrSlayer'] || _tabData['csrLegacy'] || _tabData['csrDoubles'];
+    if (!src) {
+      panel.innerHTML = '<div class="lb-loading">// LOADING ARENA DATA...</div>';
+      mc.textContent  = '';
+      fetch('/api/leaderboard?tab=csrArena').then(function(r){ return r.json(); }).then(function(json){
+        _tabData['csrArena'] = { rows: json.rows || [], ts: Date.now() };
+        renderInsights();
+      });
+      return;
+    }
+    var rows = src.rows;
+    mc.textContent = rows.length.toLocaleString() + ' PLAYERS ANALYZED';
+
+    var TIERS = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
+    var TIER_COLORS = { Bronze:'#cd7f32', Silver:'#aaaaaa', Gold:'#d4860a', Platinum:'#80dddd', Diamond:'#60cfff', Onyx:'#00c8ff' };
+    var stats = {};
+    TIERS.forEach(function(t){ stats[t] = { count:0, kd:[], wr:[] }; });
+    rows.forEach(function(p){
+      var t = p.csr_tier;
+      if (!t || !stats[t]) return;
+      stats[t].count++;
+      if (p.kd      != null) stats[t].kd.push(parseFloat(p.kd));
+      if (p.win_rate != null) stats[t].wr.push(parseFloat(p.win_rate));
+    });
+    function avg(arr){ return arr.length ? arr.reduce(function(a,b){return a+b},0)/arr.length : null; }
+    var counts   = TIERS.map(function(t){ return stats[t].count; });
+    var avgKds   = TIERS.map(function(t){ var a=avg(stats[t].kd);  return a!=null ? +a.toFixed(2) : null; });
+    var avgWrs   = TIERS.map(function(t){ var a=avg(stats[t].wr);  return a!=null ? +a.toFixed(1) : null; });
+    var colors   = TIERS.map(function(t){ return TIER_COLORS[t]; });
+    var total    = counts.reduce(function(a,b){return a+b},0);
+
+    var tableRows = TIERS.map(function(t,i){
+      var pct = total > 0 ? (stats[t].count/total*100).toFixed(1) : '0.0';
+      return '<tr style="border-bottom:1px solid var(--border)">'
+        + '<td style="padding:7px 8px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:'+TIER_COLORS[t]+';margin-right:6px;vertical-align:middle"></span>'
+        +   '<span style="color:'+TIER_COLORS[t]+'">'+t.toUpperCase()+'</span></td>'
+        + '<td style="text-align:right;padding:7px 8px;color:var(--text)">'+stats[t].count.toLocaleString()+'</td>'
+        + '<td style="text-align:right;padding:7px 8px;color:var(--muted2)">'+pct+'%</td>'
+        + '<td style="text-align:right;padding:7px 8px;color:var(--accent)">'+(avgKds[i]!=null?avgKds[i]:'—')+'</td>'
+        + '<td style="text-align:right;padding:7px 8px;color:var(--win)">'+(avgWrs[i]!=null?avgWrs[i]+'%':'—')+'</td>'
+        + '</tr>';
+    }).join('');
+
+    panel.innerHTML =
+      '<div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2);letter-spacing:1px;margin-bottom:20px">'
+      +  '// COMMUNITY ANALYTICS · '+rows.length.toLocaleString()+' TRACKED PLAYERS · RANKED ARENA'
+      +'</div>'
+      +'<div style="display:grid;gap:16px">'
+        +'<div class="chart-card">'
+          +'<div class="chart-title">RANK DISTRIBUTION</div>'
+          +'<div class="chart-sub">Player count per tier across tracked community</div>'
+          +'<canvas id="chartDist" height="160"></canvas>'
+        +'</div>'
+        +'<div class="chart-grid">'
+          +'<div class="chart-card">'
+            +'<div class="chart-title">AVG K/D BY TIER</div>'
+            +'<div class="chart-sub">Kill / death ratio per rank tier</div>'
+            +'<canvas id="chartKd" height="200"></canvas>'
+          +'</div>'
+          +'<div class="chart-card">'
+            +'<div class="chart-title">AVG WIN RATE BY TIER</div>'
+            +'<div class="chart-sub">Win percentage per rank tier</div>'
+            +'<canvas id="chartWr" height="200"></canvas>'
+          +'</div>'
+        +'</div>'
+        +'<div class="chart-card">'
+          +'<div class="chart-title">TIER BREAKDOWN</div>'
+          +'<table style="width:100%;border-collapse:collapse;font-family:Share Tech Mono,monospace;font-size:11px">'
+            +'<thead><tr style="border-bottom:1px solid var(--border2)">'
+              +'<th style="text-align:left;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">TIER</th>'
+              +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">PLAYERS</th>'
+              +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">SHARE</th>'
+              +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">AVG K/D</th>'
+              +'<th style="text-align:right;padding:6px 8px;color:var(--muted2);font-size:9px;letter-spacing:1px">AVG WIN%</th>'
+            +'</tr></thead>'
+            +'<tbody>'+tableRows+'</tbody>'
+          +'</table>'
+        +'</div>'
+      +'</div>';
+
+    function _buildCharts() {
+      var gridColor = 'rgba(56,138,221,0.07)';
+      var tickColor = 'rgba(133,183,235,0.55)';
+      var baseScales = {
+        x: { grid:{ color:gridColor }, ticks:{ color:tickColor, font:{ family:'Share Tech Mono', size:10 } } },
+        y: { grid:{ color:gridColor }, ticks:{ color:tickColor, font:{ family:'Share Tech Mono', size:10 } }, beginAtZero:true }
+      };
+      var baseOpts = {
+        responsive:true,
+        animation:{ duration:600 },
+        plugins:{ legend:{ display:false }, tooltip:{ bodyFont:{ family:'Share Tech Mono' }, titleFont:{ family:'Share Tech Mono' } } },
+        scales: baseScales
+      };
+      // Distribution
+      new window.Chart(document.getElementById('chartDist'), {
+        type:'bar',
+        data:{ labels:TIERS, datasets:[{ data:counts, backgroundColor:colors.map(function(c){return c+'30';}), borderColor:colors, borderWidth:2, borderRadius:5 }] },
+        options: Object.assign({}, baseOpts, {
+          plugins: Object.assign({}, baseOpts.plugins, {
+            tooltip:{ callbacks:{ label:function(ctx){ var p=total>0?(ctx.raw/total*100).toFixed(1):0; return ' '+ctx.raw.toLocaleString()+' players ('+p+'%)'; } } }
+          })
+        })
+      });
+      // K/D
+      new window.Chart(document.getElementById('chartKd'), {
+        type:'bar',
+        data:{ labels:TIERS, datasets:[{ data:avgKds, backgroundColor:colors.map(function(c){return c+'30';}), borderColor:colors, borderWidth:2, borderRadius:5 }] },
+        options: Object.assign({}, baseOpts, {
+          plugins: Object.assign({}, baseOpts.plugins, {
+            tooltip:{ callbacks:{ label:function(ctx){ return ' '+ctx.raw+' K/D'; } } }
+          }),
+          scales: Object.assign({}, baseScales, { y: Object.assign({}, baseScales.y, { min:0 }) })
+        })
+      });
+      // Win Rate
+      new window.Chart(document.getElementById('chartWr'), {
+        type:'bar',
+        data:{ labels:TIERS, datasets:[{ data:avgWrs, backgroundColor:colors.map(function(c){return c+'30';}), borderColor:colors, borderWidth:2, borderRadius:5 }] },
+        options: Object.assign({}, baseOpts, {
+          plugins: Object.assign({}, baseOpts.plugins, {
+            tooltip:{ callbacks:{ label:function(ctx){ return ' '+ctx.raw+'%'; } } }
+          }),
+          scales: Object.assign({}, baseScales, { y: Object.assign({}, baseScales.y, { min:0, suggestedMax:80 }) })
+        })
+      });
+    }
+
+    if (window.Chart) {
+      _buildCharts();
+    } else {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+      s.onload = _buildCharts;
+      document.head.appendChild(s);
+    }
   }
 
   // ── Search ────────────────────────────────────────────────────────────────
