@@ -3682,6 +3682,11 @@ app.get('/rivals', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'rivals.html'));
 });
 
+// Serve stream overlay page
+app.get('/overlay', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'overlay.html'));
+});
+
 // Player stats + match history
 app.get('/api/rivals/player', async (req, res) => {
   const { name } = req.query;
