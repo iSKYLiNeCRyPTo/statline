@@ -4,473 +4,663 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>fragr.live — Stream Overlay</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin:0; padding:0; box-sizing:border-box; }
 
-  /* Transparent root — OBS browser source will show the game behind */
-  html, body {
-    background: transparent;
-    font-family: 'Share Tech Mono', monospace;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    -webkit-font-smoothing: antialiased;
-  }
+html, body {
+  font-family: 'Share Tech Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  background: transparent;
+  width: 100%; height: 100%; overflow: hidden;
+}
 
-  /* ── Setup screen ───────────────────────────────────────────────── */
-  #setup {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    background: #0a0a0f;
-  }
-  .setup-card {
-    background: #13131a;
-    border: 1px solid #2a2a3a;
-    border-radius: 12px;
-    padding: 36px 40px;
-    width: 360px;
-    text-align: center;
-  }
-  .setup-logo {
-    font-size: 13px;
-    color: #4fc3f7;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-  }
-  .setup-title {
-    font-size: 20px;
-    color: #e8e8f0;
-    letter-spacing: 1px;
-    margin-bottom: 6px;
-  }
-  .setup-sub {
-    font-size: 11px;
-    color: #666680;
-    letter-spacing: 0.5px;
-    margin-bottom: 28px;
-    line-height: 1.5;
-  }
-  .setup-input {
-    width: 100%;
-    background: #0d0d14;
-    border: 1px solid #2a2a3a;
-    border-radius: 6px;
-    color: #e8e8f0;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 14px;
-    padding: 10px 14px;
-    outline: none;
-    margin-bottom: 12px;
-    letter-spacing: 0.5px;
-  }
-  .setup-input:focus { border-color: #4fc3f7; }
-  .setup-input::placeholder { color: #444460; }
-  .setup-btn {
-    width: 100%;
-    background: #4fc3f7;
-    color: #0a0a0f;
-    border: none;
-    border-radius: 6px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px;
-    font-weight: bold;
-    letter-spacing: 1.5px;
-    padding: 11px;
-    cursor: pointer;
-    text-transform: uppercase;
-  }
-  .setup-btn:hover { background: #81d4fa; }
-  .setup-btn:disabled { background: #2a2a3a; color: #444460; cursor: not-allowed; }
-  .setup-err { font-size: 11px; color: #ff6b6b; margin-top: 10px; letter-spacing: 0.5px; }
-  .setup-hint {
-    font-size: 10px;
-    color: #444460;
-    margin-top: 20px;
-    line-height: 1.6;
-  }
-  .setup-hint a { color: #4fc3f7; text-decoration: none; }
+/* ── CONFIG PAGE ─────────────────────────────────────────────────── */
+#config {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #0a0a10;
+  overflow: auto;
+  padding: 40px 20px;
+}
 
-  /* ── Overlay widget ─────────────────────────────────────────────── */
-  #overlay {
-    display: none;
-    padding: 0;
-  }
+.cfg-wrap {
+  width: 100%;
+  max-width: 520px;
+}
 
-  .widget {
-    display: inline-flex;
-    flex-direction: column;
-    background: rgba(10, 10, 18, 0.82);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 12px 16px 11px;
-    min-width: 200px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    gap: 0;
-  }
+/* Logo block */
+.cfg-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.cfg-logo-badge {
+  width: 40px; height: 40px;
+  background: #185FA5;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cfg-logo-text { display: flex; flex-direction: column; }
+.cfg-logo-name {
+  font-size: 18px; color: #e8e8f0; letter-spacing: 0.5px;
+}
+.cfg-logo-sub {
+  font-size: 10px; color: #555570; letter-spacing: 2px; text-transform: uppercase;
+}
 
-  /* Rank row */
-  .rank-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .rank-icon {
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
-    object-fit: contain;
-    filter: drop-shadow(0 0 6px rgba(255,255,255,0.15));
-  }
-  .rank-icon.hidden { display: none; }
-  .rank-icon-fallback {
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-  }
-  .rank-text { display: flex; flex-direction: column; }
-  .rank-name {
-    font-size: 15px;
-    color: #e8e8f0;
-    letter-spacing: 1px;
-    line-height: 1.1;
-  }
-  .rank-csr {
-    font-size: 10px;
-    color: #888899;
-    letter-spacing: 0.5px;
-    margin-top: 2px;
-  }
+.cfg-card {
+  background: #13131d;
+  border: 1px solid #22223a;
+  border-radius: 12px;
+  padding: 28px 28px 24px;
+  margin-bottom: 16px;
+}
+.cfg-section-title {
+  font-size: 9px; color: #555570; letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 16px;
+}
 
-  /* Divider */
-  .divider {
-    width: 100%;
-    height: 1px;
-    background: rgba(255,255,255,0.06);
-    margin: 9px 0;
-  }
+/* Field */
+.cfg-field { margin-bottom: 18px; }
+.cfg-field:last-child { margin-bottom: 0; }
+.cfg-label {
+  font-size: 10px; color: #888899; letter-spacing: 1px;
+  text-transform: uppercase; display: block; margin-bottom: 7px;
+}
+.cfg-input {
+  width: 100%;
+  background: #0d0d16; border: 1px solid #22223a; border-radius: 6px;
+  color: #e8e8f0; font-family: 'Share Tech Mono', monospace;
+  font-size: 14px; padding: 10px 14px; outline: none; letter-spacing: 0.5px;
+}
+.cfg-input:focus { border-color: #185FA5; }
+.cfg-input::placeholder { color: #333350; }
 
-  /* Session row */
-  .session-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .session-label {
-    font-size: 9px;
-    color: #555570;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    flex-shrink: 0;
-  }
-  .session-stats {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-  }
-  .session-wl {
-    font-size: 12px;
-    color: #ccccdd;
-    letter-spacing: 0.5px;
-  }
-  .session-wins  { color: #4ade80; }
-  .session-losses{ color: #f87171; }
-  .session-sep   { color: #444460; font-size: 10px; }
-  .session-csr-pos { font-size: 11px; color: #4ade80; letter-spacing: 0.5px; }
-  .session-csr-neg { font-size: 11px; color: #f87171; letter-spacing: 0.5px; }
-  .session-csr-neu { font-size: 11px; color: #888899; letter-spacing: 0.5px; }
-  .session-none {
-    font-size: 11px;
-    color: #444460;
-    letter-spacing: 0.5px;
-  }
+/* Option pills */
+.cfg-pills {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.cfg-pill {
+  background: #0d0d16; border: 1px solid #22223a; border-radius: 6px;
+  color: #888899; font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 7px 14px; cursor: pointer; transition: all .15s;
+}
+.cfg-pill:hover { border-color: #185FA5; color: #4fc3f7; }
+.cfg-pill.active { background: #0e2a4a; border-color: #185FA5; color: #4fc3f7; }
 
-  /* Branding */
-  .brand {
-    font-size: 8px;
-    color: #333350;
-    letter-spacing: 1.5px;
-    text-align: right;
-    margin-top: 8px;
-    text-transform: uppercase;
-  }
+/* Preview */
+.cfg-preview-label {
+  font-size: 9px; color: #555570; letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.cfg-preview-wrap {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Crect width='20' height='20' fill='%23111118'/%3E%3Crect width='10' height='10' fill='%2314141c'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%2314141c'/%3E%3C/svg%3E");
+  border: 1px solid #22223a; border-radius: 8px;
+  padding: 20px; display: flex; align-items: flex-start;
+  min-height: 120px;
+}
 
-  /* Tier color accents on rank name */
-  .tier-bronze   { color: #cd7f32; }
-  .tier-silver   { color: #a8a9ad; }
-  .tier-gold     { color: #ffd700; }
-  .tier-platinum { color: #4fc3f7; }
-  .tier-diamond  { color: #b9f2ff; }
-  .tier-onyx     { color: #e040fb; }
+/* URL output */
+.cfg-url-wrap {
+  display: flex; gap: 8px; align-items: stretch;
+}
+.cfg-url-input {
+  flex: 1; background: #0d0d16; border: 1px solid #22223a; border-radius: 6px;
+  color: #4fc3f7; font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; padding: 10px 14px; outline: none; letter-spacing: 0.3px;
+  word-break: break-all;
+}
+.cfg-copy-btn {
+  background: #185FA5; color: #fff; border: none; border-radius: 6px;
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 0 18px; cursor: pointer; flex-shrink: 0;
+}
+.cfg-copy-btn:hover { background: #1e72c4; }
+.cfg-copy-btn.copied { background: #166534; }
 
-  /* Status / loading */
-  .status {
-    font-size: 10px;
-    color: #444460;
-    letter-spacing: 0.5px;
-    padding: 2px 0;
-  }
+.cfg-obs-hint {
+  background: #0d0d16; border: 1px solid #22223a; border-radius: 8px;
+  padding: 16px 18px;
+}
+.cfg-obs-title {
+  font-size: 10px; color: #888899; letter-spacing: 1.5px;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.cfg-obs-steps {
+  list-style: none; display: flex; flex-direction: column; gap: 6px;
+}
+.cfg-obs-steps li {
+  font-size: 11px; color: #555570; letter-spacing: 0.3px; line-height: 1.5;
+  display: flex; gap: 8px;
+}
+.cfg-obs-steps li::before {
+  content: attr(data-n); color: #185FA5; flex-shrink: 0; font-size: 10px;
+  margin-top: 1px;
+}
+.cfg-obs-steps em { color: #e8e8f0; font-style: normal; }
 
-  /* Pulse animation for refresh */
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  .refreshing .rank-name { animation: pulse 1s ease-in-out infinite; }
+/* ── OVERLAY WIDGET ──────────────────────────────────────────────── */
+#overlay { display: none; }
+
+/* Size variants */
+.widget {
+  display: inline-flex; flex-direction: column;
+  border-radius: 10px; padding: 11px 14px 10px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+
+/* Theme: dark (default) */
+.theme-dark {
+  background: rgba(8,8,16,0.85);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+/* Theme: glass */
+.theme-glass {
+  background: rgba(20,20,40,0.55);
+  border: 1px solid rgba(100,120,255,0.2);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+}
+/* Theme: minimal — truly transparent, text only */
+.theme-minimal {
+  background: transparent;
+  border: none;
+  padding: 6px 0;
+}
+
+/* Size: small */
+.size-small .rank-icon { width:28px; height:28px; }
+.size-small .rank-name { font-size:12px; }
+.size-small .rank-csr  { font-size:9px; }
+.size-small .session-label { font-size:8px; }
+.size-small .session-wl,
+.size-small .session-csr-pos,
+.size-small .session-csr-neg,
+.size-small .session-csr-neu { font-size:10px; }
+.size-small .brand-row { gap:4px; }
+.size-small .brand-text { font-size:8px; }
+
+/* Size: medium (default) */
+.size-medium .rank-icon { width:36px; height:36px; }
+.size-medium .rank-name { font-size:15px; }
+.size-medium .rank-csr  { font-size:10px; }
+
+/* Size: large */
+.size-large .rank-icon { width:48px; height:48px; }
+.size-large .rank-name { font-size:20px; }
+.size-large .rank-csr  { font-size:12px; }
+.size-large .session-label { font-size:10px; }
+.size-large .session-wl,
+.size-large .session-csr-pos,
+.size-large .session-csr-neg,
+.size-large .session-csr-neu { font-size:14px; }
+.size-large .brand-text { font-size:10px; }
+
+/* Rank row */
+.rank-row { display:flex; align-items:center; gap:10px; }
+.rank-icon {
+  flex-shrink:0; object-fit:contain;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,0.12));
+  transition: opacity .2s;
+}
+.rank-icon.hidden { display:none; }
+.rank-icon-fallback {
+  flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:22px;
+}
+.rank-text { display:flex; flex-direction:column; }
+.rank-name  { color:#e8e8f0; letter-spacing:1.5px; line-height:1.1; }
+.rank-csr   { color:#666680; letter-spacing:0.5px; margin-top:3px; }
+
+/* Divider */
+.divider { width:100%; height:1px; background:rgba(255,255,255,0.055); margin:9px 0; }
+.theme-minimal .divider { background:rgba(255,255,255,0.12); }
+
+/* Session row */
+.session-row { display:flex; align-items:center; gap:8px; }
+.session-label { font-size:9px; color:#333358; letter-spacing:1.5px; text-transform:uppercase; flex-shrink:0; }
+.session-stats { display:flex; align-items:center; gap:7px; flex:1; }
+.session-wl { font-size:12px; color:#ccccdd; letter-spacing:0.5px; }
+.session-wins   { color:#4ade80; }
+.session-losses { color:#f87171; }
+.session-sep    { color:#333358; font-size:10px; }
+.session-csr-pos { color:#4ade80; letter-spacing:0.5px; }
+.session-csr-neg { color:#f87171; letter-spacing:0.5px; }
+.session-csr-neu { color:#888899; letter-spacing:0.5px; }
+.session-none { color:#333358; letter-spacing:0.5px; }
+
+/* Brand row */
+.brand-row {
+  display:flex; align-items:center; gap:6px;
+  margin-top:8px;
+}
+.brand-logo-icon {
+  width:14px; height:14px;
+  background:#185FA5; border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.brand-text {
+  font-size:9px; color:#2a2a48; letter-spacing:2px; text-transform:uppercase;
+}
+.theme-glass .brand-text { color:#3a3a60; }
+.theme-minimal .brand-text { color:#444466; }
+
+/* Tier colors */
+.tier-bronze   { color:#cd7f32; }
+.tier-silver   { color:#a8a9ad; }
+.tier-gold     { color:#ffd700; }
+.tier-platinum { color:#4fc3f7; }
+.tier-diamond  { color:#b9f2ff; }
+.tier-onyx     { color:#e040fb; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+.refreshing .rank-name { animation:pulse 1.2s ease-in-out infinite; }
 </style>
 </head>
 <body>
 
-<!-- ── Setup Screen ──────────────────────────────────────────── -->
-<div id="setup">
-  <div class="setup-card">
-    <div class="setup-logo">fragr.live</div>
-    <div class="setup-title">STREAM OVERLAY</div>
-    <div class="setup-sub">Enter your gamertag to set up your Halo stat widget for OBS / Streamlabs.</div>
-    <input class="setup-input" id="gtInput" type="text" placeholder="Your Gamertag" maxlength="32" autocomplete="off" spellcheck="false">
-    <button class="setup-btn" id="startBtn" onclick="startOverlay()">LOAD OVERLAY</button>
-    <div class="setup-err" id="setupErr"></div>
-    <div class="setup-hint">
-      In OBS: <strong>Add &rarr; Browser Source</strong><br>
-      Use this page URL + <code style="color:#4fc3f7">?gt=YourGamertag</code><br>
-      Recommended size: <strong>280 &times; 100px</strong><br>
-      Check <strong>"Transparent background"</strong> in OBS settings.
+<!-- ── Config / Setup Page ────────────────────────────────────────── -->
+<div id="config">
+  <div class="cfg-wrap">
+
+    <!-- Logo -->
+    <div class="cfg-logo">
+      <div class="cfg-logo-badge">
+        <svg width="24" height="24" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(15,15) rotate(-35) scale(0.42)">
+            <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+            <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+            <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+            <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+            <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+            <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+          </g>
+        </svg>
+      </div>
+      <div class="cfg-logo-text">
+        <span class="cfg-logo-name">fragr.live</span>
+        <span class="cfg-logo-sub">Stream Overlay Config</span>
+      </div>
     </div>
+
+    <!-- Settings card -->
+    <div class="cfg-card">
+      <div class="cfg-section-title">Setup</div>
+
+      <div class="cfg-field">
+        <label class="cfg-label">Your Gamertag</label>
+        <input class="cfg-input" id="gtInput" type="text" placeholder="e.g. Itz7Shots" maxlength="32" autocomplete="off" spellcheck="false" oninput="updateAll()">
+      </div>
+
+      <div class="cfg-field">
+        <label class="cfg-label">Theme</label>
+        <div class="cfg-pills">
+          <div class="cfg-pill active" data-group="theme" data-val="dark" onclick="setPill(this)">Dark</div>
+          <div class="cfg-pill" data-group="theme" data-val="glass" onclick="setPill(this)">Glass</div>
+          <div class="cfg-pill" data-group="theme" data-val="minimal" onclick="setPill(this)">Minimal</div>
+        </div>
+      </div>
+
+      <div class="cfg-field">
+        <label class="cfg-label">Size</label>
+        <div class="cfg-pills">
+          <div class="cfg-pill" data-group="size" data-val="small" onclick="setPill(this)">Small</div>
+          <div class="cfg-pill active" data-group="size" data-val="medium" onclick="setPill(this)">Medium</div>
+          <div class="cfg-pill" data-group="size" data-val="large" onclick="setPill(this)">Large</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live preview -->
+    <div class="cfg-card">
+      <div class="cfg-section-title">Preview</div>
+      <div class="cfg-preview-wrap" id="previewWrap">
+        <div class="widget theme-dark size-medium" id="previewWidget">
+          <div class="rank-row">
+            <img class="rank-icon hidden" id="previewIcon" alt="rank">
+            <div class="rank-icon-fallback" id="previewFallback" style="width:36px;height:36px;font-size:20px;display:flex;align-items:center;justify-content:center;">—</div>
+            <div class="rank-text">
+              <span class="rank-name" id="previewRankName">Enter gamertag above</span>
+              <span class="rank-csr"  id="previewRankCsr"></span>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="session-row">
+            <span class="session-label">SESSION</span>
+            <div class="session-stats" id="previewSession">
+              <span class="session-none">No games yet today</span>
+            </div>
+          </div>
+          <div class="brand-row">
+            <div class="brand-logo-icon">
+              <svg width="9" height="9" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+                <g transform="translate(15,15) rotate(-35) scale(0.42)">
+                  <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+                  <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+                  <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+                  <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+                  <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+                  <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+                  <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+                  <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+                  <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+                  <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+                  <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+                  <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+                </g>
+              </svg>
+            </div>
+            <span class="brand-text">fragr.live</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- URL output -->
+    <div class="cfg-card">
+      <div class="cfg-section-title">Your OBS URL</div>
+      <div class="cfg-field">
+        <div class="cfg-url-wrap">
+          <input class="cfg-url-input" id="urlOutput" readonly value="Enter your gamertag above to generate your URL">
+          <button class="cfg-copy-btn" id="copyBtn" onclick="copyUrl()">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- OBS instructions -->
+    <div class="cfg-obs-hint">
+      <div class="cfg-obs-title">Adding to OBS / Streamlabs</div>
+      <ol class="cfg-obs-steps">
+        <li data-n="1">In OBS: <em>Sources → + → Browser Source</em></li>
+        <li data-n="2">Paste your URL above into the <em>URL</em> field</li>
+        <li data-n="3">Set width <em>320</em> × height <em>110</em> (medium) — adjust to taste</li>
+        <li data-n="4">Check <em>"Transparent background"</em> (CSS Backgrounds option)</li>
+        <li data-n="5">Position and resize the source in your scene like any other layer</li>
+      </ol>
+    </div>
+
   </div>
 </div>
 
-<!-- ── Overlay Widget ────────────────────────────────────────── -->
+<!-- ── Live Overlay Widget (shown when ?gt= param present) ────────── -->
 <div id="overlay">
-  <div class="widget" id="widget">
+  <div class="widget theme-dark size-medium" id="liveWidget">
     <div class="rank-row">
-      <img class="rank-icon hidden" id="rankIcon" alt="rank">
-      <div class="rank-icon-fallback" id="rankFallback">—</div>
+      <img class="rank-icon hidden" id="liveIcon" alt="rank">
+      <div class="rank-icon-fallback" id="liveFallback" style="width:36px;height:36px;font-size:22px;display:flex;align-items:center;justify-content:center;">—</div>
       <div class="rank-text">
-        <span class="rank-name" id="rankName">Loading...</span>
-        <span class="rank-csr" id="rankCsr"></span>
+        <span class="rank-name" id="liveRankName">Loading...</span>
+        <span class="rank-csr"  id="liveRankCsr"></span>
       </div>
     </div>
     <div class="divider"></div>
     <div class="session-row">
       <span class="session-label">SESSION</span>
-      <div class="session-stats" id="sessionStats">
-        <span class="session-none">No games yet</span>
+      <div class="session-stats" id="liveSession">
+        <span class="session-none">—</span>
       </div>
     </div>
-    <div class="brand">fragr.live</div>
+    <div class="brand-row">
+      <div class="brand-logo-icon">
+        <svg width="9" height="9" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(15,15) rotate(-35) scale(0.42)">
+            <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
+            <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
+            <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
+            <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
+            <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
+            <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
+            <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
+            <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
+          </g>
+        </svg>
+      </div>
+      <span class="brand-text">fragr.live</span>
+    </div>
   </div>
 </div>
 
 <script>
-// ── Tier config ───────────────────────────────────────────────────────────────
-const TIER_COLORS = {
-  bronze:'tier-bronze', silver:'tier-silver', gold:'tier-gold',
-  platinum:'tier-platinum', diamond:'tier-diamond', onyx:'tier-onyx'
-};
-const TIER_EMOJI = {
-  bronze:'🥉', silver:'🥈', gold:'🥇',
-  platinum:'💎', diamond:'💠', onyx:'⬛'
-};
+// ─── Constants ────────────────────────────────────────────────────────────────
+const BASE_URL = location.origin + '/overlay';
+const TIER_COLORS = { bronze:'tier-bronze', silver:'tier-silver', gold:'tier-gold', platinum:'tier-platinum', diamond:'tier-diamond', onyx:'tier-onyx' };
+const TIER_EMOJI  = { bronze:'🥉', silver:'🥈', gold:'🥇', platinum:'💎', diamond:'💠', onyx:'⬛' };
+const ICON_SIZES  = { small:28, medium:36, large:48 };
 
-let _gamertag = '';
+// ─── State ────────────────────────────────────────────────────────────────────
+let _cfg = { gt:'', theme:'dark', size:'medium' };
 let _refreshTimer = null;
-let _lastRankStr = '';
+let _previewDebounce = null;
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
 (function init() {
-  const params = new URLSearchParams(location.search);
-  const gt = params.get('gt') || params.get('gamertag') || localStorage.getItem('overlay_gt') || '';
+  const p = new URLSearchParams(location.search);
+  const gt = p.get('gt') || p.get('gamertag') || '';
   if (gt) {
-    _gamertag = gt.trim();
-    showOverlay();
-    load();
+    // Live overlay mode
+    _cfg.gt    = gt.trim();
+    _cfg.theme = p.get('theme') || 'dark';
+    _cfg.size  = p.get('size')  || 'medium';
+    applyLiveTheme();
+    document.getElementById('config').style.display  = 'none';
+    document.getElementById('overlay').style.display = 'block';
+    loadLive();
+  } else {
+    // Config mode — restore last settings
+    const saved = tryParse(localStorage.getItem('overlay_cfg'));
+    if (saved) {
+      if (saved.gt)    document.getElementById('gtInput').value = saved.gt;
+      if (saved.theme) activatePill('theme', saved.theme);
+      if (saved.size)  activatePill('size',  saved.size);
+      Object.assign(_cfg, saved);
+    }
+    updateAll();
   }
 })();
 
-function startOverlay() {
-  const val = document.getElementById('gtInput').value.trim();
-  if (!val) { showErr('Enter your gamertag'); return; }
-  _gamertag = val;
-  localStorage.setItem('overlay_gt', val);
-  showErr('');
-  document.getElementById('startBtn').disabled = true;
-  document.getElementById('startBtn').textContent = 'LOADING...';
-  showOverlay();
-  load();
+function tryParse(s) { try { return s ? JSON.parse(s) : null; } catch(e) { return null; } }
+
+// ─── Config page logic ────────────────────────────────────────────────────────
+function setPill(el) {
+  const group = el.dataset.group;
+  document.querySelectorAll(`.cfg-pill[data-group="${group}"]`).forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  _cfg[group] = el.dataset.val;
+  updateAll();
 }
 
-document.getElementById('gtInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') startOverlay();
-});
-
-function showOverlay() {
-  document.getElementById('setup').style.display = 'none';
-  document.getElementById('overlay').style.display = 'block';
+function activatePill(group, val) {
+  document.querySelectorAll(`.cfg-pill[data-group="${group}"]`).forEach(p => {
+    p.classList.toggle('active', p.dataset.val === val);
+  });
 }
 
-function showErr(msg) {
-  document.getElementById('setupErr').textContent = msg;
-}
+function updateAll() {
+  _cfg.gt = document.getElementById('gtInput').value.trim();
+  localStorage.setItem('overlay_cfg', JSON.stringify(_cfg));
 
-// ── Data fetch ────────────────────────────────────────────────────────────────
-async function load() {
-  if (!_gamertag) return;
-  try {
-    const r = await fetch(`/api/search?gamertag=${encodeURIComponent(_gamertag)}`);
-    const data = await r.json();
-    if (!data.success || !data.player) {
-      setError('Player not found');
-      scheduleRefresh();
-      return;
-    }
-    render(data.player);
-  } catch(e) {
-    setError('Connection error');
+  // Update preview widget classes
+  const pw = document.getElementById('previewWidget');
+  pw.className = `widget theme-${_cfg.theme} size-${_cfg.size}`;
+  // Sync fallback/icon sizes in preview
+  const pf = document.getElementById('previewFallback');
+  const pi = document.getElementById('previewIcon');
+  const sz = ICON_SIZES[_cfg.size] || 36;
+  pf.style.width = pf.style.height = sz + 'px';
+  if (pi) { pi.style.width = pi.style.height = sz + 'px'; }
+
+  // Update URL output
+  const urlEl = document.getElementById('urlOutput');
+  if (_cfg.gt) {
+    const url = `${BASE_URL}?gt=${encodeURIComponent(_cfg.gt)}&theme=${_cfg.theme}&size=${_cfg.size}`;
+    urlEl.value = url;
+    // Debounce preview data load
+    clearTimeout(_previewDebounce);
+    _previewDebounce = setTimeout(() => loadPreview(), 600);
+  } else {
+    urlEl.value = 'Enter your gamertag above to generate your URL';
+    resetPreview();
   }
-  scheduleRefresh();
 }
 
-function scheduleRefresh() {
+function resetPreview() {
+  document.getElementById('previewRankName').textContent = 'Enter gamertag above';
+  document.getElementById('previewRankName').className = 'rank-name';
+  document.getElementById('previewRankCsr').textContent = '';
+  document.getElementById('previewSession').innerHTML = '<span class="session-none">No games yet today</span>';
+  document.getElementById('previewIcon').classList.add('hidden');
+  document.getElementById('previewFallback').style.display = 'flex';
+  document.getElementById('previewFallback').textContent = '—';
+}
+
+async function loadPreview() {
+  if (!_cfg.gt) return;
+  try {
+    const r = await fetch(`/api/search?gamertag=${encodeURIComponent(_cfg.gt)}`);
+    const data = await r.json();
+    if (data.success && data.player) {
+      renderRank(data.player, 'preview');
+      renderSession(data.player, 'preview');
+    }
+  } catch(e) {}
+}
+
+function copyUrl() {
+  const val = document.getElementById('urlOutput').value;
+  if (!val || val.startsWith('Enter')) return;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ─── Live overlay ─────────────────────────────────────────────────────────────
+function applyLiveTheme() {
+  const w = document.getElementById('liveWidget');
+  w.className = `widget theme-${_cfg.theme} size-${_cfg.size}`;
+  const sz = ICON_SIZES[_cfg.size] || 36;
+  const lf = document.getElementById('liveFallback');
+  const li = document.getElementById('liveIcon');
+  lf.style.width = lf.style.height = sz + 'px';
+  if (li) { li.style.width = li.style.height = sz + 'px'; }
+}
+
+async function loadLive() {
+  try {
+    const r = await fetch(`/api/search?gamertag=${encodeURIComponent(_cfg.gt)}`);
+    const data = await r.json();
+    if (data.success && data.player) {
+      renderRank(data.player, 'live');
+      renderSession(data.player, 'live');
+    } else {
+      document.getElementById('liveRankName').textContent = 'Not found';
+    }
+  } catch(e) {
+    document.getElementById('liveRankName').textContent = 'Error';
+  }
   clearTimeout(_refreshTimer);
-  _refreshTimer = setTimeout(load, 60000); // refresh every 60s
+  _refreshTimer = setTimeout(loadLive, 60000);
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function render(player) {
-  renderRank(player);
-  renderSession(player);
-}
+// ─── Shared render helpers ────────────────────────────────────────────────────
+function renderRank(player, prefix) {
+  const nameEl    = document.getElementById(prefix + 'RankName');
+  const csrEl     = document.getElementById(prefix + 'RankCsr');
+  const iconEl    = document.getElementById(prefix + 'Icon');
+  const fallbackEl= document.getElementById(prefix + 'Fallback');
+  const sz = ICON_SIZES[_cfg.size] || 36;
 
-function renderRank(player) {
-  // csr is keyed by playlist display name e.g. "Ranked Arena"
-  // Each entry: { tier, subTier, value, display }
   const csrObj = player.csr;
   let rankStr = null, csrVal = null, tierKey = null;
 
   if (csrObj && typeof csrObj === 'object') {
     const keys = Object.keys(csrObj);
-    // Prefer a key with "rank" in the name, else take the first
     const rankedKey = keys.find(k => /rank/i.test(k)) || keys[0];
     const entry = csrObj[rankedKey];
     if (entry) {
-      // entry.display is already formatted e.g. "Diamond 4" or "Onyx 1654"
       rankStr = entry.display || (entry.tier ? `${entry.tier} ${entry.subTier || ''}`.trim() : null);
-      if (entry.tier === 'Onyx') {
-        csrVal = entry.value != null ? `${entry.value} CSR` : null;
-      } else {
-        csrVal = entry.value != null ? `${entry.value} CSR` : null;
-      }
+      csrVal  = entry.value != null ? `${entry.value} CSR` : null;
       tierKey = (entry.tier || '').toLowerCase();
     }
   }
 
-  const rankNameEl = document.getElementById('rankName');
-  const rankCsrEl  = document.getElementById('rankCsr');
-  const iconEl     = document.getElementById('rankIcon');
-  const fallbackEl = document.getElementById('rankFallback');
-
   if (!rankStr) {
-    rankNameEl.textContent = 'Unranked';
-    rankNameEl.className = 'rank-name';
-    rankCsrEl.textContent = '';
+    nameEl.textContent = 'UNRANKED';
+    nameEl.className = 'rank-name';
+    csrEl.textContent = '';
     iconEl.classList.add('hidden');
     fallbackEl.textContent = '—';
     fallbackEl.style.display = 'flex';
     return;
   }
 
-  // Set name + color
-  rankNameEl.textContent = rankStr.toUpperCase();
-  rankNameEl.className = 'rank-name ' + (TIER_COLORS[tierKey] || '');
-  rankCsrEl.textContent = csrVal || '';
+  nameEl.textContent = rankStr.toUpperCase();
+  nameEl.className = 'rank-name ' + (TIER_COLORS[tierKey] || '');
+  csrEl.textContent = csrVal || '';
 
-  // Try to load rank icon image
-  if (tierKey) {
-    iconEl.src = `/api/csr-image?tier=${encodeURIComponent(tierKey)}`;
-    iconEl.onload = () => {
-      iconEl.classList.remove('hidden');
-      fallbackEl.style.display = 'none';
-    };
-    iconEl.onerror = () => {
-      iconEl.classList.add('hidden');
-      fallbackEl.textContent = TIER_EMOJI[tierKey] || '🎮';
-      fallbackEl.style.display = 'flex';
-    };
-  }
+  iconEl.style.width = iconEl.style.height = sz + 'px';
+  iconEl.src = `/api/csr-image?tier=${encodeURIComponent(tierKey)}`;
+  iconEl.onload = () => { iconEl.classList.remove('hidden'); fallbackEl.style.display = 'none'; };
+  iconEl.onerror = () => {
+    iconEl.classList.add('hidden');
+    fallbackEl.textContent = TIER_EMOJI[tierKey] || '🎮';
+    fallbackEl.style.display = 'flex';
+  };
 }
 
-function renderSession(player) {
-  const sessionEl = document.getElementById('sessionStats');
+function renderSession(player, prefix) {
+  const el = document.getElementById(prefix + 'Session');
   const matches = player.allMatches || player.recentMatches || [];
 
-  // Filter to today's matches (UTC day boundary)
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  const todayMatches = matches.filter(m => {
-    if (!m.startTime) return false;
-    return new Date(m.startTime) >= todayStart;
-  });
-
-  // Also compute "session" as last N ranked games regardless of day
-  const rankedSession = matches.filter(m => m.isRanked).slice(0, 20);
-
-  // Prefer today's games; fallback to last 10 ranked if today is empty
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const todayMatches = matches.filter(m => m.startTime && new Date(m.startTime) >= todayStart);
   const sessionMatches = todayMatches.length > 0
     ? todayMatches
-    : rankedSession.slice(0, 10);
-
+    : matches.filter(m => m.isRanked).slice(0, 10);
   const isToday = todayMatches.length > 0;
 
   if (!sessionMatches.length) {
-    sessionEl.innerHTML = '<span class="session-none">No games yet</span>';
+    el.innerHTML = '<span class="session-none">No games yet</span>';
     return;
   }
 
   const ranked = sessionMatches.filter(m => m.isRanked);
   const wins   = sessionMatches.filter(m => m.outcome === 2).length;
   const losses = sessionMatches.filter(m => m.outcome === 3).length;
-  const totalGames = sessionMatches.length;
+  const total  = sessionMatches.length;
 
-  // CSR delta — sum all csrDelta values from ranked games
   let csrDelta = null;
-  if (ranked.length > 0) {
-    const deltas = ranked.map(m => m.csrDelta).filter(d => d != null);
-    if (deltas.length > 0) csrDelta = deltas.reduce((s, d) => s + d, 0);
-  }
+  const deltas = ranked.map(m => m.csrDelta).filter(d => d != null);
+  if (deltas.length) csrDelta = deltas.reduce((s,d) => s+d, 0);
 
-  const prefix = isToday ? '' : 'LAST ';
-  let html = '';
-
-  // W / L
-  html += `<span class="session-label" style="color:#33335a">${prefix}${totalGames}G</span>`;
+  let html = `<span class="session-label" style="color:#33335a">${isToday ? '' : 'LAST '}${total}G</span>`;
   html += `<span class="session-wins">${wins}W</span>`;
   html += `<span class="session-sep">-</span>`;
   html += `<span class="session-losses">${losses}L</span>`;
-
-  // CSR delta
   if (csrDelta != null) {
     const sign = csrDelta > 0 ? '+' : '';
     const cls  = csrDelta > 0 ? 'session-csr-pos' : csrDelta < 0 ? 'session-csr-neg' : 'session-csr-neu';
-    html += `<span class="session-sep">·</span>`;
-    html += `<span class="${cls}">${sign}${csrDelta} CSR</span>`;
+    html += `<span class="session-sep">·</span><span class="${cls}">${sign}${csrDelta} CSR</span>`;
   }
-
-  sessionEl.innerHTML = html;
-}
-
-function setError(msg) {
-  document.getElementById('rankName').textContent = msg;
-  document.getElementById('rankName').className = 'rank-name';
-  document.getElementById('rankCsr').textContent = '';
-  document.getElementById('sessionStats').innerHTML = '<span class="session-none">—</span>';
+  el.innerHTML = html;
 }
 </script>
 </body>
