@@ -293,6 +293,49 @@ body.overlay-mode #overlay { display:block; }
 .session-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 .session-label { font-size:9px; color:#2a2a45; letter-spacing:1.5px; text-transform:uppercase; flex-shrink:0; }
 .session-stats { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+
+/* Session clickable area (live mode only) */
+.session-btn {
+  display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+  cursor:pointer; border-radius:5px; padding:3px 5px; margin:-3px -5px;
+  transition:background .15s;
+}
+.session-btn:hover { background:rgba(255,255,255,.05); }
+.session-btn:hover .session-reset-hint { opacity:1; }
+.session-reset-hint {
+  font-size:8px; color:#2a2a45; letter-spacing:1px; text-transform:uppercase;
+  opacity:0; transition:opacity .15s; flex-shrink:0;
+}
+/* Confirmation overlay */
+.sess-confirm {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:8px;
+  background:rgba(0,0,0,.82); border-radius:inherit; z-index:20;
+}
+.sess-confirm-msg {
+  font-size:10px; color:#e8e8f0; letter-spacing:2px; text-transform:uppercase;
+}
+.sess-confirm-btns { display:flex; gap:8px; }
+.sess-confirm-yes {
+  background:#185FA5; border:none; border-radius:5px; color:#fff;
+  font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:1.5px;
+  text-transform:uppercase; padding:5px 14px; cursor:pointer;
+}
+.sess-confirm-yes:hover { background:#1e72c4; }
+.sess-confirm-no {
+  background:transparent; border:1px solid #2a2a45; border-radius:5px; color:#666685;
+  font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:1.5px;
+  text-transform:uppercase; padding:5px 14px; cursor:pointer;
+}
+.sess-confirm-no:hover { border-color:#444465; color:#aaa; }
+/* Flash feedback */
+.sess-started {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.75); border-radius:inherit; z-index:20;
+  font-size:10px; color:#4ade80; letter-spacing:2.5px; text-transform:uppercase;
+  opacity:0; pointer-events:none;
+}
+.sess-started.show { opacity:1; }
 .sw { font-size:var(--sess-sz); color:#4ade80; letter-spacing:.5px; }
 .sl { font-size:var(--sess-sz); color:#f87171; letter-spacing:.5px; }
 .ss { font-size:var(--sess-sz); color:#2a2a45; }
@@ -521,6 +564,8 @@ let _cfg = {
 };
 let _playerData = null;
 let _refreshTimer = null, _previewDebounce = null;
+// Session tracking — null = use today's date as the boundary
+let _sessionStart = null;  // ms timestamp set when streamer clicks "start new session"
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
@@ -542,6 +587,9 @@ let _refreshTimer = null, _previewDebounce = null;
       statsStr.split(',').forEach(k => { if (k in _cfg.stats) _cfg.stats[k] = 1; });
     }
     document.body.className = 'overlay-mode';
+    // Restore session start timestamp from localStorage (persists across OBS refreshes)
+    const savedSess = localStorage.getItem('sess_start_' + _cfg.gt.toLowerCase());
+    if (savedSess) _sessionStart = parseInt(savedSess, 10);
     renderWidget('liveWidget', { gt: _cfg.gt.toUpperCase() });
     loadLive();
   } else {
@@ -681,12 +729,57 @@ async function loadLive() {
     const r = await fetch(`/api/search?gamertag=${encodeURIComponent(_cfg.gt)}`);
     const d = await r.json();
     if (d.success && d.player) {
-      const data = extractData(d.player);
-      renderWidget('liveWidget', { ...data, gt: _cfg.gt.toUpperCase() });
+      _playerData = extractData(d.player);
+      renderWidget('liveWidget', { ..._playerData, gt: _cfg.gt.toUpperCase() });
     }
   } catch(e) {}
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(loadLive, 60000);
+}
+
+// ── Session reset (live overlay only) ────────────────────────────────────────
+function promptSessionReset() {
+  const w = document.getElementById('liveWidget');
+  if (!w) return;
+  // Remove any existing confirm overlay
+  const old = document.getElementById('sessConfirm');
+  if (old) { old.remove(); return; }  // second click dismisses
+
+  const el = document.createElement('div');
+  el.id = 'sessConfirm';
+  el.className = 'sess-confirm';
+  el.innerHTML = `
+    <div class="sess-confirm-msg">Start new session?</div>
+    <div class="sess-confirm-btns">
+      <button class="sess-confirm-yes" onclick="confirmSessionReset()">Start</button>
+      <button class="sess-confirm-no"  onclick="document.getElementById('sessConfirm').remove()">Cancel</button>
+    </div>`;
+  w.appendChild(el);
+}
+
+function confirmSessionReset() {
+  _sessionStart = Date.now();
+  localStorage.setItem('sess_start_' + _cfg.gt.toLowerCase(), _sessionStart);
+  const confirm = document.getElementById('sessConfirm');
+  if (confirm) confirm.remove();
+
+  // Flash "SESSION STARTED" briefly
+  const w = document.getElementById('liveWidget');
+  if (w) {
+    const flash = document.createElement('div');
+    flash.className = 'sess-started';
+    flash.textContent = 'Session Started';
+    w.appendChild(flash);
+    requestAnimationFrame(() => flash.classList.add('show'));
+    setTimeout(() => flash.remove(), 1800);
+  }
+
+  // Re-render immediately with cleared session, then reload data
+  if (_playerData) {
+    renderWidget('liveWidget', { ..._playerData, gt: _cfg.gt.toUpperCase() });
+  }
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(loadLive, 500);
 }
 
 // ── Data extraction ───────────────────────────────────────────────────────────
@@ -715,18 +808,25 @@ function extractData(player) {
 
 function buildSessionHtml(player) {
   const matches = player.allMatches || player.recentMatches || [];
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const today   = matches.filter(m => m.startTime && new Date(m.startTime) >= todayStart);
-  const session = today.length ? today : matches.filter(m => m.isRanked).slice(0,10);
-  if (!session.length) return `<span class="s-none">No games yet</span>`;
-  const ranked  = session.filter(m => m.isRanked);
-  const wins    = session.filter(m => m.outcome===2).length;
-  const losses  = session.filter(m => m.outcome===3).length;
-  const total   = session.length;
-  const deltas  = ranked.map(m=>m.csrDelta).filter(d=>d!=null);
-  const delta   = deltas.length ? deltas.reduce((s,d)=>s+d,0) : null;
-  const isToday = today.length > 0;
-  return { wins, losses, total, delta, isToday };
+  let session, isManual = false;
+  if (_sessionStart) {
+    // Manual session: only matches after the streamer clicked "start"
+    session   = matches.filter(m => m.startTime && new Date(m.startTime).getTime() >= _sessionStart);
+    isManual  = true;
+  } else {
+    // Default: today's matches, or last 10 ranked if none today
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const today = matches.filter(m => m.startTime && new Date(m.startTime) >= todayStart);
+    session = today.length ? today : matches.filter(m => m.isRanked).slice(0,10);
+  }
+  // Always return an object so renderer can show 0W 0L for a fresh manual session
+  const ranked = session.filter(m => m.isRanked);
+  const wins   = session.filter(m => m.outcome===2).length;
+  const losses = session.filter(m => m.outcome===3).length;
+  const total  = session.length;
+  const deltas = ranked.map(m=>m.csrDelta).filter(d=>d!=null);
+  const delta  = deltas.length ? deltas.reduce((s,d)=>s+d,0) : null;
+  return { wins, losses, total, delta, isManual, isEmpty: total === 0 };
 }
 
 // ── Widget renderer ───────────────────────────────────────────────────────────
@@ -759,13 +859,29 @@ function renderWidget(containerId, data) {
     const sd = data._sessionHtml;
     if (typeof sd === 'object') {
       hasSess = true;
-      const sign = sd.delta > 0 ? '+' : '';
-      const dc   = sd.delta > 0 ? 'sc-pos' : sd.delta < 0 ? 'sc-neg' : 'sc-neu';
-      sessInner = `<span class="s-cnt">${sd.isToday?'':'LAST '}${sd.total}G</span>`
-        + `<span class="sw">${sd.wins}W</span><span class="ss">-</span><span class="sl">${sd.losses}L</span>`
-        + (s.csrdelta && sd.delta!=null ? `<span class="ss">·</span><span class="${dc}">${sign}${sd.delta} CSR</span>` : '');
+      if (sd.isEmpty && sd.isManual) {
+        sessInner = `<span class="s-none">0W</span><span class="ss">-</span><span class="s-none">0L</span>`;
+      } else {
+        const sign = sd.delta > 0 ? '+' : '';
+        const dc   = sd.delta > 0 ? 'sc-pos' : sd.delta < 0 ? 'sc-neg' : 'sc-neu';
+        const label = sd.isManual ? '' : `<span class="s-cnt">${sd.total}G </span>`;
+        sessInner = label
+          + `<span class="sw">${sd.wins}W</span><span class="ss">-</span><span class="sl">${sd.losses}L</span>`
+          + (s.csrdelta && sd.delta!=null ? `<span class="ss">·</span><span class="${dc}">${sign}${sd.delta} CSR</span>` : '');
+      }
     }
   }
+  // In live mode, wrap session in a clickable button
+  const sessWrap = (inner, label='SESSION') => isLive
+    ? `<div class="session-btn" onclick="promptSessionReset()" title="Click to start new session">
+         <span class="session-label">${label}</span>
+         <div class="session-stats">${inner}</div>
+         <span class="session-reset-hint">↺ RESET</span>
+       </div>`
+    : `<div class="session-row">
+         <span class="session-label">${label}</span>
+         <div class="session-stats">${inner}</div>
+       </div>`;
 
   // Socials pieces
   const twHtml = s.socials && _cfg.twitter
@@ -803,10 +919,7 @@ function renderWidget(containerId, data) {
 
       ${s.rank && s.session ? '<div class="divider"></div>' : ''}
 
-      ${s.session ? `<div class="session-row">
-        <span class="session-label">SESSION</span>
-        <div class="session-stats">${sessInner}</div>
-      </div>` : ''}
+      ${s.session ? sessWrap(sessInner) : ''}
 
       ${(twHtml || igHtml) ? `<div class="socials-row" style="margin-top:6px">${twHtml}${igHtml}</div>` : ''}
 
@@ -856,10 +969,14 @@ function renderWidget(containerId, data) {
     // 4. Session
     if (s.session) {
       sections.push(`<div class="bn-sep"></div>`);
-      sections.push(`<div class="bn-block">
-        <span class="session-label">SESSION</span>
-        <div class="session-stats">${sessInner}</div>
-      </div>`);
+      const sessBnInner = isLive
+        ? `<div class="session-btn" onclick="promptSessionReset()" title="Click to start new session" style="flex-direction:row;padding:2px 5px;margin:-2px -5px">
+             <span class="session-label">SESSION</span>
+             <div class="session-stats">${sessInner}</div>
+             <span class="session-reset-hint">↺</span>
+           </div>`
+        : `<span class="session-label">SESSION</span><div class="session-stats">${sessInner}</div>`;
+      sections.push(`<div class="bn-block">${sessBnInner}</div>`);
     }
 
     // 5. Socials
