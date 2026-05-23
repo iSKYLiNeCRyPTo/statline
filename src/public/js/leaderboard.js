@@ -356,9 +356,13 @@ function _lbBuildTierDive(tier) {
   mkBar('lbDivWr',    avgWrs, function(ctx){ return ' '+ctx.raw+'% win rate'; });
   if (hasAcc) mkBar('lbDivAcc', avgAccs, function(ctx){ return ' '+ctx.raw+'% accuracy'; });
 
+  var _sBg = ['rgba(255,100,100,0.55)','rgba(255,165,50,0.55)','rgba(255,215,0,0.55)','rgba(80,220,120,0.55)','rgba(80,180,255,0.55)','rgba(180,100,255,0.55)'];
+  var _sBd = ['rgba(255,100,100,0.9)', 'rgba(255,165,50,0.9)', 'rgba(255,215,0,0.9)', 'rgba(80,220,120,0.9)', 'rgba(80,180,255,0.9)', 'rgba(180,100,255,0.9)'];
   var scatterDS = subtiers.map(function(s,i){
     var lbl = isOnyx ? 'Onyx '+s : 'Sub '+s;
-    return { label:lbl, data:groups[String(s)].pts, backgroundColor:rgba(0.45), borderColor:rgba(0.75), borderWidth:1, pointRadius:4, pointHoverRadius:7 };
+    var bg  = isOnyx ? rgba(subA(i) * 0.6) : (_sBg[i] || rgba(0.45));
+    var bd  = isOnyx ? rgba(subA(i))        : (_sBd[i] || rgba(0.75));
+    return { label:lbl, data:groups[String(s)].pts, backgroundColor:bg, borderColor:bd, borderWidth:1, pointRadius:4, pointHoverRadius:7 };
   });
   var scEl = document.getElementById('lbDivScatter'); if (!scEl) return;
   _lbTierDiveCharts.push(new window.Chart(scEl, {

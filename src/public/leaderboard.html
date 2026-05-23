@@ -526,9 +526,15 @@
     mkBar('divWr',    avgWrs, function(ctx){ return ' '+ctx.raw+'% win rate'; });
     if (hasAcc) mkBar('divAcc', avgAccs, function(ctx){ return ' '+ctx.raw+'% accuracy'; });
 
+    // 6 distinct hues for subtiers so each is clearly separable in the scatter.
+    // For Onyx (CSR buckets) keep tier-color gradient since X-axis separates them naturally.
+    var _sBg = ['rgba(255,100,100,0.55)','rgba(255,165,50,0.55)','rgba(255,215,0,0.55)','rgba(80,220,120,0.55)','rgba(80,180,255,0.55)','rgba(180,100,255,0.55)'];
+    var _sBd = ['rgba(255,100,100,0.9)', 'rgba(255,165,50,0.9)', 'rgba(255,215,0,0.9)', 'rgba(80,220,120,0.9)', 'rgba(80,180,255,0.9)', 'rgba(180,100,255,0.9)'];
     var scatterDS = subtiers.map(function(s,i){
       var lbl = isOnyx ? 'Onyx '+s : 'Sub '+s;
-      return { label:lbl, data:groups[String(s)].pts, backgroundColor:rgba(0.45), borderColor:rgba(0.75), borderWidth:1, pointRadius:4, pointHoverRadius:7 };
+      var bg  = isOnyx ? rgba(subA(i) * 0.6) : (_sBg[i] || rgba(0.45));
+      var bd  = isOnyx ? rgba(subA(i))        : (_sBd[i] || rgba(0.75));
+      return { label:lbl, data:groups[String(s)].pts, backgroundColor:bg, borderColor:bd, borderWidth:1, pointRadius:4, pointHoverRadius:7 };
     });
     var scEl = document.getElementById('divScatter'); if (!scEl) return;
     _tierDiveCharts.push(new window.Chart(scEl, {
