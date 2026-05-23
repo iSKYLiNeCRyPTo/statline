@@ -3,7 +3,7 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const path = require('path');
-const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog, fillCachedMapImages } = require('./halo');
+const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog, fillCachedMapImages, resolveMapImagesForMatches } = require('./halo');
 const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
@@ -1746,6 +1746,28 @@ app.get('/api/matches', async (req, res) => {
     const totalPages = Math.max(1, Math.ceil(all.length / pp));
     const matches = all.slice((pg-1)*pp, (pg-1)*pp+pp);
     fillCachedMapImages(matches);
+
+    // Background: resolve mapImageUrl for any matches still missing it.
+    // Happens when DB matches were saved before map image cache was warm (e.g. after a
+    // server restart or during deep scan). Fire-and-forget — doesn't delay the response.
+    const needsImage = matches.filter(m => !m.mapImageUrl && m._mapAssetId);
+    if (needsImage.length) {
+      getAuthHeaders().then(async headers => {
+        if (!headers) return;
+        const fixed = await resolveMapImagesForMatches(needsImage, headers);
+        if (!fixed.length || !cached?.xuid) return;
+        // Persist resolved map image URLs back to DB
+        const dbConn = await getDb().catch(() => null);
+        if (!dbConn) return;
+        await Promise.all(fixed.map(m =>
+          dbConn.query(
+            `UPDATE player_match_history SET match_json = $1 WHERE xuid = $2 AND match_id = $3`,
+            [JSON.stringify(m), String(cached.xuid), m.matchId]
+          ).catch(() => {})
+        ));
+        console.log(`[MapImages] resolved ${fixed.length} map image URLs for xuid ${cached.xuid}`);
+      }).catch(() => {});
+    }
 
     // Tell client how much of the full history has been scanned so far
     let scanCursor = null;

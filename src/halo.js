@@ -1273,7 +1273,9 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         : null;
       results.push({
         matchId: m.MatchId, outcome: m.Outcome, startTime: m.MatchInfo?.StartTime, duration: m.MatchInfo?.Duration,
-        mapName, mapImageUrl, _mapAssetId: md.MatchInfo?.MapVariant?.AssetId || null,
+        mapName, mapImageUrl,
+        _mapAssetId: md.MatchInfo?.MapVariant?.AssetId || null,
+        _mapVersionId: md.MatchInfo?.MapVariant?.VersionId || null,
         gameMode, isRanked, kills, deaths, assists, score,
         kda: (kills - deaths + assists/3).toFixed(1),
         damageDealt, damageTaken, accuracy: accuracy!=null?parseFloat(accuracy).toFixed(1):null,
@@ -1735,5 +1737,47 @@ module.exports = {
         m.mapImageUrl = mapImageCache[m._mapAssetId];
       }
     }
+  },
+
+  // Resolve mapImageUrl for matches that are missing it.
+  // Calls the Waypoint map details API for any (assetId, versionId) pair not yet
+  // in mapImageCache. Updates match objects in-place and returns those that were fixed.
+  resolveMapImagesForMatches: async function(matches, headers) {
+    if (!matches || !matches.length || !headers) return [];
+    // Deduplicate by assetId — only one API call per map
+    const needed = new Map();
+    for (const m of matches) {
+      if (!m.mapImageUrl && m._mapAssetId && m._mapVersionId && !mapImageCache[m._mapAssetId]) {
+        needed.set(m._mapAssetId, m._mapVersionId);
+      }
+    }
+    if (!needed.size) {
+      // Cache might now have entries — do a fill pass and return changed matches
+      const fixed = [];
+      for (const m of matches) {
+        if (!m.mapImageUrl && m._mapAssetId && mapImageCache[m._mapAssetId]) {
+          m.mapImageUrl = mapImageCache[m._mapAssetId];
+          fixed.push(m);
+        }
+      }
+      return fixed;
+    }
+    // Resolve unique maps (concurrency capped at 6)
+    const entries = [...needed.entries()];
+    for (let i = 0; i < entries.length; i += 6) {
+      const batch = entries.slice(i, i + 6);
+      await Promise.all(batch.map(([assetId, versionId]) =>
+        resolveMapName(assetId, versionId, headers).catch(() => {})
+      ));
+    }
+    // Fill all matches that can now be resolved
+    const fixed = [];
+    for (const m of matches) {
+      if (!m.mapImageUrl && m._mapAssetId && mapImageCache[m._mapAssetId]) {
+        m.mapImageUrl = mapImageCache[m._mapAssetId];
+        fixed.push(m);
+      }
+    }
+    return fixed;
   },
 };
