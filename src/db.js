@@ -1562,7 +1562,12 @@ async function getActivityTimes(xuid, limit = 1000) {
 // ── Deep-scan match history persistence ────────────────────────────────────
 
 // Upsert processed match objects into player_match_history.
-// Ignores conflicts so re-scanning the same batch is safe.
+// On conflict: merge using jsonb so that:
+//   - Non-null fields in the new match overwrite nulls in the existing record
+//     (e.g. fresh API fetch brings mapImageUrl / _mapVersionId that deep scan missed)
+//   - Null fields in the new match DO NOT overwrite non-null fields in the existing
+//     record (e.g. preserves CSR/skill data already enriched by updatePlayerMatchSkillData)
+// Equivalent to: existing = existing || strip_nulls(incoming)
 async function savePlayerMatchHistory(xuid, matches) {
   if (!matches || !matches.length) return 0;
   try {
@@ -1576,7 +1581,8 @@ async function savePlayerMatchHistory(xuid, matches) {
         await db.query(
           `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
            VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (xuid, match_id) DO NOTHING`,
+           ON CONFLICT (xuid, match_id) DO UPDATE
+             SET match_json = player_match_history.match_json || jsonb_strip_nulls(EXCLUDED.match_json)`,
           [xuidStr, m.matchId, JSON.stringify(m), m.startTime ? new Date(m.startTime) : null, m.isRanked || false]
         );
         saved++;
