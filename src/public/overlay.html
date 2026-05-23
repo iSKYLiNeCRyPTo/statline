@@ -284,7 +284,15 @@ body.overlay-mode #overlay { display:block; }
 .rank-icon { width:var(--icon-sz); height:var(--icon-sz); object-fit:contain; flex-shrink:0; }
 .rank-icon.hidden { display:none; }
 .rank-icon-fallback { width:var(--icon-sz); height:var(--icon-sz); display:flex; align-items:center; justify-content:center; font-size:calc(var(--icon-sz)*.55); font-style:normal; flex-shrink:0; }
-.rank-glow { position:absolute; inset:-5px; border-radius:50%; opacity:.25; }
+/* SVG tier ring — drawn around the rank icon */
+.rank-ring {
+  position:absolute; inset:-5px; pointer-events:none;
+  width:calc(var(--icon-sz) + 10px); height:calc(var(--icon-sz) + 10px);
+  overflow:visible;
+}
+.rr-bronze  { color:#cd7f32 } .rr-silver  { color:#a8a9ad }
+.rr-gold    { color:#ffd700 } .rr-platinum{ color:#4fc3f7 }
+.rr-diamond { color:#b9f2ff } .rr-onyx    { color:#e040fb }
 .rank-text { display:flex; flex-direction:column; }
 .rank-name { font-size:var(--rank-sz); color:#e8e8f0; letter-spacing:1.5px; line-height:1.1; }
 .rank-csr  { font-size:var(--csr-sz); color:#444465; letter-spacing:.5px; margin-top:3px; }
@@ -365,12 +373,6 @@ body.overlay-mode #overlay { display:block; }
 /* Tier colors */
 .t-bronze  {color:#cd7f32} .t-silver {color:#a8a9ad} .t-gold    {color:#ffd700}
 .t-platinum{color:#4fc3f7} .t-diamond{color:#b9f2ff} .t-onyx    {color:#e040fb}
-.g-bronze  {box-shadow:0 0 12px 3px rgba(205,127,50,.65)}
-.g-silver  {box-shadow:0 0 12px 3px rgba(168,169,173,.65)}
-.g-gold    {box-shadow:0 0 12px 3px rgba(255,215,0,.65)}
-.g-platinum{box-shadow:0 0 12px 3px rgba(79,195,247,.65)}
-.g-diamond {box-shadow:0 0 12px 3px rgba(185,242,255,.65)}
-.g-onyx    {box-shadow:0 0 12px 3px rgba(224,64,251,.65)}
 </style>
 </head>
 <body class="config-mode">
@@ -551,7 +553,9 @@ const ICONS = {
   instagram: `<svg class="social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#e1306c"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`,
 };
 const TIER_TC = { bronze:'t-bronze', silver:'t-silver', gold:'t-gold', platinum:'t-platinum', diamond:'t-diamond', onyx:'t-onyx' };
-const TIER_GC = { bronze:'g-bronze', silver:'g-silver', gold:'g-gold', platinum:'g-platinum', diamond:'g-diamond', onyx:'g-onyx' };
+const TIER_RC = { bronze:'rr-bronze', silver:'rr-silver', gold:'rr-gold', platinum:'rr-platinum', diamond:'rr-diamond', onyx:'rr-onyx' };
+// Stroke colors matching tier (used for SVG ring)
+const TIER_COL = { bronze:'#cd7f32', silver:'#a8a9ad', gold:'#ffd700', platinum:'#4fc3f7', diamond:'#b9f2ff', onyx:'#e040fb' };
 const TIER_EM = { bronze:'BR', silver:'SL', gold:'GO', platinum:'PL', diamond:'DI', onyx:'ONX' };
 const BASE_URL = location.origin + '/overlay';
 
@@ -840,7 +844,6 @@ function renderWidget(containerId, data) {
   const size    = _cfg.size;
   const tierKey = data?._tierKey || '';
   const tc      = tierKey ? (TIER_TC[tierKey] || '') : '';
-  const gc      = tierKey ? (TIER_GC[tierKey] || '') : '';
   const gt      = data?.gt || '';
 
   // ── Shared atoms ──────────────────────────────────────────────────────
@@ -848,8 +851,16 @@ function renderWidget(containerId, data) {
   const iconHtml = hasSrc
     ? `<img class="rank-icon" src="${data._iconSrc}" alt="rank" onerror="this.style.display='none';document.getElementById('${containerId}_fb').style.display='flex'">`
     : '';
-  const fbHtml  = `<div class="rank-icon-fallback" id="${containerId}_fb" style="display:${hasSrc?'none':'flex'}">${tierKey?(TIER_EM[tierKey]||'🎮'):'—'}</div>`;
-  const glowHtml= tierKey ? `<div class="rank-glow ${gc}" style="opacity:1"></div>` : '';
+  const fbHtml  = `<div class="rank-icon-fallback" id="${containerId}_fb" style="display:${hasSrc?'none':'flex'}">${tierKey?(TIER_EM[tierKey]||'—'):'—'}</div>`;
+  // SVG ring — clean circle stroke in tier color, slightly outside the icon
+  const ringHtml = tierKey && TIER_COL[tierKey] ? (() => {
+    const col = TIER_COL[tierKey];
+    const rc  = TIER_RC[tierKey] || '';
+    return `<svg class="rank-ring ${rc}" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="20" cy="20" r="17.5" stroke="${col}" stroke-width="1.5" stroke-opacity="0.75"/>
+      <circle cx="20" cy="20" r="15"   stroke="${col}" stroke-width="0.5" stroke-opacity="0.3"/>
+    </svg>`;
+  })() : '';
   const rankLabel = data?._rankStr ? data._rankStr.toUpperCase() : (data ? 'UNRANKED' : '—');
 
   // Build session inner pieces (shared between layouts)
@@ -904,7 +915,7 @@ function renderWidget(containerId, data) {
       ${(s.gamertag && gt) && s.rank ? '<div class="divider"></div>' : ''}
 
       ${s.rank ? `<div class="rank-row">
-        <div class="rank-icon-wrap">${glowHtml}${iconHtml}${fbHtml}</div>
+        <div class="rank-icon-wrap">${ringHtml}${iconHtml}${fbHtml}</div>
         <div class="rank-text">
           <span class="rank-name ${tc}">${rankLabel}</span>
           ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
@@ -948,7 +959,7 @@ function renderWidget(containerId, data) {
     if (s.rank) {
       sections.push(`<div class="bn-sep"></div>`);
       sections.push(`<div class="bn-block">
-        <div class="rank-icon-wrap">${glowHtml}${iconHtml}${fbHtml}</div>
+        <div class="rank-icon-wrap">${ringHtml}${iconHtml}${fbHtml}</div>
         <div class="bn-rank-text">
           <span class="rank-name ${tc}">${rankLabel}</span>
           ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
