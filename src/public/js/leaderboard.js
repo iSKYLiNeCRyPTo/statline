@@ -1,10 +1,14 @@
 // ── Leaderboard — embedded in main app ────────────────────────────────────────
-var _lbTabData = {};
-var _lbTab     = 'csrArena';
-var _lbPage    = 1;
-var _lbSearch  = '';
-var LB_PER_PAGE = 250;
-var LB_TTL      = 2 * 60 * 1000; // 2 min
+var _lbTabData       = {};
+var _lbTab           = 'csrArena';
+var _lbPage          = 1;
+var _lbSearch        = '';
+var LB_PER_PAGE      = 250;
+var LB_TTL           = 2 * 60 * 1000; // 2 min
+var _LB_TIERS        = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
+var _LB_TIER_COLORS  = { Bronze:'#cd7f32', Silver:'#aaaaaa', Gold:'#d4860a', Platinum:'#80dddd', Diamond:'#60cfff', Onyx:'#00c8ff' };
+var _lbTierDiveCharts = [];
+var _lbTierDiveRows   = [];
 
 function showLeaderboard() {
   hideLanding();
@@ -49,7 +53,7 @@ function _lbShell() {
     +   '<button class="lb-tab' + (_lbTab==='csrSlayer' ?' active':'') + '" onclick="_lbSwitchTab(\'csrSlayer\',this)">RANKED SLAYER</button>'
     +   '<button class="lb-tab' + (_lbTab==='csrLegacy' ?' active':'') + '" onclick="_lbSwitchTab(\'csrLegacy\',this)">RANKED LEGACY</button>'
     +   '<button class="lb-tab' + (_lbTab==='csrDoubles'?' active':'') + '" onclick="_lbSwitchTab(\'csrDoubles\',this)">RANKED DOUBLES</button>'
-    +   '<button class="lb-tab' + (_lbTab==='insights'  ?' active':'') + '" onclick="_lbSwitchTab(\'insights\',this)">📊 INSIGHTS</button>'
+    +   '<button class="lb-tab' + (_lbTab==='insights'  ?' active':'') + '" onclick="_lbSwitchTab(\'insights\',this)">INSIGHTS</button>'
     + '</div>'
     + '<div class="lb-search-wrap">'
     +   '<svg class="lb-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
@@ -114,10 +118,11 @@ function _lbRenderInsights() {
     return;
   }
   var rows = src.rows;
+  _lbTierDiveRows = rows;
   if (mc) mc.textContent = rows.length.toLocaleString() + ' PLAYERS ANALYZED';
 
-  var TIERS = ['Bronze','Silver','Gold','Platinum','Diamond','Onyx'];
-  var TIER_COLORS = { Bronze:'#cd7f32', Silver:'#aaaaaa', Gold:'#d4860a', Platinum:'#80dddd', Diamond:'#60cfff', Onyx:'#00c8ff' };
+  var TIERS       = _LB_TIERS;
+  var TIER_COLORS = _LB_TIER_COLORS;
   var stats = {};
   TIERS.forEach(function(t){ stats[t] = { count:0, kd:[], wr:[] }; });
   rows.forEach(function(p){
@@ -181,6 +186,18 @@ function _lbRenderInsights() {
           +'<tbody>'+tableRows+'</tbody>'
         +'</table>'
       +'</div>'
+      +'<div class="chart-card">'
+        +'<div class="chart-title">TIER DEEP DIVE</div>'
+        +'<div class="chart-sub">Select a tier to see subtier distribution, performance averages, and individual player scatter</div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px" id="lbTierDiveSel">'
+        + TIERS.map(function(t){
+            return '<button class="lb-tdive-btn" data-tier="'+t+'" onclick="_lbSwitchTierDive(\''+t+'\')"'
+              +' style="font-family:Share Tech Mono,monospace;font-size:10px;letter-spacing:1px;cursor:pointer;padding:4px 12px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s">'
+              +t.toUpperCase()+'</button>';
+          }).join('')
+        +'</div>'
+        +'<div id="lbTierDiveContent"></div>'
+      +'</div>'
     +'</div>';
 
   function _lbBuildCharts() {
@@ -212,14 +229,127 @@ function _lbRenderInsights() {
     });
   }
 
+  function _lbDoAllCharts() { _lbBuildCharts(); _lbBuildTierDive('Diamond'); }
   if (window.Chart) {
-    _lbBuildCharts();
+    _lbDoAllCharts();
   } else {
     var _s = document.createElement('script');
     _s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
-    _s.onload = _lbBuildCharts;
+    _s.onload = _lbDoAllCharts;
     document.head.appendChild(_s);
   }
+}
+
+function _lbSwitchTierDive(tier) { _lbBuildTierDive(tier); }
+
+function _lbBuildTierDive(tier) {
+  _lbTierDiveCharts.forEach(function(c){ try{ c.destroy(); }catch(e){} });
+  _lbTierDiveCharts = [];
+
+  document.querySelectorAll('.lb-tdive-btn').forEach(function(b){
+    var on = b.dataset.tier === tier;
+    var tc = _LB_TIER_COLORS[b.dataset.tier] || 'var(--accent)';
+    b.style.borderColor = on ? tc : 'var(--border)';
+    b.style.color       = on ? tc : 'var(--muted)';
+    b.style.background  = on ? tc+'18' : 'transparent';
+  });
+
+  var container = document.getElementById('lbTierDiveContent');
+  if (!container) return;
+
+  var tierRows = _lbTierDiveRows.filter(function(p){ return p.csr_tier === tier; });
+  if (!tierRows.length) {
+    container.innerHTML = '<div style="text-align:center;padding:32px;font-family:Share Tech Mono,monospace;font-size:10px;color:var(--muted2)">No '+tier+' players in dataset yet</div>';
+    return;
+  }
+
+  var baseColor = _LB_TIER_COLORS[tier];
+  var rr = parseInt(baseColor.slice(1,3),16);
+  var gg = parseInt(baseColor.slice(3,5),16);
+  var bb = parseInt(baseColor.slice(5,7),16);
+  function rgba(a){ return 'rgba('+rr+','+gg+','+bb+','+a+')'; }
+
+  var isOnyx   = tier === 'Onyx';
+  var subtiers = isOnyx ? [null] : [1,2,3,4,5,6];
+  var groups   = {};
+  subtiers.forEach(function(s){ groups[String(s)] = { count:0, kd:[], wr:[], acc:[], pts:[] }; });
+
+  tierRows.forEach(function(p){
+    var s   = isOnyx ? null : (p.csr_subtier != null ? p.csr_subtier : 1);
+    var key = String(s);
+    if (!groups[key]) return;
+    groups[key].count++;
+    if (p.kd != null) {
+      var kv = parseFloat(p.kd);
+      groups[key].kd.push(kv);
+      if (p.csr_value != null) groups[key].pts.push({ x:parseFloat(p.csr_value), y:kv, gt:p.gamertag, wr:p.win_rate!=null?parseFloat(p.win_rate).toFixed(1):'—' });
+    }
+    if (p.win_rate != null) groups[key].wr.push(parseFloat(p.win_rate));
+    if (p.accuracy != null) groups[key].acc.push(parseFloat(p.accuracy));
+  });
+
+  function _lbAvg(arr){ return arr.length?arr.reduce(function(a,b){return a+b},0)/arr.length:null; }
+  function subA(i){ return 0.35+(i/Math.max(subtiers.length-1,1))*0.65; }
+
+  var labels  = subtiers.map(function(s){ return isOnyx?'ONYX':'S'+s; });
+  var counts  = subtiers.map(function(s){ return groups[String(s)].count; });
+  var avgKds  = subtiers.map(function(s){ var a=_lbAvg(groups[String(s)].kd);  return a!=null?+a.toFixed(2):null; });
+  var avgWrs  = subtiers.map(function(s){ var a=_lbAvg(groups[String(s)].wr);  return a!=null?+a.toFixed(1):null; });
+  var avgAccs = subtiers.map(function(s){ var a=_lbAvg(groups[String(s)].acc); return a!=null?+a.toFixed(1):null; });
+  var barBg   = subtiers.map(function(s,i){ return rgba(subA(i)); });
+  var barBord = subtiers.map(function(s,i){ return rgba(Math.min(subA(i)+0.2,1)); });
+
+  container.innerHTML =
+     '<div class="chart-grid" style="margin-bottom:16px">'
+    +  '<div><div class="chart-sub" style="margin-bottom:6px">PLAYERS PER SUBTIER</div><canvas id="lbDivCount" height="180"></canvas></div>'
+    +  '<div><div class="chart-sub" style="margin-bottom:6px">AVG K/D PER SUBTIER</div><canvas id="lbDivKd" height="180"></canvas></div>'
+    +'</div>'
+    +'<div class="chart-grid" style="margin-bottom:16px">'
+    +  '<div><div class="chart-sub" style="margin-bottom:6px">AVG WIN RATE PER SUBTIER</div><canvas id="lbDivWr" height="180"></canvas></div>'
+    +  '<div><div class="chart-sub" style="margin-bottom:6px">AVG ACCURACY PER SUBTIER</div><canvas id="lbDivAcc" height="180"></canvas></div>'
+    +'</div>'
+    +'<div class="chart-sub" style="margin-bottom:6px">CSR vs K/D — each dot is a player'+(isOnyx?'':' · colored by subtier')+'</div>'
+    +'<canvas id="lbDivScatter" height="260"></canvas>';
+
+  var gc  = 'rgba(56,138,221,0.07)';
+  var tc  = 'rgba(133,183,235,0.55)';
+  var ttF = { bodyFont:{family:'Share Tech Mono'}, titleFont:{family:'Share Tech Mono'} };
+  var sX  = { grid:{color:gc}, ticks:{color:tc,font:{family:'Share Tech Mono',size:10}} };
+  var sY  = { grid:{color:gc}, ticks:{color:tc,font:{family:'Share Tech Mono',size:10}}, beginAtZero:true, min:0 };
+
+  function mkBar(id, data, cbLabel) {
+    var el = document.getElementById(id); if (!el) return;
+    _lbTierDiveCharts.push(new window.Chart(el, {
+      type:'bar',
+      data:{ labels:labels, datasets:[{ data:data, backgroundColor:barBg, borderColor:barBord, borderWidth:2, borderRadius:4 }] },
+      options:{ responsive:true, animation:{duration:400}, plugins:{ legend:{display:false}, tooltip:Object.assign({callbacks:{label:cbLabel}},ttF) }, scales:{x:sX,y:sY} }
+    }));
+  }
+
+  mkBar('lbDivCount', counts,  function(ctx){ return ' '+ctx.raw+' players'; });
+  mkBar('lbDivKd',    avgKds,  function(ctx){ return ' '+ctx.raw+' K/D'; });
+  mkBar('lbDivWr',    avgWrs,  function(ctx){ return ' '+ctx.raw+'% win rate'; });
+  mkBar('lbDivAcc',   avgAccs, function(ctx){ return ' '+ctx.raw+'% accuracy'; });
+
+  var scatterDS = subtiers.map(function(s,i){
+    return { label:isOnyx?'Onyx':'Sub '+s, data:groups[String(s)].pts, backgroundColor:rgba(0.45), borderColor:rgba(0.75), borderWidth:1, pointRadius:4, pointHoverRadius:7 };
+  });
+  var scEl = document.getElementById('lbDivScatter'); if (!scEl) return;
+  _lbTierDiveCharts.push(new window.Chart(scEl, {
+    type:'scatter',
+    data:{ datasets:scatterDS },
+    options:{
+      responsive:true, animation:{duration:400},
+      plugins:{
+        legend:{ display:!isOnyx, labels:{color:'rgba(133,183,235,0.7)',font:{family:'Share Tech Mono',size:10}} },
+        tooltip:Object.assign({ callbacks:{ label:function(ctx){ var p=ctx.raw; return [p.gt, p.y.toFixed(2)+' K/D  ·  '+p.wr+'% WR']; } } }, ttF)
+      },
+      scales:{
+        x:Object.assign({},sX,{ title:{ display:true, text:'CSR', color:tc, font:{family:'Share Tech Mono',size:10} } }),
+        y:Object.assign({},sY,{ title:{ display:true, text:'K/D', color:tc, font:{family:'Share Tech Mono',size:10} } })
+      }
+    }
+  }));
 }
 
 function _lbOnSearch(val) {
