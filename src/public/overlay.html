@@ -168,6 +168,75 @@ body.overlay-mode #overlay { display:block; }
 .theme-glass   { background:rgba(16,16,36,.6); border:1px solid rgba(100,140,255,.18); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:0 4px 28px rgba(0,0,0,.5); }
 .theme-minimal { background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
 
+/* Neon — electric cyan on near-black, glowing border */
+.theme-neon {
+  background:rgba(0,4,14,.93);
+  border:1px solid rgba(0,255,185,.2);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 0 22px rgba(0,255,185,.07), inset 0 0 40px rgba(0,255,185,.025);
+}
+.theme-neon .gt-name    { color:#00ffb4; }
+.theme-neon .rank-name  { color:#00e5ff; }
+.theme-neon .rank-csr   { color:#00432e; }
+.theme-neon .session-label { color:#00432e; }
+.theme-neon .sw,.theme-neon .sc-pos { color:#00ffb4; }
+.theme-neon .sl,.theme-neon .sc-neg { color:#ff3a6e; }
+.theme-neon .inline-stat-val { color:#00e5ff; }
+.theme-neon .inline-stat-lbl { color:#004433; }
+.theme-neon .stat-sep { color:#002218; }
+.theme-neon .s-cnt { color:#004433; }
+.theme-neon .divider { background:rgba(0,255,185,.07); }
+.theme-neon .bn-sep  { background:rgba(0,255,185,.08); }
+.theme-neon .gt-cursor { background:#00ffb4; box-shadow:0 0 6px #00ffb4; }
+.theme-neon .brand-text { color:#003326; letter-spacing:3px; }
+.theme-neon .social-item { color:#006655; }
+
+/* Ice — frosted glass, white/blue */
+.theme-ice {
+  background:rgba(200,225,255,.1);
+  border:1px solid rgba(180,215,255,.28);
+  backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+  box-shadow:0 4px 32px rgba(80,160,255,.12);
+}
+.theme-ice .gt-name    { color:#e4f0ff; }
+.theme-ice .rank-name  { color:#cce4ff; }
+.theme-ice .rank-csr   { color:rgba(180,215,255,.35); }
+.theme-ice .session-label { color:rgba(180,215,255,.3); }
+.theme-ice .sw,.theme-ice .sc-pos { color:#7ee8a2; }
+.theme-ice .sl,.theme-ice .sc-neg { color:#ff8fa8; }
+.theme-ice .inline-stat-val { color:#dceeff; }
+.theme-ice .inline-stat-lbl { color:rgba(180,215,255,.35); }
+.theme-ice .stat-sep { color:rgba(180,215,255,.2); }
+.theme-ice .s-cnt { color:rgba(180,215,255,.3); }
+.theme-ice .divider { background:rgba(180,215,255,.1); }
+.theme-ice .bn-sep  { background:rgba(180,215,255,.15); }
+.theme-ice .gt-cursor { background:#cce4ff; }
+.theme-ice .brand-text { color:rgba(180,215,255,.18); }
+.theme-ice .social-item { color:rgba(180,215,255,.45); }
+
+/* Ember — dark with deep orange/amber glow */
+.theme-ember {
+  background:rgba(10,4,0,.92);
+  border:1px solid rgba(255,110,20,.18);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 0 26px rgba(255,80,0,.07);
+}
+.theme-ember .gt-name    { color:#ffb06a; }
+.theme-ember .rank-name  { color:#ff8c42; }
+.theme-ember .rank-csr   { color:#3c1500; }
+.theme-ember .session-label { color:#3c1500; }
+.theme-ember .sw,.theme-ember .sc-pos { color:#ff8c42; }
+.theme-ember .sl,.theme-ember .sc-neg { color:#ff4545; }
+.theme-ember .inline-stat-val { color:#ffb06a; }
+.theme-ember .inline-stat-lbl { color:#3c1500; }
+.theme-ember .stat-sep { color:#2a0d00; }
+.theme-ember .s-cnt { color:#3c1500; }
+.theme-ember .divider { background:rgba(255,100,20,.07); }
+.theme-ember .bn-sep  { background:rgba(255,100,20,.1); }
+.theme-ember .gt-cursor { background:#ff8c42; box-shadow:0 0 5px #ff8c42; }
+.theme-ember .brand-text { color:#2a0d00; }
+.theme-ember .social-item { color:#5a2800; }
+
 /* ── CORNER WIDGET ─────────────────────────────── */
 .layout-corner {
   display:inline-flex; flex-direction:column;
@@ -262,11 +331,10 @@ body.overlay-mode #overlay { display:block; }
 .social-icon { width:11px; height:11px; flex-shrink:0; }
 
 /* Brand */
-.brand-row { display:flex; align-items:center; gap:5px; }
-.brand-logo-icon { width:12px; height:12px; background:#185FA5; border-radius:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.brand-text { font-size:var(--brand-sz); color:#1a1a35; letter-spacing:2px; text-transform:uppercase; }
-.theme-glass .brand-text { color:#252548; }
-.theme-minimal .brand-text { color:#2e2e52; }
+.brand-row { display:flex; align-items:center; }
+.brand-text { font-size:var(--brand-sz); color:#1c1c38; letter-spacing:3px; text-transform:uppercase; }
+.theme-glass   .brand-text { color:#282848; }
+.theme-minimal .brand-text { color:#303055; }
 
 /* Tier colors */
 .t-bronze  {color:#cd7f32} .t-silver {color:#a8a9ad} .t-gold    {color:#ffd700}
@@ -357,6 +425,9 @@ body.overlay-mode #overlay { display:block; }
         <div class="cfg-pill active" data-group="theme" data-val="dark"    onclick="setPill(this)">Dark</div>
         <div class="cfg-pill"        data-group="theme" data-val="glass"   onclick="setPill(this)">Glass</div>
         <div class="cfg-pill"        data-group="theme" data-val="minimal" onclick="setPill(this)">Minimal</div>
+        <div class="cfg-pill"        data-group="theme" data-val="neon"    onclick="setPill(this)">Neon</div>
+        <div class="cfg-pill"        data-group="theme" data-val="ice"     onclick="setPill(this)">Ice</div>
+        <div class="cfg-pill"        data-group="theme" data-val="ember"   onclick="setPill(this)">Ember</div>
       </div>
     </div>
     <div class="cfg-field" style="margin-bottom:0">
@@ -381,7 +452,6 @@ body.overlay-mode #overlay { display:block; }
       <div class="stat-tog on"  data-stat="session"   onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Session W/L</span></div>
       <div class="stat-tog on"  data-stat="csrdelta"  onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">CSR Delta</span></div>
       <div class="stat-tog on"  data-stat="socials"   onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Socials</span></div>
-      <div class="stat-tog on"  data-stat="brand"     onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">fragr brand</span></div>
     </div>
   </div>
 
@@ -450,7 +520,6 @@ body.overlay-mode #overlay { display:block; }
 
 <script>
 // ── SVG icons ─────────────────────────────────────────────────────────────────
-const BRAND_SVG = `<svg width="8" height="8" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><g transform="translate(15,15) rotate(-35) scale(0.42)"><ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/><rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/><ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/><ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/></g></svg>`;
 const ICONS = {
   twitter:   `<svg class="social-icon" viewBox="0 0 24 24" fill="currentColor" style="color:#1d9bf0"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.737-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`,
   instagram: `<svg class="social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#e1306c"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`,
@@ -465,7 +534,7 @@ let _cfg = {
   gt:'', twitter:'', ig:'',
   layout:'corner', pos:'tl', side:'left',
   theme:'dark', size:'medium',
-  stats: { gamertag:1, rank:1, csr:1, kd:1, wr:1, session:1, csrdelta:1, socials:1, brand:1 }
+  stats: { gamertag:1, rank:1, csr:1, kd:1, wr:1, session:1, csrdelta:1, socials:1 }
 };
 let _playerData = null;
 let _refreshTimer = null, _previewDebounce = null, _glitchTimer = null;
@@ -759,10 +828,9 @@ function renderWidget(containerId, data) {
 
       ${(twHtml || igHtml) ? `<div class="socials-row" style="margin-top:6px">${twHtml}${igHtml}</div>` : ''}
 
-      ${s.brand ? `<div class="brand-row" style="margin-top:8px">
-        <div class="brand-logo-icon">${BRAND_SVG}</div>
+      <div class="brand-row" style="margin-top:8px">
         <span class="brand-text">fragr.live</span>
-      </div>` : ''}
+      </div>
     </div>`;
 
   // ══════════════════════════════════════════════════════════════════════
@@ -774,12 +842,12 @@ function renderWidget(containerId, data) {
 
     // 1. Brand + gamertag
     const leftParts = [];
-    if (s.brand) leftParts.push(`<div class="brand-logo-icon" style="width:16px;height:16px;border-radius:3px;flex-shrink:0">${BRAND_SVG}</div>`);
+    leftParts.push(`<span class="brand-text" style="margin-right:4px">fragr.live</span>`);
     if (s.gamertag && gt) leftParts.push(
       `<span class="gt-name" id="${containerId}_gt" data-text="${gt}" style="font-size:var(--gt-sz)">${gt}</span>`,
       `<span class="gt-cursor"></span>`
     );
-    if (leftParts.length) sections.push(`<div class="bn-block">${leftParts.join('')}</div>`);
+    sections.push(`<div class="bn-block">${leftParts.join('')}</div>`);
 
     // 2. Rank icon + name + CSR
     if (s.rank) {
