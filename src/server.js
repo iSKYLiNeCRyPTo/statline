@@ -23,7 +23,15 @@ const _serverStartTime = new Date().toISOString();
 const _deepScanQueue   = [];   // [{ xuid, gamertag }]
 const _deepScanQueued  = new Set(); // xuids currently queued or in-flight
 let   _deepScanRunning = 0;    // count of active worker coroutines
-const DEEP_SCAN_CONCURRENCY = 2;
+const DEEP_SCAN_CONCURRENCY  = 2;
+const DEEP_SCAN_MAX_OFFSET   = 2500; // stop after 2500 raw matches — prevents
+                                     // runaway scans on social-heavy players
+const DEEP_SCAN_MAX_DRY_DIST = 500;  // stop if we scan 500 raw matches in a row
+                                     // without finding any real (non-custom) match
+
+// Per-xuid "dry streak" tracking: offset where the last ranked match was found.
+// When (currentOffset - _deepScanDryStart[xuid]) >= DEEP_SCAN_MAX_DRY_DIST we stop.
+const _deepScanDryStart = {};   // xuid -> offset of last ranked match (or scan start)
 
 function enqueueDeepScan(xuid, gamertag) {
   if (!xuid || _deepScanQueued.has(xuid)) return;
@@ -48,33 +56,54 @@ async function _deepScanWorker({ xuid, gamertag }) {
     // Read cursor (or start fresh)
     const cursor = await getDeepScanCursor(xuid).catch(() => null);
     if (cursor && cursor.completed) {
-      // Already fully scanned — nothing to do
       _deepScanQueued.delete(xuid);
+      delete _deepScanDryStart[xuid];
       return;
     }
     const startOffset = (cursor && cursor.next_start != null) ? cursor.next_start : 0;
     const prevTotal   = (cursor && cursor.total_fetched != null) ? cursor.total_fetched : 0;
 
-    console.log(`[DeepScan] ${gamertag} (${xuid}) — scanning from offset ${startOffset}`);
+    // Hard cap — don't walk more than 2500 raw matches deep
+    if (startOffset >= DEEP_SCAN_MAX_OFFSET) {
+      console.log(`[DeepScan] ${gamertag} — hit max offset (${DEEP_SCAN_MAX_OFFSET}), marking done`);
+      await upsertDeepScanCursor(xuid, gamertag, startOffset, prevTotal, true).catch(() => {});
+      _deepScanQueued.delete(xuid);
+      delete _deepScanDryStart[xuid];
+      return;
+    }
 
-    // Fetch one batch (25 matches) so the worker is light-weight and
-    // yields quickly to other requests.  noRankedCap lets us walk the
-    // entire history without the 100-ranked cap.
+    // Initialise dry-streak tracking on first batch for this xuid
+    if (_deepScanDryStart[xuid] == null) _deepScanDryStart[xuid] = startOffset;
+
+    // Dry-streak cap — stop if we've scanned 500 raw matches with zero ranked found
+    const dryDistance = startOffset - _deepScanDryStart[xuid];
+    if (dryDistance >= DEEP_SCAN_MAX_DRY_DIST) {
+      console.log(`[DeepScan] ${gamertag} — no ranked in ${dryDistance} raw matches, stopping`);
+      await upsertDeepScanCursor(xuid, gamertag, startOffset, prevTotal, true).catch(() => {});
+      _deepScanQueued.delete(xuid);
+      delete _deepScanDryStart[xuid];
+      return;
+    }
+
+    console.log(`[DeepScan] ${gamertag} (${xuid}) — scanning from offset ${startOffset} (dry: ${dryDistance}/${DEEP_SCAN_MAX_DRY_DIST})`);
+
     const result = await fetchMatchHistory(
       xuid, gamertag, 100,
-      null,   // no onProgress callback
-      null,   // no stopAtMatchId
+      null,
+      null,
       { startOffset, batchLimit: 1, lean: false, noRankedCap: true }
     );
 
-    const fetched = result.matches || [];
-    const scanEnd = result.scanEndOffset != null ? result.scanEndOffset : startOffset + 25;
-    // Only truly done when the Halo API returned fewer matches than we asked for
-    // (end of history). Do NOT stop on fetched.length===0 — that just means the
-    // current batch had no ranked games (e.g. all social), not that history ended.
-    const isDone  = result.stopReason === 'no more history';
+    const fetched    = (result.matches || []).filter(m => !m.isCustom); // all real matches (ranked + social)
+    const rankedCount = fetched.filter(m => m.isRanked).length;
+    const scanEnd    = result.scanEndOffset != null ? result.scanEndOffset : startOffset + 25;
+
+    // Only truly done when the Halo API returned fewer matches than requested
+    const isDone = result.stopReason === 'no more history';
 
     if (fetched.length > 0) {
+      // Found real matches — reset the dry-streak anchor
+      _deepScanDryStart[xuid] = scanEnd;
       await savePlayerMatchHistory(xuid, fetched).catch(e =>
         console.warn(`[DeepScan] savePlayerMatchHistory failed for ${xuid}:`, e.message)
       );
@@ -85,16 +114,16 @@ async function _deepScanWorker({ xuid, gamertag }) {
       console.warn(`[DeepScan] upsertDeepScanCursor failed for ${xuid}:`, e.message)
     );
 
-    console.log(`[DeepScan] ${gamertag} — batch done: +${fetched.length} matches, total=${newTotal}, offset=${scanEnd}, done=${isDone}`);
+    console.log(`[DeepScan] ${gamertag} — batch done: +${fetched.length} matches (+${rankedCount} ranked), total=${newTotal}, offset=${scanEnd}, done=${isDone}`);
 
     if (!isDone) {
-      // Re-enqueue for next batch after a brief pause (respect rate limits)
       setTimeout(() => {
-        _deepScanQueued.delete(xuid); // allow re-queue
+        _deepScanQueued.delete(xuid);
         enqueueDeepScan(xuid, gamertag);
       }, 1500);
     } else {
       _deepScanQueued.delete(xuid);
+      delete _deepScanDryStart[xuid];
     }
   } catch(e) {
     console.warn(`[DeepScan] worker error for ${gamertag} (${xuid}):`, e.message);

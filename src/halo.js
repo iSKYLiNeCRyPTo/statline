@@ -895,12 +895,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     if (!_isDone() && start < MAX_SCAN && !hitStop) {
       await sleep(200);
     }
-    // If caller set a batchLimit (deep-scan worker uses 1), stop after that many batches
-    if (_batchLimit !== null && batchScanned >= _batchLimit) {
-      stopReason = 'batchLimit';
-      break;
-    }
 
+    // Process ALL matches in this batch BEFORE checking batchLimit so results
+    // are always populated — moving this check above the for-loop caused every
+    // deep-scan batch to return 0 ranked / 0 total (matches fetched but never parsed).
     for (const { m, md, skillData: prefetchedSkill } of fetchedDetails) {
       if (_isDone()) break;
     try {
@@ -1298,9 +1296,15 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
       break;
     }
 
+    // batchLimit check goes here — AFTER processing fetchedDetails so this
+    // batch's matches are always saved before we stop.
+    if (_batchLimit !== null && batchScanned >= _batchLimit) {
+      stopReason = 'batchLimit';
+      break;
+    }
+
     const rankedNow = _rankedCount();
     const validNow  = _validCount();
-    // [MatchFetch] per-batch progress logging removed (too verbose)
     if (onProgress) onProgress(rankedNow, start, RANKED_TARGET);
   } // end while
   const finalRanked = _rankedCount();
