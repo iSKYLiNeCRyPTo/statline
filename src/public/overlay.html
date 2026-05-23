@@ -69,7 +69,7 @@ body.config-mode #config { display:block; }
 .layout-picker { display:flex; gap:10px; }
 .layout-opt {
   flex:1; background:#0c0c16; border:1px solid #1e1e30; border-radius:8px;
-  padding:14px 10px 12px; cursor:pointer; transition:all .15s;
+  padding:14px 16px 12px; cursor:pointer; transition:all .15s;
   display:flex; flex-direction:column; align-items:center; gap:8px;
 }
 .layout-opt:hover { border-color:#185FA5; }
@@ -154,14 +154,8 @@ body.overlay-mode {
 #overlay { display:none; }
 body.overlay-mode #overlay { display:block; }
 
-/* Scan-line sweep */
+/* Widget base */
 .widget { position:relative; overflow:hidden; }
-.widget::after {
-  content:''; position:absolute; top:0; left:-100%; width:55%; height:100%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.035),transparent);
-  animation:scanSweep 9s ease-in-out infinite; pointer-events:none; z-index:10;
-}
-@keyframes scanSweep { 0%,65%{left:-100%} 80%{left:130%} 100%{left:130%} }
 
 /* Themes */
 .theme-dark    { background:rgba(8,8,16,.88); border:1px solid rgba(255,255,255,.07); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
@@ -282,34 +276,23 @@ body.overlay-mode #overlay { display:block; }
 
 /* Gamertag */
 .gt-row { display:flex; align-items:center; gap:6px; overflow:hidden; }
-.gt-name { font-size:var(--gt-sz); color:#e8e8f0; letter-spacing:2px; text-transform:uppercase; white-space:nowrap; position:relative; }
-.gt-cursor { display:inline-block; width:2px; background:#4fc3f7; height:.9em; margin-left:2px; flex-shrink:0; animation:blinkCursor 1.1s step-end infinite; }
-@keyframes blinkCursor { 0%,100%{opacity:1} 50%{opacity:0} }
-@keyframes glitch1 { 0%{clip-path:inset(20% 0 60% 0);transform:translate(-3px,0)} 33%{clip-path:inset(60% 0 10% 0);transform:translate(3px,0)} 66%{clip-path:inset(10% 0 70% 0);transform:translate(-2px,0)} 100%{clip-path:inset(0 0 100% 0);transform:none} }
-@keyframes glitch2 { 0%{clip-path:inset(50% 0 30% 0);transform:translate(3px,0);color:#ff4fc3} 33%{clip-path:inset(5% 0 85% 0);transform:translate(-3px,0);color:#4fffff} 66%{clip-path:inset(75% 0 5% 0);transform:translate(2px,0);color:#ff4fc3} 100%{clip-path:inset(0 0 100% 0);transform:none;color:inherit} }
-.gt-name.glitching::before,.gt-name.glitching::after { content:attr(data-text); position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
-.gt-name.glitching::before { animation:glitch1 .18s steps(1) forwards; }
-.gt-name.glitching::after  { animation:glitch2 .18s steps(1) forwards; }
+.gt-name { font-size:var(--gt-sz); color:#e8e8f0; letter-spacing:2px; text-transform:uppercase; white-space:nowrap; }
 
 /* Rank */
 .rank-row { display:flex; align-items:center; gap:9px; }
 .rank-icon-wrap { position:relative; flex-shrink:0; width:var(--icon-sz); height:var(--icon-sz); }
 .rank-icon { width:var(--icon-sz); height:var(--icon-sz); object-fit:contain; flex-shrink:0; }
 .rank-icon.hidden { display:none; }
-.rank-icon-fallback { width:var(--icon-sz); height:var(--icon-sz); display:flex; align-items:center; justify-content:center; font-size:calc(var(--icon-sz)*.6); flex-shrink:0; }
-.rank-glow { position:absolute; inset:-5px; border-radius:50%; opacity:0; animation:glowPulse 3s ease-in-out infinite; }
-@keyframes glowPulse { 0%,100%{opacity:.2;transform:scale(1)} 50%{opacity:.5;transform:scale(1.1)} }
+.rank-icon-fallback { width:var(--icon-sz); height:var(--icon-sz); display:flex; align-items:center; justify-content:center; font-size:calc(var(--icon-sz)*.55); font-style:normal; flex-shrink:0; }
+.rank-glow { position:absolute; inset:-5px; border-radius:50%; opacity:.25; }
 .rank-text { display:flex; flex-direction:column; }
 .rank-name { font-size:var(--rank-sz); color:#e8e8f0; letter-spacing:1.5px; line-height:1.1; }
 .rank-csr  { font-size:var(--csr-sz); color:#444465; letter-spacing:.5px; margin-top:3px; }
-.rank-name.pop-in { animation:popIn .35s cubic-bezier(.175,.885,.32,1.275) both; }
-@keyframes popIn { 0%{opacity:0;transform:translateY(5px) scale(.92)} 100%{opacity:1;transform:none} }
 
 /* Session */
 .session-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
 .session-label { font-size:9px; color:#2a2a45; letter-spacing:1.5px; text-transform:uppercase; flex-shrink:0; }
-.session-stats { display:flex; align-items:center; gap:6px; flex-wrap:wrap; animation:slideUp .4s ease both; }
-@keyframes slideUp { 0%{opacity:0;transform:translateY(4px)} 100%{opacity:1;transform:none} }
+.session-stats { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .sw { font-size:var(--sess-sz); color:#4ade80; letter-spacing:.5px; }
 .sl { font-size:var(--sess-sz); color:#f87171; letter-spacing:.5px; }
 .ss { font-size:var(--sess-sz); color:#2a2a45; }
@@ -381,15 +364,15 @@ body.overlay-mode #overlay { display:block; }
     <div class="cfg-field">
       <div class="layout-picker">
         <div class="layout-opt active" data-layout="corner" onclick="setLayout(this)">
-          <svg width="52" height="40" viewBox="0 0 52 40"><rect x="1" y="1" width="50" height="38" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="4" y="4" width="20" height="16" rx="2" fill="#185FA5" opacity=".7"/></svg>
+          <svg width="80" height="52" viewBox="0 0 80 52"><rect x="1" y="1" width="78" height="50" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="4" y="4" width="28" height="20" rx="2" fill="#185FA5" opacity=".7"/></svg>
           <span class="layout-opt-label">Corner</span>
         </div>
         <div class="layout-opt" data-layout="banner" onclick="setLayout(this)">
-          <svg width="52" height="40" viewBox="0 0 52 40"><rect x="1" y="1" width="50" height="38" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="1" y="4" width="50" height="12" rx="2" fill="#185FA5" opacity=".7"/></svg>
+          <svg width="80" height="52" viewBox="0 0 80 52"><rect x="1" y="1" width="78" height="50" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="1" y="5" width="78" height="14" rx="2" fill="#185FA5" opacity=".7"/></svg>
           <span class="layout-opt-label">Banner</span>
         </div>
         <div class="layout-opt" data-layout="sidebar" onclick="setLayout(this)">
-          <svg width="52" height="40" viewBox="0 0 52 40"><rect x="1" y="1" width="50" height="38" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="4" y="1" width="14" height="38" rx="2" fill="#185FA5" opacity=".7"/></svg>
+          <svg width="80" height="52" viewBox="0 0 80 52"><rect x="1" y="1" width="78" height="50" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="4" y="1" width="18" height="50" rx="2" fill="#185FA5" opacity=".7"/></svg>
           <span class="layout-opt-label">Sidebar</span>
         </div>
       </div>
@@ -526,7 +509,7 @@ const ICONS = {
 };
 const TIER_TC = { bronze:'t-bronze', silver:'t-silver', gold:'t-gold', platinum:'t-platinum', diamond:'t-diamond', onyx:'t-onyx' };
 const TIER_GC = { bronze:'g-bronze', silver:'g-silver', gold:'g-gold', platinum:'g-platinum', diamond:'g-diamond', onyx:'g-onyx' };
-const TIER_EM = { bronze:'🥉', silver:'🥈', gold:'🥇', platinum:'💎', diamond:'💠', onyx:'⬛' };
+const TIER_EM = { bronze:'BR', silver:'SL', gold:'GO', platinum:'PL', diamond:'DI', onyx:'ONX' };
 const BASE_URL = location.origin + '/overlay';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -537,7 +520,7 @@ let _cfg = {
   stats: { gamertag:1, rank:1, csr:1, kd:1, wr:1, session:1, csrdelta:1, socials:1 }
 };
 let _playerData = null;
-let _refreshTimer = null, _previewDebounce = null, _glitchTimer = null;
+let _refreshTimer = null, _previewDebounce = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
@@ -800,7 +783,6 @@ function renderWidget(containerId, data) {
 
       ${s.gamertag && gt ? `<div class="gt-row">
         <span class="gt-name" id="${containerId}_gt" data-text="${gt}">${gt}</span>
-        <span class="gt-cursor"></span>
       </div>` : ''}
 
       ${(s.gamertag && gt) && s.rank ? '<div class="divider"></div>' : ''}
@@ -808,7 +790,7 @@ function renderWidget(containerId, data) {
       ${s.rank ? `<div class="rank-row">
         <div class="rank-icon-wrap">${glowHtml}${iconHtml}${fbHtml}</div>
         <div class="rank-text">
-          <span class="rank-name pop-in ${tc}">${rankLabel}</span>
+          <span class="rank-name ${tc}">${rankLabel}</span>
           ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
         </div>
       </div>` : ''}
@@ -855,7 +837,7 @@ function renderWidget(containerId, data) {
       sections.push(`<div class="bn-block">
         <div class="rank-icon-wrap">${glowHtml}${iconHtml}${fbHtml}</div>
         <div class="bn-rank-text">
-          <span class="rank-name pop-in ${tc}">${rankLabel}</span>
+          <span class="rank-name ${tc}">${rankLabel}</span>
           ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
         </div>
       </div>`);
@@ -876,7 +858,7 @@ function renderWidget(containerId, data) {
       sections.push(`<div class="bn-sep"></div>`);
       sections.push(`<div class="bn-block">
         <span class="session-label">SESSION</span>
-        <div class="session-stats" style="animation:none">${sessInner}</div>
+        <div class="session-stats">${sessInner}</div>
       </div>`);
     }
 
@@ -892,23 +874,6 @@ function renderWidget(containerId, data) {
   }
 
   c.innerHTML = html;
-  if (isLive || containerId === 'previewWidget') {
-    const gtEl = document.getElementById(containerId + '_gt');
-    if (gtEl && isLive) scheduleGlitch(containerId + '_gt');
-  }
-}
-
-// ── Glitch ────────────────────────────────────────────────────────────────────
-function scheduleGlitch(elId) {
-  clearTimeout(_glitchTimer);
-  function fire() {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    el.classList.add('glitching');
-    setTimeout(() => el.classList.remove('glitching'), 200);
-    _glitchTimer = setTimeout(fire, 12000 + Math.random() * 14000);
-  }
-  _glitchTimer = setTimeout(fire, 3000 + Math.random() * 5000);
 }
 </script>
 </body>
