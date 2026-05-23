@@ -7,539 +7,542 @@
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-html, body {
-  font-family: 'Share Tech Mono', monospace;
-  -webkit-font-smoothing: antialiased;
-  background: transparent;
-  width:100%; height:100%; overflow:hidden;
-}
+html { font-family:'Share Tech Mono',monospace; -webkit-font-smoothing:antialiased; }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════
    CONFIG PAGE
-═══════════════════════════════════════════════════════════════════ */
-#config {
-  display:flex; align-items:center; justify-content:center;
-  min-height:100vh; background:#0a0a10; overflow:auto; padding:40px 20px;
+════════════════════════════════════════════════════════════ */
+body.config-mode {
+  background:#0a0a10; min-height:100vh;
+  overflow-y:auto; overflow-x:hidden;
 }
-.cfg-wrap { width:100%; max-width:540px; }
+#config { display:none; padding:40px 20px 60px; }
+body.config-mode #config { display:block; }
 
-.cfg-logo { display:flex; align-items:center; gap:12px; margin-bottom:28px; }
+.cfg-wrap { width:100%; max-width:580px; margin:0 auto; }
+
+/* Logo */
+.cfg-logo { display:flex; align-items:center; gap:12px; margin-bottom:30px; }
 .cfg-logo-badge {
-  width:40px; height:40px; background:#185FA5; border-radius:8px;
+  width:42px; height:42px; background:#185FA5; border-radius:9px;
   display:flex; align-items:center; justify-content:center; flex-shrink:0;
 }
-.cfg-logo-text { display:flex; flex-direction:column; }
 .cfg-logo-name { font-size:18px; color:#e8e8f0; letter-spacing:.5px; }
-.cfg-logo-sub  { font-size:10px; color:#555570; letter-spacing:2px; text-transform:uppercase; }
+.cfg-logo-sub  { font-size:10px; color:#444465; letter-spacing:2px; text-transform:uppercase; }
 
+/* Card */
 .cfg-card {
-  background:#13131d; border:1px solid #22223a; border-radius:12px;
-  padding:24px 24px 20px; margin-bottom:14px;
+  background:#12121c; border:1px solid #1e1e30; border-radius:12px;
+  padding:22px 22px 18px; margin-bottom:14px;
 }
 .cfg-section-title {
-  font-size:9px; color:#555570; letter-spacing:2px;
+  font-size:9px; color:#444465; letter-spacing:2.5px;
   text-transform:uppercase; margin-bottom:16px;
 }
+
+/* Fields */
 .cfg-field { margin-bottom:16px; }
 .cfg-field:last-child { margin-bottom:0; }
-.cfg-label { font-size:10px; color:#888899; letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:7px; }
+.cfg-label { font-size:10px; color:#666685; letter-spacing:1px; text-transform:uppercase; display:block; margin-bottom:7px; }
 .cfg-input {
-  width:100%; background:#0d0d16; border:1px solid #22223a; border-radius:6px;
-  color:#e8e8f0; font-family:'Share Tech Mono',monospace; font-size:14px;
-  padding:10px 14px; outline:none; letter-spacing:.5px;
+  width:100%; background:#0c0c16; border:1px solid #1e1e30; border-radius:6px;
+  color:#e8e8f0; font-family:'Share Tech Mono',monospace; font-size:13px;
+  padding:9px 13px; outline:none; letter-spacing:.5px;
 }
 .cfg-input:focus { border-color:#185FA5; }
-.cfg-input::placeholder { color:#333350; }
-.cfg-row { display:flex; gap:12px; }
+.cfg-input::placeholder { color:#2a2a45; }
+.cfg-row { display:flex; gap:10px; }
 .cfg-row .cfg-input { flex:1; }
+.cfg-sublabel { font-size:9px; color:#2a2a45; letter-spacing:.5px; padding-left:2px; margin-top:4px; }
 
+/* Pills */
 .cfg-pills { display:flex; gap:8px; flex-wrap:wrap; }
 .cfg-pill {
-  background:#0d0d16; border:1px solid #22223a; border-radius:6px;
-  color:#888899; font-family:'Share Tech Mono',monospace; font-size:11px;
-  letter-spacing:1px; text-transform:uppercase; padding:7px 14px; cursor:pointer; transition:all .15s;
+  background:#0c0c16; border:1px solid #1e1e30; border-radius:6px;
+  color:#666685; font-family:'Share Tech Mono',monospace; font-size:10px;
+  letter-spacing:1px; text-transform:uppercase; padding:7px 13px; cursor:pointer; transition:all .15s;
 }
 .cfg-pill:hover { border-color:#185FA5; color:#4fc3f7; }
-.cfg-pill.active { background:#0e2a4a; border-color:#185FA5; color:#4fc3f7; }
+.cfg-pill.active { background:#0c2240; border-color:#185FA5; color:#4fc3f7; }
 
-.cfg-preview-wrap {
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Crect width='20' height='20' fill='%23111118'/%3E%3Crect width='10' height='10' fill='%2314141c'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%2314141c'/%3E%3C/svg%3E");
-  border:1px solid #22223a; border-radius:8px; padding:20px;
-  display:flex; align-items:flex-start; min-height:140px;
+/* Layout picker */
+.layout-picker { display:flex; gap:10px; }
+.layout-opt {
+  flex:1; background:#0c0c16; border:1px solid #1e1e30; border-radius:8px;
+  padding:14px 10px 12px; cursor:pointer; transition:all .15s;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
 }
-.cfg-url-wrap { display:flex; gap:8px; align-items:stretch; }
+.layout-opt:hover { border-color:#185FA5; }
+.layout-opt.active { background:#0c2240; border-color:#185FA5; }
+.layout-opt svg { opacity:.5; transition:opacity .15s; }
+.layout-opt:hover svg, .layout-opt.active svg { opacity:1; }
+.layout-opt-label { font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:#666685; }
+.layout-opt.active .layout-opt-label { color:#4fc3f7; }
+
+/* Position grid */
+.pos-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; width:160px; }
+.pos-btn {
+  background:#0c0c16; border:1px solid #1e1e30; border-radius:5px;
+  color:#444465; font-family:'Share Tech Mono',monospace; font-size:9px;
+  letter-spacing:1px; text-transform:uppercase; padding:7px 4px; cursor:pointer;
+  text-align:center; transition:all .15s;
+}
+.pos-btn:hover { border-color:#185FA5; color:#4fc3f7; }
+.pos-btn.active { background:#0c2240; border-color:#185FA5; color:#4fc3f7; }
+
+/* Stats toggles */
+.stat-toggles { display:flex; flex-wrap:wrap; gap:7px; }
+.stat-tog {
+  display:flex; align-items:center; gap:6px;
+  background:#0c0c16; border:1px solid #1e1e30; border-radius:6px;
+  padding:7px 11px; cursor:pointer; transition:all .15s; user-select:none;
+}
+.stat-tog:hover { border-color:#185FA5; }
+.stat-tog.on { background:#0c2240; border-color:#185FA5; }
+.stat-tog-dot {
+  width:6px; height:6px; border-radius:50%; background:#1e1e30;
+  flex-shrink:0; transition:background .15s;
+}
+.stat-tog.on .stat-tog-dot { background:#4fc3f7; box-shadow:0 0 4px #4fc3f7; }
+.stat-tog-label { font-size:10px; color:#555575; letter-spacing:.8px; text-transform:uppercase; }
+.stat-tog.on .stat-tog-label { color:#b0d4f0; }
+
+/* Preview */
+.cfg-preview-wrap {
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Crect width='20' height='20' fill='%23101018'/%3E%3Crect width='10' height='10' fill='%2312121e'/%3E%3Crect x='10' y='10' width='10' height='10' fill='%2312121e'/%3E%3C/svg%3E");
+  border:1px solid #1e1e30; border-radius:8px;
+  padding:20px; min-height:150px; position:relative; overflow:hidden;
+  transition:min-height .3s;
+}
+.cfg-preview-wrap.layout-banner { min-height:90px; align-items:center; display:flex; }
+.cfg-preview-wrap.layout-sidebar { min-height:220px; align-items:flex-start; display:flex; }
+
+/* URL output */
+.cfg-url-wrap { display:flex; gap:8px; }
 .cfg-url-input {
-  flex:1; background:#0d0d16; border:1px solid #22223a; border-radius:6px;
-  color:#4fc3f7; font-family:'Share Tech Mono',monospace; font-size:11px;
-  padding:10px 14px; outline:none; letter-spacing:.3px; word-break:break-all;
+  flex:1; background:#0c0c16; border:1px solid #1e1e30; border-radius:6px;
+  color:#4fc3f7; font-family:'Share Tech Mono',monospace; font-size:10px;
+  padding:10px 13px; outline:none; letter-spacing:.3px; word-break:break-all;
 }
 .cfg-copy-btn {
   background:#185FA5; color:#fff; border:none; border-radius:6px;
   font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px;
-  text-transform:uppercase; padding:0 18px; cursor:pointer; flex-shrink:0;
+  text-transform:uppercase; padding:0 16px; cursor:pointer; flex-shrink:0;
 }
 .cfg-copy-btn:hover { background:#1e72c4; }
 .cfg-copy-btn.copied { background:#166534; }
 
-.cfg-obs-hint { background:#0d0d16; border:1px solid #22223a; border-radius:8px; padding:16px 18px; }
-.cfg-obs-title { font-size:10px; color:#888899; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px; }
-.cfg-obs-steps { list-style:none; display:flex; flex-direction:column; gap:6px; }
-.cfg-obs-steps li {
-  font-size:11px; color:#555570; letter-spacing:.3px; line-height:1.5;
-  display:flex; gap:8px;
-}
-.cfg-obs-steps li::before { content:attr(data-n); color:#185FA5; flex-shrink:0; font-size:10px; margin-top:1px; }
-.cfg-obs-steps em { color:#e8e8f0; font-style:normal; }
+/* OBS hint */
+.cfg-obs-hint { background:#0c0c16; border:1px solid #1e1e30; border-radius:8px; padding:16px 18px; }
+.cfg-obs-title { font-size:9px; color:#666685; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+.cfg-obs-row { display:flex; gap:20px; flex-wrap:wrap; }
+.cfg-obs-col { flex:1; min-width:180px; }
+.cfg-obs-col-title { font-size:9px; color:#4fc3f7; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+.cfg-obs-steps { list-style:none; display:flex; flex-direction:column; gap:5px; }
+.cfg-obs-steps li { font-size:10px; color:#444465; letter-spacing:.3px; line-height:1.5; display:flex; gap:7px; }
+.cfg-obs-steps li::before { content:attr(data-n); color:#185FA5; flex-shrink:0; font-size:9px; margin-top:1px; }
+.cfg-obs-steps em { color:#ccd4e0; font-style:normal; }
+#obsHints { display:none; }
 
-/* ═══════════════════════════════════════════════════════════════════
-   WIDGET — SHARED STRUCTURE
-═══════════════════════════════════════════════════════════════════ */
-.widget {
-  display:inline-flex; flex-direction:column;
-  border-radius:10px; padding:12px 15px 11px;
-  position:relative; overflow:hidden;
+/* ════════════════════════════════════════════════════════════
+   OVERLAY WIDGET — shared
+════════════════════════════════════════════════════════════ */
+body.overlay-mode {
+  background:transparent; overflow:hidden;
+  width:100%; height:100%;
 }
+#overlay { display:none; }
+body.overlay-mode #overlay { display:block; }
 
-/* Scan-line sweep (runs every 8s) */
+/* Scan-line sweep */
+.widget { position:relative; overflow:hidden; }
 .widget::after {
-  content:'';
-  position:absolute; top:0; left:-100%; width:60%; height:100%;
-  background:linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
-  animation:scanSweep 8s ease-in-out infinite;
-  pointer-events:none;
+  content:''; position:absolute; top:0; left:-100%; width:55%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.035),transparent);
+  animation:scanSweep 9s ease-in-out infinite; pointer-events:none; z-index:10;
 }
-@keyframes scanSweep { 0%,70%{left:-100%} 85%{left:140%} 100%{left:140%} }
+@keyframes scanSweep { 0%,65%{left:-100%} 80%{left:130%} 100%{left:130%} }
 
-/* ── Themes ─── */
-.theme-dark  { background:rgba(8,8,16,.88); border:1px solid rgba(255,255,255,.07); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
-.theme-glass { background:rgba(18,18,38,.58); border:1px solid rgba(100,120,255,.2); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 4px 24px rgba(0,0,0,.45); }
-.theme-minimal { background:transparent; border:none; padding:6px 2px; }
+/* Themes */
+.theme-dark    { background:rgba(8,8,16,.88); border:1px solid rgba(255,255,255,.07); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+.theme-glass   { background:rgba(16,16,36,.6); border:1px solid rgba(100,140,255,.18); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:0 4px 28px rgba(0,0,0,.5); }
+.theme-minimal { background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.05); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
 
-/* ── Sizes ─── */
-.size-small  { --icon-sz:26px; --gt-size:11px; --rank-size:12px; --csr-size:9px;  --sess-size:10px; --brand-size:8px; }
-.size-medium { --icon-sz:36px; --gt-size:13px; --rank-size:15px; --csr-size:10px; --sess-size:12px; --brand-size:9px; }
-.size-large  { --icon-sz:48px; --gt-size:16px; --rank-size:20px; --csr-size:12px; --sess-size:14px; --brand-size:10px; }
+/* ── CORNER WIDGET ─────────────────────────────── */
+.layout-corner {
+  display:inline-flex; flex-direction:column;
+  border-radius:10px; padding:12px 15px 10px;
+}
+.size-small  { --icon-sz:24px; --gt-sz:10px; --rank-sz:12px; --csr-sz:9px;  --sess-sz:10px; --social-sz:9px;  --brand-sz:8px; }
+.size-medium { --icon-sz:34px; --gt-sz:13px; --rank-sz:15px; --csr-sz:10px; --sess-sz:11px; --social-sz:10px; --brand-sz:9px; }
+.size-large  { --icon-sz:46px; --gt-sz:15px; --rank-sz:19px; --csr-sz:12px; --sess-sz:13px; --social-sz:11px; --brand-sz:10px; }
 
-/* ── Gamertag row ─── */
-.gt-row {
-  display:flex; align-items:center; gap:7px;
-  margin-bottom:9px;
-  overflow:hidden;
+/* ── BANNER (top/bottom full width) ────────────── */
+.layout-banner {
+  display:flex; align-items:center;
+  width:100%; border-radius:0; padding:0 18px;
+  height:56px;
+  border-left:none; border-right:none;
 }
-.gt-name {
-  font-size:var(--gt-size); color:#e8e8f0; letter-spacing:2px;
-  text-transform:uppercase; white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis;
+.layout-banner.size-small  { height:44px; padding:0 14px; --icon-sz:20px; --gt-sz:10px; --rank-sz:11px; --csr-sz:9px; --sess-sz:10px; --social-sz:9px; --brand-sz:8px; }
+.layout-banner.size-medium { height:56px; padding:0 18px; --icon-sz:28px; --gt-sz:12px; --rank-sz:13px; --csr-sz:9px; --sess-sz:11px; --social-sz:10px; --brand-sz:9px; }
+.layout-banner.size-large  { height:70px; padding:0 22px; --icon-sz:36px; --gt-sz:14px; --rank-sz:16px; --csr-sz:11px; --sess-sz:13px; --social-sz:11px; --brand-sz:10px; }
+.layout-banner .banner-left  { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.layout-banner .banner-sep   { width:1px; height:30px; background:rgba(255,255,255,.08); margin:0 14px; flex-shrink:0; }
+.layout-banner .banner-right { display:flex; align-items:center; gap:8px; flex:1; flex-wrap:wrap; }
+.layout-banner .banner-brand { margin-left:auto; flex-shrink:0; }
+
+/* ── SIDEBAR ───────────────────────────────────── */
+.layout-sidebar {
+  display:inline-flex; flex-direction:column; align-items:flex-start;
+  border-radius:10px; padding:14px 14px 12px;
+  width:auto; min-width:110px;
 }
-/* Typing cursor after gamertag */
-.gt-cursor {
-  display:inline-block; width:2px;
-  background:#4fc3f7; height:.9em;
-  margin-left:1px; flex-shrink:0;
-  animation:blinkCursor 1.1s step-end infinite;
-}
+.layout-sidebar.size-small  { --icon-sz:28px; --gt-sz:10px; --rank-sz:11px; --csr-sz:9px; --sess-sz:10px; --social-sz:9px; --brand-sz:8px; min-width:100px; }
+.layout-sidebar.size-medium { --icon-sz:38px; --gt-sz:12px; --rank-sz:13px; --csr-sz:10px; --sess-sz:11px; --social-sz:10px; --brand-sz:9px; min-width:120px; }
+.layout-sidebar.size-large  { --icon-sz:50px; --gt-sz:14px; --rank-sz:16px; --csr-sz:11px; --sess-sz:13px; --social-sz:11px; --brand-sz:10px; min-width:150px; }
+
+/* ── SHARED ELEMENTS ───────────────────────────── */
+.divider { width:100%; height:1px; background:rgba(255,255,255,.06); margin:8px 0; }
+.layout-banner .divider { display:none; }
+
+/* Gamertag */
+.gt-row { display:flex; align-items:center; gap:6px; overflow:hidden; }
+.gt-name { font-size:var(--gt-sz); color:#e8e8f0; letter-spacing:2px; text-transform:uppercase; white-space:nowrap; position:relative; }
+.gt-cursor { display:inline-block; width:2px; background:#4fc3f7; height:.9em; margin-left:2px; flex-shrink:0; animation:blinkCursor 1.1s step-end infinite; }
 @keyframes blinkCursor { 0%,100%{opacity:1} 50%{opacity:0} }
-
-/* Glitch effect (fires occasionally on gt-name) */
-@keyframes glitch1 {
-  0%  { clip-path:inset(20% 0 60% 0); transform:translate(-3px,0); }
-  20% { clip-path:inset(60% 0 10% 0); transform:translate(3px,0); }
-  40% { clip-path:inset(40% 0 40% 0); transform:translate(-2px,0); }
-  60% { clip-path:inset(80% 0 5%  0); transform:translate(2px,0); }
-  80% { clip-path:inset(10% 0 70% 0); transform:translate(-1px,0); }
-  100%{ clip-path:inset(0 0 100% 0); transform:translate(0,0); }
-}
-@keyframes glitch2 {
-  0%  { clip-path:inset(50% 0 30% 0); transform:translate(3px,0); color:#ff4fc3; }
-  33% { clip-path:inset(10% 0 80% 0); transform:translate(-3px,0); color:#4fffff; }
-  66% { clip-path:inset(70% 0 10% 0); transform:translate(2px,0); color:#ff4fc3; }
-  100%{ clip-path:inset(0 0 100% 0); transform:translate(0,0); color:inherit; }
-}
-.gt-name.glitching::before,
-.gt-name.glitching::after {
-  content: attr(data-text);
-  position:absolute; left:0; top:0; width:100%; height:100%;
-  pointer-events:none;
-}
-.gt-name { position:relative; }
+@keyframes glitch1 { 0%{clip-path:inset(20% 0 60% 0);transform:translate(-3px,0)} 33%{clip-path:inset(60% 0 10% 0);transform:translate(3px,0)} 66%{clip-path:inset(10% 0 70% 0);transform:translate(-2px,0)} 100%{clip-path:inset(0 0 100% 0);transform:none} }
+@keyframes glitch2 { 0%{clip-path:inset(50% 0 30% 0);transform:translate(3px,0);color:#ff4fc3} 33%{clip-path:inset(5% 0 85% 0);transform:translate(-3px,0);color:#4fffff} 66%{clip-path:inset(75% 0 5% 0);transform:translate(2px,0);color:#ff4fc3} 100%{clip-path:inset(0 0 100% 0);transform:none;color:inherit} }
+.gt-name.glitching::before,.gt-name.glitching::after { content:attr(data-text); position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
 .gt-name.glitching::before { animation:glitch1 .18s steps(1) forwards; }
 .gt-name.glitching::after  { animation:glitch2 .18s steps(1) forwards; }
 
-/* ── Divider ─── */
-.divider { width:100%; height:1px; background:rgba(255,255,255,.06); margin:8px 0; }
-.theme-minimal .divider { background:rgba(255,255,255,.14); }
-
-/* ── Rank row ─── */
-.rank-row { display:flex; align-items:center; gap:10px; }
-.rank-icon {
-  width:var(--icon-sz); height:var(--icon-sz);
-  flex-shrink:0; object-fit:contain;
-}
+/* Rank */
+.rank-row { display:flex; align-items:center; gap:9px; }
+.rank-icon-wrap { position:relative; flex-shrink:0; width:var(--icon-sz); height:var(--icon-sz); }
+.rank-icon { width:var(--icon-sz); height:var(--icon-sz); object-fit:contain; flex-shrink:0; }
 .rank-icon.hidden { display:none; }
-.rank-icon-fallback {
-  width:var(--icon-sz); height:var(--icon-sz);
-  flex-shrink:0; display:flex; align-items:center; justify-content:center;
-  font-size:calc(var(--icon-sz) * 0.6);
-}
-.rank-icon-wrap {
-  position:relative; flex-shrink:0;
-  width:var(--icon-sz); height:var(--icon-sz);
-}
-/* Tier glow ring around rank icon */
-.rank-glow {
-  position:absolute; inset:-4px; border-radius:50%;
-  opacity:0;
-  animation:glowPulse 3s ease-in-out infinite;
-}
-@keyframes glowPulse { 0%,100%{opacity:.25;transform:scale(1)} 50%{opacity:.55;transform:scale(1.08)} }
-
-/* ── Rank text ─── */
+.rank-icon-fallback { width:var(--icon-sz); height:var(--icon-sz); display:flex; align-items:center; justify-content:center; font-size:calc(var(--icon-sz)*.6); flex-shrink:0; }
+.rank-glow { position:absolute; inset:-5px; border-radius:50%; opacity:0; animation:glowPulse 3s ease-in-out infinite; }
+@keyframes glowPulse { 0%,100%{opacity:.2;transform:scale(1)} 50%{opacity:.5;transform:scale(1.1)} }
 .rank-text { display:flex; flex-direction:column; }
-.rank-name {
-  font-size:var(--rank-size); color:#e8e8f0;
-  letter-spacing:1.5px; line-height:1.1;
-}
-.rank-csr {
-  font-size:var(--csr-size); color:#555570;
-  letter-spacing:.5px; margin-top:3px;
-}
-/* Count-up animation */
-.rank-name.counting { animation:countPop .35s cubic-bezier(.175,.885,.32,1.275) both; }
-@keyframes countPop { 0%{opacity:0;transform:translateY(6px) scale(.9)} 100%{opacity:1;transform:none} }
+.rank-name { font-size:var(--rank-sz); color:#e8e8f0; letter-spacing:1.5px; line-height:1.1; }
+.rank-csr  { font-size:var(--csr-sz); color:#444465; letter-spacing:.5px; margin-top:3px; }
+.rank-name.pop-in { animation:popIn .35s cubic-bezier(.175,.885,.32,1.275) both; }
+@keyframes popIn { 0%{opacity:0;transform:translateY(5px) scale(.92)} 100%{opacity:1;transform:none} }
 
-/* ── Session row ─── */
-.session-row { display:flex; align-items:center; gap:8px; }
-.session-label { font-size:9px; color:#2e2e55; letter-spacing:1.5px; text-transform:uppercase; flex-shrink:0; }
-.session-stats { display:flex; align-items:center; gap:7px; flex:1; }
-.session-stats { animation:slideUp .4s ease both; }
-@keyframes slideUp { 0%{opacity:0;transform:translateY(5px)} 100%{opacity:1;transform:none} }
-.session-wins   { font-size:var(--sess-size); color:#4ade80; letter-spacing:.5px; }
-.session-losses { font-size:var(--sess-size); color:#f87171; letter-spacing:.5px; }
-.session-sep    { font-size:var(--sess-size); color:#2e2e55; }
-.session-csr-pos{ font-size:var(--sess-size); color:#4ade80; letter-spacing:.5px; }
-.session-csr-neg{ font-size:var(--sess-size); color:#f87171; letter-spacing:.5px; }
-.session-csr-neu{ font-size:var(--sess-size); color:#888899; letter-spacing:.5px; }
-.session-none   { font-size:var(--sess-size); color:#2e2e55; letter-spacing:.5px; }
-.session-cnt    { font-size:9px; color:#2e2e55; letter-spacing:1px; }
+/* Session */
+.session-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.session-label { font-size:9px; color:#2a2a45; letter-spacing:1.5px; text-transform:uppercase; flex-shrink:0; }
+.session-stats { display:flex; align-items:center; gap:6px; flex-wrap:wrap; animation:slideUp .4s ease both; }
+@keyframes slideUp { 0%{opacity:0;transform:translateY(4px)} 100%{opacity:1;transform:none} }
+.sw { font-size:var(--sess-sz); color:#4ade80; letter-spacing:.5px; }
+.sl { font-size:var(--sess-sz); color:#f87171; letter-spacing:.5px; }
+.ss { font-size:var(--sess-sz); color:#2a2a45; }
+.sc-pos { font-size:var(--sess-sz); color:#4ade80; letter-spacing:.5px; }
+.sc-neg { font-size:var(--sess-sz); color:#f87171; letter-spacing:.5px; }
+.sc-neu { font-size:var(--sess-sz); color:#888899; letter-spacing:.5px; }
+.s-none { font-size:var(--sess-sz); color:#2a2a45; letter-spacing:.5px; }
+.s-cnt  { font-size:9px; color:#2a2a45; letter-spacing:1px; }
 
-/* ── Socials row ─── */
-.socials-row {
-  display:flex; align-items:center; gap:10px;
-  margin-top:7px; padding-top:7px;
-  border-top:1px solid rgba(255,255,255,.05);
-  animation:fadeIn .6s ease .2s both;
-}
-@keyframes fadeIn { 0%{opacity:0} 100%{opacity:1} }
-.social-item {
-  display:flex; align-items:center; gap:4px;
-  font-size:10px; color:#888899; letter-spacing:.5px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  max-width:120px;
-}
-.social-icon { width:12px; height:12px; flex-shrink:0; opacity:.7; }
-.size-large .social-item { font-size:12px; }
-.size-small .social-item { font-size:9px; }
+/* KD / WR inline stats */
+.inline-stat { display:flex; align-items:baseline; gap:3px; }
+.inline-stat-val { font-size:var(--rank-sz); color:#e8e8f0; letter-spacing:1px; }
+.inline-stat-lbl { font-size:9px; color:#2a2a45; letter-spacing:1px; text-transform:uppercase; }
+.stat-sep { font-size:var(--sess-sz); color:#1e1e35; }
 
-/* ── Brand row ─── */
-.brand-row {
-  display:flex; align-items:center; gap:5px; margin-top:8px;
-}
-.brand-logo-icon {
-  width:12px; height:12px; background:#185FA5; border-radius:2px;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
-}
-.brand-text {
-  font-size:var(--brand-size); color:#1e1e40;
-  letter-spacing:2px; text-transform:uppercase;
-}
-.theme-glass .brand-text   { color:#2e2e5a; }
-.theme-minimal .brand-text { color:#333358; }
+/* Socials */
+.socials-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.social-item { display:flex; align-items:center; gap:4px; font-size:var(--social-sz); color:#666685; letter-spacing:.5px; white-space:nowrap; }
+.social-icon { width:11px; height:11px; flex-shrink:0; }
 
-/* ── Tier colors ─── */
-.tier-bronze  { color:#cd7f32; }
-.tier-silver  { color:#a8a9ad; }
-.tier-gold    { color:#ffd700; }
-.tier-platinum{ color:#4fc3f7; }
-.tier-diamond { color:#b9f2ff; }
-.tier-onyx    { color:#e040fb; }
+/* Brand */
+.brand-row { display:flex; align-items:center; gap:5px; }
+.brand-logo-icon { width:12px; height:12px; background:#185FA5; border-radius:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.brand-text { font-size:var(--brand-sz); color:#1a1a35; letter-spacing:2px; text-transform:uppercase; }
+.theme-glass .brand-text { color:#252548; }
+.theme-minimal .brand-text { color:#2e2e52; }
 
-/* Tier glow colors */
-.glow-bronze  { box-shadow:0 0 12px 3px rgba(205,127,50,.6); }
-.glow-silver  { box-shadow:0 0 12px 3px rgba(168,169,173,.6); }
-.glow-gold    { box-shadow:0 0 12px 3px rgba(255,215,0,.6); }
-.glow-platinum{ box-shadow:0 0 12px 3px rgba(79,195,247,.6); }
-.glow-diamond { box-shadow:0 0 12px 3px rgba(185,242,255,.6); }
-.glow-onyx    { box-shadow:0 0 12px 3px rgba(224,64,251,.6); }
+/* Tier colors */
+.t-bronze  {color:#cd7f32} .t-silver {color:#a8a9ad} .t-gold    {color:#ffd700}
+.t-platinum{color:#4fc3f7} .t-diamond{color:#b9f2ff} .t-onyx    {color:#e040fb}
+.g-bronze  {box-shadow:0 0 12px 3px rgba(205,127,50,.65)}
+.g-silver  {box-shadow:0 0 12px 3px rgba(168,169,173,.65)}
+.g-gold    {box-shadow:0 0 12px 3px rgba(255,215,0,.65)}
+.g-platinum{box-shadow:0 0 12px 3px rgba(79,195,247,.65)}
+.g-diamond {box-shadow:0 0 12px 3px rgba(185,242,255,.65)}
+.g-onyx    {box-shadow:0 0 12px 3px rgba(224,64,251,.65)}
 </style>
 </head>
-<body>
+<body class="config-mode">
 
-<!-- ═══════════════════════════════ CONFIG PAGE ═══════════════════════════════ -->
+<!-- ══════════════════════════ CONFIG PAGE ══════════════════════════ -->
 <div id="config">
- <div class="cfg-wrap">
+<div class="cfg-wrap">
 
   <!-- Logo -->
   <div class="cfg-logo">
-   <div class="cfg-logo-badge">
-    <svg width="24" height="24" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-     <g transform="translate(15,15) rotate(-35) scale(0.42)">
-      <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
-      <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
-      <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
-      <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
-      <path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/>
-      <line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
-      <line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
-      <line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
-      <line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/>
-      <rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/>
-      <rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/>
-      <circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/>
-     </g>
-    </svg>
-   </div>
-   <div class="cfg-logo-text">
-    <span class="cfg-logo-name">fragr.live</span>
-    <span class="cfg-logo-sub">Stream Overlay Config</span>
-   </div>
+    <div class="cfg-logo-badge"><svg width="24" height="24" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><g transform="translate(15,15) rotate(-35) scale(0.42)"><ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/><rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/><ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/><ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/><path d="M-2 1.5 L0 -0.5 L2 1.5 Z" fill="#185FA5"/><line x1="-5.5" y1="5.5" x2="-5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/><line x1="-1.8" y1="5.5" x2="-1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/><line x1="1.8" y1="5.5" x2="1.8" y2="12.5" stroke="#185FA5" stroke-width="1.6"/><line x1="5.5" y1="5.5" x2="5.5" y2="12.5" stroke="#185FA5" stroke-width="1.6"/><rect x="-5" y="-20" width="10" height="5.5" rx="1.5" fill="white"/><rect x="-13" y="-23" width="9.5" height="4" rx="2" fill="white"/><circle cx="-13" cy="-29" r="4" fill="none" stroke="white" stroke-width="2.2"/></g></svg></div>
+    <div><div class="cfg-logo-name">fragr.live</div><div class="cfg-logo-sub">Stream Overlay Config</div></div>
   </div>
 
-  <!-- Settings -->
+  <!-- Your Info -->
   <div class="cfg-card">
-   <div class="cfg-section-title">Your Info</div>
-   <div class="cfg-field">
-    <label class="cfg-label">Gamertag</label>
-    <input class="cfg-input" id="gtInput" type="text" placeholder="e.g. Itz7Shots" maxlength="32" autocomplete="off" spellcheck="false" oninput="updateAll()">
-   </div>
-   <div class="cfg-field">
-    <label class="cfg-label">Twitter / X &nbsp;&amp;&nbsp; Instagram handles <span style="color:#333350;font-size:9px">(optional)</span></label>
-    <div class="cfg-row">
-     <input class="cfg-input" id="twitterInput" type="text" placeholder="@yourhandle" maxlength="40" autocomplete="off" spellcheck="false" oninput="updateAll()" style="flex:1">
-     <input class="cfg-input" id="igInput" type="text" placeholder="@yourhandle" maxlength="40" autocomplete="off" spellcheck="false" oninput="updateAll()" style="flex:1">
+    <div class="cfg-section-title">Your Info</div>
+    <div class="cfg-field">
+      <label class="cfg-label">Gamertag</label>
+      <input class="cfg-input" id="gtInput" type="text" placeholder="e.g. Itz7Shots" maxlength="32" autocomplete="off" spellcheck="false" oninput="updateAll()">
     </div>
-    <div style="display:flex;gap:12px;margin-top:5px">
-     <span style="font-size:9px;color:#333350;letter-spacing:.5px;flex:1;padding-left:2px">Twitter / X</span>
-     <span style="font-size:9px;color:#333350;letter-spacing:.5px;flex:1;padding-left:2px">Instagram</span>
-    </div>
-   </div>
-  </div>
-
-  <div class="cfg-card">
-   <div class="cfg-section-title">Style</div>
-   <div class="cfg-field">
-    <label class="cfg-label">Theme</label>
-    <div class="cfg-pills">
-     <div class="cfg-pill active" data-group="theme" data-val="dark"    onclick="setPill(this)">Dark</div>
-     <div class="cfg-pill"        data-group="theme" data-val="glass"   onclick="setPill(this)">Glass</div>
-     <div class="cfg-pill"        data-group="theme" data-val="minimal" onclick="setPill(this)">Minimal</div>
-    </div>
-   </div>
-   <div class="cfg-field" style="margin-bottom:0">
-    <label class="cfg-label">Size</label>
-    <div class="cfg-pills">
-     <div class="cfg-pill"        data-group="size" data-val="small"  onclick="setPill(this)">Small</div>
-     <div class="cfg-pill active" data-group="size" data-val="medium" onclick="setPill(this)">Medium</div>
-     <div class="cfg-pill"        data-group="size" data-val="large"  onclick="setPill(this)">Large</div>
-    </div>
-   </div>
-  </div>
-
-  <!-- Preview -->
-  <div class="cfg-card">
-   <div class="cfg-section-title">Live Preview</div>
-   <div class="cfg-preview-wrap" id="previewWrap">
-    <div class="widget theme-dark size-medium" id="previewWidget">
-     <!-- Gamertag row -->
-     <div class="gt-row">
-      <span class="gt-name" id="previewGt" data-text="GAMERTAG">GAMERTAG</span>
-      <span class="gt-cursor"></span>
-     </div>
-     <div class="divider"></div>
-     <!-- Rank row -->
-     <div class="rank-row">
-      <div class="rank-icon-wrap">
-       <div class="rank-glow" id="previewGlow"></div>
-       <img class="rank-icon hidden" id="previewIcon" alt="rank">
-       <div class="rank-icon-fallback" id="previewFallback">—</div>
+    <div class="cfg-field" style="margin-bottom:0">
+      <label class="cfg-label">Socials <span style="color:#222240;font-size:9px">(optional)</span></label>
+      <div class="cfg-row">
+        <div style="flex:1"><input class="cfg-input" id="twitterInput" type="text" placeholder="@twitter" maxlength="40" autocomplete="off" oninput="updateAll()"><div class="cfg-sublabel">Twitter / X</div></div>
+        <div style="flex:1"><input class="cfg-input" id="igInput" type="text" placeholder="@instagram" maxlength="40" autocomplete="off" oninput="updateAll()"><div class="cfg-sublabel">Instagram</div></div>
       </div>
-      <div class="rank-text">
-       <span class="rank-name" id="previewRankName">Enter gamertag above</span>
-       <span class="rank-csr"  id="previewRankCsr"></span>
-      </div>
-     </div>
-     <div class="divider"></div>
-     <!-- Session row -->
-     <div class="session-row">
-      <span class="session-label">SESSION</span>
-      <div class="session-stats" id="previewSession"><span class="session-none">No games yet today</span></div>
-     </div>
-     <!-- Socials row (hidden until filled) -->
-     <div class="socials-row" id="previewSocials" style="display:none"></div>
-     <!-- Brand -->
-     <div class="brand-row">
-      <div class="brand-logo-icon">
-       <svg width="8" height="8" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-        <g transform="translate(15,15) rotate(-35) scale(0.42)">
-         <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
-         <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
-         <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
-         <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
-        </g>
-       </svg>
-      </div>
-      <span class="brand-text">fragr.live</span>
-     </div>
     </div>
-   </div>
   </div>
 
-  <!-- URL output -->
+  <!-- Layout -->
   <div class="cfg-card">
-   <div class="cfg-section-title">Your OBS URL</div>
-   <div class="cfg-field" style="margin-bottom:0">
-    <div class="cfg-url-wrap">
-     <input class="cfg-url-input" id="urlOutput" readonly value="Enter your gamertag above">
-     <button class="cfg-copy-btn" id="copyBtn" onclick="copyUrl()">Copy</button>
+    <div class="cfg-section-title">Layout</div>
+    <div class="cfg-field">
+      <div class="layout-picker">
+        <div class="layout-opt active" data-layout="corner" onclick="setLayout(this)">
+          <svg width="52" height="40" viewBox="0 0 52 40"><rect x="1" y="1" width="50" height="38" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="4" y="4" width="20" height="16" rx="2" fill="#185FA5" opacity=".7"/></svg>
+          <span class="layout-opt-label">Corner</span>
+        </div>
+        <div class="layout-opt" data-layout="banner" onclick="setLayout(this)">
+          <svg width="52" height="40" viewBox="0 0 52 40"><rect x="1" y="1" width="50" height="38" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="1" y="4" width="50" height="12" rx="2" fill="#185FA5" opacity=".7"/></svg>
+          <span class="layout-opt-label">Banner</span>
+        </div>
+        <div class="layout-opt" data-layout="sidebar" onclick="setLayout(this)">
+          <svg width="52" height="40" viewBox="0 0 52 40"><rect x="1" y="1" width="50" height="38" rx="4" fill="none" stroke="#4fc3f7" stroke-width="1.5" stroke-dasharray="3,3"/><rect x="4" y="1" width="14" height="38" rx="2" fill="#185FA5" opacity=".7"/></svg>
+          <span class="layout-opt-label">Sidebar</span>
+        </div>
+      </div>
     </div>
-   </div>
+
+    <!-- Position (corner only) -->
+    <div id="posSection" class="cfg-field" style="margin-bottom:0">
+      <label class="cfg-label">Position</label>
+      <div class="pos-grid">
+        <div class="pos-btn active" data-pos="tl" onclick="setPos(this)">↖ Top Left</div>
+        <div class="pos-btn" data-pos="tr" onclick="setPos(this)">Top Right ↗</div>
+        <div class="pos-btn" data-pos="bl" onclick="setPos(this)">↙ Bot Left</div>
+        <div class="pos-btn" data-pos="br" onclick="setPos(this)">Bot Right ↘</div>
+      </div>
+    </div>
+
+    <!-- Side (sidebar only) -->
+    <div id="sideSection" class="cfg-field" style="margin-bottom:0;display:none">
+      <label class="cfg-label">Side</label>
+      <div class="cfg-pills">
+        <div class="cfg-pill active" data-group="side" data-val="left"  onclick="setPill(this)">Left</div>
+        <div class="cfg-pill"        data-group="side" data-val="right" onclick="setPill(this)">Right</div>
+      </div>
+    </div>
   </div>
 
-  <!-- OBS hint -->
-  <div class="cfg-obs-hint">
-   <div class="cfg-obs-title">Adding to OBS / Streamlabs</div>
-   <ol class="cfg-obs-steps">
-    <li data-n="1">Sources → <em>+ → Browser Source</em></li>
-    <li data-n="2">Paste your URL above into the <em>URL</em> field</li>
-    <li data-n="3">Width <em>340</em> × Height <em>130</em> recommended (medium)</li>
-    <li data-n="4">Check <em>"Transparent background"</em> (CSS Backgrounds)</li>
-    <li data-n="5">Drag and resize the source in your scene like any layer</li>
-   </ol>
+  <!-- Style -->
+  <div class="cfg-card">
+    <div class="cfg-section-title">Style</div>
+    <div class="cfg-field">
+      <label class="cfg-label">Theme</label>
+      <div class="cfg-pills">
+        <div class="cfg-pill active" data-group="theme" data-val="dark"    onclick="setPill(this)">Dark</div>
+        <div class="cfg-pill"        data-group="theme" data-val="glass"   onclick="setPill(this)">Glass</div>
+        <div class="cfg-pill"        data-group="theme" data-val="minimal" onclick="setPill(this)">Minimal</div>
+      </div>
+    </div>
+    <div class="cfg-field" style="margin-bottom:0">
+      <label class="cfg-label">Size</label>
+      <div class="cfg-pills">
+        <div class="cfg-pill"        data-group="size" data-val="small"  onclick="setPill(this)">Small</div>
+        <div class="cfg-pill active" data-group="size" data-val="medium" onclick="setPill(this)">Medium</div>
+        <div class="cfg-pill"        data-group="size" data-val="large"  onclick="setPill(this)">Large</div>
+      </div>
+    </div>
   </div>
 
- </div>
+  <!-- Stats toggles -->
+  <div class="cfg-card">
+    <div class="cfg-section-title">Stats to Show &nbsp;<span style="color:#2a2a45;font-size:9px">— click to toggle on/off</span></div>
+    <div class="stat-toggles" id="statToggles">
+      <div class="stat-tog on"  data-stat="gamertag"  onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Gamertag</span></div>
+      <div class="stat-tog on"  data-stat="rank"      onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Rank</span></div>
+      <div class="stat-tog on"  data-stat="csr"       onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">CSR</span></div>
+      <div class="stat-tog on"  data-stat="kd"        onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">K/D</span></div>
+      <div class="stat-tog on"  data-stat="wr"        onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Win Rate</span></div>
+      <div class="stat-tog on"  data-stat="session"   onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Session W/L</span></div>
+      <div class="stat-tog on"  data-stat="csrdelta"  onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">CSR Delta</span></div>
+      <div class="stat-tog on"  data-stat="socials"   onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">Socials</span></div>
+      <div class="stat-tog on"  data-stat="brand"     onclick="toggleStat(this)"><div class="stat-tog-dot"></div><span class="stat-tog-label">fragr brand</span></div>
+    </div>
+  </div>
+
+  <!-- Live Preview -->
+  <div class="cfg-card">
+    <div class="cfg-section-title">Live Preview</div>
+    <div class="cfg-preview-wrap" id="previewWrap">
+      <div id="previewWidget"></div>
+    </div>
+  </div>
+
+  <!-- URL -->
+  <div class="cfg-card">
+    <div class="cfg-section-title">Your OBS URL</div>
+    <div class="cfg-field" style="margin-bottom:0">
+      <div class="cfg-url-wrap">
+        <input class="cfg-url-input" id="urlOutput" readonly value="Enter your gamertag above">
+        <button class="cfg-copy-btn" id="copyBtn" onclick="copyUrl()">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OBS instructions -->
+  <div class="cfg-obs-hint" id="obsHints">
+    <div class="cfg-obs-title">OBS / Streamlabs Setup</div>
+    <div class="cfg-obs-row">
+      <div class="cfg-obs-col">
+        <div class="cfg-obs-col-title">All Layouts</div>
+        <ol class="cfg-obs-steps">
+          <li data-n="1">Sources → <em>+ → Browser Source</em></li>
+          <li data-n="2">Paste your URL into the <em>URL</em> field</li>
+          <li data-n="3">Check <em>"Transparent background"</em></li>
+        </ol>
+      </div>
+      <div class="cfg-obs-col" id="obsCornerHint">
+        <div class="cfg-obs-col-title">Corner Widget</div>
+        <ol class="cfg-obs-steps">
+          <li data-n="→">Width <em>320</em> × Height <em>160</em></li>
+          <li data-n="→">Drag to your preferred corner</li>
+        </ol>
+      </div>
+      <div class="cfg-obs-col" id="obsBannerHint" style="display:none">
+        <div class="cfg-obs-col-title">Banner</div>
+        <ol class="cfg-obs-steps">
+          <li data-n="→">Width <em>1920</em> × Height <em>70</em></li>
+          <li data-n="→">Anchor to top or bottom of canvas</li>
+        </ol>
+      </div>
+      <div class="cfg-obs-col" id="obsSidebarHint" style="display:none">
+        <div class="cfg-obs-col-title">Sidebar</div>
+        <ol class="cfg-obs-steps">
+          <li data-n="→">Width <em>160</em> × Height <em>400</em></li>
+          <li data-n="→">Anchor to left or right edge</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+</div>
 </div>
 
-<!-- ═══════════════════════════════ LIVE WIDGET ═══════════════════════════════ -->
-<div id="overlay" style="display:none">
- <div class="widget theme-dark size-medium" id="liveWidget">
-  <div class="gt-row">
-   <span class="gt-name" id="liveGt" data-text="">—</span>
-   <span class="gt-cursor"></span>
-  </div>
-  <div class="divider"></div>
-  <div class="rank-row">
-   <div class="rank-icon-wrap">
-    <div class="rank-glow" id="liveGlow"></div>
-    <img class="rank-icon hidden" id="liveIcon" alt="rank">
-    <div class="rank-icon-fallback" id="liveFallback">—</div>
-   </div>
-   <div class="rank-text">
-    <span class="rank-name" id="liveRankName">Loading...</span>
-    <span class="rank-csr"  id="liveRankCsr"></span>
-   </div>
-  </div>
-  <div class="divider"></div>
-  <div class="session-row">
-   <span class="session-label">SESSION</span>
-   <div class="session-stats" id="liveSession"><span class="session-none">—</span></div>
-  </div>
-  <div class="socials-row" id="liveSocials" style="display:none"></div>
-  <div class="brand-row">
-   <div class="brand-logo-icon">
-    <svg width="8" height="8" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-     <g transform="translate(15,15) rotate(-35) scale(0.42)">
-      <ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/>
-      <rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/>
-      <ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
-      <ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/>
-     </g>
-    </svg>
-   </div>
-   <span class="brand-text">fragr.live</span>
-  </div>
- </div>
+<!-- ══════════════════════════ LIVE OVERLAY ══════════════════════════ -->
+<div id="overlay">
+  <div id="liveWidget"></div>
 </div>
 
 <script>
-// ── SVG icons for socials ─────────────────────────────────────────────────────
+// ── SVG icons ─────────────────────────────────────────────────────────────────
+const BRAND_SVG = `<svg width="8" height="8" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><g transform="translate(15,15) rotate(-35) scale(0.42)"><ellipse cx="0" cy="-3" rx="16" ry="15" fill="white"/><rect x="-11" y="5.5" width="22" height="7" rx="3" fill="white"/><ellipse cx="-5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/><ellipse cx="5.5" cy="-4" rx="4" ry="4.5" fill="#185FA5"/></g></svg>`;
 const ICONS = {
-  twitter: `<svg class="social-icon" viewBox="0 0 24 24" fill="currentColor" style="color:#1d9bf0"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.737-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`,
-  instagram: `<svg class="social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#e1306c"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`,
+  twitter:   `<svg class="social-icon" viewBox="0 0 24 24" fill="currentColor" style="color:#1d9bf0"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.737-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`,
+  instagram: `<svg class="social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:#e1306c"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`,
 };
-
-const TIER_COLORS = { bronze:'tier-bronze', silver:'tier-silver', gold:'tier-gold', platinum:'tier-platinum', diamond:'tier-diamond', onyx:'tier-onyx' };
-const TIER_EMOJI  = { bronze:'🥉', silver:'🥈', gold:'🥇', platinum:'💎', diamond:'💠', onyx:'⬛' };
-const GLOW_CLASS  = { bronze:'glow-bronze', silver:'glow-silver', gold:'glow-gold', platinum:'glow-platinum', diamond:'glow-diamond', onyx:'glow-onyx' };
-const TIER_GLOW_COLOR = { bronze:'rgba(205,127,50,.7)', silver:'rgba(168,169,173,.7)', gold:'rgba(255,215,0,.7)', platinum:'rgba(79,195,247,.7)', diamond:'rgba(185,242,255,.7)', onyx:'rgba(224,64,251,.7)' };
-
+const TIER_TC = { bronze:'t-bronze', silver:'t-silver', gold:'t-gold', platinum:'t-platinum', diamond:'t-diamond', onyx:'t-onyx' };
+const TIER_GC = { bronze:'g-bronze', silver:'g-silver', gold:'g-gold', platinum:'g-platinum', diamond:'g-diamond', onyx:'g-onyx' };
+const TIER_EM = { bronze:'🥉', silver:'🥈', gold:'🥇', platinum:'💎', diamond:'💠', onyx:'⬛' };
 const BASE_URL = location.origin + '/overlay';
-let _cfg = { gt:'', theme:'dark', size:'medium', twitter:'', ig:'' };
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _cfg = {
+  gt:'', twitter:'', ig:'',
+  layout:'corner', pos:'tl', side:'left',
+  theme:'dark', size:'medium',
+  stats: { gamertag:1, rank:1, csr:1, kd:1, wr:1, session:1, csrdelta:1, socials:1, brand:1 }
+};
+let _playerData = null;
 let _refreshTimer = null, _previewDebounce = null, _glitchTimer = null;
-
-// ── Glitch scheduler ──────────────────────────────────────────────────────────
-function scheduleGlitch(elId) {
-  clearTimeout(_glitchTimer);
-  function doGlitch() {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    el.classList.add('glitching');
-    setTimeout(() => el.classList.remove('glitching'), 220);
-    // Next glitch in 12-25s
-    _glitchTimer = setTimeout(doGlitch, 12000 + Math.random() * 13000);
-  }
-  _glitchTimer = setTimeout(doGlitch, 4000 + Math.random() * 6000);
-}
-
-// ── Typewriter effect ─────────────────────────────────────────────────────────
-function typewrite(el, text, onDone) {
-  el.textContent = '';
-  el.dataset.text = text;
-  let i = 0;
-  const tick = () => {
-    el.textContent = text.slice(0, ++i);
-    el.dataset.text = text;
-    if (i < text.length) setTimeout(tick, 55 + Math.random() * 40);
-    else if (onDone) onDone();
-  };
-  setTimeout(tick, 120);
-}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
   const p = new URLSearchParams(location.search);
   const gt = p.get('gt') || p.get('gamertag') || '';
   if (gt) {
+    // LIVE OVERLAY MODE
     _cfg.gt      = gt.trim();
+    _cfg.layout  = p.get('layout')  || 'corner';
+    _cfg.pos     = p.get('pos')     || 'tl';
+    _cfg.side    = p.get('side')    || 'left';
     _cfg.theme   = p.get('theme')   || 'dark';
     _cfg.size    = p.get('size')    || 'medium';
     _cfg.twitter = p.get('twitter') || '';
     _cfg.ig      = p.get('ig')      || '';
-    applyLiveTheme();
-    document.getElementById('config').style.display  = 'none';
-    document.getElementById('overlay').style.display = 'block';
-    // Typewrite gamertag then schedule glitch
-    const gtEl = document.getElementById('liveGt');
-    typewrite(gtEl, _cfg.gt.toUpperCase(), () => scheduleGlitch('liveGt'));
-    renderSocials(_cfg.twitter, _cfg.ig, 'liveSocials');
+    const statsStr = p.get('stats') || '';
+    if (statsStr) {
+      Object.keys(_cfg.stats).forEach(k => _cfg.stats[k] = 0);
+      statsStr.split(',').forEach(k => { if (k in _cfg.stats) _cfg.stats[k] = 1; });
+    }
+    document.body.className = 'overlay-mode';
+    renderWidget('liveWidget', { gt: _cfg.gt.toUpperCase() });
     loadLive();
   } else {
-    // Config mode — restore saved settings
+    // CONFIG MODE
+    document.body.className = 'config-mode';
+    document.getElementById('obsHints').style.display = 'block';
     const saved = tryParse(localStorage.getItem('overlay_cfg'));
     if (saved) {
       if (saved.gt)      document.getElementById('gtInput').value      = saved.gt;
       if (saved.twitter) document.getElementById('twitterInput').value = saved.twitter;
       if (saved.ig)      document.getElementById('igInput').value      = saved.ig;
+      if (saved.layout)  { setLayoutVal(saved.layout); }
+      if (saved.pos)     activatePos(saved.pos);
+      if (saved.side)    activatePill('side', saved.side);
       if (saved.theme)   activatePill('theme', saved.theme);
       if (saved.size)    activatePill('size',  saved.size);
+      if (saved.stats)   {
+        Object.assign(_cfg.stats, saved.stats);
+        document.querySelectorAll('.stat-tog').forEach(el => {
+          const s = el.dataset.stat;
+          el.classList.toggle('on', !!_cfg.stats[s]);
+        });
+      }
       Object.assign(_cfg, saved);
     }
     updateAll();
   }
 })();
 
-function tryParse(s) { try { return s ? JSON.parse(s) : null; } catch(e) { return null; } }
+function tryParse(s) { try { return s ? JSON.parse(s) : null; } catch { return null; } }
 
-// ── Config helpers ────────────────────────────────────────────────────────────
+// ── Config controls ───────────────────────────────────────────────────────────
+function setLayout(el) {
+  document.querySelectorAll('.layout-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  setLayoutVal(el.dataset.layout);
+}
+function setLayoutVal(val) {
+  _cfg.layout = val;
+  document.querySelectorAll('.layout-opt').forEach(o => o.classList.toggle('active', o.dataset.layout === val));
+  document.getElementById('posSection').style.display  = val === 'corner'  ? '' : 'none';
+  document.getElementById('sideSection').style.display = val === 'sidebar' ? '' : 'none';
+  // OBS hints
+  document.getElementById('obsCornerHint').style.display  = val === 'corner'  ? '' : 'none';
+  document.getElementById('obsBannerHint').style.display  = val === 'banner'  ? '' : 'none';
+  document.getElementById('obsSidebarHint').style.display = val === 'sidebar' ? '' : 'none';
+  updateAll();
+}
+function setPos(el) {
+  document.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  _cfg.pos = el.dataset.pos;
+  updateAll();
+}
+function activatePos(pos) {
+  document.querySelectorAll('.pos-btn').forEach(b => b.classList.toggle('active', b.dataset.pos === pos));
+  _cfg.pos = pos;
+}
 function setPill(el) {
   const g = el.dataset.group;
   document.querySelectorAll(`.cfg-pill[data-group="${g}"]`).forEach(p => p.classList.remove('active'));
@@ -549,6 +552,12 @@ function setPill(el) {
 }
 function activatePill(g, val) {
   document.querySelectorAll(`.cfg-pill[data-group="${g}"]`).forEach(p => p.classList.toggle('active', p.dataset.val === val));
+  _cfg[g] = val;
+}
+function toggleStat(el) {
+  el.classList.toggle('on');
+  _cfg.stats[el.dataset.stat] = el.classList.contains('on') ? 1 : 0;
+  updateAll();
 }
 
 function updateAll() {
@@ -557,24 +566,26 @@ function updateAll() {
   _cfg.ig      = document.getElementById('igInput').value.trim();
   localStorage.setItem('overlay_cfg', JSON.stringify(_cfg));
 
-  // Apply theme/size to preview widget
-  const pw = document.getElementById('previewWidget');
-  pw.className = `widget theme-${_cfg.theme} size-${_cfg.size}`;
+  // Preview wrap class
+  const wrap = document.getElementById('previewWrap');
+  wrap.className = `cfg-preview-wrap layout-${_cfg.layout}`;
 
-  // Update gamertag in preview
-  const gtEl = document.getElementById('previewGt');
-  const displayGt = _cfg.gt ? _cfg.gt.toUpperCase() : 'GAMERTAG';
-  if (gtEl.textContent !== displayGt) {
-    typewrite(gtEl, displayGt);
-  }
-
-  // Socials
-  renderSocials(_cfg.twitter, _cfg.ig, 'previewSocials');
+  // Render preview widget
+  const data = _playerData || null;
+  renderWidget('previewWidget', data ? {
+    gt: _cfg.gt.toUpperCase(),
+    rankStr: data._rankStr, csrVal: data._csrVal, tierKey: data._tierKey,
+    iconSrc: data._iconSrc, kd: data._kd, wr: data._wr,
+    sessionHtml: data._sessionHtml
+  } : { gt: _cfg.gt ? _cfg.gt.toUpperCase() : 'GAMERTAG' });
 
   // URL
   const urlEl = document.getElementById('urlOutput');
   if (_cfg.gt) {
-    let url = `${BASE_URL}?gt=${encodeURIComponent(_cfg.gt)}&theme=${_cfg.theme}&size=${_cfg.size}`;
+    const onStats = Object.entries(_cfg.stats).filter(([,v])=>v).map(([k])=>k).join(',');
+    let url = `${BASE_URL}?gt=${encodeURIComponent(_cfg.gt)}&layout=${_cfg.layout}&theme=${_cfg.theme}&size=${_cfg.size}&stats=${onStats}`;
+    if (_cfg.layout === 'corner')  url += `&pos=${_cfg.pos}`;
+    if (_cfg.layout === 'sidebar') url += `&side=${_cfg.side}`;
     if (_cfg.twitter) url += `&twitter=${encodeURIComponent(_cfg.twitter)}`;
     if (_cfg.ig)      url += `&ig=${encodeURIComponent(_cfg.ig)}`;
     urlEl.value = url;
@@ -582,29 +593,17 @@ function updateAll() {
     _previewDebounce = setTimeout(loadPreview, 700);
   } else {
     urlEl.value = 'Enter your gamertag above to generate your URL';
-    resetPreview();
   }
-}
-
-function resetPreview() {
-  document.getElementById('previewRankName').textContent = 'Enter gamertag above';
-  document.getElementById('previewRankName').className = 'rank-name';
-  document.getElementById('previewRankCsr').textContent = '';
-  document.getElementById('previewSession').innerHTML = '<span class="session-none">No games yet today</span>';
-  document.getElementById('previewIcon').classList.add('hidden');
-  document.getElementById('previewFallback').style.display = 'flex';
-  document.getElementById('previewFallback').textContent = '—';
-  document.getElementById('previewGlow').style.background = 'transparent';
 }
 
 async function loadPreview() {
   if (!_cfg.gt) return;
   try {
     const r = await fetch(`/api/search?gamertag=${encodeURIComponent(_cfg.gt)}`);
-    const data = await r.json();
-    if (data.success && data.player) {
-      renderRank(data.player, 'preview');
-      renderSession(data.player, 'preview');
+    const d = await r.json();
+    if (d.success && d.player) {
+      _playerData = extractData(d.player);
+      renderWidget('previewWidget', { ..._playerData, gt: _cfg.gt.toUpperCase() });
     }
   } catch(e) {}
 }
@@ -619,135 +618,185 @@ function copyUrl() {
   });
 }
 
-// ── Socials renderer ──────────────────────────────────────────────────────────
-function renderSocials(twitter, ig, elId) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const items = [];
-  if (twitter) items.push(`<div class="social-item">${ICONS.twitter}<span>${twitter.startsWith('@') ? twitter : '@'+twitter}</span></div>`);
-  if (ig)      items.push(`<div class="social-item">${ICONS.instagram}<span>${ig.startsWith('@') ? ig : '@'+ig}</span></div>`);
-  if (items.length) {
-    el.innerHTML = items.join('');
-    el.style.display = 'flex';
-  } else {
-    el.style.display = 'none';
-  }
-}
-
 // ── Live overlay ──────────────────────────────────────────────────────────────
-function applyLiveTheme() {
-  document.getElementById('liveWidget').className = `widget theme-${_cfg.theme} size-${_cfg.size}`;
-}
-
 async function loadLive() {
   try {
     const r = await fetch(`/api/search?gamertag=${encodeURIComponent(_cfg.gt)}`);
-    const data = await r.json();
-    if (data.success && data.player) {
-      renderRank(data.player, 'live');
-      renderSession(data.player, 'live');
-    } else {
-      document.getElementById('liveRankName').textContent = 'NOT FOUND';
+    const d = await r.json();
+    if (d.success && d.player) {
+      const data = extractData(d.player);
+      renderWidget('liveWidget', { ...data, gt: _cfg.gt.toUpperCase() });
     }
-  } catch(e) {
-    document.getElementById('liveRankName').textContent = 'ERROR';
-  }
+  } catch(e) {}
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(loadLive, 60000);
 }
 
-// ── Shared renderers ──────────────────────────────────────────────────────────
-function renderRank(player, prefix) {
-  const nameEl     = document.getElementById(prefix + 'RankName');
-  const csrEl      = document.getElementById(prefix + 'RankCsr');
-  const iconEl     = document.getElementById(prefix + 'Icon');
-  const fallbackEl = document.getElementById(prefix + 'Fallback');
-  const glowEl     = document.getElementById(prefix + 'Glow');
-
+// ── Data extraction ───────────────────────────────────────────────────────────
+function extractData(player) {
+  // Rank
+  let rankStr=null, csrVal=null, tierKey=null, iconSrc=null;
   const csrObj = player.csr;
-  let rankStr = null, csrVal = null, tierKey = null;
-  if (csrObj && typeof csrObj === 'object') {
+  if (csrObj) {
     const keys = Object.keys(csrObj);
     const key  = keys.find(k => /rank/i.test(k)) || keys[0];
     const e    = csrObj[key];
     if (e) {
-      rankStr = e.display || (e.tier ? `${e.tier} ${e.subTier || ''}`.trim() : null);
+      rankStr = e.display || (e.tier ? `${e.tier} ${e.subTier||''}`.trim() : null);
       csrVal  = e.value != null ? `${e.value} CSR` : null;
-      tierKey = (e.tier || '').toLowerCase();
+      tierKey = (e.tier||'').toLowerCase();
+      iconSrc = tierKey ? `/api/csr-image?tier=${encodeURIComponent(tierKey)}` : null;
+    }
+  }
+  // KD / WR
+  const kd = player.stats?.kd || null;
+  const wr = player.stats?.winRate ? `${player.stats.winRate}%` : null;
+  // Session
+  const sessionHtml = buildSessionHtml(player);
+  return { _rankStr:rankStr, _csrVal:csrVal, _tierKey:tierKey, _iconSrc:iconSrc, _kd:kd, _wr:wr, _sessionHtml:sessionHtml };
+}
+
+function buildSessionHtml(player) {
+  const matches = player.allMatches || player.recentMatches || [];
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const today   = matches.filter(m => m.startTime && new Date(m.startTime) >= todayStart);
+  const session = today.length ? today : matches.filter(m => m.isRanked).slice(0,10);
+  if (!session.length) return `<span class="s-none">No games yet</span>`;
+  const ranked  = session.filter(m => m.isRanked);
+  const wins    = session.filter(m => m.outcome===2).length;
+  const losses  = session.filter(m => m.outcome===3).length;
+  const total   = session.length;
+  const deltas  = ranked.map(m=>m.csrDelta).filter(d=>d!=null);
+  const delta   = deltas.length ? deltas.reduce((s,d)=>s+d,0) : null;
+  const isToday = today.length > 0;
+  return { wins, losses, total, delta, isToday };
+}
+
+// ── Widget renderer ───────────────────────────────────────────────────────────
+// data: { gt, _rankStr, _csrVal, _tierKey, _iconSrc, _kd, _wr, _sessionHtml }
+function renderWidget(containerId, data) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  const isLive = containerId === 'liveWidget';
+  const s = _cfg.stats;
+  const layout = _cfg.layout;
+  const theme  = _cfg.theme;
+  const size   = _cfg.size;
+  const tierKey = data?._tierKey || '';
+  const glowClass = tierKey ? (TIER_GC[tierKey] || '') : '';
+  const tcClass   = tierKey ? (TIER_TC[tierKey] || '') : '';
+
+  // Build common fragments
+  const gtFrag = s.gamertag && data?.gt ? `
+    <div class="gt-row">
+      <span class="gt-name" id="${containerId}_gt" data-text="${data.gt}">${data.gt}</span>
+      <span class="gt-cursor"></span>
+    </div>` : '';
+
+  const iconId = containerId + '_icon';
+  const rankIconFrag = data?._iconSrc
+    ? `<img class="rank-icon" id="${iconId}" src="${data._iconSrc}" alt="rank"
+         onerror="this.classList.add('hidden');document.getElementById('${containerId}_fb').style.display='flex'">`
+    : ``;
+  const fbFrag = `<div class="rank-icon-fallback" id="${containerId}_fb" style="${data?._iconSrc?'display:none':'display:flex'}">${tierKey ? (TIER_EM[tierKey]||'🎮') : '—'}</div>`;
+  const glowFrag = tierKey ? `<div class="rank-glow ${glowClass}" style="opacity:1"></div>` : '';
+
+  const rankFrag = s.rank ? `
+    <div class="rank-row">
+      <div class="rank-icon-wrap">${glowFrag}${rankIconFrag}${fbFrag}</div>
+      <div class="rank-text">
+        <span class="rank-name pop-in ${tcClass}">${data?._rankStr ? data._rankStr.toUpperCase() : (containerId==='previewWidget'?'LOADING...':'—')}</span>
+        ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
+      </div>
+    </div>` : '';
+
+  // KD / WR inline
+  const kdFrag = s.kd && data?._kd ? `<div class="inline-stat"><span class="inline-stat-val">${data._kd}</span><span class="inline-stat-lbl">K/D</span></div>` : '';
+  const wrFrag = s.wr && data?._wr ? `<div class="inline-stat"><span class="inline-stat-val">${data._wr}</span><span class="inline-stat-lbl">WR</span></div>` : '';
+  const inlineStatsFrag = (kdFrag || wrFrag) ? `
+    <div class="session-stats" style="gap:10px;margin-top:${layout==='corner'||layout==='sidebar'?'2px':'0'}">
+      ${kdFrag}${kdFrag&&wrFrag?`<span class="stat-sep">·</span>`:''}${wrFrag}
+    </div>` : '';
+
+  // Session
+  let sessFrag = '';
+  if (s.session) {
+    const sd = data?._sessionHtml;
+    if (!sd || typeof sd === 'string') {
+      sessFrag = `<div class="session-row"><span class="session-label">SESSION</span><div class="session-stats">${sd||'<span class="s-none">—</span>'}</div></div>`;
+    } else {
+      const sign = sd.delta > 0 ? '+' : '';
+      const deltaCls = sd.delta > 0 ? 'sc-pos' : sd.delta < 0 ? 'sc-neg' : 'sc-neu';
+      let inner = `<span class="s-cnt">${sd.isToday?'':' LAST '}${sd.total}G</span><span class="sw">${sd.wins}W</span><span class="ss">-</span><span class="sl">${sd.losses}L</span>`;
+      if (s.csrdelta && sd.delta != null) inner += `<span class="ss">·</span><span class="${deltaCls}">${sign}${sd.delta} CSR</span>`;
+      sessFrag = `<div class="session-row"><span class="session-label">SESSION</span><div class="session-stats">${inner}</div></div>`;
     }
   }
 
-  if (!rankStr) {
-    nameEl.textContent = 'UNRANKED';
-    nameEl.className = 'rank-name';
-    csrEl.textContent = '';
-    iconEl.classList.add('hidden');
-    fallbackEl.textContent = '—'; fallbackEl.style.display = 'flex';
-    if (glowEl) glowEl.style.background = 'transparent';
-    return;
+  // Socials
+  let socialFrag = '';
+  if (s.socials && (_cfg.twitter || _cfg.ig)) {
+    const tw = _cfg.twitter ? `<div class="social-item">${ICONS.twitter}<span>${_cfg.twitter.startsWith('@')?_cfg.twitter:'@'+_cfg.twitter}</span></div>` : '';
+    const ig = _cfg.ig      ? `<div class="social-item">${ICONS.instagram}<span>${_cfg.ig.startsWith('@')?_cfg.ig:'@'+_cfg.ig}</span></div>` : '';
+    socialFrag = `<div class="socials-row">${tw}${ig}</div>`;
   }
 
-  // Animate rank name pop-in
-  nameEl.classList.remove('counting');
-  void nameEl.offsetWidth;
-  nameEl.classList.add('counting');
-  nameEl.textContent = rankStr.toUpperCase();
-  nameEl.className = 'rank-name counting ' + (TIER_COLORS[tierKey] || '');
-  csrEl.textContent = csrVal || '';
+  // Brand
+  const brandFrag = s.brand ? `<div class="brand-row"><div class="brand-logo-icon">${BRAND_SVG}</div><span class="brand-text">fragr.live</span></div>` : '';
 
-  // Glow ring
-  if (glowEl && TIER_GLOW_COLOR[tierKey]) {
-    glowEl.style.background = 'transparent';
-    glowEl.style.boxShadow = '';
-    glowEl.className = 'rank-glow ' + (GLOW_CLASS[tierKey] || '');
-    glowEl.style.opacity = '1';
+  let html = '';
+
+  if (layout === 'corner' || layout === 'sidebar') {
+    const layoutClass = layout === 'corner' ? 'layout-corner' : 'layout-sidebar';
+    html = `<div class="widget ${layoutClass} theme-${theme} size-${size}">
+      ${gtFrag}
+      ${gtFrag && rankFrag ? '<div class="divider"></div>' : ''}
+      ${rankFrag}
+      ${inlineStatsFrag ? `<div style="margin-top:4px">${inlineStatsFrag}</div>` : ''}
+      ${(rankFrag || inlineStatsFrag) && (sessFrag || socialFrag) ? '<div class="divider"></div>' : ''}
+      ${sessFrag}
+      ${socialFrag ? `<div style="margin-top:${sessFrag?'5px':'0'}">${socialFrag}</div>` : ''}
+      ${brandFrag ? `<div style="margin-top:7px">${brandFrag}</div>` : ''}
+    </div>`;
+  } else if (layout === 'banner') {
+    // Horizontal banner
+    html = `<div class="widget layout-banner theme-${theme} size-${size}">
+      <!-- Left: brand + gamertag -->
+      <div class="banner-left">
+        ${s.brand ? `<div class="brand-logo-icon" style="width:18px;height:18px;border-radius:4px">${BRAND_SVG}</div>` : ''}
+        ${s.gamertag && data?.gt ? `<span class="gt-name" id="${containerId}_gt" data-text="${data.gt}" style="font-size:var(--gt-sz);color:#e8e8f0;letter-spacing:2px;text-transform:uppercase;white-space:nowrap">${data.gt}</span><span class="gt-cursor"></span>` : ''}
+      </div>
+      ${rankFrag || inlineStatsFrag ? `<div class="banner-sep"></div>` : ''}
+      <!-- Center: rank + inline stats -->
+      <div class="banner-right">
+        ${rankFrag}
+        ${inlineStatsFrag ? `<div class="banner-sep"></div>${inlineStatsFrag}` : ''}
+        ${sessFrag ? `<div class="banner-sep"></div>${sessFrag}` : ''}
+        ${socialFrag ? `<div class="banner-sep"></div>${socialFrag}` : ''}
+      </div>
+    </div>`;
   }
 
-  // Load rank icon
-  iconEl.src = `/api/csr-image?tier=${encodeURIComponent(tierKey)}`;
-  iconEl.onload  = () => { iconEl.classList.remove('hidden'); fallbackEl.style.display = 'none'; };
-  iconEl.onerror = () => {
-    iconEl.classList.add('hidden');
-    fallbackEl.textContent = TIER_EMOJI[tierKey] || '🎮';
-    fallbackEl.style.display = 'flex';
-  };
+  c.innerHTML = html;
+
+  // Trigger glitch on live overlay
+  if (isLive) {
+    const gtEl = document.getElementById(containerId + '_gt');
+    if (gtEl) scheduleGlitch(containerId + '_gt');
+  }
 }
 
-function renderSession(player, prefix) {
-  const el = document.getElementById(prefix + 'Session');
-  const matches = player.allMatches || player.recentMatches || [];
-
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const today = matches.filter(m => m.startTime && new Date(m.startTime) >= todayStart);
-  const session = today.length > 0 ? today : matches.filter(m => m.isRanked).slice(0,10);
-  const isToday = today.length > 0;
-
-  if (!session.length) {
-    el.innerHTML = '<span class="session-none">No games yet</span>';
-    return;
+// ── Glitch ────────────────────────────────────────────────────────────────────
+function scheduleGlitch(elId) {
+  clearTimeout(_glitchTimer);
+  function fire() {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.classList.add('glitching');
+    setTimeout(() => el.classList.remove('glitching'), 200);
+    _glitchTimer = setTimeout(fire, 12000 + Math.random() * 14000);
   }
-
-  const ranked = session.filter(m => m.isRanked);
-  const wins   = session.filter(m => m.outcome === 2).length;
-  const losses = session.filter(m => m.outcome === 3).length;
-  const total  = session.length;
-  const deltas = ranked.map(m => m.csrDelta).filter(d => d != null);
-  const csrDelta = deltas.length ? deltas.reduce((s,d) => s+d, 0) : null;
-
-  let html = `<span class="session-cnt">${isToday ? '' : 'LAST '}${total}G</span>`;
-  html += `<span class="session-wins">${wins}W</span>`;
-  html += `<span class="session-sep">-</span>`;
-  html += `<span class="session-losses">${losses}L</span>`;
-  if (csrDelta != null) {
-    const sign = csrDelta > 0 ? '+' : '';
-    const cls  = csrDelta > 0 ? 'session-csr-pos' : csrDelta < 0 ? 'session-csr-neg' : 'session-csr-neu';
-    html += `<span class="session-sep">·</span><span class="${cls}">${sign}${csrDelta} CSR</span>`;
-  }
-
-  // Re-trigger slide-up animation
-  el.style.animation = 'none'; void el.offsetWidth;
-  el.style.animation = '';
-  el.innerHTML = html;
+  _glitchTimer = setTimeout(fire, 3000 + Math.random() * 5000);
 }
 </script>
 </body>
