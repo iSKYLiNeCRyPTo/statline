@@ -69,7 +69,10 @@ async function _deepScanWorker({ xuid, gamertag }) {
 
     const fetched = result.matches || [];
     const scanEnd = result.scanEndOffset != null ? result.scanEndOffset : startOffset + 25;
-    const isDone  = fetched.length === 0 || result.stopReason === 'no more history' || fetched.length < 25;
+    // Only truly done when the Halo API returned fewer matches than we asked for
+    // (end of history). Do NOT stop on fetched.length===0 — that just means the
+    // current batch had no ranked games (e.g. all social), not that history ended.
+    const isDone  = result.stopReason === 'no more history';
 
     if (fetched.length > 0) {
       await savePlayerMatchHistory(xuid, fetched).catch(e =>
