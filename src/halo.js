@@ -1411,7 +1411,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
   const advancedStats = computeAdvancedStats(results);
   const haloDNA = generateHaloDNA(results, advancedStats, null);
-  return { matches: results, advancedStats, haloDNA, rivals, nemesisList, victimsList, scanEndOffset: start };
+  return { matches: results, advancedStats, haloDNA, rivals, nemesisList, victimsList, scanEndOffset: start, stopReason };
 }
 
 // Fetch skill data (MMR, expected K/D) for ranked matches in the background.

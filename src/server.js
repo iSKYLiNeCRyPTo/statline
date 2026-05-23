@@ -60,8 +60,20 @@ async function _deepScanWorker({ xuid, gamertag }) {
       delete _deepScanDryStart[xuid];
       return;
     }
-    const startOffset = (cursor && cursor.next_start != null) ? cursor.next_start : 0;
-    const prevTotal   = (cursor && cursor.total_fetched != null) ? cursor.total_fetched : 0;
+
+    let startOffset = (cursor && cursor.next_start != null) ? cursor.next_start : 0;
+    let prevTotal   = (cursor && cursor.total_fetched != null) ? cursor.total_fetched : 0;
+
+    // Auto-reset corrupted cursor: large offset but almost nothing saved.
+    // Caused by the old batchLimit bug that advanced the cursor without saving matches.
+    // Heuristic: offset > 200 and saved < 5% of offset scanned.
+    if (startOffset > 200 && prevTotal < startOffset * 0.05) {
+      console.log(`[DeepScan] ${gamertag} — corrupted cursor detected (offset=${startOffset}, saved=${prevTotal}), resetting to 0`);
+      await upsertDeepScanCursor(xuid, gamertag, 0, 0, false).catch(() => {});
+      delete _deepScanDryStart[xuid];
+      startOffset = 0;
+      prevTotal   = 0;
+    }
 
     // Hard cap — don't walk more than 2500 raw matches deep
     if (startOffset >= DEEP_SCAN_MAX_OFFSET) {
@@ -1751,19 +1763,37 @@ app.get('/api/matches', async (req, res) => {
 });
 
 // Manual deep-scan trigger
+// Pass { reset: true } in body to wipe the cursor and rescan from offset 0.
+// A corrupted cursor (large offset, tiny match count) is auto-detected and reset.
 app.post('/api/deepscan', async (req, res) => {
   try {
-    const { gamertag } = req.body || {};
+    const { gamertag, reset } = req.body || {};
     if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
     const cached = await getFromCache(gamertag);
     if (!cached || !cached.xuid) return res.status(404).json({ error: 'Player not in cache — search them first' });
     const cursor = await getDeepScanCursor(cached.xuid).catch(() => null);
-    // Reset completed flag so scan resumes from current offset
-    if (cursor && cursor.completed) {
+
+    // Detect corrupted cursor: offset is large but almost nothing was saved.
+    // This happens when the old batchLimit bug advanced the cursor without saving.
+    // Heuristic: offset > 200 but total_fetched < offset * 0.05 (less than 5% yield).
+    const offset      = cursor?.next_start    || 0;
+    const totalSaved  = cursor?.total_fetched || 0;
+    const isCorrupted = offset > 200 && totalSaved < offset * 0.05;
+
+    if (reset || isCorrupted) {
+      const reason = reset ? 'manual reset' : `corrupted cursor (offset=${offset}, saved=${totalSaved})`;
+      console.log(`[DeepScan] Resetting cursor for ${gamertag} — ${reason}`);
+      await upsertDeepScanCursor(cached.xuid, gamertag, 0, 0, false).catch(() => {});
+      // Also clear the in-memory dry-streak anchor so the fresh scan starts clean
+      delete _deepScanDryStart[cached.xuid];
+    } else if (cursor && cursor.completed) {
+      // Resume from where we left off (just un-mark completed)
       await upsertDeepScanCursor(cached.xuid, gamertag, cursor.next_start || 0, cursor.total_fetched || 0, false).catch(() => {});
     }
+
     enqueueDeepScan(cached.xuid, cached.gamertag || gamertag);
-    res.json({ queued: true, xuid: cached.xuid, cursor: cursor || null });
+    const freshCursor = await getDeepScanCursor(cached.xuid).catch(() => null);
+    res.json({ queued: true, xuid: cached.xuid, cursor: freshCursor || null, wasReset: !!(reset || isCorrupted) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
