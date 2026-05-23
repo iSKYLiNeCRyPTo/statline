@@ -181,16 +181,21 @@ body.overlay-mode #overlay { display:block; }
 .layout-banner {
   display:flex; align-items:center;
   width:100%; border-radius:0; padding:0 18px;
-  height:56px;
   border-left:none; border-right:none;
 }
-.layout-banner.size-small  { height:44px; padding:0 14px; --icon-sz:20px; --gt-sz:10px; --rank-sz:11px; --csr-sz:9px; --sess-sz:10px; --social-sz:9px; --brand-sz:8px; }
-.layout-banner.size-medium { height:56px; padding:0 18px; --icon-sz:28px; --gt-sz:12px; --rank-sz:13px; --csr-sz:9px; --sess-sz:11px; --social-sz:10px; --brand-sz:9px; }
-.layout-banner.size-large  { height:70px; padding:0 22px; --icon-sz:36px; --gt-sz:14px; --rank-sz:16px; --csr-sz:11px; --sess-sz:13px; --social-sz:11px; --brand-sz:10px; }
-.layout-banner .banner-left  { display:flex; align-items:center; gap:10px; flex-shrink:0; }
-.layout-banner .banner-sep   { width:1px; height:30px; background:rgba(255,255,255,.08); margin:0 14px; flex-shrink:0; }
-.layout-banner .banner-right { display:flex; align-items:center; gap:8px; flex:1; flex-wrap:wrap; }
-.layout-banner .banner-brand { margin-left:auto; flex-shrink:0; }
+.layout-banner.size-small  { height:44px; padding:0 14px; --icon-sz:20px; --gt-sz:10px; --rank-sz:11px; --csr-sz:9px;  --sess-sz:10px; --social-sz:9px;  --brand-sz:8px; }
+.layout-banner.size-medium { height:58px; padding:0 18px; --icon-sz:30px; --gt-sz:13px; --rank-sz:14px; --csr-sz:10px; --sess-sz:11px; --social-sz:10px; --brand-sz:9px; }
+.layout-banner.size-large  { height:72px; padding:0 22px; --icon-sz:38px; --gt-sz:15px; --rank-sz:17px; --csr-sz:11px; --sess-sz:13px; --social-sz:11px; --brand-sz:10px; }
+
+/* Banner blocks — each piece of info is a flat flex child */
+.bn-block { display:flex; align-items:center; gap:7px; flex-shrink:0; }
+.bn-block.push-right { margin-left:auto; }
+/* Vertical separator between blocks */
+.bn-sep { width:1px; height:28px; background:rgba(255,255,255,.07); margin:0 12px; flex-shrink:0; }
+/* Rank text stacked inside a banner block */
+.bn-rank-text { display:flex; flex-direction:column; }
+.bn-rank-text .rank-name { line-height:1.05; }
+.bn-rank-text .rank-csr  { margin-top:1px; }
 
 /* ── SIDEBAR ───────────────────────────────────── */
 .layout-sidebar {
@@ -673,116 +678,155 @@ function buildSessionHtml(player) {
 }
 
 // ── Widget renderer ───────────────────────────────────────────────────────────
-// data: { gt, _rankStr, _csrVal, _tierKey, _iconSrc, _kd, _wr, _sessionHtml }
 function renderWidget(containerId, data) {
   const c = document.getElementById(containerId);
   if (!c) return;
-  const isLive = containerId === 'liveWidget';
-  const s = _cfg.stats;
-  const layout = _cfg.layout;
-  const theme  = _cfg.theme;
-  const size   = _cfg.size;
+  const isLive  = containerId === 'liveWidget';
+  const s       = _cfg.stats;
+  const layout  = _cfg.layout;
+  const theme   = _cfg.theme;
+  const size    = _cfg.size;
   const tierKey = data?._tierKey || '';
-  const glowClass = tierKey ? (TIER_GC[tierKey] || '') : '';
-  const tcClass   = tierKey ? (TIER_TC[tierKey] || '') : '';
+  const tc      = tierKey ? (TIER_TC[tierKey] || '') : '';
+  const gc      = tierKey ? (TIER_GC[tierKey] || '') : '';
+  const gt      = data?.gt || '';
 
-  // Build common fragments
-  const gtFrag = s.gamertag && data?.gt ? `
-    <div class="gt-row">
-      <span class="gt-name" id="${containerId}_gt" data-text="${data.gt}">${data.gt}</span>
-      <span class="gt-cursor"></span>
-    </div>` : '';
+  // ── Shared atoms ──────────────────────────────────────────────────────
+  const hasSrc  = !!data?._iconSrc;
+  const iconHtml = hasSrc
+    ? `<img class="rank-icon" src="${data._iconSrc}" alt="rank" onerror="this.style.display='none';document.getElementById('${containerId}_fb').style.display='flex'">`
+    : '';
+  const fbHtml  = `<div class="rank-icon-fallback" id="${containerId}_fb" style="display:${hasSrc?'none':'flex'}">${tierKey?(TIER_EM[tierKey]||'🎮'):'—'}</div>`;
+  const glowHtml= tierKey ? `<div class="rank-glow ${gc}" style="opacity:1"></div>` : '';
+  const rankLabel = data?._rankStr ? data._rankStr.toUpperCase() : (data ? 'UNRANKED' : '—');
 
-  const iconId = containerId + '_icon';
-  const rankIconFrag = data?._iconSrc
-    ? `<img class="rank-icon" id="${iconId}" src="${data._iconSrc}" alt="rank"
-         onerror="this.classList.add('hidden');document.getElementById('${containerId}_fb').style.display='flex'">`
-    : ``;
-  const fbFrag = `<div class="rank-icon-fallback" id="${containerId}_fb" style="${data?._iconSrc?'display:none':'display:flex'}">${tierKey ? (TIER_EM[tierKey]||'🎮') : '—'}</div>`;
-  const glowFrag = tierKey ? `<div class="rank-glow ${glowClass}" style="opacity:1"></div>` : '';
-
-  const rankFrag = s.rank ? `
-    <div class="rank-row">
-      <div class="rank-icon-wrap">${glowFrag}${rankIconFrag}${fbFrag}</div>
-      <div class="rank-text">
-        <span class="rank-name pop-in ${tcClass}">${data?._rankStr ? data._rankStr.toUpperCase() : (containerId==='previewWidget'?'LOADING...':'—')}</span>
-        ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
-      </div>
-    </div>` : '';
-
-  // KD / WR inline
-  const kdFrag = s.kd && data?._kd ? `<div class="inline-stat"><span class="inline-stat-val">${data._kd}</span><span class="inline-stat-lbl">K/D</span></div>` : '';
-  const wrFrag = s.wr && data?._wr ? `<div class="inline-stat"><span class="inline-stat-val">${data._wr}</span><span class="inline-stat-lbl">WR</span></div>` : '';
-  const inlineStatsFrag = (kdFrag || wrFrag) ? `
-    <div class="session-stats" style="gap:10px;margin-top:${layout==='corner'||layout==='sidebar'?'2px':'0'}">
-      ${kdFrag}${kdFrag&&wrFrag?`<span class="stat-sep">·</span>`:''}${wrFrag}
-    </div>` : '';
-
-  // Session
-  let sessFrag = '';
-  if (s.session) {
-    const sd = data?._sessionHtml;
-    if (!sd || typeof sd === 'string') {
-      sessFrag = `<div class="session-row"><span class="session-label">SESSION</span><div class="session-stats">${sd||'<span class="s-none">—</span>'}</div></div>`;
-    } else {
+  // Build session inner pieces (shared between layouts)
+  let sessInner = '<span class="s-none">No games yet</span>';
+  let hasSess = false;
+  if (s.session && data?._sessionHtml) {
+    const sd = data._sessionHtml;
+    if (typeof sd === 'object') {
+      hasSess = true;
       const sign = sd.delta > 0 ? '+' : '';
-      const deltaCls = sd.delta > 0 ? 'sc-pos' : sd.delta < 0 ? 'sc-neg' : 'sc-neu';
-      let inner = `<span class="s-cnt">${sd.isToday?'':' LAST '}${sd.total}G</span><span class="sw">${sd.wins}W</span><span class="ss">-</span><span class="sl">${sd.losses}L</span>`;
-      if (s.csrdelta && sd.delta != null) inner += `<span class="ss">·</span><span class="${deltaCls}">${sign}${sd.delta} CSR</span>`;
-      sessFrag = `<div class="session-row"><span class="session-label">SESSION</span><div class="session-stats">${inner}</div></div>`;
+      const dc   = sd.delta > 0 ? 'sc-pos' : sd.delta < 0 ? 'sc-neg' : 'sc-neu';
+      sessInner = `<span class="s-cnt">${sd.isToday?'':'LAST '}${sd.total}G</span>`
+        + `<span class="sw">${sd.wins}W</span><span class="ss">-</span><span class="sl">${sd.losses}L</span>`
+        + (s.csrdelta && sd.delta!=null ? `<span class="ss">·</span><span class="${dc}">${sign}${sd.delta} CSR</span>` : '');
     }
   }
 
-  // Socials
-  let socialFrag = '';
-  if (s.socials && (_cfg.twitter || _cfg.ig)) {
-    const tw = _cfg.twitter ? `<div class="social-item">${ICONS.twitter}<span>${_cfg.twitter.startsWith('@')?_cfg.twitter:'@'+_cfg.twitter}</span></div>` : '';
-    const ig = _cfg.ig      ? `<div class="social-item">${ICONS.instagram}<span>${_cfg.ig.startsWith('@')?_cfg.ig:'@'+_cfg.ig}</span></div>` : '';
-    socialFrag = `<div class="socials-row">${tw}${ig}</div>`;
-  }
-
-  // Brand
-  const brandFrag = s.brand ? `<div class="brand-row"><div class="brand-logo-icon">${BRAND_SVG}</div><span class="brand-text">fragr.live</span></div>` : '';
+  // Socials pieces
+  const twHtml = s.socials && _cfg.twitter
+    ? `<div class="social-item">${ICONS.twitter}<span>${_cfg.twitter.startsWith('@')?_cfg.twitter:'@'+_cfg.twitter}</span></div>` : '';
+  const igHtml = s.socials && _cfg.ig
+    ? `<div class="social-item">${ICONS.instagram}<span>${_cfg.ig.startsWith('@')?_cfg.ig:'@'+_cfg.ig}</span></div>` : '';
 
   let html = '';
 
+  // ══════════════════════════════════════════════════════════════════════
   if (layout === 'corner' || layout === 'sidebar') {
-    const layoutClass = layout === 'corner' ? 'layout-corner' : 'layout-sidebar';
-    html = `<div class="widget ${layoutClass} theme-${theme} size-${size}">
-      ${gtFrag}
-      ${gtFrag && rankFrag ? '<div class="divider"></div>' : ''}
-      ${rankFrag}
-      ${inlineStatsFrag ? `<div style="margin-top:4px">${inlineStatsFrag}</div>` : ''}
-      ${(rankFrag || inlineStatsFrag) && (sessFrag || socialFrag) ? '<div class="divider"></div>' : ''}
-      ${sessFrag}
-      ${socialFrag ? `<div style="margin-top:${sessFrag?'5px':'0'}">${socialFrag}</div>` : ''}
-      ${brandFrag ? `<div style="margin-top:7px">${brandFrag}</div>` : ''}
+  // ══════════════════════════════════════════════════════════════════════
+    const lc = layout === 'corner' ? 'layout-corner' : 'layout-sidebar';
+    html = `<div class="widget ${lc} theme-${theme} size-${size}">
+
+      ${s.gamertag && gt ? `<div class="gt-row">
+        <span class="gt-name" id="${containerId}_gt" data-text="${gt}">${gt}</span>
+        <span class="gt-cursor"></span>
+      </div>` : ''}
+
+      ${(s.gamertag && gt) && s.rank ? '<div class="divider"></div>' : ''}
+
+      ${s.rank ? `<div class="rank-row">
+        <div class="rank-icon-wrap">${glowHtml}${iconHtml}${fbHtml}</div>
+        <div class="rank-text">
+          <span class="rank-name pop-in ${tc}">${rankLabel}</span>
+          ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
+        </div>
+      </div>` : ''}
+
+      ${(s.kd && data?._kd) || (s.wr && data?._wr) ? `<div class="session-stats" style="gap:10px;margin-top:4px">
+        ${s.kd && data?._kd ? `<div class="inline-stat"><span class="inline-stat-val">${data._kd}</span><span class="inline-stat-lbl">K/D</span></div>` : ''}
+        ${s.kd && data?._kd && s.wr && data?._wr ? `<span class="stat-sep">·</span>` : ''}
+        ${s.wr && data?._wr ? `<div class="inline-stat"><span class="inline-stat-val">${data._wr}</span><span class="inline-stat-lbl">WR</span></div>` : ''}
+      </div>` : ''}
+
+      ${s.rank && s.session ? '<div class="divider"></div>' : ''}
+
+      ${s.session ? `<div class="session-row">
+        <span class="session-label">SESSION</span>
+        <div class="session-stats">${sessInner}</div>
+      </div>` : ''}
+
+      ${(twHtml || igHtml) ? `<div class="socials-row" style="margin-top:6px">${twHtml}${igHtml}</div>` : ''}
+
+      ${s.brand ? `<div class="brand-row" style="margin-top:8px">
+        <div class="brand-logo-icon">${BRAND_SVG}</div>
+        <span class="brand-text">fragr.live</span>
+      </div>` : ''}
     </div>`;
+
+  // ══════════════════════════════════════════════════════════════════════
   } else if (layout === 'banner') {
-    // Horizontal banner
+  // ══════════════════════════════════════════════════════════════════════
+    // Flat horizontal row — each section is a .bn-block, separated by .bn-sep
+    // Nothing nests vertically; every child is a direct flex item.
+    const sections = [];
+
+    // 1. Brand + gamertag
+    const leftParts = [];
+    if (s.brand) leftParts.push(`<div class="brand-logo-icon" style="width:16px;height:16px;border-radius:3px;flex-shrink:0">${BRAND_SVG}</div>`);
+    if (s.gamertag && gt) leftParts.push(
+      `<span class="gt-name" id="${containerId}_gt" data-text="${gt}" style="font-size:var(--gt-sz)">${gt}</span>`,
+      `<span class="gt-cursor"></span>`
+    );
+    if (leftParts.length) sections.push(`<div class="bn-block">${leftParts.join('')}</div>`);
+
+    // 2. Rank icon + name + CSR
+    if (s.rank) {
+      sections.push(`<div class="bn-sep"></div>`);
+      sections.push(`<div class="bn-block">
+        <div class="rank-icon-wrap">${glowHtml}${iconHtml}${fbHtml}</div>
+        <div class="bn-rank-text">
+          <span class="rank-name pop-in ${tc}">${rankLabel}</span>
+          ${s.csr && data?._csrVal ? `<span class="rank-csr">${data._csrVal}</span>` : ''}
+        </div>
+      </div>`);
+    }
+
+    // 3. K/D + Win Rate
+    const kdPart = s.kd && data?._kd ? `<div class="inline-stat"><span class="inline-stat-val">${data._kd}</span><span class="inline-stat-lbl">K/D</span></div>` : '';
+    const wrPart = s.wr && data?._wr ? `<div class="inline-stat"><span class="inline-stat-val">${data._wr}</span><span class="inline-stat-lbl">WR</span></div>` : '';
+    if (kdPart || wrPart) {
+      sections.push(`<div class="bn-sep"></div>`);
+      sections.push(`<div class="bn-block" style="gap:10px">
+        ${kdPart}${kdPart&&wrPart?`<span class="stat-sep">·</span>`:''}${wrPart}
+      </div>`);
+    }
+
+    // 4. Session
+    if (s.session) {
+      sections.push(`<div class="bn-sep"></div>`);
+      sections.push(`<div class="bn-block">
+        <span class="session-label">SESSION</span>
+        <div class="session-stats" style="animation:none">${sessInner}</div>
+      </div>`);
+    }
+
+    // 5. Socials
+    if (twHtml || igHtml) {
+      sections.push(`<div class="bn-sep"></div>`);
+      sections.push(`<div class="bn-block">${twHtml}${igHtml}</div>`);
+    }
+
     html = `<div class="widget layout-banner theme-${theme} size-${size}">
-      <!-- Left: brand + gamertag -->
-      <div class="banner-left">
-        ${s.brand ? `<div class="brand-logo-icon" style="width:18px;height:18px;border-radius:4px">${BRAND_SVG}</div>` : ''}
-        ${s.gamertag && data?.gt ? `<span class="gt-name" id="${containerId}_gt" data-text="${data.gt}" style="font-size:var(--gt-sz);color:#e8e8f0;letter-spacing:2px;text-transform:uppercase;white-space:nowrap">${data.gt}</span><span class="gt-cursor"></span>` : ''}
-      </div>
-      ${rankFrag || inlineStatsFrag ? `<div class="banner-sep"></div>` : ''}
-      <!-- Center: rank + inline stats -->
-      <div class="banner-right">
-        ${rankFrag}
-        ${inlineStatsFrag ? `<div class="banner-sep"></div>${inlineStatsFrag}` : ''}
-        ${sessFrag ? `<div class="banner-sep"></div>${sessFrag}` : ''}
-        ${socialFrag ? `<div class="banner-sep"></div>${socialFrag}` : ''}
-      </div>
+      ${sections.join('')}
     </div>`;
   }
 
   c.innerHTML = html;
-
-  // Trigger glitch on live overlay
-  if (isLive) {
+  if (isLive || containerId === 'previewWidget') {
     const gtEl = document.getElementById(containerId + '_gt');
-    if (gtEl) scheduleGlitch(containerId + '_gt');
+    if (gtEl && isLive) scheduleGlitch(containerId + '_gt');
   }
 }
 
