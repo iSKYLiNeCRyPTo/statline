@@ -7,7 +7,7 @@ const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHead
 const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
 const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
 const { Pool } = require('pg');
-const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, savePlayerMatchHistory, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor } = require('./db');
+const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, savePlayerMatchHistory, updatePlayerMatchSkillData, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
 const recoveryQueue = require('./recoveryQueue');
 const adminAuth = require('./auth');
@@ -107,6 +107,15 @@ async function _deepScanWorker({ xuid, gamertag }) {
       await savePlayerMatchHistory(xuid, fetched).catch(e =>
         console.warn(`[DeepScan] savePlayerMatchHistory failed for ${xuid}:`, e.message)
       );
+      // Enrich ranked matches with skill data (mmr, csrAfter, expectedKills) and
+      // persist back to DB — deep scan otherwise saves bare match objects forever.
+      if (rankedCount > 0) {
+        fetchAndApplySkillData(xuid, fetched)
+          .then(() => updatePlayerMatchSkillData(xuid, fetched)
+            .catch(e => console.warn(`[DeepScan] DB skill persist failed for ${xuid}:`, e.message))
+          )
+          .catch(e => console.warn(`[DeepScan] skill fetch failed for ${xuid}:`, e.message));
+      }
     }
 
     const newTotal = prevTotal + fetched.length;
@@ -859,9 +868,15 @@ app.get('/api/search', rateLimit, async (req, res) => {
           // Background: enrich new ranked matches with skill data (expectedKills, mmr, oppMmr)
           // Same pattern as fresh search — wait 1s for rate-limit headroom then mutate + re-cache.
           if (filteredNew.some(m => m.isRanked) && cached.xuid) {
+            const _skillXuid = cached.xuid;
             setTimeout(() => {
-              fetchAndApplySkillData(cached.xuid, merged)
-                .then(() => saveToCache(gamertag, updated))
+              fetchAndApplySkillData(_skillXuid, merged)
+                .then(() => {
+                  saveToCache(gamertag, updated);
+                  // Persist enriched skill data back to DB so it survives cache expiry
+                  updatePlayerMatchSkillData(_skillXuid, merged)
+                    .catch(e => console.warn('[SkillBG/incremental] DB skill persist failed:', e.message));
+                })
                 .catch(e => console.warn('[SkillBG/incremental] skill fetch failed:', e.message));
             }, 1000);
           }
@@ -980,8 +995,14 @@ app.get('/api/search', rateLimit, async (req, res) => {
     const _ranked = _allM.filter(m => m.isRanked && m.matchId);
     const _withSkill = _ranked.filter(m => m.expectedKills != null || m.mmr != null).length;
     if (_ranked.length > 0 && _withSkill < _ranked.length * 0.5) {
-      setTimeout(() => fetchAndApplySkillData(cached.xuid, _allM)
-        .then(() => saveToCache(gamertag, cached))
+      const _skillXuid2 = cached.xuid;
+      setTimeout(() => fetchAndApplySkillData(_skillXuid2, _allM)
+        .then(() => {
+          saveToCache(gamertag, cached);
+          // Persist enriched skill data back to DB so it survives cache expiry
+          updatePlayerMatchSkillData(_skillXuid2, _allM)
+            .catch(e => console.warn('[SkillBG/cached] DB skill persist failed:', e.message));
+        })
         .catch(e => console.warn('[SkillBG/cached] skill fetch failed:', e.message)), 1000);
     }
     if (_allM.length >= 10 && !cached.haloDNA) {
@@ -1186,9 +1207,15 @@ app.get('/api/search', rateLimit, async (req, res) => {
     // We wait 2s first to let the halostats burst cool off, then mutate result in-place and re-cache.
     const _bgMatches = result.allMatches || result.recentMatches || [];
     if (_bgMatches.some(m => m.isRanked)) {
+      const _skillXuid3 = result.xuid;
       setTimeout(() => {
-        fetchAndApplySkillData(result.xuid, _bgMatches)
-          .then(() => saveToCache(gamertag, result))
+        fetchAndApplySkillData(_skillXuid3, _bgMatches)
+          .then(() => {
+            saveToCache(gamertag, result);
+            // Persist enriched skill data back to DB so it survives cache expiry
+            updatePlayerMatchSkillData(_skillXuid3, _bgMatches)
+              .catch(e => console.warn('[SkillBG] DB skill persist failed:', e.message));
+          })
           .catch(e => console.warn('[SkillBG] Background skill fetch failed:', e.message));
       }, 2000);
     }

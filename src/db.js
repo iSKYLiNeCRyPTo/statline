@@ -1589,6 +1589,39 @@ async function savePlayerMatchHistory(xuid, matches) {
   }
 }
 
+// Persist enriched skill data (mmr, csrAfter, expectedKills, etc.) back to
+// player_match_history for matches that now have it.  Uses DO UPDATE so the
+// richer match_json overwrites the sparse row that deep-scan originally wrote.
+async function updatePlayerMatchSkillData(xuid, matches) {
+  if (!matches || !matches.length) return 0;
+  try {
+    const db = await getDb();
+    if (!db) return 0;
+    const xuidStr = String(xuid);
+    // Only update matches that actually have at least some skill data
+    const enriched = matches.filter(m => m.matchId && (
+      m.mmr != null || m.csrAfter != null || m.expectedKills != null || m.csrDelta != null
+    ));
+    if (!enriched.length) return 0;
+    let updated = 0;
+    for (const m of enriched) {
+      try {
+        await db.query(
+          `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (xuid, match_id) DO UPDATE SET match_json = EXCLUDED.match_json`,
+          [xuidStr, m.matchId, JSON.stringify(m), m.startTime ? new Date(m.startTime) : null, m.isRanked || false]
+        );
+        updated++;
+      } catch(e) { /* ignore per-row errors */ }
+    }
+    return updated;
+  } catch(e) {
+    console.warn('[DB] updatePlayerMatchSkillData error:', e.message);
+    return 0;
+  }
+}
+
 // Retrieve stored matches for a player, newest first.
 // limit/offset support pagination from /api/matches.
 async function getPlayerMatchHistory(xuid, limit = 500, offset = 0) {
@@ -1648,4 +1681,4 @@ async function upsertDeepScanCursor(xuid, gamertag, nextStart, totalFetched, com
   }
 }
 
-module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness, savePlayerMatchHistory, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor };
+module.exports = { getDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, PARTICIPANT_ENRICHMENT_VERSION, PARTICIPANT_COLS, buildParticipantRow, _dedupeParticipantRowsByMatchId, _participantRowRichness, savePlayerMatchHistory, updatePlayerMatchSkillData, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor };
