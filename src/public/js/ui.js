@@ -155,15 +155,26 @@ function renderMatchHistory(d,clientPage){
   var container=document.getElementById('matchHistoryContainer');
   if(!container)return;
   var _rawAll=d.matches||[];
-  // Filter by view mode
+  // Filter by view mode.
+  // ranked (default) = all non-custom, non-PvE games (ranked + social), sorted newest-first.
+  // social = non-ranked, non-custom only.
   var _vm=window._viewMode||'ranked';
+  var _PVE_MODES=['Firefight','Gruntpocalypse','Attrition','Mode 41','Mode 42'];
+  var _BAD_MAPS=['Launch Site','Yuletide','Octagon','AIMBOTZ'];
+  function _isRealGame(m){
+    if(m.isCustom||m.gameMode==='Custom Game'||m.gameMode==='PvE')return false;
+    if(m.gameMode&&_PVE_MODES.some(function(p){return m.gameMode.indexOf(p)>-1;}))return false;
+    if(m.mapName&&_BAD_MAPS.some(function(p){return m.mapName.toUpperCase().indexOf(p.toUpperCase())>-1;}))return false;
+    return true;
+  }
   var allMatches=_vm==='social'
-    ?_rawAll.filter(function(m){return !m.isRanked&&!m.isCustom;})
-    :_rawAll.filter(function(m){return m.isRanked;});
-  // Fall back to all matches if the filtered set is empty (e.g. player has no ranked games yet)
+    ?_rawAll.filter(function(m){return !m.isRanked&&_isRealGame(m);})
+    :_rawAll.filter(_isRealGame); // ranked mode shows ranked + social together, sorted by date
+  // Fall back to all raw matches if the filtered set is empty
+  if(allMatches.length===0)allMatches=_rawAll.filter(function(m){return !m.isCustom;});
   if(allMatches.length===0)allMatches=_rawAll;
   if(allMatches.length===0){
-    container.innerHTML='<div class="empty-state"><div class="empty-state-msg">No '+(  _vm==='social'?'social':'ranked')+' matches found</div><div class="empty-state-sub">'+(_vm==='social'?'Quick Play, BTB and other non-ranked games will appear here':'Play some ranked games to see history here')+'</div></div>';
+    container.innerHTML='<div class="empty-state"><div class="empty-state-msg">No '+(  _vm==='social'?'social':'recent')+' matches found</div><div class="empty-state-sub">'+(_vm==='social'?'Quick Play, BTB and other non-ranked games will appear here':'Match history will appear here once games are played')+'</div></div>';
     return;
   }
   var PER_PAGE=25; // full history paginated — all loaded matches shown

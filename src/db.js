@@ -1568,27 +1568,30 @@ async function getActivityTimes(xuid, limit = 1000) {
 //   - Null fields in the new match DO NOT overwrite non-null fields in the existing
 //     record (e.g. preserves CSR/skill data already enriched by updatePlayerMatchSkillData)
 // Equivalent to: existing = existing || strip_nulls(incoming)
+// Uses a single batch INSERT via unnest() instead of one query per match.
 async function savePlayerMatchHistory(xuid, matches) {
   if (!matches || !matches.length) return 0;
   try {
     const db = await getDb();
     if (!db) return 0;
     const xuidStr = String(xuid);
-    let saved = 0;
-    for (const m of matches) {
-      if (!m.matchId) continue;
-      try {
-        await db.query(
-          `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (xuid, match_id) DO UPDATE
-             SET match_json = player_match_history.match_json || jsonb_strip_nulls(EXCLUDED.match_json)`,
-          [xuidStr, m.matchId, JSON.stringify(m), m.startTime ? new Date(m.startTime) : null, m.isRanked || false]
-        );
-        saved++;
-      } catch(e) { /* ignore per-row errors */ }
-    }
-    return saved;
+    const valid = matches.filter(m => m.matchId);
+    if (!valid.length) return 0;
+
+    // Batch upsert: pass parallel arrays to unnest() — one round-trip for the whole batch.
+    const matchIds  = valid.map(m => m.matchId);
+    const jsons     = valid.map(m => JSON.stringify(m));
+    const times     = valid.map(m => m.startTime ? new Date(m.startTime) : null);
+    const ranked    = valid.map(m => m.isRanked || false);
+
+    await db.query(
+      `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
+       SELECT $1, unnest($2::text[]), unnest($3::jsonb[]), unnest($4::timestamptz[]), unnest($5::boolean[])
+       ON CONFLICT (xuid, match_id) DO UPDATE
+         SET match_json = player_match_history.match_json || jsonb_strip_nulls(EXCLUDED.match_json)`,
+      [xuidStr, matchIds, jsons, times, ranked]
+    );
+    return valid.length;
   } catch(e) {
     console.error('[DB] savePlayerMatchHistory error:', e.message);
     return 0;
@@ -1596,8 +1599,10 @@ async function savePlayerMatchHistory(xuid, matches) {
 }
 
 // Persist enriched skill data (mmr, csrAfter, expectedKills, etc.) back to
-// player_match_history for matches that now have it.  Uses DO UPDATE so the
-// richer match_json overwrites the sparse row that deep-scan originally wrote.
+// player_match_history for matches that now have it.
+// Uses jsonb merge (same as savePlayerMatchHistory) so that a skill-enrichment
+// pass never clobbers richer existing data (e.g. fresher mapImageUrl or gameMode).
+// Uses a single batch INSERT via unnest() instead of one query per match.
 async function updatePlayerMatchSkillData(xuid, matches) {
   if (!matches || !matches.length) return 0;
   try {
@@ -1609,19 +1614,21 @@ async function updatePlayerMatchSkillData(xuid, matches) {
       m.mmr != null || m.csrAfter != null || m.expectedKills != null || m.csrDelta != null
     ));
     if (!enriched.length) return 0;
-    let updated = 0;
-    for (const m of enriched) {
-      try {
-        await db.query(
-          `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (xuid, match_id) DO UPDATE SET match_json = EXCLUDED.match_json`,
-          [xuidStr, m.matchId, JSON.stringify(m), m.startTime ? new Date(m.startTime) : null, m.isRanked || false]
-        );
-        updated++;
-      } catch(e) { /* ignore per-row errors */ }
-    }
-    return updated;
+
+    // Batch upsert using unnest() — one round-trip for the whole set.
+    const matchIds = enriched.map(m => m.matchId);
+    const jsons    = enriched.map(m => JSON.stringify(m));
+    const times    = enriched.map(m => m.startTime ? new Date(m.startTime) : null);
+    const ranked   = enriched.map(m => m.isRanked || false);
+
+    await db.query(
+      `INSERT INTO player_match_history (xuid, match_id, match_json, start_time, is_ranked)
+       SELECT $1, unnest($2::text[]), unnest($3::jsonb[]), unnest($4::timestamptz[]), unnest($5::boolean[])
+       ON CONFLICT (xuid, match_id) DO UPDATE
+         SET match_json = player_match_history.match_json || jsonb_strip_nulls(EXCLUDED.match_json)`,
+      [xuidStr, matchIds, jsons, times, ranked]
+    );
+    return enriched.length;
   } catch(e) {
     console.warn('[DB] updatePlayerMatchSkillData error:', e.message);
     return 0;

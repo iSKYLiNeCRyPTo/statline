@@ -213,8 +213,8 @@ async function loadCaches() {
   const c = await getRedis();
   if (!c) return;
   try {
-    const [gtRaw, gpRaw, emblemRaw, npRaw, clearRaw] = await Promise.all([
-      c.get('xuidToGt'), c.get('xuidToGamerpic'), c.get('emblemPathCache'), c.get('nameplatePathCache'), c.get('clearanceToken')
+    const [gtRaw, gpRaw, emblemRaw, npRaw, clearRaw, mapImgRaw] = await Promise.all([
+      c.get('xuidToGt'), c.get('xuidToGamerpic'), c.get('emblemPathCache'), c.get('nameplatePathCache'), c.get('clearanceToken'), c.get('mapImageCache')
     ]);
     if (gtRaw) Object.assign(xuidToGt, JSON.parse(gtRaw));
     if (gpRaw) Object.assign(xuidToGamerpic, JSON.parse(gpRaw));
@@ -238,7 +238,15 @@ async function loadCaches() {
         console.log('[Clearance] Loaded from Redis');
       }
     }
-    console.log(`[Cache] Loaded: ${Object.keys(xuidToGt).length} gamertags, ${Object.keys(emblemPathCache).length} emblems, ${Object.keys(nameplatePathCache).length} nameplates`);
+    if (mapImgRaw) {
+      const loaded = JSON.parse(mapImgRaw) || {};
+      let mapImgCount = 0;
+      for (const [assetId, url] of Object.entries(loaded)) {
+        if (assetId && url) { mapImageCache[assetId] = url; mapImgCount++; }
+      }
+      if (mapImgCount) console.log(`[Cache] Loaded ${mapImgCount} map image URLs from Redis`);
+    }
+    console.log(`[Cache] Loaded: ${Object.keys(xuidToGt).length} gamertags, ${Object.keys(emblemPathCache).length} emblems, ${Object.keys(nameplatePathCache).length} nameplates, ${Object.keys(mapImageCache).length} map images`);
   } catch(e) { console.error('[Cache] Load failed:', e.message); }
 }
 loadCaches();
@@ -261,6 +269,10 @@ async function resolveMapName(assetId, versionId, headers) {
         const thumb = paths.find(p => /thumbnail/i.test(p)) || paths.find(p => /screenshot/i.test(p)) || paths.find(p => /\.png$/i.test(p)) || paths.find(p => /\.jpg$/i.test(p));
         if (prefix && thumb) mapImageCache[assetId] = prefix + thumb;
         else if (prefix) mapImageCache[assetId] = prefix + 'images/thumbnail.png';
+        // Persist new map image URL to Redis so it survives server restarts
+        if (mapImageCache[assetId]) {
+          getRedis().then(c => c && c.set('mapImageCache', JSON.stringify(mapImageCache))).catch(() => {});
+        }
         return name;
       }
     }
@@ -1742,9 +1754,14 @@ module.exports = {
   // Resolve mapImageUrl for matches that are missing it.
   // Calls the Waypoint map details API for any (assetId, versionId) pair not yet
   // in mapImageCache. Updates match objects in-place and returns those that were fixed.
+  // Matches missing _mapVersionId are still filled from cache if available; if not
+  // cached they are skipped (no versionId = can't call the API, but a subsequent warm
+  // cache pass from another match with the same assetId will backfill them).
   resolveMapImagesForMatches: async function(matches, headers) {
     if (!matches || !matches.length || !headers) return [];
-    // Deduplicate by assetId — only one API call per map
+    // Deduplicate by assetId — only one API call per map.
+    // Only queue for resolution if we have a versionId; matches with only assetId
+    // are handled by the fill pass below if the cache is already warm.
     const needed = new Map();
     for (const m of matches) {
       if (!m.mapImageUrl && m._mapAssetId && m._mapVersionId && !mapImageCache[m._mapAssetId]) {

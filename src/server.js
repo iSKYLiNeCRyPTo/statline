@@ -29,9 +29,10 @@ const DEEP_SCAN_MAX_OFFSET   = 2500; // stop after 2500 raw matches — prevents
 const DEEP_SCAN_MAX_DRY_DIST = 500;  // stop if we scan 500 raw matches in a row
                                      // without finding any real (non-custom) match
 
-// Per-xuid "dry streak" tracking: offset where the last ranked match was found.
+// Per-xuid "dry streak" tracking: offset where the last real (non-custom) game was found.
+// Resets on any ranked OR social game. Only pure custom/empty stretches advance the dry count.
 // When (currentOffset - _deepScanDryStart[xuid]) >= DEEP_SCAN_MAX_DRY_DIST we stop.
-const _deepScanDryStart = {};   // xuid -> offset of last ranked match (or scan start)
+const _deepScanDryStart = {};   // xuid -> offset of last real game (or scan start)
 
 function enqueueDeepScan(xuid, gamertag) {
   if (!xuid || _deepScanQueued.has(xuid)) return;
@@ -87,10 +88,11 @@ async function _deepScanWorker({ xuid, gamertag }) {
     // Initialise dry-streak tracking on first batch for this xuid
     if (_deepScanDryStart[xuid] == null) _deepScanDryStart[xuid] = startOffset;
 
-    // Dry-streak cap — stop if we've scanned 500 raw matches with zero ranked found
+    // Dry-streak cap — stop if we've scanned 500 raw matches with zero real (non-custom) games found.
+    // Resets on any ranked OR social game — pure custom/empty stretches are what trigger the stop.
     const dryDistance = startOffset - _deepScanDryStart[xuid];
     if (dryDistance >= DEEP_SCAN_MAX_DRY_DIST) {
-      console.log(`[DeepScan] ${gamertag} — no ranked in ${dryDistance} raw matches, stopping`);
+      console.log(`[DeepScan] ${gamertag} — no real games in ${dryDistance} raw matches, stopping`);
       await upsertDeepScanCursor(xuid, gamertag, startOffset, prevTotal, true).catch(() => {});
       _deepScanQueued.delete(xuid);
       delete _deepScanDryStart[xuid];
@@ -116,6 +118,20 @@ async function _deepScanWorker({ xuid, gamertag }) {
     if (fetched.length > 0) {
       // Found real matches — reset the dry-streak anchor
       _deepScanDryStart[xuid] = scanEnd;
+
+      // Resolve map image URLs before saving so DB rows don't get persisted with
+      // mapImageUrl: null just because the in-memory cache was cold at scan time.
+      // getAuthHeaders() is synchronous — safe to call here without await.
+      const _scanHeaders = getAuthHeaders();
+      const _needsImg = fetched.filter(m => !m.mapImageUrl && m._mapAssetId);
+      if (_needsImg.length && _scanHeaders['x-343-authorization-spartan']) {
+        try {
+          await resolveMapImagesForMatches(_needsImg, _scanHeaders);
+        } catch(e) {
+          console.warn(`[DeepScan] map image resolve failed for ${xuid}:`, e.message);
+        }
+      }
+
       await savePlayerMatchHistory(xuid, fetched).catch(e =>
         console.warn(`[DeepScan] savePlayerMatchHistory failed for ${xuid}:`, e.message)
       );
