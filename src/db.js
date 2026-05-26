@@ -2,6 +2,20 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
+// Extract match duration in seconds from either format:
+//   m.durationSec — number, set on DB-reconstructed matches
+//   m.duration    — ISO 8601 string ("PT9M30S"), set on live-fetched matches
+// Returns 0 if neither is available or parseable.
+function _matchDurSec(m) {
+  if (typeof m.durationSec === 'number' && m.durationSec > 0) return m.durationSec;
+  if (typeof m.duration === 'number'    && m.duration > 0)    return m.duration;
+  if (typeof m.duration === 'string') {
+    const mm = m.duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/);
+    if (mm) return (parseInt(mm[1] || 0) * 3600) + (parseInt(mm[2] || 0) * 60) + parseFloat(mm[3] || 0);
+  }
+  return 0;
+}
+
 let _dbPool = null;
 let _dbInitPromise = null; // shared across concurrent callers — prevents race on startup
 const _dbPersistedXuids = new Set();
@@ -265,11 +279,12 @@ async function savePlayerSnapshot(player) {
       snapAccuracy  = accGames.length ? parseFloat((accGames.reduce((s, m) => s + parseFloat(m.accuracy), 0) / accGames.length).toFixed(1)) : null;
       // Kills per minute: exclude quit/cancelled matches (outcome != 2/3) and matches that
       // didn't properly start (duration <= 60s). Normalises across game types (Oddball vs Slayer).
+      // _matchDurSec handles both live-fetched (ISO duration string) and DB matches (durationSec number).
       const kpmMs      = mValid.filter(m =>
         (m.outcome === 2 || m.outcome === 3) &&
-        typeof m.durationSec === 'number' && m.durationSec > 60
+        _matchDurSec(m) > 60
       );
-      const kpmDurMin  = kpmMs.reduce((s, m) => s + m.durationSec / 60, 0);
+      const kpmDurMin  = kpmMs.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
       const kpmKills   = kpmMs.reduce((s, m) => s + (m.kills || 0), 0);
       snapAvgKills  = kpmDurMin > 0 ? parseFloat((kpmKills / kpmDurMin).toFixed(2)) : null;
       // Prefer career total from service record so the leaderboard shows real game counts,

@@ -1,3 +1,15 @@
+// ── Shared duration helper ────────────────────────────────────────────────────
+// Extracts match duration in seconds from either:
+//   m.durationSec — number, set on DB/reconstructed matches
+//   m.duration    — ISO 8601 string ("PT9M30S"), set on live-fetched matches
+// Returns 0 if neither is present or parseable.
+function _getDurSec(m) {
+  if (m.durationSec > 0) return m.durationSec;
+  if (!m.duration) return 0;
+  var mm = String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);
+  return mm ? (parseInt(mm[1]||0)*3600) + (parseInt(mm[2]||0)*60) + parseFloat(mm[3]||0) : 0;
+}
+
 // ── View mode: 'ranked' (default) or 'social' ────────────────────────────────
 window._viewMode = window._viewMode || 'ranked';
 function setViewMode(mode) {
@@ -731,8 +743,9 @@ function render(){
     var _skda=_sd>0?((_sk+_sa/3)/_sd).toFixed(2):(_sk+_sa/3).toFixed(2);
     // Kills per minute: only decisive-outcome matches that actually started (duration > 60s).
     // Normalises across game types (Oddball vs Slayer have different kill volumes).
-    var _kpmMs=_s100.filter(function(m){return (m.outcome===2||m.outcome===3)&&typeof m.durationSec==='number'&&m.durationSec>60&&m.kills!=null;});
-    var _kpmDurMin=_kpmMs.reduce(function(a,m){return a+m.durationSec/60;},0);
+    // _getDurSec handles both live-fetched (ISO string) and DB matches (durationSec number).
+    var _kpmMs=_s100.filter(function(m){return (m.outcome===2||m.outcome===3)&&_getDurSec(m)>60&&m.kills!=null;});
+    var _kpmDurMin=_kpmMs.reduce(function(a,m){return a+_getDurSec(m)/60;},0);
     var _kpmKills=_kpmMs.reduce(function(a,m){return a+(m.kills||0);},0);
     var _skpm=_kpmDurMin>0?(_kpmKills/_kpmDurMin).toFixed(2):null;
     _dispS={
@@ -1030,7 +1043,7 @@ function render(){
   var streak=0,streakChar='';
   for(var si=0;si<matches.length;si++){var mo=matches[si].outcome;if(si===0){streakChar=mo===2?'W':mo===3?'L':'D';}var mc=mo===2?'W':mo===3?'L':'D';if(mc===streakChar)streak++;else break;}
   var streakDots=matches.slice(0,_formCount).map(function(m){var oc=m.outcome===2?'w':m.outcome===3?'l':'d';var lbl=m.outcome===2?'W':m.outcome===3?'L':'D';return'<div class="streak-dot '+oc+'">'+lbl+'</div>';}).join('');
-  function _drSecs(m){if(!m.duration)return 0;var mm=String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/);return mm?(parseInt(mm[1]||0)*3600)+(parseInt(mm[2]||0)*60)+parseFloat(mm[3]||0):0;}
+  function _drSecs(m){return _getDurSec(m);}
   var _dmgMatches=statMatches.filter(function(m){return(m.outcome===2||m.outcome===3)&&_drSecs(m)>=180;});
   var totalDealt=_dmgMatches.reduce(function(a,m){return a+(m.damageDealt||0);},0);
   var totalTaken=_dmgMatches.reduce(function(a,m){return a+(m.damageTaken||0);},0);

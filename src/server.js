@@ -348,6 +348,20 @@ function _isValidPvpMatch(m) {
   return true;
 }
 
+// Extract match duration in seconds from either:
+//   m.durationSec — number, set on DB-reconstructed matches
+//   m.duration    — ISO 8601 string ("PT9M30S"), set on live-fetched matches
+// Returns 0 if neither is available or parseable.
+function _matchDurSec(m) {
+  if (typeof m.durationSec === 'number' && m.durationSec > 0) return m.durationSec;
+  if (typeof m.duration === 'number'    && m.duration > 0)    return m.duration;
+  if (typeof m.duration === 'string') {
+    const mm = m.duration.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/);
+    if (mm) return (parseInt(mm[1] || 0) * 3600) + (parseInt(mm[2] || 0) * 60) + parseFloat(mm[3] || 0);
+  }
+  return 0;
+}
+
 // --- Search cache (Redis-primary, in-memory fallback) ---
 const searchCache = {}; // gamertag.lower -> { data, fetchedAt }
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours (incrementals keep data fresh)
@@ -442,12 +456,13 @@ function aggregateStatsFromMatches(matches, base) {
   // Kills per minute: only count matches that (a) had a decisive outcome (no quits/cancels),
   // (b) actually started (duration > 60s), and (c) have kill data. This normalises across
   // game types with different kill counts (e.g. Oddball vs Slayer) and excludes bad matches.
+  // _matchDurSec handles both live-fetched matches (duration ISO string) and DB matches (durationSec number).
   const kpmMatches = ms.filter(m =>
     (m.outcome === 2 || m.outcome === 3) &&
-    typeof m.durationSec === 'number' && m.durationSec > 60 &&
+    _matchDurSec(m) > 60 &&
     m.kills != null
   );
-  const kpmTotalDurMin = kpmMatches.reduce((s, m) => s + m.durationSec / 60, 0);
+  const kpmTotalDurMin = kpmMatches.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
   const kpmTotalKills  = kpmMatches.reduce((s, m) => s + (m.kills || 0), 0);
   const killsPerMin = kpmTotalDurMin > 0 ? parseFloat((kpmTotalKills / kpmTotalDurMin).toFixed(2)) : null;
   return {
@@ -1470,9 +1485,9 @@ app.get('/api/rank-comparison', async (req, res) => {
       // This normalises across game types (Oddball vs Slayer have very different kill counts).
       const kpmMs      = validMatches.filter(m =>
         (m.outcome === 2 || m.outcome === 3) &&
-        typeof m.durationSec === 'number' && m.durationSec > 60
+        _matchDurSec(m) > 60
       );
-      const kpmDurMin  = kpmMs.reduce((s, m) => s + m.durationSec / 60, 0);
+      const kpmDurMin  = kpmMs.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
       const kpmKills   = kpmMs.reduce((s, m) => s + (m.kills || 0), 0);
       const avgKpm     = kpmDurMin > 0 ? parseFloat((kpmKills / kpmDurMin).toFixed(2)) : null;
       playerStats = {
@@ -2505,8 +2520,8 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
           const winPct= totW / rankedMs.length * 100;
           const acc   = accMs.length ? accMs.reduce((s,m) => s+m.shotsHit/m.shotsFired*100, 0)/accMs.length : null;
           // KPM: only matches with valid duration, normalises across game types
-          const kpmMs = rankedMs.filter(m => typeof m.durationSec === 'number' && m.durationSec > 60);
-          const kpmDurMin = kpmMs.reduce((s,m) => s + m.durationSec/60, 0);
+          const kpmMs = rankedMs.filter(m => _matchDurSec(m) > 60);
+          const kpmDurMin = kpmMs.reduce((s,m) => s + _matchDurSec(m)/60, 0);
           const kpmKills  = kpmMs.reduce((s,m) => s + (m.kills||0), 0);
           const kpm = kpmDurMin > 0 ? kpmKills / kpmDurMin : null;
 
