@@ -427,6 +427,17 @@ function aggregateStatsFromMatches(matches, base) {
     : (base && base.accuracy != null ? base.accuracy : null);
   const damageDealt = ms.reduce((s, m) => s + (m.damageDealt || 0), 0);
   const damageTaken = ms.reduce((s, m) => s + (m.damageTaken || 0), 0);
+  // Kills per minute: only count matches that (a) had a decisive outcome (no quits/cancels),
+  // (b) actually started (duration > 60s), and (c) have kill data. This normalises across
+  // game types with different kill counts (e.g. Oddball vs Slayer) and excludes bad matches.
+  const kpmMatches = ms.filter(m =>
+    (m.outcome === 2 || m.outcome === 3) &&
+    typeof m.durationSec === 'number' && m.durationSec > 60 &&
+    m.kills != null
+  );
+  const kpmTotalDurMin = kpmMatches.reduce((s, m) => s + m.durationSec / 60, 0);
+  const kpmTotalKills  = kpmMatches.reduce((s, m) => s + (m.kills || 0), 0);
+  const killsPerMin = kpmTotalDurMin > 0 ? parseFloat((kpmTotalKills / kpmTotalDurMin).toFixed(2)) : null;
   return {
     ...(base || {}),
     matchesPlayed, wins, losses,
@@ -434,7 +445,9 @@ function aggregateStatsFromMatches(matches, base) {
     kills, deaths, assists,
     kd, kda,
     accuracy,
-    avgKillsPerGame: matchesPlayed > 0 ? (kills / matchesPlayed).toFixed(1) : '0.0',
+    killsPerMin,
+    // Legacy alias kept so any callers still referencing avgKillsPerGame get a value
+    avgKillsPerGame: killsPerMin != null ? killsPerMin.toFixed(1) : (matchesPlayed > 0 ? (kills / matchesPlayed).toFixed(1) : '0.0'),
     damageDealt, damageTaken,
   };
 }
@@ -1445,7 +1458,7 @@ app.get('/api/rank-comparison', async (req, res) => {
     let playerStats, statsSource = 'career', statsGames = null;
     const allMatchArr = Array.isArray(player.allMatches) ? player.allMatches
                       : Array.isArray(player.recentMatches) ? player.recentMatches : [];
-    // Use all matches (PvP, non-custom) — outcome filter only needed for win rate calc
+    // Use all matches with kill data for K/D; decisive-outcome + started matches for KPM.
     const validMatches = allMatchArr.filter(m => m && m.kills != null);
     if (validMatches.length >= 5) {
       const totalKills  = validMatches.reduce((s, m) => s + (m.kills || 0), 0);
@@ -1455,11 +1468,20 @@ app.get('/api/rank-comparison', async (req, res) => {
       const wins        = wlMatches.filter(m => m.outcome === 2).length;
       const accGames    = validMatches.filter(m => m.accuracy != null && parseFloat(m.accuracy) > 0);
       const avgAcc      = accGames.length ? accGames.reduce((s, m) => s + parseFloat(m.accuracy), 0) / accGames.length : null;
+      // Kills per minute: exclude quit/cancelled matches and matches that didn't properly start.
+      // This normalises across game types (Oddball vs Slayer have very different kill counts).
+      const kpmMs      = validMatches.filter(m =>
+        (m.outcome === 2 || m.outcome === 3) &&
+        typeof m.durationSec === 'number' && m.durationSec > 60
+      );
+      const kpmDurMin  = kpmMs.reduce((s, m) => s + m.durationSec / 60, 0);
+      const kpmKills   = kpmMs.reduce((s, m) => s + (m.kills || 0), 0);
+      const avgKpm     = kpmDurMin > 0 ? parseFloat((kpmKills / kpmDurMin).toFixed(2)) : null;
       playerStats = {
         kd:        totalDeaths > 0 ? parseFloat((totalKills / totalDeaths).toFixed(2)) : null,
         win_rate:  wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null,
         accuracy:  avgAcc != null ? parseFloat(avgAcc.toFixed(1)) : null,
-        avg_kills: parseFloat((totalKills / validMatches.length).toFixed(1)),
+        avg_kills: avgKpm,
       };
       statsSource = 'recent';
       statsGames  = validMatches.length;
@@ -1469,7 +1491,7 @@ app.get('/api/rank-comparison', async (req, res) => {
         kd:        parseFloat(s.kd)              || null,
         win_rate:  parseFloat(s.winRate)         || null,
         accuracy:  parseFloat(s.accuracy)        || null,
-        avg_kills: parseFloat(s.avgKillsPerGame) || null,
+        avg_kills: parseFloat(s.killsPerMin)     || parseFloat(s.avgKillsPerGame) || null,
       };
     }
 
@@ -2452,7 +2474,7 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
       const MIN_RANKED_MATCHES = 10;  // need at least 10 ranked games to be useful
       const MIN_KD             = 0.7; // below 0.7 K/D is not pro-level, likely wrong account
       const MIN_ACCURACY       = 28;  // below 28% accuracy is unreliable / non-competitive
-      const MIN_AVG_KILLS      = 5;   // below 5 avg kills per game is a data red flag
+      const MIN_KPM            = 0.5; // below 0.5 kills/min is a data red flag (quit-heavy or wrong account)
 
       for (const pro of pros) {
         try {
@@ -2482,12 +2504,16 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
           const kd    = totK / totD;
           const winPct= totW / rankedMs.length * 100;
           const acc   = accMs.length ? accMs.reduce((s,m) => s+m.shotsHit/m.shotsFired*100, 0)/accMs.length : null;
-          const avgK  = totK / rankedMs.length;
+          // KPM: only matches with valid duration, normalises across game types
+          const kpmMs = rankedMs.filter(m => typeof m.durationSec === 'number' && m.durationSec > 60);
+          const kpmDurMin = kpmMs.reduce((s,m) => s + m.durationSec/60, 0);
+          const kpmKills  = kpmMs.reduce((s,m) => s + (m.kills||0), 0);
+          const kpm = kpmDurMin > 0 ? kpmKills / kpmDurMin : null;
 
           const flags = [];
-          if (kd     < MIN_KD)          flags.push(`K/D ${kd.toFixed(2)} < ${MIN_KD}`);
-          if (acc!=null && acc < MIN_ACCURACY) flags.push(`acc ${acc.toFixed(1)}% < ${MIN_ACCURACY}%`);
-          if (avgK   < MIN_AVG_KILLS)   flags.push(`avg kills ${avgK.toFixed(1)} < ${MIN_AVG_KILLS}`);
+          if (kd < MIN_KD)                         flags.push(`K/D ${kd.toFixed(2)} < ${MIN_KD}`);
+          if (acc!=null && acc < MIN_ACCURACY)      flags.push(`acc ${acc.toFixed(1)}% < ${MIN_ACCURACY}%`);
+          if (kpm!=null && kpm < MIN_KPM)           flags.push(`KPM ${kpm.toFixed(2)} < ${MIN_KPM}`);
 
           if (flags.length) {
             console.warn(`[Admin/refreshPros] ⚠ SKIP ${pro.gamertag} — stats below pro threshold: ${flags.join(', ')}. Check gamertag or account activity.`);

@@ -6,7 +6,7 @@
     kd:        'K/D Ratio',
     win_rate:  'Win Rate',
     accuracy:  'Accuracy',
-    avg_kills: 'Avg Kills',
+    avg_kills: 'Kills/Min',
   };
   var STAT_UNITS = {
     kd: '', win_rate: '%', accuracy: '%', avg_kills: '',

@@ -729,12 +729,19 @@ function render(){
     var _sAccMs=_s100.filter(function(m){return m.accuracy!=null;});
     var _sacc=_sAccMs.length?(_sAccMs.reduce(function(a,m){return a+parseFloat(m.accuracy);},0)/_sAccMs.length).toFixed(1):null;
     var _skda=_sd>0?((_sk+_sa/3)/_sd).toFixed(2):(_sk+_sa/3).toFixed(2);
+    // Kills per minute: only decisive-outcome matches that actually started (duration > 60s).
+    // Normalises across game types (Oddball vs Slayer have different kill volumes).
+    var _kpmMs=_s100.filter(function(m){return (m.outcome===2||m.outcome===3)&&typeof m.durationSec==='number'&&m.durationSec>60&&m.kills!=null;});
+    var _kpmDurMin=_kpmMs.reduce(function(a,m){return a+m.durationSec/60;},0);
+    var _kpmKills=_kpmMs.reduce(function(a,m){return a+(m.kills||0);},0);
+    var _skpm=_kpmDurMin>0?(_kpmKills/_kpmDurMin).toFixed(2):null;
     _dispS={
       kills:_sk,deaths:_sd,assists:_sa,
       kd:_skd,kda:_skda,accuracy:_sacc,
       wins:_sw,losses:_sl,winRate:_swr,
       matchesPlayed:_s100.length,
-      avgKillsPerGame:_s100.length?(_sk/_s100.length).toFixed(1):'0.0',
+      killsPerMin:_skpm?parseFloat(_skpm):null,
+      avgKillsPerGame:_skpm||(_s100.length?(_sk/_s100.length).toFixed(1):'0.0'),
       totalMedals:s.totalMedals
     };
   }
@@ -1030,7 +1037,7 @@ function render(){
   var dmgRatio=totalTaken>0?(totalDealt/totalTaken).toFixed(2):'—';
   var dmgRatioColor=parseFloat(dmgRatio)>=1?'var(--win)':'var(--loss)';
   html+='<div class="stat-row">'
-    +statCard('Kills',(_dispS.kills||0).toLocaleString(),'',_dispS.avgKillsPerGame+' per game')
+    +statCard('Kills',(_dispS.kills||0).toLocaleString(),'',(_dispS.killsPerMin!=null?_dispS.killsPerMin.toFixed(2):_dispS.avgKillsPerGame)+' per min')
     +statCard('Deaths',(_dispS.deaths||0).toLocaleString(),'','')
     +statCard('Assists',(_dispS.assists||0).toLocaleString(),'','')
     +statCard('KDA',_dispS.kda,'accent','')

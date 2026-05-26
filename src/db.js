@@ -263,7 +263,15 @@ async function savePlayerSnapshot(player) {
       snapKd        = totalDeaths > 0 ? parseFloat((totalKills / totalDeaths).toFixed(2)) : null;
       snapWinRate   = wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null;
       snapAccuracy  = accGames.length ? parseFloat((accGames.reduce((s, m) => s + parseFloat(m.accuracy), 0) / accGames.length).toFixed(1)) : null;
-      snapAvgKills  = parseFloat((totalKills / mValid.length).toFixed(1));
+      // Kills per minute: exclude quit/cancelled matches (outcome != 2/3) and matches that
+      // didn't properly start (duration <= 60s). Normalises across game types (Oddball vs Slayer).
+      const kpmMs      = mValid.filter(m =>
+        (m.outcome === 2 || m.outcome === 3) &&
+        typeof m.durationSec === 'number' && m.durationSec > 60
+      );
+      const kpmDurMin  = kpmMs.reduce((s, m) => s + m.durationSec / 60, 0);
+      const kpmKills   = kpmMs.reduce((s, m) => s + (m.kills || 0), 0);
+      snapAvgKills  = kpmDurMin > 0 ? parseFloat((kpmKills / kpmDurMin).toFixed(2)) : null;
       // Prefer career total from service record so the leaderboard shows real game counts,
       // not just our cached sample size. Fall back to sample length if not available.
       const _s = player.stats || {};
@@ -276,7 +284,7 @@ async function savePlayerSnapshot(player) {
       snapKd        = parseFloat(s.kd)              || null;
       snapWinRate   = parseFloat(s.winRate)         || null;
       snapAccuracy  = parseFloat(s.accuracy)        || null;
-      snapAvgKills  = parseFloat(s.avgKillsPerGame) || null;
+      snapAvgKills  = parseFloat(s.killsPerMin)     || parseFloat(s.avgKillsPerGame) || null;
       snapMatchesPlayed = s.matchesPlayed || null;
       snapWins      = s.wins || null;
       snapLosses    = s.losses || null;
@@ -431,7 +439,8 @@ async function getProStats() {
   if (!db) return null;
   // Quality filter: only include snapshots that look like legitimate pro-level play.
   // Thresholds match the refresh-pros validation in server.js:
-  //   K/D >= 0.7, accuracy >= 28% (or null — not all matches record accuracy), avg_kills >= 5
+  //   K/D >= 0.7, accuracy >= 28% (or null — not all matches record accuracy), avg_kills >= 0.5
+  // avg_kills stores kills-per-minute (KPM) — 0.5 KPM is a conservative minimum for pro data.
   // This prevents inactive accounts, wrong gamertags, or smurf-level data from
   // skewing the pro aggregate used for benchmarks and aim thresholds.
   const res = await db.query(`
@@ -444,7 +453,7 @@ async function getProStats() {
       WHERE xuid = p.xuid
         AND kd        IS NOT NULL
         AND kd        >= 0.7
-        AND avg_kills >= 5
+        AND avg_kills >= 0.5
         AND (accuracy IS NULL OR accuracy >= 28)
       ORDER BY ts DESC LIMIT 1
     ) s ON true
