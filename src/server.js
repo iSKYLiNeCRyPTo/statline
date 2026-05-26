@@ -533,12 +533,33 @@ async function _processSnapQueue() {
     try {
       const result = await fetchPlayerStats(gamertag);
       if (result && result.xuid) {
+        // Fetch a single batch of recent matches (25 max) so savePlayerSnapshot
+        // can compute real kills-per-minute using actual match durations, instead
+        // of falling back to the career API's kills/matchesPlayed ratio (KPG, not KPM).
+        // lean:true skips rival resolution and advancedStats — we only need the matches.
+        // batchLimit:1 keeps this to one match-list call + up to 25 detail calls.
+        // Any failure here is non-fatal: savePlayerSnapshot falls back to career stats.
+        try {
+          const histData = await fetchMatchHistory(
+            result.xuid, gamertag, 25,
+            null, null,
+            { batchLimit: 1, lean: true }
+          );
+          const snapMatches = (histData.matches || []).filter(_isValidPvpMatch);
+          if (snapMatches.length > 0) {
+            result.allMatches    = snapMatches;
+            result.recentMatches = snapMatches;
+          }
+        } catch(histErr) {
+          console.warn(`[SnapQueue] match fetch failed for ${gamertag} (using career stats):`, histErr.message);
+        }
+
         await savePlayerSnapshot(result);
         // Track refresh attempt so subsequent enqueue passes can skip recently
         // refreshed players and detect inactive accounts.
         const matchesPlayed = result.stats && result.stats.matchesPlayed != null
           ? Number(result.stats.matchesPlayed) : null;
-        const meta = await markRefreshAttempt(result.xuid, gamertag, matchesPlayed).catch(() => null);
+        await markRefreshAttempt(result.xuid, gamertag, matchesPlayed).catch(() => null);
       }
     } catch(e) {
       // Non-fatal — player may have changed gamertag or be unavailable
@@ -546,8 +567,9 @@ async function _processSnapQueue() {
     }
     // Remove from in-flight guard only after fetch + markRefreshAttempt are done
     _snapQueued.delete(xuid);
-    // Throttle: wait 2.5s between each fetch to respect rate limits
-    await new Promise(r => setTimeout(r, 2500));
+    // Throttle: 4s between players (up from 2.5s) to account for the extra
+    // match-batch fetch added above — keeps total API pressure roughly the same.
+    await new Promise(r => setTimeout(r, 4000));
   }
   _snapRunning = false;
 }
