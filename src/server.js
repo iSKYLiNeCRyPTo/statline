@@ -105,7 +105,7 @@ async function _deepScanWorker({ xuid, gamertag }) {
       xuid, gamertag, 100,
       null,
       null,
-      { startOffset, batchLimit: 1, lean: false, noRankedCap: true }
+      { startOffset, batchLimit: 1, lean: true, noRankedCap: true }
     );
 
     const fetched    = (result.matches || []).filter(m => !m.isCustom); // all real matches (ranked + social)
@@ -335,6 +335,18 @@ setInterval(() => {
     if (!rateLimitMap[ip].length) delete rateLimitMap[ip];
   }
 }, 300000);
+
+// --- Shared match filter constants ---
+// Used by fresh search, incremental fetch, admin pro-refresh, and the aim stats endpoint
+// to exclude PvE modes and known practice/test maps from all stat calculations.
+const FILTER_PVE_MODES = ['firefight','gruntpocalypse','attrition','pve'];
+const FILTER_BAD_MAPS  = ['launch site','yuletide','octagon','aimbotz'];
+function _isValidPvpMatch(m) {
+  if (m.isCustom) return false;
+  if (m.gameMode && FILTER_PVE_MODES.some(p => m.gameMode.toLowerCase().includes(p))) return false;
+  if (m.mapName  && FILTER_BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
+  return true;
+}
 
 // --- Search cache (Redis-primary, in-memory fallback) ---
 const searchCache = {}; // gamertag.lower -> { data, fetchedAt }
@@ -879,14 +891,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         }
 
         const rawNew = newHistData.matches || [];
-        const PVE = ['firefight','gruntpocalypse','attrition','pve'];
-        const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
-        const filteredNew = rawNew.filter(m => {
-          if (m.isCustom) return false;
-          if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
-          if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
-          return true;
-        });
+        const filteredNew = rawNew.filter(_isValidPvpMatch);
 
         if (filteredNew.length > 0) {
           const existing = cached.allMatches || cached.recentMatches || [];
@@ -1134,14 +1139,7 @@ app.get('/api/search', rateLimit, async (req, res) => {
         throw err;
       }
       _searchProgress[key] = { step: 3, valid: 250, total: 250, ts: Date.now() };
-      const PVE = ['firefight','gruntpocalypse','attrition','pve'];
-      const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
-      const matches = (histData.matches || []).filter(m => {
-        if (m.isCustom) return false;
-        if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
-        if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
-        return true;
-      }).slice(0, 250);
+      const matches = (histData.matches || []).filter(_isValidPvpMatch).slice(0, 250);
 
       // ── Private-player fallback ────────────────────────────────────────────
       // Career stats came back but the match-history endpoint returned nothing
@@ -1744,11 +1742,20 @@ app.get('/api/matches', async (req, res) => {
     const cached = await getFromCache(gamertag);
     const memMatches = cached?.allMatches || cached?.recentMatches || [];
 
-    // ── DB deep-scan history (may be empty until first scan completes) ──────
+    // ── DB deep-scan history ─────────────────────────────────────────────────
+    // Only query the DB when the in-memory cache doesn't already have enough
+    // matches to cover the requested page. This avoids a heavy round-trip on
+    // every call when deep-scan history hasn't grown beyond what the fresh fetch
+    // already returned (the common case for recently-searched players).
+    // Cap at 1000 rows — deep-scan can accumulate thousands of matches but the
+    // UI rarely needs more than a few hundred, and deserializing 5000 JSONB rows
+    // per request is expensive on both DB and server.
+    const DB_FETCH_THRESHOLD = 200; // skip DB if mem cache already has this many
+    const DB_FETCH_CAP = 1000;
     let dbMatches = [];
-    if (cached?.xuid) {
+    if (cached?.xuid && memMatches.length < DB_FETCH_THRESHOLD) {
       try {
-        dbMatches = await getPlayerMatchHistory(cached.xuid, 5000, 0);
+        dbMatches = await getPlayerMatchHistory(cached.xuid, DB_FETCH_CAP, 0);
       } catch(e) {
         console.warn('[/api/matches] DB history fetch failed:', e.message);
       }
@@ -2467,8 +2474,6 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
     res.json({ queued: pros.length });
     // Fire and forget — runs after response is sent
     (async () => {
-      const PVE     = ['firefight','gruntpocalypse','attrition','pve'];
-      const BAD_MAPS= ['launch site','yuletide','octagon','aimbotz'];
       // Minimum thresholds for a valid pro snapshot.
       // Below these = wrong account, inactive, smurf, or bad data — skip snapshot save.
       const MIN_RANKED_MATCHES = 10;  // need at least 10 ranked games to be useful
@@ -2481,12 +2486,7 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
           console.log(`[Admin/refreshPros] Fetching ${pro.gamertag}…`);
           const playerStats = await fetchPlayerStats(pro.gamertag);
           const histData    = await fetchMatchHistory(playerStats.xuid, pro.gamertag, 100, () => {});
-          const matches = (histData.matches || []).filter(m => {
-            if (m.isCustom) return false;
-            if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
-            if (m.mapName  && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
-            return true;
-          }).slice(0, 100);
+          const matches = (histData.matches || []).filter(_isValidPvpMatch).slice(0, 100);
 
           // ── Validate data quality before saving snapshot ──────────────────
           const rankedMs = matches.filter(m => m.isRanked && (m.outcome===2||m.outcome===3) && m.kills!=null);
@@ -2990,14 +2990,7 @@ app.post('/api/calibrate', express.json(), async (req, res) => {
     try {
       const playerStats = await fetchPlayerStats(gamertag);
       const histData    = await fetchMatchHistory(playerStats.xuid, gamertag, 100, () => {});
-      const PVE      = ['firefight','gruntpocalypse','attrition','pve'];
-      const BAD_MAPS = ['launch site','yuletide','octagon','aimbotz'];
-      const filteredMatches = (histData.matches || []).filter(m => {
-        if (m.isCustom) return false;
-        if (m.gameMode && PVE.some(p => m.gameMode.toLowerCase().includes(p))) return false;
-        if (m.mapName && BAD_MAPS.some(p => m.mapName.toLowerCase().includes(p))) return false;
-        return true;
-      }).slice(0, 100);
+      const filteredMatches = (histData.matches || []).filter(_isValidPvpMatch).slice(0, 100);
       player = { ...playerStats, allMatches: filteredMatches, recentMatches: filteredMatches };
       await saveToCache(gamertag, player);
     } catch(fetchErr) {

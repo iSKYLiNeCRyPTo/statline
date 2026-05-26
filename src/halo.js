@@ -819,6 +819,17 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
   let stopReason = 'done'; // tracks why the loop exited
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+  // Playlist ID constants hoisted out of the per-match loop — they never change
+  // and re-declaring them as `const` inside the loop body allocates new arrays
+  // on every iteration (one per match parsed).
+  const _SLAYER_IDS      = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
+  const _RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
+  const _RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
+  const _RANKED_DOUBLES_ID = 'fa5aa2a3-2428-4912-a023-e1eeea7b877c';
+  const _FFA_IDS         = ['a7d20ef6-ebdc-4c01-b96c-69b27afa88d7'];
+  const _BTB_IDS         = ['2825d417-93e6-4366-98f9-839a2dc41fe4'];
+  const _QUICK_PLAY_IDS  = ['1b1691dc-d8b9-4b1f-825d-cb1c065184c1','57f4f0c0-bce9-4a34-b1b0-6188ed0f0198'];
+
   // If the match-list endpoint is currently in shared backoff (recent 429/403
   // burst), bail out immediately so the caller can serve cached/stale data
   // instead of piling on more requests.
@@ -940,21 +951,14 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
           continue;
         }
 
-        const SLAYER_IDS = ['f5580605-660c-43f9-ac69-4075c4a05c5d','dcb2e24e-05fb-4390-8076-32a0cdb4326e'];
-        const RANKED_ARENA_ID = 'edfef3ac-9cbe-4fa2-b949-8f29deafd483';
-        const RANKED_LEGACY_IDS = ['c94cb508-2fbd-450a-81db-bb74f7741d45'];
-        const RANKED_DOUBLES_ID = 'fa5aa2a3-2428-4912-a023-e1eeea7b877c';
-        const FFA_IDS = ['a7d20ef6-ebdc-4c01-b96c-69b27afa88d7'];
-        const BTB_IDS = ['2825d417-93e6-4366-98f9-839a2dc41fe4'];
-        const QUICK_PLAY_IDS = ['1b1691dc-d8b9-4b1f-825d-cb1c065184c1','57f4f0c0-bce9-4a34-b1b0-6188ed0f0198'];
         matchPlaylistId = md.MatchInfo?.Playlist?.AssetId || null;
-        const isFFA = FFA_IDS.includes(matchPlaylistId) || md.MatchInfo?.TeamsEnabled === false;
-        const isBTB = BTB_IDS.includes(matchPlaylistId);
-        const isQuickPlay = QUICK_PLAY_IDS.includes(matchPlaylistId);
-        isRankedSlayer = SLAYER_IDS.includes(matchPlaylistId);
-        isRankedArena = matchPlaylistId === RANKED_ARENA_ID;
-        isRankedLegacy = RANKED_LEGACY_IDS.includes(matchPlaylistId);
-        const isRankedDoubles = matchPlaylistId === RANKED_DOUBLES_ID;
+        const isFFA = _FFA_IDS.includes(matchPlaylistId) || md.MatchInfo?.TeamsEnabled === false;
+        const isBTB = _BTB_IDS.includes(matchPlaylistId);
+        const isQuickPlay = _QUICK_PLAY_IDS.includes(matchPlaylistId);
+        isRankedSlayer = _SLAYER_IDS.includes(matchPlaylistId);
+        isRankedArena = matchPlaylistId === _RANKED_ARENA_ID;
+        isRankedLegacy = _RANKED_LEGACY_IDS.includes(matchPlaylistId);
+        const isRankedDoubles = matchPlaylistId === _RANKED_DOUBLES_ID;
         isRanked = isRankedArena || isRankedSlayer || isRankedLegacy || isRankedDoubles;
         // Non-ranked (quickplay/social) games are allowed through so players
         // with no ranked games still see match history and a Fragr Score.
@@ -1336,7 +1340,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
   // (no bulk GT resolve here — we only resolve what we actually need below)
 
-  // Backfill gamerpics on team players
+  // Backfill gamerpics on team players (always — lean or not, so DB rows stay enriched)
   for (const result of results) {
     for (const team of (result.teams||[])) {
       for (const pl of (team.players||[])) {
@@ -1344,6 +1348,13 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         if (pl.rawXuid && xuidToGt[pl.rawXuid]) pl.gamertag = xuidToGt[pl.rawXuid];
       }
     }
+  }
+
+  // In lean mode (deep-scan background batches) skip rivals resolution, advancedStats,
+  // and haloDNA — those are expensive and the results are discarded by the caller anyway.
+  // The _lean flag is set by the deep-scan worker via _opts.lean = true.
+  if (_lean) {
+    return { matches: results, advancedStats: {}, haloDNA: null, rivals: [], nemesisList: [], victimsList: [], scanEndOffset: start, stopReason };
   }
 
   // Build rivals from all fetched matches — tracked by rawXuid (no GT needed yet)
