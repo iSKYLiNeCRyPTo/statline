@@ -11,6 +11,7 @@ var _lbTierDiveCharts = [];
 var _lbTierDiveRows   = [];
 
 function showLeaderboard() {
+  stopAutoRefresh(); // kill any player poller — we're leaving the player profile
   hideLanding();
   // URL
   try {

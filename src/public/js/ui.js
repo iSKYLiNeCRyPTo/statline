@@ -601,6 +601,7 @@ async function loadMedalMeta(){try{var res=await fetch('/api/medal-meta');if(!re
 }catch(e){console.warn('[Medals]',e.message);}}
 
 function showLanding(){
+  stopAutoRefresh(); // kill any player poller — we're leaving the player profile
   var el=document.getElementById('landing');
   if(el)el.style.display='flex';
   document.body.classList.add('on-landing');
