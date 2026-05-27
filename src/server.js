@@ -1152,13 +1152,65 @@ app.get('/api/search', rateLimit, async (req, res) => {
     }
   }
 
-  // No cache + match list is currently in shared backoff → return a clear
-  // temporary-unavailable response instead of attempting the fresh path
-  // (which would just hit the backoff again or trigger more 429s). The
-  // client can show a "try again in a minute" state without us marking
-  // this player as no-data.
+  // No cache + match list in backoff — before returning a 503, try to serve
+  // stale data from the DB (deep-scan history + snapshot stats). This lets
+  // returning players see their stats even during a rate-limit window instead
+  // of hitting a hard error screen.
   if (isMatchListBackoffActive()) {
-    console.warn(`[Search] ${gamertag} no cache + match-list in backoff (${matchListBackoffSecondsRemaining()}s) — returning 503 temporary-unavailable`);
+    try {
+      const dbXuid = await lookupXuidByGamertag(gamertag);
+      if (dbXuid) {
+        // Prefer deep-scan history; fall back to participant reconstruction
+        let dbMatches = await getPlayerMatchHistory(dbXuid, 200, 0);
+        if (!dbMatches.length) {
+          const recon = await reconstructMatchHistoryForXuid(dbXuid);
+          dbMatches = (recon && recon.matches) || [];
+        }
+        if (dbMatches.length) {
+          // Pull the most recent snapshot for rank + basic stats
+          const _db = await getDb();
+          const snapRow = _db ? await _db.query(
+            `SELECT * FROM player_snapshots WHERE xuid = $1 ORDER BY ts DESC LIMIT 1`,
+            [String(dbXuid)]
+          ).then(r => r.rows[0] || null).catch(() => null) : null;
+
+          const csrRaw = snapRow && snapRow.csr;
+          const csr = csrRaw
+            ? (typeof csrRaw === 'string' ? (() => { try { return JSON.parse(csrRaw); } catch { return null; } })() : csrRaw)
+            : null;
+
+          const dbFallback = {
+            gamertag,
+            xuid: dbXuid,
+            allMatches:    dbMatches,
+            recentMatches: dbMatches,
+            csr,
+            stats: snapRow ? {
+              kd:            snapRow.kd,
+              winRate:       snapRow.win_rate,
+              accuracy:      snapRow.accuracy,
+              killsPerMin:   snapRow.avg_kills,
+              avgKillsPerGame: snapRow.avg_kills,
+              matchesPlayed: snapRow.matches_played,
+              wins:          snapRow.wins,
+              losses:        snapRow.losses,
+            } : {},
+            emblemUrl:   null,
+            gamerpicUrl: null,
+            nameplateUrl: null,
+          };
+          await saveToCache(gamertag, dbFallback);
+          console.log(`[Search] ${gamertag} no cache + backoff → DB fallback (${dbMatches.length} matches)`);
+          logSearch(gamertag, req.headers['user-agent'], 'db-fallback+stale-backoff', true, null);
+          await enrichForResponse(dbFallback);
+          return res.json({ success: true, player: dbFallback, cached: true, stale: true, reason: 'match-list-backoff' });
+        }
+      }
+    } catch(dbFallbackErr) {
+      console.warn(`[Search] ${gamertag} DB fallback attempt failed:`, dbFallbackErr.message);
+    }
+    // No DB data available either — return a clean temporary-unavailable response
+    console.warn(`[Search] ${gamertag} no cache + no DB data + match-list in backoff (${matchListBackoffSecondsRemaining()}s) — returning 503`);
     logSearch(gamertag, req.headers['user-agent'], 'temp-unavailable', false, null);
     return res.status(503).json({
       success: false,
