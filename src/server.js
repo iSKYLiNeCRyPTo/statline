@@ -65,10 +65,13 @@ async function _deepScanWorker({ xuid, gamertag }) {
     let startOffset = (cursor && cursor.next_start != null) ? cursor.next_start : 0;
     let prevTotal   = (cursor && cursor.total_fetched != null) ? cursor.total_fetched : 0;
 
-    // Auto-reset corrupted cursor: large offset but almost nothing saved.
+    // Auto-reset corrupted cursor: large offset but very few matches saved.
     // Caused by the old batchLimit bug that advanced the cursor without saving matches.
-    // Heuristic: offset > 200 and saved < 5% of offset scanned.
-    if (startOffset > 200 && prevTotal < startOffset * 0.05) {
+    // Guard: only apply when prevTotal > 0 — a player with zero saved matches isn't
+    // corrupted, they just have no qualifying games. Letting the dry-streak cap handle
+    // that case avoids an infinite reset loop (reset → dry count clears → reaches same
+    // offset → repeats forever).
+    if (prevTotal > 0 && startOffset > 200 && prevTotal < startOffset * 0.05) {
       console.log(`[DeepScan] ${gamertag} — corrupted cursor detected (offset=${startOffset}, saved=${prevTotal}), resetting to 0`);
       await upsertDeepScanCursor(xuid, gamertag, 0, 0, false).catch(() => {});
       delete _deepScanDryStart[xuid];
@@ -99,6 +102,16 @@ async function _deepScanWorker({ xuid, gamertag }) {
       return;
     }
 
+    // Don't spin through empty iterations during an API backoff window.
+    // Sleep for the full remaining backoff duration then re-queue — prevents
+    // hundreds of log lines and wasteful cursor advancement with zero real data.
+    if (isMatchListBackoffActive()) {
+      const delayMs = matchListBackoffSecondsRemaining() * 1000 + 5000;
+      console.log(`[DeepScan] ${gamertag} — API in backoff, pausing ${Math.round(delayMs / 1000)}s`);
+      setTimeout(() => { _deepScanQueued.delete(xuid); enqueueDeepScan(xuid, gamertag); }, delayMs);
+      return;
+    }
+
     console.log(`[DeepScan] ${gamertag} (${xuid}) — scanning from offset ${startOffset} (dry: ${dryDistance}/${DEEP_SCAN_MAX_DRY_DIST})`);
 
     const result = await fetchMatchHistory(
@@ -107,6 +120,14 @@ async function _deepScanWorker({ xuid, gamertag }) {
       null,
       { startOffset, batchLimit: 1, lean: true, noRankedCap: true }
     );
+
+    // Backoff hit mid-fetch — don't advance the cursor, just wait it out.
+    if (result.temporaryUnavailable) {
+      const delayMs = matchListBackoffSecondsRemaining() * 1000 + 5000;
+      console.log(`[DeepScan] ${gamertag} — backoff hit during fetch, retrying in ${Math.round(delayMs / 1000)}s`);
+      setTimeout(() => { _deepScanQueued.delete(xuid); enqueueDeepScan(xuid, gamertag); }, delayMs);
+      return;
+    }
 
     const fetched    = (result.matches || []).filter(m => !m.isCustom); // all real matches (ranked + social)
     const rankedCount = fetched.filter(m => m.isRanked).length;
