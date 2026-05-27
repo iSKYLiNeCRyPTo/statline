@@ -4,6 +4,7 @@ async function doSearch(gt, isRefresh, force){
   var myToken = ++_searchToken; // claim this search slot
   function isCurrent(){ return _searchToken === myToken; } // false = newer search started, bail
   stopAutoRefresh(); // cancel any existing poller before starting a new search
+  if (window.resetRankBenchmark) window.resetRankBenchmark(); // allow fresh benchmark load for new player
   hideLanding();
   expandedMatches={}; // clear any open match cards from the previous search
   window._activityExtraTimes=null; window._activityTimesLoaded=false; // reset per-player activity cache
