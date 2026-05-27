@@ -23,7 +23,7 @@ const _serverStartTime = new Date().toISOString();
 const _deepScanQueue   = [];   // [{ xuid, gamertag }]
 const _deepScanQueued  = new Set(); // xuids currently queued or in-flight
 let   _deepScanRunning = 0;    // count of active worker coroutines
-const DEEP_SCAN_CONCURRENCY  = 2;
+const DEEP_SCAN_CONCURRENCY  = 1;
 const DEEP_SCAN_MAX_OFFSET   = 2500; // stop after 2500 raw matches — prevents
                                      // runaway scans on social-heavy players
 const DEEP_SCAN_MAX_DRY_DIST = 500;  // stop if we scan 500 raw matches in a row
@@ -178,7 +178,7 @@ async function _deepScanWorker({ xuid, gamertag }) {
       setTimeout(() => {
         _deepScanQueued.delete(xuid);
         enqueueDeepScan(xuid, gamertag);
-      }, 1500);
+      }, 3000);
     } else {
       _deepScanQueued.delete(xuid);
       delete _deepScanDryStart[xuid];
@@ -551,6 +551,18 @@ async function _processSnapQueue() {
     // We only delete it after the fetch (and markRefreshAttempt) complete.
     // Skip obviously unresolved gamertags ("Spartan 1234")
     if (/^Spartan\s+\w+$/i.test(gamertag)) { _snapQueued.delete(xuid); continue; }
+
+    // If the match-list API is in backoff, pause the entire snap queue until it
+    // clears — background snapshots are lower priority than live user searches
+    // and should never burn the rate limit while users are getting 503s.
+    if (isMatchListBackoffActive()) {
+      const waitMs = matchListBackoffSecondsRemaining() * 1000 + 6000;
+      console.log(`[SnapQueue] API in backoff — pausing queue ${Math.round(waitMs / 1000)}s`);
+      _snapQueue.unshift({ xuid, gamertag }); // put item back at front
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+
     try {
       const result = await fetchPlayerStats(gamertag);
       if (result && result.xuid) {
@@ -559,17 +571,19 @@ async function _processSnapQueue() {
         // of falling back to the career API's kills/matchesPlayed ratio (KPG, not KPM).
         // lean:true skips rival resolution and advancedStats — we only need the matches.
         // batchLimit:1 keeps this to one match-list call + up to 25 detail calls.
-        // Any failure here is non-fatal: savePlayerSnapshot falls back to career stats.
+        // Skip if the API is already in backoff — career stats fallback is fine.
         try {
-          const histData = await fetchMatchHistory(
-            result.xuid, gamertag, 25,
-            null, null,
-            { batchLimit: 1, lean: true }
-          );
-          const snapMatches = (histData.matches || []).filter(_isValidPvpMatch);
-          if (snapMatches.length > 0) {
-            result.allMatches    = snapMatches;
-            result.recentMatches = snapMatches;
+          if (!isMatchListBackoffActive()) {
+            const histData = await fetchMatchHistory(
+              result.xuid, gamertag, 25,
+              null, null,
+              { batchLimit: 1, lean: true }
+            );
+            const snapMatches = (histData.matches || []).filter(_isValidPvpMatch);
+            if (snapMatches.length > 0) {
+              result.allMatches    = snapMatches;
+              result.recentMatches = snapMatches;
+            }
           }
         } catch(histErr) {
           console.warn(`[SnapQueue] match fetch failed for ${gamertag} (using career stats):`, histErr.message);
@@ -588,9 +602,9 @@ async function _processSnapQueue() {
     }
     // Remove from in-flight guard only after fetch + markRefreshAttempt are done
     _snapQueued.delete(xuid);
-    // Throttle: 4s between players (up from 2.5s) to account for the extra
-    // match-batch fetch added above — keeps total API pressure roughly the same.
-    await new Promise(r => setTimeout(r, 4000));
+    // Throttle: 6s between players — background snapshots are lower priority
+    // than live searches and should consume API budget conservatively.
+    await new Promise(r => setTimeout(r, 6000));
   }
   _snapRunning = false;
 }
