@@ -2604,6 +2604,86 @@ app.post('/api/admin/refresh-pros', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Admin: force-recompute avg_kills (KPM) across all snapshots ──────────────
+// Fixes the legacy data problem where avg_kills was stored as kills-per-game
+// (KPG, typically 5-20) instead of kills-per-minute (KPM, typically 0.5-2.5).
+//
+// Two-pass approach:
+//   Pass 1 — re-compute KPM from match_participants rows (real per-match duration
+//             and kill data we already have in the DB). Updates all snapshots for
+//             any xuid that has >= 5 qualifying rows.
+//   Pass 2 — NULL out any remaining avg_kills > 3.5 (impossible KPM, clearly old
+//             KPG values we couldn't fix from participant data).  The benchmark
+//             will show "—" for those players until they're re-searched naturally.
+app.post('/api/admin/fix-kpm', async (req, res) => {
+  const pass = req.query.pass || req.headers['x-admin-pass'];
+  if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const db = await getDb();
+    if (!db) return res.status(503).json({ error: 'No DB' });
+
+    // Pass 1: re-compute KPM from match_participants for every xuid with enough data.
+    // Filters: completed matches (outcome 2=win, 3=loss), duration > 60s, kills not null.
+    // Excludes known PVE modes and practice maps (same logic as _isValidPvpMatch).
+    // Caps at KPM <= 5 as a sanity guard (anything higher is almost certainly bad data).
+    const pass1 = await db.query(`
+      WITH kpm_calc AS (
+        SELECT
+          xuid,
+          ROUND(
+            SUM(kills)::numeric / NULLIF(SUM(duration_sec) / 60.0, 0),
+            2
+          ) AS kpm_value,
+          COUNT(*) AS match_count
+        FROM match_participants
+        WHERE outcome IN (2, 3)
+          AND duration_sec > 60
+          AND kills IS NOT NULL
+          AND (game_mode IS NULL OR (
+            game_mode NOT ILIKE '%firefight%'
+            AND game_mode NOT ILIKE '%gruntpocalypse%'
+            AND game_mode NOT ILIKE '%attrition%'
+            AND game_mode NOT ILIKE '%pve%'
+          ))
+          AND (map_name IS NULL OR (
+            map_name NOT ILIKE '%launch site%'
+            AND map_name NOT ILIKE '%yuletide%'
+            AND map_name NOT ILIKE '%octagon%'
+            AND map_name NOT ILIKE '%aimbotz%'
+          ))
+        GROUP BY xuid
+        HAVING COUNT(*) >= 5
+      )
+      UPDATE player_snapshots ps
+      SET avg_kills = kpm_calc.kpm_value
+      FROM kpm_calc
+      WHERE kpm_calc.xuid = ps.xuid
+        AND kpm_calc.kpm_value IS NOT NULL
+        AND kpm_calc.kpm_value <= 5
+    `);
+
+    // Pass 2: NULL out any remaining values that are clearly old KPG (> 3.5).
+    // A real KPM for a ranked player is almost never above 3 — anything higher
+    // was computed before the migration and will mislead the benchmark.
+    const pass2 = await db.query(`
+      UPDATE player_snapshots
+      SET avg_kills = NULL
+      WHERE avg_kills > 3.5
+    `);
+
+    console.log(`[Admin/fixKpm] Pass 1: ${pass1.rowCount} snapshot rows updated from match_participants. Pass 2: ${pass2.rowCount} stale KPG rows nulled.`);
+    res.json({
+      ok: true,
+      updated_from_participants: pass1.rowCount,
+      nulled_stale_kpg: pass2.rowCount,
+      message: `Pass 1 fixed ${pass1.rowCount} rows using real match data. Pass 2 cleared ${pass2.rowCount} stale KPG values (they'll self-correct on next search).`,
+    });
+  } catch(e) {
+    console.error('[Admin/fixKpm] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/admin/pro-players', express.json(), async (req, res) => {
   const pass = req.query.pass || req.headers['x-admin-pass'];
   if (pass !== (process.env.ADMIN_PASS || 'changeme')) return res.status(401).json({ error: 'Unauthorized' });
