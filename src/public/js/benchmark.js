@@ -229,6 +229,16 @@
     return h;
   }
 
+  function wireToggles(el, gamertag, csrSnapshot) {
+    Array.prototype.forEach.call(el.querySelectorAll('[data-rbm-playlist]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var pl = btn.getAttribute('data-rbm-playlist');
+        _lastBenchmarkHtml = null; // force re-fetch for new playlist
+        fetchAndRender(el, gamertag, pl, csrSnapshot);
+      });
+    });
+  }
+
   function fetchAndRender(el, gamertag, playlist, csrSnapshot) {
     el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:12px 0;color:var(--muted2);font-family:Share Tech Mono,monospace;font-size:12px">'
       + '<div style="width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0"></div>'
@@ -256,33 +266,33 @@
           el.innerHTML = renderEmpty('insufficient_peers', { playlist: data.playlist || playlist, allPlaylists: pls });
         } else {
           el.innerHTML = renderCard(data);
+          _lastBenchmarkHtml = el.innerHTML; // cache for re-renders
         }
-        // Wire up toggle buttons (event delegation kept simple — re-bind on each render).
-        Array.prototype.forEach.call(el.querySelectorAll('[data-rbm-playlist]'), function (btn) {
-          btn.addEventListener('click', function () {
-            var pl = btn.getAttribute('data-rbm-playlist');
-            if (pl === (data.playlist || playlist)) return;
-            fetchAndRender(el, gamertag, pl, csrSnapshot);
-          });
-        });
+        wireToggles(el, gamertag, csrSnapshot);
       })
       .catch(function () { el.innerHTML = ''; });
   }
 
-  var _lastBenchmarkGt = null;
+  var _lastBenchmarkGt   = null;
+  var _lastBenchmarkHtml = null; // cached innerHTML so re-renders don't re-fetch
 
   window.loadRankBenchmark = function (gamertag, csr) {
     var el = document.getElementById('rankBenchmarkCard');
     if (!el) return;
     if (!csr || !Object.keys(csr).length) { el.style.display = 'none'; return; }
-    // Skip re-fetch if we already loaded this gamertag this session.
-    // render() recreates the DOM each time so we can't check el.children —
-    // instead rely solely on the gamertag guard.
-    if (_lastBenchmarkGt === gamertag) return;
-    _lastBenchmarkGt = gamertag;
+    // render() recreates the DOM each call, so the card is always an empty div.
+    // If we already fetched for this gamertag, just re-inject the cached HTML
+    // and re-wire the toggle buttons — no network call needed.
+    if (_lastBenchmarkGt === gamertag && _lastBenchmarkHtml) {
+      el.innerHTML = _lastBenchmarkHtml;
+      wireToggles(el, gamertag, csr);
+      return;
+    }
+    _lastBenchmarkGt   = gamertag;
+    _lastBenchmarkHtml = null;
     fetchAndRender(el, gamertag, null, csr);
   };
 
-  window.resetRankBenchmark = function () { _lastBenchmarkGt = null; };
+  window.resetRankBenchmark = function () { _lastBenchmarkGt = null; _lastBenchmarkHtml = null; };
 
 })();
