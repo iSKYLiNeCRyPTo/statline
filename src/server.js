@@ -1526,7 +1526,12 @@ function getNextRank(tier, subTier, csrValue) {
 }
 function computeGroupStats(rows, playerStats) {
   if (!rows.length) return { count: 0 };
-  const avg = key => rows.reduce((s, r) => s + (parseFloat(r[key]) || 0), 0) / rows.length;
+  // avg: skip null/zero rows so sparse columns (e.g. avg_damage before backfill) don't read as 0
+  const avg = key => {
+    const valid = rows.filter(r => r[key] != null && parseFloat(r[key]) > 0);
+    if (!valid.length) return 0;
+    return valid.reduce((s, r) => s + parseFloat(r[key]), 0) / valid.length;
+  };
   // Mid-point percentile rank: count_below + 0.5 * count_equal, using display-precision
   // rounding so a player at the peer average always reads ~50th, not deceptively low.
   const PRECISION = { kd: 2, win_rate: 1, accuracy: 1, avg_kills: 2, avg_damage: 0 };
@@ -1535,7 +1540,8 @@ function computeGroupStats(rows, playerStats) {
     const dec = PRECISION[key] ?? 1;
     const round = v => Math.round(v * Math.pow(10, dec)) / Math.pow(10, dec);
     const rv = round(val);
-    const sorted = rows.map(r => round(parseFloat(r[key]) || 0)).sort((a, b) => a - b);
+    const sorted = rows.filter(r => r[key] != null && parseFloat(r[key]) > 0).map(r => round(parseFloat(r[key]))).sort((a, b) => a - b);
+    if (!sorted.length) return null;
     const below = sorted.filter(v => v < rv).length;
     const equal = sorted.filter(v => v === rv).length;
     return Math.round((below + equal * 0.5) / sorted.length * 100);
