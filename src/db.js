@@ -374,7 +374,7 @@ async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
             AND (csr->$4->>'value')::int <  $3
             AND kd IS NOT NULL
             AND ts > NOW() - INTERVAL '30 days'
-          ORDER BY ts DESC LIMIT 1000
+          ORDER BY ts DESC
         `;
         params = [tier, bandLow, bandHigh, playlistKey];
       } else {
@@ -384,7 +384,7 @@ async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
             AND (csr->$3->>'subTier')::int = $2
             AND kd IS NOT NULL
             AND ts > NOW() - INTERVAL '30 days'
-          ORDER BY ts DESC LIMIT 1000
+          ORDER BY ts DESC
         `;
         params = [tier, subTier, playlistKey];
       }
