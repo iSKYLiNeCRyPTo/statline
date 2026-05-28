@@ -464,11 +464,11 @@ async function getProStats() {
   // This prevents inactive accounts, wrong gamertags, or smurf-level data from
   // skewing the pro aggregate used for benchmarks and aim thresholds.
   const res = await db.query(`
-    SELECT s.kd, s.win_rate, s.accuracy, s.avg_kills, s.csr_tier, s.csr_value, s.ts,
+    SELECT s.kd, s.win_rate, s.accuracy, s.avg_kills, s.avg_damage, s.csr_tier, s.csr_value, s.ts,
            p.gamertag
     FROM pro_players p
     JOIN LATERAL (
-      SELECT kd, win_rate, accuracy, avg_kills, csr_tier, csr_value, ts
+      SELECT kd, win_rate, accuracy, avg_kills, avg_damage, csr_tier, csr_value, ts
       FROM player_snapshots
       WHERE xuid = p.xuid
         AND kd        IS NOT NULL
@@ -493,7 +493,7 @@ async function getProStats() {
   };
 
   const avgKd  = avg('kd'),   avgWr  = avg('win_rate');
-  const avgAcc = avg('accuracy'), avgKpg = avg('avg_kills');
+  const avgAcc = avg('accuracy'), avgKpg = avg('avg_kills'), avgDpm = avg('avg_damage');
   const sdKd   = stddev('kd', avgKd);
   const sdWr   = stddev('win_rate', avgWr);
   const sdAcc  = stddev('accuracy', avgAcc);
@@ -512,10 +512,11 @@ async function getProStats() {
     oldestDays,                            // days since least-recently-updated pro was searched
     oldestTs:     oldestTs ? oldestTs.toISOString() : null,
     newestTs:     newestTs ? newestTs.toISOString() : null,
-    kd:        +avgKd.toFixed(2),
-    win_rate:  +avgWr.toFixed(1),
-    accuracy:  +avgAcc.toFixed(1),
-    avg_kills: +avgKpg.toFixed(1),
+    kd:         +avgKd.toFixed(2),
+    win_rate:   +avgWr.toFixed(1),
+    accuracy:   +avgAcc.toFixed(1),
+    avg_kills:  +avgKpg.toFixed(2),
+    avg_damage: avgDpm > 0 ? +avgDpm.toFixed(0) : null,
     kd_sd:        sdKd  != null ? +sdKd.toFixed(3)  : null,
     win_rate_sd:  sdWr  != null ? +sdWr.toFixed(2)  : null,
     accuracy_sd:  sdAcc != null ? +sdAcc.toFixed(2) : null,

@@ -275,10 +275,10 @@
     var el = document.getElementById('rankBenchmarkCard');
     if (!el) return;
     if (!csr || !Object.keys(csr).length) { el.style.display = 'none'; return; }
-    // Skip re-fetch if the card already has content for this gamertag.
-    // render() is called multiple times (e.g. skill poll re-render) but the
-    // benchmark data doesn't change between renders — avoid the double-load flicker.
-    if (_lastBenchmarkGt === gamertag && el.children.length > 0) return;
+    // Skip re-fetch if we already loaded this gamertag this session.
+    // render() recreates the DOM each time so we can't check el.children —
+    // instead rely solely on the gamertag guard.
+    if (_lastBenchmarkGt === gamertag) return;
     _lastBenchmarkGt = gamertag;
     fetchAndRender(el, gamertag, null, csr);
   };
