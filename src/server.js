@@ -2703,6 +2703,7 @@ app.post('/api/admin/fix-kpm', async (req, res) => {
           COUNT(*) AS match_count
         FROM match_participants
         WHERE outcome IN (2, 3)
+          AND is_ranked = true
           AND duration_sec > 60
           AND kills IS NOT NULL
           AND (game_mode IS NULL OR (
@@ -2718,7 +2719,7 @@ app.post('/api/admin/fix-kpm', async (req, res) => {
             AND map_name NOT ILIKE '%aimbotz%'
           ))
         GROUP BY xuid
-        HAVING COUNT(*) >= 5
+        HAVING COUNT(*) >= 3
       )
       UPDATE player_snapshots ps
       SET avg_kills = kpm_calc.kpm_value
