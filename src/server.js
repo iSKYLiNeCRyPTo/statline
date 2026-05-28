@@ -486,6 +486,11 @@ function aggregateStatsFromMatches(matches, base) {
   const kpmTotalDurMin = kpmMatches.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
   const kpmTotalKills  = kpmMatches.reduce((s, m) => s + (m.kills || 0), 0);
   const killsPerMin = kpmTotalDurMin > 0 ? parseFloat((kpmTotalKills / kpmTotalDurMin).toFixed(2)) : null;
+  // Damage per minute: same eligibility filter as KPM (decisive outcome, > 60s).
+  const dpmMatches = kpmMatches.filter(m => m.damageDealt != null && m.damageDealt > 0);
+  const dpmTotalDurMin = dpmMatches.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
+  const dpmTotalDmg    = dpmMatches.reduce((s, m) => s + (m.damageDealt || 0), 0);
+  const damagePerMin = dpmTotalDurMin > 0 ? parseFloat((dpmTotalDmg / dpmTotalDurMin).toFixed(1)) : null;
   return {
     ...(base || {}),
     matchesPlayed, wins, losses,
@@ -494,6 +499,7 @@ function aggregateStatsFromMatches(matches, base) {
     kd, kda,
     accuracy,
     killsPerMin,
+    damagePerMin,
     // Legacy alias kept so any callers still referencing avgKillsPerGame get a value
     avgKillsPerGame: killsPerMin != null ? killsPerMin.toFixed(1) : (matchesPlayed > 0 ? (kills / matchesPlayed).toFixed(1) : '0.0'),
     damageDealt, damageTaken,
@@ -1523,7 +1529,7 @@ function computeGroupStats(rows, playerStats) {
   const avg = key => rows.reduce((s, r) => s + (parseFloat(r[key]) || 0), 0) / rows.length;
   // Mid-point percentile rank: count_below + 0.5 * count_equal, using display-precision
   // rounding so a player at the peer average always reads ~50th, not deceptively low.
-  const PRECISION = { kd: 2, win_rate: 1, accuracy: 1, avg_kills: 1 };
+  const PRECISION = { kd: 2, win_rate: 1, accuracy: 1, avg_kills: 2, avg_damage: 0 };
   const percentile = (key, val) => {
     if (val == null) return null;
     const dec = PRECISION[key] ?? 1;
@@ -1538,16 +1544,18 @@ function computeGroupStats(rows, playerStats) {
   return {
     count: rows.length,
     avg: {
-      kd:        +avg('kd').toFixed(2),
-      win_rate:  +avg('win_rate').toFixed(1),
-      accuracy:  +avg('accuracy').toFixed(1),
-      avg_kills: +avg('avg_kills').toFixed(1),
+      kd:         +avg('kd').toFixed(2),
+      win_rate:   +avg('win_rate').toFixed(1),
+      accuracy:   +avg('accuracy').toFixed(1),
+      avg_kills:  +avg('avg_kills').toFixed(2),
+      avg_damage: +avg('avg_damage').toFixed(0),
     },
     percentiles: ps.kd != null ? {
-      kd:        percentile('kd',        ps.kd),
-      win_rate:  percentile('win_rate',  ps.win_rate),
-      accuracy:  percentile('accuracy',  ps.accuracy),
-      avg_kills: percentile('avg_kills', ps.avg_kills),
+      kd:         percentile('kd',         ps.kd),
+      win_rate:   percentile('win_rate',   ps.win_rate),
+      accuracy:   percentile('accuracy',   ps.accuracy),
+      avg_kills:  percentile('avg_kills',  ps.avg_kills),
+      avg_damage: percentile('avg_damage', ps.avg_damage),
     } : null,
   };
 }
@@ -1599,21 +1607,27 @@ app.get('/api/rank-comparison', async (req, res) => {
       const kpmDurMin  = kpmMs.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
       const kpmKills   = kpmMs.reduce((s, m) => s + (m.kills || 0), 0);
       const avgKpm     = kpmDurMin > 0 ? parseFloat((kpmKills / kpmDurMin).toFixed(2)) : null;
+      const dpmMs      = kpmMs.filter(m => m.damageDealt != null && m.damageDealt > 0);
+      const dpmDurMin  = dpmMs.reduce((s, m) => s + _matchDurSec(m) / 60, 0);
+      const dpmDmg     = dpmMs.reduce((s, m) => s + (m.damageDealt || 0), 0);
+      const avgDpm     = dpmDurMin > 0 ? parseFloat((dpmDmg / dpmDurMin).toFixed(1)) : null;
       playerStats = {
-        kd:        totalDeaths > 0 ? parseFloat((totalKills / totalDeaths).toFixed(2)) : null,
-        win_rate:  wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null,
-        accuracy:  avgAcc != null ? parseFloat(avgAcc.toFixed(1)) : null,
-        avg_kills: avgKpm,
+        kd:         totalDeaths > 0 ? parseFloat((totalKills / totalDeaths).toFixed(2)) : null,
+        win_rate:   wlMatches.length > 0 ? parseFloat(((wins / wlMatches.length) * 100).toFixed(1)) : null,
+        accuracy:   avgAcc != null ? parseFloat(avgAcc.toFixed(1)) : null,
+        avg_kills:  avgKpm,
+        avg_damage: avgDpm,
       };
       statsSource = 'recent';
       statsGames  = validMatches.length;
     } else {
       const s = player.stats || {};
       playerStats = {
-        kd:        parseFloat(s.kd)              || null,
-        win_rate:  parseFloat(s.winRate)         || null,
-        accuracy:  parseFloat(s.accuracy)        || null,
-        avg_kills: parseFloat(s.killsPerMin)     || parseFloat(s.avgKillsPerGame) || null,
+        kd:         parseFloat(s.kd)              || null,
+        win_rate:   parseFloat(s.winRate)         || null,
+        accuracy:   parseFloat(s.accuracy)        || null,
+        avg_kills:  parseFloat(s.killsPerMin)     || parseFloat(s.avgKillsPerGame) || null,
+        avg_damage: parseFloat(s.damagePerMin)    || null,
       };
     }
 
@@ -2729,21 +2743,59 @@ app.post('/api/admin/fix-kpm', async (req, res) => {
         AND kpm_calc.kpm_value <= 5
     `);
 
-    // Pass 2: NULL out any remaining values that are clearly old KPG (> 3.5).
-    // A real KPM for a ranked player is almost never above 3 — anything higher
-    // was computed before the migration and will mislead the benchmark.
+    // Pass 2: compute DPM from match_participants for every xuid with enough data.
+    // Same ranked-only, duration > 60s filters as KPM. Caps at 2000 DPM as sanity guard.
     const pass2 = await db.query(`
+      WITH dpm_calc AS (
+        SELECT
+          xuid,
+          ROUND(
+            SUM(damage)::numeric / NULLIF(SUM(duration_sec) / 60.0, 0),
+            1
+          ) AS dpm_value,
+          COUNT(*) AS match_count
+        FROM match_participants
+        WHERE outcome IN (2, 3)
+          AND is_ranked = true
+          AND duration_sec > 60
+          AND damage IS NOT NULL
+          AND (game_mode IS NULL OR (
+            game_mode NOT ILIKE '%firefight%'
+            AND game_mode NOT ILIKE '%gruntpocalypse%'
+            AND game_mode NOT ILIKE '%attrition%'
+            AND game_mode NOT ILIKE '%pve%'
+          ))
+          AND (map_name IS NULL OR (
+            map_name NOT ILIKE '%launch site%'
+            AND map_name NOT ILIKE '%yuletide%'
+            AND map_name NOT ILIKE '%octagon%'
+            AND map_name NOT ILIKE '%aimbotz%'
+          ))
+        GROUP BY xuid
+        HAVING COUNT(*) >= 3
+      )
+      UPDATE player_snapshots ps
+      SET avg_damage = dpm_calc.dpm_value
+      FROM dpm_calc
+      WHERE dpm_calc.xuid = ps.xuid
+        AND dpm_calc.dpm_value IS NOT NULL
+        AND dpm_calc.dpm_value <= 2000
+    `);
+
+    // Pass 3: NULL out any remaining avg_kills that are clearly old KPG (> 3.5).
+    const pass3 = await db.query(`
       UPDATE player_snapshots
       SET avg_kills = NULL
       WHERE avg_kills > 3.5
     `);
 
-    console.log(`[Admin/fixKpm] Pass 1: ${pass1.rowCount} snapshot rows updated from match_participants. Pass 2: ${pass2.rowCount} stale KPG rows nulled.`);
+    console.log(`[Admin/fixKpm] Pass 1: ${pass1.rowCount} KPM rows updated. Pass 2: ${pass2.rowCount} DPM rows updated. Pass 3: ${pass3.rowCount} stale KPG rows nulled.`);
     res.json({
       ok: true,
-      updated_from_participants: pass1.rowCount,
-      nulled_stale_kpg: pass2.rowCount,
-      message: `Pass 1 fixed ${pass1.rowCount} rows using real match data. Pass 2 cleared ${pass2.rowCount} stale KPG values (they'll self-correct on next search).`,
+      updated_kpm: pass1.rowCount,
+      updated_dpm: pass2.rowCount,
+      nulled_stale_kpg: pass3.rowCount,
+      message: `KPM fixed for ${pass1.rowCount} rows. DPM computed for ${pass2.rowCount} rows. ${pass3.rowCount} stale KPG values cleared.`,
     });
   } catch(e) {
     console.error('[Admin/fixKpm] error:', e.message);

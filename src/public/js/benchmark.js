@@ -3,18 +3,20 @@
 (function () {
 
   var STAT_LABELS = {
-    kd:        'K/D Ratio',
-    win_rate:  'Win Rate',
-    accuracy:  'Accuracy',
-    avg_kills: 'Kills/Min',
+    kd:         'K/D Ratio',
+    win_rate:   'Win Rate',
+    accuracy:   'Accuracy',
+    avg_kills:  'Kills/Min',
+    avg_damage: 'Dmg/Min',
   };
   var STAT_UNITS = {
-    kd: '', win_rate: '%', accuracy: '%', avg_kills: '',
+    kd: '', win_rate: '%', accuracy: '%', avg_kills: '', avg_damage: '',
   };
-  var STAT_ORDER = ['kd', 'win_rate', 'accuracy', 'avg_kills'];
+  var STAT_ORDER = ['kd', 'win_rate', 'accuracy', 'avg_kills', 'avg_damage'];
 
   function fmtVal(key, val) {
     if (val == null || isNaN(val)) return '—';
+    if (key === 'avg_damage') return Math.round(parseFloat(val)).toLocaleString() + STAT_UNITS[key];
     return parseFloat(val).toFixed(key === 'kd' || key === 'avg_kills' ? 2 : 1) + STAT_UNITS[key];
   }
 

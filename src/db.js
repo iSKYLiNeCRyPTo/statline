@@ -47,6 +47,7 @@ async function getDb() {
           win_rate FLOAT,
           accuracy FLOAT,
           avg_kills FLOAT,
+          avg_damage FLOAT,
           PRIMARY KEY (xuid, snap_date)
         )`);
         await _dbPool.query(`CREATE TABLE IF NOT EXISTS pro_players (
@@ -109,6 +110,8 @@ async function getDb() {
         for (const [col, type] of _participantColumns) {
           await _dbPool.query(`ALTER TABLE match_participants ADD COLUMN IF NOT EXISTS ${col} ${type}`);
         }
+        // Migrations for player_snapshots new columns
+        await _dbPool.query(`ALTER TABLE player_snapshots ADD COLUMN IF NOT EXISTS avg_damage FLOAT`);
         // player_refresh_meta: per-player background-refresh bookkeeping.
         // last_refresh_ts          — when we last fetched their stats (any source)
         // last_no_new_data_ts      — when the most recent refresh found NO new
@@ -315,8 +318,8 @@ async function savePlayerSnapshot(player) {
     await db.query(`
       INSERT INTO player_snapshots
         (xuid, gamertag, snap_date, ts, primary_playlist, csr_tier, csr_subtier, csr_value,
-         csr, matches_played, wins, losses, kd, kda, win_rate, accuracy, avg_kills)
-      VALUES ($1,$2,CURRENT_DATE,NOW(),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         csr, matches_played, wins, losses, kd, kda, win_rate, accuracy, avg_kills, avg_damage)
+      VALUES ($1,$2,CURRENT_DATE,NOW(),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (xuid, snap_date) DO UPDATE SET
         gamertag=EXCLUDED.gamertag, ts=NOW(),
         primary_playlist=EXCLUDED.primary_playlist,
@@ -325,16 +328,18 @@ async function savePlayerSnapshot(player) {
         wins=EXCLUDED.wins, losses=EXCLUDED.losses,
         -- Only overwrite stats columns if the new values are non-null,
         -- so a bad re-search never clobbers a previously good snapshot.
-        kd        = COALESCE(EXCLUDED.kd,        player_snapshots.kd),
-        kda       = COALESCE(EXCLUDED.kda,       player_snapshots.kda),
-        win_rate  = COALESCE(EXCLUDED.win_rate,  player_snapshots.win_rate),
-        accuracy  = COALESCE(EXCLUDED.accuracy,  player_snapshots.accuracy),
-        avg_kills = COALESCE(EXCLUDED.avg_kills, player_snapshots.avg_kills)
+        kd         = COALESCE(EXCLUDED.kd,         player_snapshots.kd),
+        kda        = COALESCE(EXCLUDED.kda,        player_snapshots.kda),
+        win_rate   = COALESCE(EXCLUDED.win_rate,   player_snapshots.win_rate),
+        accuracy   = COALESCE(EXCLUDED.accuracy,   player_snapshots.accuracy),
+        avg_kills  = COALESCE(EXCLUDED.avg_kills,  player_snapshots.avg_kills),
+        avg_damage = COALESCE(EXCLUDED.avg_damage, player_snapshots.avg_damage)
     `, [
       player.xuid, player.gamertag, primaryPlaylist, csrTier, csrSubtier, csrValue,
       JSON.stringify(csr),
       snapMatchesPlayed, snapWins, snapLosses,
-      snapKd, null, snapWinRate, snapAccuracy, snapAvgKills
+      snapKd, null, snapWinRate, snapAccuracy, snapAvgKills,
+      player.stats && player.stats.damagePerMin != null ? parseFloat(player.stats.damagePerMin) || null : null
     ]);
     console.log(`[DB] Snapshot saved for ${player.gamertag} (${csrTier} ${csrSubtier}) — ${mValid.length || 'career'} match stats`);
   } catch(e) { console.error('[DB] savePlayerSnapshot error:', e.message); }
@@ -363,7 +368,7 @@ async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
         const bandLow = csrValue != null ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : 1500;
         const bandHigh = bandLow >= 1900 ? 9999 : bandLow + 100;
         queryStr = `
-          SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+          SELECT kd, win_rate, accuracy, avg_kills, avg_damage FROM player_snapshots
           WHERE csr->$4->>'tier' = $1
             AND (csr->$4->>'value')::int >= $2
             AND (csr->$4->>'value')::int <  $3
@@ -374,7 +379,7 @@ async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
         params = [tier, bandLow, bandHigh, playlistKey];
       } else {
         queryStr = `
-          SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+          SELECT kd, win_rate, accuracy, avg_kills, avg_damage FROM player_snapshots
           WHERE csr->$3->>'tier' = $1
             AND (csr->$3->>'subTier')::int = $2
             AND kd IS NOT NULL
@@ -388,7 +393,7 @@ async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
       const bandLow = csrValue != null ? Math.min(Math.floor(csrValue / 100) * 100, 1900) : 1500;
       const bandHigh = bandLow >= 1900 ? 9999 : bandLow + 100;
       queryStr = `
-        SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+        SELECT kd, win_rate, accuracy, avg_kills, avg_damage FROM player_snapshots
         WHERE csr_tier = $1 AND csr_value >= $2 AND csr_value < $3 AND kd IS NOT NULL
           AND ts > NOW() - INTERVAL '30 days'
         ORDER BY ts DESC LIMIT 1000
@@ -396,7 +401,7 @@ async function getSnapshotsByRank(tier, subTier, csrValue, playlistKey) {
       params = [tier, bandLow, bandHigh];
     } else {
       queryStr = `
-        SELECT kd, win_rate, accuracy, avg_kills FROM player_snapshots
+        SELECT kd, win_rate, accuracy, avg_kills, avg_damage FROM player_snapshots
         WHERE csr_tier = $1 AND csr_subtier = $2 AND kd IS NOT NULL
           AND ts > NOW() - INTERVAL '30 days'
         ORDER BY ts DESC LIMIT 1000
@@ -433,7 +438,7 @@ async function getProPlayers() {
   if (!db) return [];
   const res = await db.query(`
     SELECT p.xuid, p.gamertag, p.label, p.added_at,
-           s.csr_tier, s.csr_value, s.kd, s.win_rate, s.accuracy, s.avg_kills, s.ts AS last_snapshot
+           s.csr_tier, s.csr_value, s.kd, s.win_rate, s.accuracy, s.avg_kills, s.avg_damage, s.ts AS last_snapshot
     FROM pro_players p
     LEFT JOIN LATERAL (
       SELECT csr_tier, csr_value, kd, win_rate, accuracy, avg_kills, ts
