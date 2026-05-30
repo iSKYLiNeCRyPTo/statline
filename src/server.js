@@ -16,178 +16,6 @@ const _memTabLog = [];
 const _memFeedbackLog = [];
 const _serverStartTime = new Date().toISOString();
 
-// ── Deep-scan queue ───────────────────────────────────────────────────────────
-// Lazily loads a player's full match history in 25-match batches, persisting
-// results to player_match_history.  At most 2 concurrent workers run at once.
-// Each XUID is only queued once — a Set guards against duplicate entries.
-const _deepScanQueue   = [];   // [{ xuid, gamertag }]
-const _deepScanQueued  = new Set(); // xuids currently queued or in-flight
-let   _deepScanRunning = 0;    // count of active worker coroutines
-const DEEP_SCAN_CONCURRENCY  = 1;
-const DEEP_SCAN_MAX_OFFSET   = 2500; // stop after 2500 raw matches — prevents
-                                     // runaway scans on social-heavy players
-const DEEP_SCAN_MAX_DRY_DIST = 500;  // stop if we scan 500 raw matches in a row
-                                     // without finding any real (non-custom) match
-
-// Per-xuid "dry streak" tracking: offset where the last real (non-custom) game was found.
-// Resets on any ranked OR social game. Only pure custom/empty stretches advance the dry count.
-// When (currentOffset - _deepScanDryStart[xuid]) >= DEEP_SCAN_MAX_DRY_DIST we stop.
-const _deepScanDryStart = {};   // xuid -> offset of last real game (or scan start)
-
-function enqueueDeepScan(xuid, gamertag) {
-  if (!xuid || _deepScanQueued.has(xuid)) return;
-  _deepScanQueued.add(xuid);
-  _deepScanQueue.push({ xuid, gamertag });
-  _drainDeepScanQueue();
-}
-
-function _drainDeepScanQueue() {
-  while (_deepScanRunning < DEEP_SCAN_CONCURRENCY && _deepScanQueue.length > 0) {
-    const item = _deepScanQueue.shift();
-    _deepScanRunning++;
-    _deepScanWorker(item).finally(() => {
-      _deepScanRunning--;
-      _drainDeepScanQueue(); // pick up next item when a worker finishes
-    });
-  }
-}
-
-async function _deepScanWorker({ xuid, gamertag }) {
-  try {
-    // Read cursor (or start fresh)
-    const cursor = await getDeepScanCursor(xuid).catch(() => null);
-    if (cursor && cursor.completed) {
-      _deepScanQueued.delete(xuid);
-      delete _deepScanDryStart[xuid];
-      return;
-    }
-
-    let startOffset = (cursor && cursor.next_start != null) ? cursor.next_start : 0;
-    let prevTotal   = (cursor && cursor.total_fetched != null) ? cursor.total_fetched : 0;
-
-    // Auto-reset corrupted cursor: large offset but very few matches saved.
-    // Caused by the old batchLimit bug that advanced the cursor without saving matches.
-    // Guard: only apply when prevTotal > 0 — a player with zero saved matches isn't
-    // corrupted, they just have no qualifying games. Letting the dry-streak cap handle
-    // that case avoids an infinite reset loop (reset → dry count clears → reaches same
-    // offset → repeats forever).
-    if (prevTotal > 0 && startOffset > 200 && prevTotal < startOffset * 0.05) {
-      console.log(`[DeepScan] ${gamertag} — corrupted cursor detected (offset=${startOffset}, saved=${prevTotal}), resetting to 0`);
-      await upsertDeepScanCursor(xuid, gamertag, 0, 0, false).catch(() => {});
-      delete _deepScanDryStart[xuid];
-      startOffset = 0;
-      prevTotal   = 0;
-    }
-
-    // Hard cap — don't walk more than 2500 raw matches deep
-    if (startOffset >= DEEP_SCAN_MAX_OFFSET) {
-      console.log(`[DeepScan] ${gamertag} — hit max offset (${DEEP_SCAN_MAX_OFFSET}), marking done`);
-      await upsertDeepScanCursor(xuid, gamertag, startOffset, prevTotal, true).catch(() => {});
-      _deepScanQueued.delete(xuid);
-      delete _deepScanDryStart[xuid];
-      return;
-    }
-
-    // Initialise dry-streak tracking on first batch for this xuid
-    if (_deepScanDryStart[xuid] == null) _deepScanDryStart[xuid] = startOffset;
-
-    // Dry-streak cap — stop if we've scanned 500 raw matches with zero real (non-custom) games found.
-    // Resets on any ranked OR social game — pure custom/empty stretches are what trigger the stop.
-    const dryDistance = startOffset - _deepScanDryStart[xuid];
-    if (dryDistance >= DEEP_SCAN_MAX_DRY_DIST) {
-      console.log(`[DeepScan] ${gamertag} — no real games in ${dryDistance} raw matches, stopping`);
-      await upsertDeepScanCursor(xuid, gamertag, startOffset, prevTotal, true).catch(() => {});
-      _deepScanQueued.delete(xuid);
-      delete _deepScanDryStart[xuid];
-      return;
-    }
-
-    // Don't spin through empty iterations during an API backoff window.
-    // Sleep for the full remaining backoff duration then re-queue — prevents
-    // hundreds of log lines and wasteful cursor advancement with zero real data.
-    if (isMatchListBackoffActive()) {
-      const delayMs = matchListBackoffSecondsRemaining() * 1000 + 5000;
-      console.log(`[DeepScan] ${gamertag} — API in backoff, pausing ${Math.round(delayMs / 1000)}s`);
-      setTimeout(() => { _deepScanQueued.delete(xuid); enqueueDeepScan(xuid, gamertag); }, delayMs);
-      return;
-    }
-
-    console.log(`[DeepScan] ${gamertag} (${xuid}) — scanning from offset ${startOffset} (dry: ${dryDistance}/${DEEP_SCAN_MAX_DRY_DIST})`);
-
-    const result = await fetchMatchHistory(
-      xuid, gamertag, 100,
-      null,
-      null,
-      { startOffset, batchLimit: 1, lean: true, noRankedCap: true }
-    );
-
-    // Backoff hit mid-fetch — don't advance the cursor, just wait it out.
-    if (result.temporaryUnavailable) {
-      const delayMs = matchListBackoffSecondsRemaining() * 1000 + 5000;
-      console.log(`[DeepScan] ${gamertag} — backoff hit during fetch, retrying in ${Math.round(delayMs / 1000)}s`);
-      setTimeout(() => { _deepScanQueued.delete(xuid); enqueueDeepScan(xuid, gamertag); }, delayMs);
-      return;
-    }
-
-    const fetched    = (result.matches || []).filter(m => !m.isCustom); // all real matches (ranked + social)
-    const rankedCount = fetched.filter(m => m.isRanked).length;
-    const scanEnd    = result.scanEndOffset != null ? result.scanEndOffset : startOffset + 25;
-
-    // Only truly done when the Halo API returned fewer matches than requested
-    const isDone = result.stopReason === 'no more history';
-
-    if (fetched.length > 0) {
-      // Found real matches — reset the dry-streak anchor
-      _deepScanDryStart[xuid] = scanEnd;
-
-      // Resolve map image URLs before saving so DB rows don't get persisted with
-      // mapImageUrl: null just because the in-memory cache was cold at scan time.
-      // getAuthHeaders() is synchronous — safe to call here without await.
-      const _scanHeaders = getAuthHeaders();
-      const _needsImg = fetched.filter(m => !m.mapImageUrl && m._mapAssetId);
-      if (_needsImg.length && _scanHeaders['x-343-authorization-spartan']) {
-        try {
-          await resolveMapImagesForMatches(_needsImg, _scanHeaders);
-        } catch(e) {
-          console.warn(`[DeepScan] map image resolve failed for ${xuid}:`, e.message);
-        }
-      }
-
-      await savePlayerMatchHistory(xuid, fetched).catch(e =>
-        console.warn(`[DeepScan] savePlayerMatchHistory failed for ${xuid}:`, e.message)
-      );
-      // Enrich ranked matches with skill data (mmr, csrAfter, expectedKills) and
-      // persist back to DB — deep scan otherwise saves bare match objects forever.
-      if (rankedCount > 0) {
-        fetchAndApplySkillData(xuid, fetched)
-          .then(() => updatePlayerMatchSkillData(xuid, fetched)
-            .catch(e => console.warn(`[DeepScan] DB skill persist failed for ${xuid}:`, e.message))
-          )
-          .catch(e => console.warn(`[DeepScan] skill fetch failed for ${xuid}:`, e.message));
-      }
-    }
-
-    const newTotal = prevTotal + fetched.length;
-    await upsertDeepScanCursor(xuid, gamertag, scanEnd, newTotal, isDone).catch(e =>
-      console.warn(`[DeepScan] upsertDeepScanCursor failed for ${xuid}:`, e.message)
-    );
-
-    console.log(`[DeepScan] ${gamertag} — batch done: +${fetched.length} matches (+${rankedCount} ranked), total=${newTotal}, offset=${scanEnd}, done=${isDone}`);
-
-    if (!isDone) {
-      setTimeout(() => {
-        _deepScanQueued.delete(xuid);
-        enqueueDeepScan(xuid, gamertag);
-      }, 3000);
-    } else {
-      _deepScanQueued.delete(xuid);
-      delete _deepScanDryStart[xuid];
-    }
-  } catch(e) {
-    console.warn(`[DeepScan] worker error for ${gamertag} (${xuid}):`, e.message);
-    _deepScanQueued.delete(xuid);
-  }
-}
 // ─────────────────────────────────────────────────────────────────────────────
 let _dbPool = null;
 
@@ -1016,8 +844,6 @@ app.get('/api/search', rateLimit, async (req, res) => {
           enqueueOpponentSnapshots(filteredNew, cached.xuid).catch(() => {});
           // Persist participants for the newly-fetched matches.
           saveMatchParticipants(filteredNew, cached.xuid).catch(() => {});
-          // Resume deep-scan for returning players.
-          enqueueDeepScan(cached.xuid, gamertag);
           await enrichForResponse(updated);
           return res.json({ success: true, player: updated, newMatches: filteredNew.length });
         }
@@ -1159,19 +985,14 @@ app.get('/api/search', rateLimit, async (req, res) => {
   }
 
   // No cache + match list in backoff — before returning a 503, try to serve
-  // stale data from the DB (deep-scan history + snapshot stats). This lets
-  // returning players see their stats even during a rate-limit window instead
-  // of hitting a hard error screen.
+  // stale data reconstructed from match_participants. This lets returning players
+  // see their stats even during a rate-limit window instead of a hard error screen.
   if (isMatchListBackoffActive()) {
     try {
       const dbXuid = await lookupXuidByGamertag(gamertag);
       if (dbXuid) {
-        // Prefer deep-scan history; fall back to participant reconstruction
-        let dbMatches = await getPlayerMatchHistory(dbXuid, 200, 0);
-        if (!dbMatches.length) {
-          const recon = await reconstructMatchHistoryForXuid(dbXuid);
-          dbMatches = (recon && recon.matches) || [];
-        }
+        const recon = await reconstructMatchHistoryForXuid(dbXuid);
+        let dbMatches = (recon && recon.matches) || [];
         if (dbMatches.length) {
           // Pull the most recent snapshot for rank + basic stats
           const _db = await getDb();
@@ -1356,8 +1177,6 @@ app.get('/api/search', rateLimit, async (req, res) => {
     enqueueOpponentSnapshots(_bgMatchesForQueue, result.xuid).catch(() => {});
     // Persist participants — powers private-player history reconstruction.
     saveMatchParticipants(_bgMatchesForQueue, result.xuid).catch(() => {});
-    // Kick off lazy deep-scan so this player's full history accumulates in DB.
-    if (result.xuid) enqueueDeepScan(result.xuid, result.gamertag || gamertag);
     // If we just served a reconstructed history (private direct match endpoint),
     // schedule a background expansion: queue this player's frequent co-players
     // so the next visit has more coverage. We reuse the snapshot queue with its
@@ -1882,131 +1701,22 @@ app.get('/api/matches', async (req, res) => {
     const { gamertag, page = 1, perPage = 100 } = req.query;
     if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
 
-    // ── Memory cache (the regular 100/250 match load) ──────────────────────
     const cached = await getFromCache(gamertag);
     const memMatches = cached?.allMatches || cached?.recentMatches || [];
 
-    // ── DB deep-scan history ─────────────────────────────────────────────────
-    // Only query the DB when the in-memory cache doesn't already have enough
-    // matches to cover the requested page. This avoids a heavy round-trip on
-    // every call when deep-scan history hasn't grown beyond what the fresh fetch
-    // already returned (the common case for recently-searched players).
-    // Cap at 1000 rows — deep-scan can accumulate thousands of matches but the
-    // UI rarely needs more than a few hundred, and deserializing 5000 JSONB rows
-    // per request is expensive on both DB and server.
-    const DB_FETCH_THRESHOLD = 200; // skip DB if mem cache already has this many
-    const DB_FETCH_CAP = 1000;
-    let dbMatches = [];
-    if (cached?.xuid && memMatches.length < DB_FETCH_THRESHOLD) {
-      try {
-        dbMatches = await getPlayerMatchHistory(cached.xuid, DB_FETCH_CAP, 0);
-      } catch(e) {
-        console.warn('[/api/matches] DB history fetch failed:', e.message);
-      }
-    }
-
-    // ── Merge: deduplicate by matchId, memory wins on conflicts ─────────────
-    const seenIds = new Set();
-    const merged = [];
-    for (const m of memMatches) {
-      if (m.matchId && !seenIds.has(m.matchId)) {
-        seenIds.add(m.matchId);
-        merged.push(m);
-      }
-    }
-    for (const m of dbMatches) {
-      if (m.matchId && !seenIds.has(m.matchId)) {
-        seenIds.add(m.matchId);
-        merged.push(m);
-      }
-    }
-    // Sort newest-first
-    merged.sort((a, b) => {
-      const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
-      const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
-      return tb - ta;
-    });
-
     // ── Filter + paginate ────────────────────────────────────────────────────
     const ranked = req.query.ranked === '1';
-    const all = ranked ? merged.filter(m => m.isRanked) : merged;
+    const all = ranked ? memMatches.filter(m => m.isRanked) : memMatches;
     const pg = parseInt(page) || 1;
     const pp = Math.min(parseInt(perPage) || 100, 2000);
     const totalPages = Math.max(1, Math.ceil(all.length / pp));
     const matches = all.slice((pg-1)*pp, (pg-1)*pp+pp);
     fillCachedMapImages(matches);
 
-    // Background: resolve mapImageUrl for any matches still missing it.
-    // Happens when DB matches were saved before map image cache was warm (e.g. after a
-    // server restart or during deep scan). Fire-and-forget — doesn't delay the response.
-    const needsImage = matches.filter(m => !m.mapImageUrl && m._mapAssetId);
-    if (needsImage.length) {
-      getAuthHeaders().then(async headers => {
-        if (!headers) return;
-        const fixed = await resolveMapImagesForMatches(needsImage, headers);
-        if (!fixed.length || !cached?.xuid) return;
-        // Persist resolved map image URLs back to DB
-        const dbConn = await getDb().catch(() => null);
-        if (!dbConn) return;
-        await Promise.all(fixed.map(m =>
-          dbConn.query(
-            `UPDATE player_match_history SET match_json = $1 WHERE xuid = $2 AND match_id = $3`,
-            [JSON.stringify(m), String(cached.xuid), m.matchId]
-          ).catch(() => {})
-        ));
-        console.log(`[MapImages] resolved ${fixed.length} map image URLs for xuid ${cached.xuid}`);
-      }).catch(() => {});
-    }
-
-    // Tell client how much of the full history has been scanned so far
-    let scanCursor = null;
-    if (cached?.xuid) {
-      scanCursor = await getDeepScanCursor(cached.xuid).catch(() => null);
-    }
-
-    res.json({
-      matches, page: pg, perPage: pp, totalPages, total: all.length,
-      deepScan: scanCursor
-        ? { completed: !!scanCursor.completed, totalFetched: scanCursor.total_fetched || 0 }
-        : null,
-    });
+    res.json({ matches, page: pg, perPage: pp, totalPages, total: all.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Manual deep-scan trigger
-// Pass { reset: true } in body to wipe the cursor and rescan from offset 0.
-// A corrupted cursor (large offset, tiny match count) is auto-detected and reset.
-app.post('/api/deepscan', async (req, res) => {
-  try {
-    const { gamertag, reset } = req.body || {};
-    if (!gamertag) return res.status(400).json({ error: 'gamertag required' });
-    const cached = await getFromCache(gamertag);
-    if (!cached || !cached.xuid) return res.status(404).json({ error: 'Player not in cache — search them first' });
-    const cursor = await getDeepScanCursor(cached.xuid).catch(() => null);
-
-    // Detect corrupted cursor: offset is large but almost nothing was saved.
-    // This happens when the old batchLimit bug advanced the cursor without saving.
-    // Heuristic: offset > 200 but total_fetched < offset * 0.05 (less than 5% yield).
-    const offset      = cursor?.next_start    || 0;
-    const totalSaved  = cursor?.total_fetched || 0;
-    const isCorrupted = offset > 200 && totalSaved < offset * 0.05;
-
-    if (reset || isCorrupted) {
-      const reason = reset ? 'manual reset' : `corrupted cursor (offset=${offset}, saved=${totalSaved})`;
-      console.log(`[DeepScan] Resetting cursor for ${gamertag} — ${reason}`);
-      await upsertDeepScanCursor(cached.xuid, gamertag, 0, 0, false).catch(() => {});
-      // Also clear the in-memory dry-streak anchor so the fresh scan starts clean
-      delete _deepScanDryStart[cached.xuid];
-    } else if (cursor && cursor.completed) {
-      // Resume from where we left off (just un-mark completed)
-      await upsertDeepScanCursor(cached.xuid, gamertag, cursor.next_start || 0, cursor.total_fetched || 0, false).catch(() => {});
-    }
-
-    enqueueDeepScan(cached.xuid, cached.gamertag || gamertag);
-    const freshCursor = await getDeepScanCursor(cached.xuid).catch(() => null);
-    res.json({ queued: true, xuid: cached.xuid, cursor: freshCursor || null, wasReset: !!(reset || isCorrupted) });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 // Medal sprite sheet proxy
 app.get('/api/medal-sheet', async (req, res) => {

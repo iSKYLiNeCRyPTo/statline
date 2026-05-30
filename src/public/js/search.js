@@ -343,9 +343,7 @@ async function doSearch(gt, isRefresh, force){
         document.querySelectorAll('.mobile-tab[data-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.tab===_syncTab);});
       })();
 
-      loadFullMatches(_canonicalGt);
-
-      // Poll skill status post-render and force-refresh as soon as enrichment is ready.
+      // Poll skill status post-render and re-render once enrichment is ready.
       // Checks every 3s for the first 30s, then gives up.
       {
         var _skillPollId=null,_skillPollN=0;
@@ -360,14 +358,14 @@ async function doSearch(gt, isRefresh, force){
               if(s.ready||s.pct>=95||!s.total){
                 _stopSkillPoll();
                 _phase('skill data ready (pct='+(s.pct||0)+')');
-                loadFullMatches(_canonicalGt,true,'Syncing skill data…');
+                render(); // re-render in place with skill data now available
               }
             }).catch(function(){});
         }
         setTimeout(function(){
           if(!isCurrent())return;
-          var _cc=fullMatchCache[_canonicalGt]||[];
-          var _rk=_cc.filter(function(m){return m.isRanked;});
+          var _allM=fullD.player.allMatches||fullD.player.recentMatches||[];
+          var _rk=_allM.filter(function(m){return m.isRanked;});
           var _sk=_rk.filter(function(m){return m.expectedKills!=null||m.mmr!=null;}).length;
           var _recentMissing=_rk.slice(0,5).some(function(m){return m.expectedKills==null&&m.mmr==null;});
           if(_rk.length>0&&_sk>=_rk.length*0.95&&!_recentMissing){return;}
