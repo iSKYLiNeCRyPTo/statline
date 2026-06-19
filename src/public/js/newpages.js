@@ -521,7 +521,11 @@ function renderWeaponsPage(p, allMatches) {
   // ── Accuracy by map ──────────────────────────────────────────────────────
   var mapAcc = {};
   ms.forEach(function(m){
-    if (!m.mapName||!m.accuracy) return;
+    if (!m.mapName || m.accuracy == null || parseFloat(m.accuracy) <= 0) return;
+    if (m.outcome !== 2 && m.outcome !== 3) return; // skip draws — accuracy data unreliable on early-terminated matches
+    var _dm = m.duration ? String(m.duration).match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?/) : null;
+    var _sec = _dm ? (+(_dm[1]||0)*3600) + (+(_dm[2]||0)*60) + parseFloat(_dm[3]||0) : 0;
+    if (_sec > 0 && _sec < 180) return; // skip sub-3-min games
     if (!mapAcc[m.mapName]) mapAcc[m.mapName]={sum:0,count:0,wins:0};
     mapAcc[m.mapName].sum += parseFloat(m.accuracy);
     mapAcc[m.mapName].count++;
