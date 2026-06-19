@@ -3741,6 +3741,53 @@ app.post('/api/rivals/refresh', async (req, res) => {
   res.json(upd);
 });
 
+// ── Periodic cache maintenance ─────────────────────────────────────────────
+// Prevent unbounded in-memory cache growth from triggering OOM kills on
+// memory-constrained hosting (e.g. Render starter plans).
+const _IMG_CACHE_MAX    = 300;  // entries; each ~100–400 KB image buffer
+const _EMBLEM_CACHE_MAX = 500;  // xuid-keyed emblem image buffers
+const _SEARCH_CACHE_MAX = 100;  // full player payloads; Redis is the primary store
+
+function _pruneObjectCache(cache, max, label) {
+  const keys = Object.keys(cache);
+  if (keys.length > max) {
+    const drop = keys.slice(0, keys.length - max);
+    for (const k of drop) delete cache[k];
+    console.log(`[Cache] Pruned ${label}: ${keys.length} → ${max}`);
+  }
+}
+
+setInterval(() => {
+  _pruneObjectCache(imgCache, _IMG_CACHE_MAX, 'imgCache');
+  _pruneObjectCache(emblemImgCache, _EMBLEM_CACHE_MAX, 'emblemImgCache');
+  _pruneObjectCache(searchCache, _SEARCH_CACHE_MAX, 'searchCache');
+
+  const now = Date.now();
+
+  // mapImageProxyCache uses Map with TTL — evict entries the TTL check missed
+  let mapPruned = 0;
+  for (const [url, entry] of mapImageProxyCache) {
+    if (now - entry.ts > MAP_IMG_TTL) { mapImageProxyCache.delete(url); mapPruned++; }
+  }
+  if (mapPruned) console.log(`[Cache] Evicted ${mapPruned} stale mapImageProxyCache entries`);
+
+  // _suggestCache entries linger long past their 30s TTL — flush anything older than 5 min
+  let suggestPruned = 0;
+  for (const [q, entry] of _suggestCache) {
+    if (now - entry.ts > 5 * 60 * 1000) { _suggestCache.delete(q); suggestPruned++; }
+  }
+  if (suggestPruned) console.log(`[Cache] Evicted ${suggestPruned} stale _suggestCache entries`);
+
+  // _latestMatchCheckCache has no automatic cleanup — flush entries older than 10 min
+  let lmcPruned = 0;
+  for (const key of Object.keys(_latestMatchCheckCache)) {
+    if (now - (_latestMatchCheckCache[key].checkedAt || 0) > 10 * 60 * 1000) {
+      delete _latestMatchCheckCache[key]; lmcPruned++;
+    }
+  }
+  if (lmcPruned) console.log(`[Cache] Evicted ${lmcPruned} stale _latestMatchCheckCache entries`);
+}, 2 * 60 * 1000); // run every 2 minutes
+
 app.listen(PORT, () => {
   console.log('fragr listening on port ' + PORT);
   const rivalsKey = process.env.RIVALS_API_KEY || '';
