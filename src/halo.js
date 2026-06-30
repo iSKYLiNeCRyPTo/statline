@@ -165,7 +165,7 @@ async function fetchClearanceToken(xuid) {
     for (const url of urls) {
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const res = await fetch(url, { headers: baseHeaders });
+          const res = await fetchT(url, { headers: baseHeaders });
           if (res.ok) {
             const data = await res.json();
             const token = data.FlightConfigurationId || data.flightConfigurationId || null;
@@ -232,7 +232,7 @@ async function loadCaches() {
     }
     if (clearRaw) {
       const cl = JSON.parse(clearRaw);
-      if (cl?.token && Date.now() - cl.fetchedAt < 3600000) {
+      if (cl?.token) {
         cachedClearance = cl.token;
         clearanceFetchedAt = cl.fetchedAt;
         console.log('[Clearance] Loaded from Redis');
