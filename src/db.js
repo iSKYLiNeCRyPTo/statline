@@ -25,7 +25,12 @@ async function getDb() {
   if (!process.env.DATABASE_URL) return null;
   if (!_dbInitPromise) {
     _dbInitPromise = (async () => {
-      _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      _dbPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 10000, // fail fast instead of hanging if Postgres is unreachable
+        statement_timeout: 15000,       // abort stalled queries instead of hanging the shared init promise forever
+      });
       try {
         await _dbPool.query(`CREATE TABLE IF NOT EXISTS xuid_cache (xuid TEXT PRIMARY KEY, gamertag TEXT NOT NULL, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
         await _dbPool.query(`CREATE TABLE IF NOT EXISTS emblem_cache (xuid TEXT PRIMARY KEY, emblem_path TEXT, nameplate_path TEXT, ts TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
