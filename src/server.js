@@ -615,7 +615,7 @@ async function loadMedalMeta() {
     ];
     for (const url of urls) {
       try {
-        const res = await fetch(url, { headers });
+        const res = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
         console.log('[Medals] ' + res.status + ' from ' + url);
         if (!res.ok) continue;
         const raw = await res.text();
@@ -696,7 +696,7 @@ app.get('/api/admin/match-raw', async (req, res) => {
   try {
     const headers = getAuthHeaders();
     const url = `https://halostats.svc.halowaypoint.com/hi/matches/${matchId}/stats`;
-    const r = await fetch(url, { headers });
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
     if (!r.ok) return res.status(r.status).json({ error: `Halo API ${r.status}`, url });
     const data = await r.json();
     res.json(data);
@@ -1722,7 +1722,7 @@ app.get('/api/matches', async (req, res) => {
 app.get('/api/medal-sheet', async (req, res) => {
   try {
     const headers = getAuthHeaders();
-    const sheetRes = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/images/medal_sheet_xl.png', { headers });
+    const sheetRes = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/medals/images/medal_sheet_xl.png', { headers, signal: AbortSignal.timeout(15000) });
     if (!sheetRes.ok) return res.status(sheetRes.status).send('Medal sheet unavailable');
     const buf = Buffer.from(await sheetRes.arrayBuffer());
     res.setHeader('Content-Type', 'image/png');
@@ -1747,7 +1747,7 @@ app.get('/api/csr-image', async (req, res) => {
     const headers = getAuthHeaders();
     const parts = imgPath.split('/');
     const withFile = parts[0] + '/file/' + parts.slice(1).join('/');
-    const r = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`, { headers });
+    const r = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/${withFile}`, { headers, signal: AbortSignal.timeout(15000) });
     if (!r.ok) return res.status(404).send('Image not found');
     res.setHeader('Content-Type', r.headers.get('content-type') || 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -1807,7 +1807,7 @@ app.get('/api/emblem-img', async (req, res) => {
     }
     for (const url of candidates) {
       try {
-        const r = await fetch(url, { headers });
+        const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
         if (r.ok) {
           const ct = r.headers.get('content-type') || 'image/png';
           const buf = Buffer.from(await r.arrayBuffer());
@@ -1886,7 +1886,7 @@ app.get('/api/emblem', async (req, res) => {
     }
     let imgRes = null;
     for (const url of imgUrls) {
-      const r = await fetch(url, { headers });
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
       if (r.ok) { imgRes = r; break; }
     }
     if (!imgRes) {
@@ -1986,6 +1986,7 @@ async function callPeoplehub(q, token) {
 
   const url = `https://peoplehub.xboxlive.com/users/me/people/search/decoration/detail,preferredColor?q=${encodeURIComponent(q)}&maxItems=8`;
   const r = await fetch(url, {
+    signal: AbortSignal.timeout(15000),
     headers: {
       'Authorization': token,
       'x-xbl-contract-version': '3',
@@ -2061,7 +2062,7 @@ app.get('/api/map-image', async (req, res) => {
       return res.send(cached.buf);
     }
     const headers = getAuthHeaders();
-    const r = await fetch(url, { headers });
+    const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
     if (!r.ok) return res.status(r.status).send('upstream error');
     const buf = Buffer.from(await r.arrayBuffer());
     const ct = r.headers.get('content-type') || 'image/png';

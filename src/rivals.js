@@ -90,7 +90,7 @@ async function fetchRivalsPlayer(username) {
 
   // v1 player stats — includes match_history in the same response
   const statsUrl = `${RIVALS_BASE_V1}/player/${encodeURIComponent(username)}`;
-  const statsRes = await fetch(statsUrl, { headers: rivalsHeaders() });
+  const statsRes = await fetch(statsUrl, { headers: rivalsHeaders(), signal: AbortSignal.timeout(15000) });
   if (!statsRes.ok) {
     const body = await statsRes.text().catch(() => '');
     console.error(`[Rivals] ${statsRes.status} from ${statsUrl} — body: ${body.slice(0, 200)}`);
@@ -236,7 +236,7 @@ async function refreshRivalsPlayer(username) {
   if (!apiKey) return { ok: false, error: 'No API key' };
   try {
     const url = `${RIVALS_BASE_V1}/player/${encodeURIComponent(username)}/update`;
-    const res = await fetch(url, { headers: rivalsHeaders() });
+    const res = await fetch(url, { headers: rivalsHeaders(), signal: AbortSignal.timeout(15000) });
     return res.ok ? { ok: true } : { ok: false, error: `HTTP ${res.status}` };
   } catch(e) {
     return { ok: false, error: e.message };

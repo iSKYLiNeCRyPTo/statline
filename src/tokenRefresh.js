@@ -34,6 +34,10 @@ function post(hostname, path, headers, body) {
       res.on('data', c => raw += c);
       res.on('end', () => { try { resolve(JSON.parse(raw)); } catch(e) { resolve(raw); } });
     });
+    // No response within 15s (stalled connection) — abort instead of hanging
+    // the shared refresh chain forever, which would leave the Spartan token
+    // stuck expired until a manual restart.
+    req.setTimeout(15000, () => req.destroy(new Error(`Request to ${hostname} timed out`)));
     req.on('error', reject);
     req.write(data);
     req.end();

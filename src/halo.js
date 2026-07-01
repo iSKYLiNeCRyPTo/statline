@@ -256,7 +256,7 @@ async function resolveMapName(assetId, versionId, headers) {
   if (!assetId) return null;
   if (mapNameCache[assetId]) return mapNameCache[assetId];
   try {
-    const res = await fetch(`https://discovery-infiniteugc.svc.halowaypoint.com/hi/maps/${assetId}/versions/${versionId}`, { headers });
+    const res = await fetchT(`https://discovery-infiniteugc.svc.halowaypoint.com/hi/maps/${assetId}/versions/${versionId}`, { headers }, 15000);
     if (res.ok) {
       const data = await res.json();
       const rawName = data.PublicName || data.Name || null;
@@ -327,7 +327,7 @@ async function _runGtResolver() {
         let backoff = 8000; // start at 8s — gives API more breathing room
         for (let attempt = 1; attempt <= 3 && !success; attempt++) {
           try {
-            const r = await fetch(url, { headers });
+            const r = await fetchT(url, { headers }, 15000);
             console.log(`[GT] Batch ${batchNum} attempt ${attempt}: ${r.status} (${batch.length} xuids)`);
             if (r.ok) {
               const data = await r.json();
@@ -348,7 +348,7 @@ async function _runGtResolver() {
               for (const xuid of stillMissing.slice(0, 5)) {
                 try {
                   await sleep(500);
-                  const r2 = await fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers });
+                  const r2 = await fetchT(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers }, 15000);
                   if (r2.ok) {
                     const d2 = await r2.json();
                     const gt2 = d2.gamertag || d2.Gamertag || d2.modernGamertag || '';
@@ -392,7 +392,7 @@ async function _runGtResolver() {
 async function getEmblemMapping() {
   if (emblemMapping && Date.now() - emblemMappingFetchedAt < 86400000) return emblemMapping;
   try {
-    const res = await fetch('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/emblems/mapping.json', { headers: getAuthHeaders() });
+    const res = await fetchT('https://gamecms-hacs.svc.halowaypoint.com/hi/Waypoint/file/images/emblems/mapping.json', { headers: getAuthHeaders() }, 15000);
     if (res.ok) {
       emblemMapping = await res.json();
       emblemMappingFetchedAt = Date.now();
@@ -412,8 +412,8 @@ async function resolveEmblemForXuid(xuid) {
       try { await fetchClearanceToken(xuid); } catch(e) {}
       const freshHeaders = getAuthHeaders();
       const [custRes, profileRes] = await Promise.all([
-        fetch(`https://economy.svc.halowaypoint.com/hi/players/xuid(${xuid})/customization?view=public`, { headers: freshHeaders }),
-        fetch(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers: freshHeaders })
+        fetchT(`https://economy.svc.halowaypoint.com/hi/players/xuid(${xuid})/customization?view=public`, { headers: freshHeaders }, 15000),
+        fetchT(`https://profile.svc.halowaypoint.com/users/xuid(${xuid})`, { headers: freshHeaders }, 15000)
       ]);
       let gp = null, path = null;
       if (profileRes.ok) {
@@ -444,7 +444,7 @@ async function resolveEmblemForXuid(xuid) {
             try {
               // Inventory/ paths use progression/file/ — same as emblem JSONs
               const npJsonUrl = `https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${rawNpPath}`;
-              const npJsonRes = await fetch(npJsonUrl, { headers: freshHeaders });
+              const npJsonRes = await fetchT(npJsonUrl, { headers: freshHeaders }, 15000);
               if (npJsonRes.ok) {
                 const npJson = await npJsonRes.json();
                 // Backdrop JSON debug logging removed (was too verbose)
@@ -519,7 +519,7 @@ async function resolveEmblemForXuid(xuid) {
           }
           // 3) Images-branch fallback for emblems missing from mapping.json or Waypoint convention
           try {
-            const defRes = await fetch(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${emblemJsonPath}`, { headers: freshHeaders });
+            const defRes = await fetchT(`https://gamecms-hacs.svc.halowaypoint.com/hi/progression/file/${emblemJsonPath}`, { headers: freshHeaders }, 15000);
             if (defRes.ok) {
               const emblemDef = await defRes.json();
               const dp = emblemDef?.CommonData?.DisplayPath;
@@ -846,9 +846,10 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
     // Fetch match list with retry on 429
     let res;
     for (let attempt = 1; attempt <= 3; attempt++) {
-      res = await fetch(
+      res = await fetchT(
         `https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches?count=${BATCH}&start=${start}`,
-        { headers }
+        { headers },
+        15000
       );
       if (res.status !== 429) break;
       // Respect Retry-After header if present; fall back to 3s / 5s / 8s
@@ -898,7 +899,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
 
     const fetchedDetails = await fetchConcurrent(batchToProcess, async (m) => {
       try {
-        const r = await fetch(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers });
+        const r = await fetchT(`https://halostats.svc.halowaypoint.com/hi/matches/${m.MatchId}/stats`, { headers }, 15000);
         const md = r.ok ? await r.json() : null;
         // Piggyback clearance from match data — every match response contains the
         // ClearanceId (FlightConfigurationId) that was active, saving us a settings.svc call.
@@ -1397,7 +1398,7 @@ async function fetchMatchHistory(xuid, gamertag, count = 100, onProgress = null,
         if (i > 0) await new Promise(r => setTimeout(r, 1500));
         const batch = unknownRivalXuids.slice(i, i + 50);
         const url = 'https://profile.svc.halowaypoint.com/users?' + batch.map(x => `xuids=${x}`).join('&');
-        const r = await fetch(url, { headers: rHeaders });
+        const r = await fetchT(url, { headers: rHeaders }, 15000);
         if (r.ok) {
           const data = await r.json();
           const users = Array.isArray(data) ? data : (data.users || data.Users || Object.values(data));
@@ -1456,9 +1457,10 @@ async function fetchAndApplySkillData(xuid, matches) {
     let _skillOk = 0, _skillNoSp = 0, _skillErr = 0;
     await Promise.all(batch.map(async (match) => {
       try {
-        const sr = await fetch(
+        const sr = await fetchT(
           `https://skill.svc.halowaypoint.com/hi/matches/${match.matchId}/skill?players=xuid(${xuid})`,
-          { headers }
+          { headers },
+          15000
         );
         if (!sr.ok) {
           if (sr.status === 404) {
