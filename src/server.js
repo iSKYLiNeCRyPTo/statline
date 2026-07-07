@@ -5,7 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const { fetchPlayerStats, fetchMatchHistory, fetchAndApplySkillData, getAuthHeaders, fetchClearanceToken, getXuidToGamerpic, getXuidToGt, resolveGamertags, discoverPlaylists, getRedis, computeAdvancedStats, generateHaloDNA, resetClearanceCache, isMatchListBackoffActive, matchListBackoffSecondsRemaining, isClearanceUnavailable, getGameModeDebugLog, fillCachedMapImages, resolveMapImagesForMatches } = require('./halo');
 const { fetchRivalsPlayer, refreshRivalsPlayer, clearRivalsCache, getCacheStatus: getRivalsCacheStatus } = require('./rivals');
-const { startAutoRefresh, refreshSpartanToken } = require('./tokenRefresh');
+const { startAutoRefresh, refreshSpartanToken, needsReauth } = require('./tokenRefresh');
 const { Pool } = require('pg');
 const { getDb: getXuidDb, loadXuidCache, flushXuidCache, loadEmblemCache, flushEmblemCache, savePlayerSnapshot, getRecentlySnapshotted, getSnapshotsByRank, addProPlayer, removeProPlayer, getProPlayers, getProStats, getLeaderboardData, getLeaderboardTab, getActivityTimes, saveMatchParticipants, reconstructMatchHistoryForXuid, getFrequentCoPlayers, getRecoverySeeds, countMatchesForXuid, lookupXuidByGamertag, getRefreshMeta, markRefreshAttempt, enrichMatchTeamsWithCsr, savePlayerMatchHistory, updatePlayerMatchSkillData, getPlayerMatchHistory, getDeepScanCursor, upsertDeepScanCursor } = require('./db');
 const { runBackfill } = require('./backfillParticipants');
@@ -669,6 +669,7 @@ app.get('/api/token-status', (req, res) => {
     tokenPreview: token ? token.slice(0, 8) + '...' : 'NOT SET',
     hasRefreshToken: refresh.length > 0,
     refreshPreview: refresh ? refresh.slice(0, 8) + '...' : 'NOT SET',
+    needsReauth: needsReauth(),
   });
 });
 
@@ -713,7 +714,9 @@ app.post('/api/admin/refresh-token', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'MS_REFRESH_TOKEN is not set — cannot auto-refresh. Set it in your env vars.' });
   }
   try {
-    await refreshSpartanToken();
+    // force: true bypasses the invalid_grant breaker — this is an explicit
+    // manual retry (e.g. after updating MS_REFRESH_TOKEN), not an automatic one.
+    await refreshSpartanToken({ force: true });
     res.json({ ok: true, message: 'Spartan token refreshed successfully' });
   } catch(e) {
     res.json({ ok: false, error: e.message });
@@ -1918,6 +1921,7 @@ async function getXblPeopleToken() {
   if (xblSuggestToken && Date.now() < xblSuggestTokenExpiry) return xblSuggestToken;
   const refreshToken = process.env.MS_REFRESH_TOKEN;
   if (!refreshToken) return null;
+  if (needsReauth()) return null; // refresh token already known dead (invalid_grant) — don't repeat the doomed call
   try {
     const https = require('https');
     const post = (hostname, path, headers, body) => new Promise((resolve, reject) => {

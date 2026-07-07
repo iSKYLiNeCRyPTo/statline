@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 const { flushXuidCache } = require('./db');
-const { refreshSpartanToken } = require('./tokenRefresh');
+const { refreshSpartanToken, needsReauth } = require('./tokenRefresh');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // fetch with hard abort timeout — prevents Halo API hangs from blocking forever
@@ -623,13 +623,20 @@ async function fetchPlayerStats(gamertag) {
   // refreshed. Force a refresh and retry once instead of surfacing a 401 to
   // every user until someone notices and hits the admin "refresh token" button.
   if (statsRes.status === 401) {
-    console.warn(`[Auth] 401 on stats fetch for ${gamertag} — forcing Spartan token refresh and retrying once`);
-    try {
-      await refreshSpartanToken();
-      await fetchClearanceToken(xuid);
-      [statsRes, countRes, rankedStatsRes, ...csrResponses] = await fetchCoreStats(getAuthHeaders());
-    } catch (e) {
-      console.error('[Auth] Forced token refresh failed:', e.message);
+    if (needsReauth()) {
+      // Microsoft already told us this refresh token is dead (invalid_grant) —
+      // retrying per-request just spams login.live.com with doomed requests
+      // across every concurrent search. Skip straight to surfacing the 401.
+      console.error(`[Auth] 401 on stats fetch for ${gamertag} — Microsoft refresh token needs re-authentication, not retrying`);
+    } else {
+      console.warn(`[Auth] 401 on stats fetch for ${gamertag} — forcing Spartan token refresh and retrying once`);
+      try {
+        await refreshSpartanToken();
+        await fetchClearanceToken(xuid);
+        [statsRes, countRes, rankedStatsRes, ...csrResponses] = await fetchCoreStats(getAuthHeaders());
+      } catch (e) {
+        console.error('[Auth] Forced token refresh failed:', e.message);
+      }
     }
   }
 
