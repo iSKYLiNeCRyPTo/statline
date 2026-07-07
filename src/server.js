@@ -3748,6 +3748,12 @@ app.post('/api/rivals/refresh', async (req, res) => {
 const _IMG_CACHE_MAX    = 300;  // entries; each ~100–400 KB image buffer
 const _EMBLEM_CACHE_MAX = 500;  // xuid-keyed emblem image buffers
 const _SEARCH_CACHE_MAX = 100;  // full player payloads; Redis is the primary store
+// xuid->gamertag/emblem-path maps: small per-entry but loaded in full from Postgres
+// at startup and never evicted, so they grow forever as the DB tables grow. Cap them
+// too — see loadXuidCache/loadEmblemCache in db.js for the matching startup-load cap.
+const _XUID_GT_CACHE_MAX      = 150000;
+const _EMBLEM_PATH_CACHE_MAX  = 150000;
+const _NAMEPLATE_PATH_CACHE_MAX = 150000;
 
 function _pruneObjectCache(cache, max, label) {
   const keys = Object.keys(cache);
@@ -3762,6 +3768,9 @@ setInterval(() => {
   _pruneObjectCache(imgCache, _IMG_CACHE_MAX, 'imgCache');
   _pruneObjectCache(emblemImgCache, _EMBLEM_CACHE_MAX, 'emblemImgCache');
   _pruneObjectCache(searchCache, _SEARCH_CACHE_MAX, 'searchCache');
+  _pruneObjectCache(getXuidToGt(), _XUID_GT_CACHE_MAX, 'xuidToGt');
+  _pruneObjectCache(getEmblemPathCache(), _EMBLEM_PATH_CACHE_MAX, 'emblemPathCache');
+  _pruneObjectCache(getNameplatePathCache(), _NAMEPLATE_PATH_CACHE_MAX, 'nameplatePathCache');
 
   const now = Date.now();
 

@@ -163,18 +163,26 @@ async function getDb() {
   return _dbInitPromise;
 }
 
-// Load all persisted xuids into the provided in-memory map and mark them as persisted
+// xuid_cache/emblem_cache only ever grow (every unique player ever searched gets a
+// row, nothing is deleted). Loading the whole table into memory on every restart is
+// unbounded and has caused OOM aborts (SIGABRT / exit 134) as the tables grew — cap
+// the startup load to the most recently seen rows.
+const XUID_CACHE_LOAD_LIMIT = 150000;
+const EMBLEM_CACHE_LOAD_LIMIT = 150000;
+
+// Load the most recently seen persisted xuids into the provided in-memory map and
+// mark them as persisted
 async function loadXuidCache(xuidToGt) {
   try {
     const db = await getDb();
     if (!db) return;
-    const result = await db.query('SELECT xuid, gamertag FROM xuid_cache');
+    const result = await db.query('SELECT xuid, gamertag FROM xuid_cache ORDER BY ts DESC LIMIT $1', [XUID_CACHE_LOAD_LIMIT]);
     if (result.rows.length > 0) {
       result.rows.forEach(r => {
         if (!xuidToGt[r.xuid]) xuidToGt[r.xuid] = r.gamertag;
         _dbPersistedXuids.add(r.xuid);
       });
-      console.log('[DB] Loaded', result.rows.length, 'cached xuids from Postgres');
+      console.log('[DB] Loaded', result.rows.length, 'cached xuids from Postgres' + (result.rows.length >= XUID_CACHE_LOAD_LIMIT ? ' (capped)' : ''));
     }
   } catch(e) { console.error('[DB] loadXuidCache error:', e.message); }
 }
@@ -206,12 +214,12 @@ async function loadEmblemCache(emblemPathCache, nameplatePathCache) {
   try {
     const db = await getDb();
     if (!db) return;
-    const result = await db.query('SELECT xuid, emblem_path, nameplate_path FROM emblem_cache');
+    const result = await db.query('SELECT xuid, emblem_path, nameplate_path FROM emblem_cache ORDER BY ts DESC LIMIT $1', [EMBLEM_CACHE_LOAD_LIMIT]);
     result.rows.forEach(r => {
       if (r.emblem_path && !emblemPathCache[r.xuid]) emblemPathCache[r.xuid] = r.emblem_path;
       if (r.nameplate_path && !nameplatePathCache[r.xuid]) nameplatePathCache[r.xuid] = r.nameplate_path;
     });
-    if (result.rows.length) console.log(`[DB] Loaded ${result.rows.length} emblem/nameplate paths from Postgres`);
+    if (result.rows.length) console.log(`[DB] Loaded ${result.rows.length} emblem/nameplate paths from Postgres` + (result.rows.length >= EMBLEM_CACHE_LOAD_LIMIT ? ' (capped)' : ''));
   } catch(e) { console.error('[DB] loadEmblemCache error:', e.message); }
 }
 
