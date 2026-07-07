@@ -84,6 +84,26 @@ function _logRun(entry) {
   if (_statusLog.length > 50) _statusLog.shift();
 }
 
+// _lastRun is keyed by xuid and never shrinks otherwise — on a public tracker with
+// many unique searches this grows without bound over the process lifetime. Entries
+// older than the cooldown window no longer affect _isOnCooldown, so they're safe to
+// drop; also hard-cap the size as a backstop.
+const _LAST_RUN_MAX = 20000;
+function _pruneLastRun() {
+  const now = _now();
+  for (const [xuid, entry] of _lastRun) {
+    if (now - entry.finishedAt > CFG.PER_TARGET_COOLDOWN_HOURS * 3600 * 1000) _lastRun.delete(xuid);
+  }
+  if (_lastRun.size > _LAST_RUN_MAX) {
+    const drop = _lastRun.size - _LAST_RUN_MAX;
+    let i = 0;
+    for (const xuid of _lastRun.keys()) {
+      if (i++ >= drop) break;
+      _lastRun.delete(xuid);
+    }
+  }
+}
+
 // Returns true when xuid is currently being recovered or finished within the
 // per-target cooldown window.
 function _isOnCooldown(xuid) {
@@ -339,6 +359,7 @@ async function _run({ xuid, gamertag, deps }) {
     summary.durationMs = finishedAt - startedAt;
     _running.delete(key);
     _lastRun.set(key, { finishedAt, summary });
+    _pruneLastRun();
     _logRun(summary);
     const gain = summary.coverageAfter - summary.coverageBefore;
     console.log(`[Recovery] ${gamertag || key} (${key}) — done: coverage ${summary.coverageBefore}→${summary.coverageAfter} (+${gain}), ${summary.matchesFetched} matches across ${summary.seedsRun} seeds, took ${summary.durationMs}ms${summary.abortReason ? ` (abort=${summary.abortReason})` : ''}`);
