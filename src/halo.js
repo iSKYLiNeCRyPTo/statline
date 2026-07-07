@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { flushXuidCache } = require('./db');
+const { refreshSpartanToken } = require('./tokenRefresh');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // fetch with hard abort timeout — prevents Halo API hangs from blocking forever
@@ -606,14 +607,31 @@ async function fetchPlayerStats(gamertag) {
     'Ranked Doubles': 'fa5aa2a3-2428-4912-a023-e1eeea7b877c',
   };
 
-  const [statsRes, countRes, rankedStatsRes, ...csrResponses] = await Promise.all([
-    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord`, { headers: freshHeaders }, 15000),
-    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches/count`, { headers: freshHeaders }, 12000),
-    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord?isRanked=true`, { headers: freshHeaders }, 15000).catch(() => null),
+  const fetchCoreStats = (headers) => Promise.all([
+    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord`, { headers }, 15000),
+    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matches/count`, { headers }, 12000),
+    fetchT(`https://halostats.svc.halowaypoint.com/hi/players/xuid(${xuid})/matchmade/servicerecord?isRanked=true`, { headers }, 15000).catch(() => null),
     ...Object.entries(RANKED_PLAYLISTS).map(([, id]) =>
-      fetchT(`https://skill.svc.halowaypoint.com/hi/playlist/${id}/csrs?players=xuid(${xuid})`, { headers: freshHeaders }, 10000).catch(() => null)
+      fetchT(`https://skill.svc.halowaypoint.com/hi/playlist/${id}/csrs?players=xuid(${xuid})`, { headers }, 10000).catch(() => null)
     ),
   ]);
+
+  let [statsRes, countRes, rankedStatsRes, ...csrResponses] = await fetchCoreStats(freshHeaders);
+
+  // A 401 here means the Spartan token itself is dead (expired/revoked), not a
+  // per-player issue — every search would fail identically until the token is
+  // refreshed. Force a refresh and retry once instead of surfacing a 401 to
+  // every user until someone notices and hits the admin "refresh token" button.
+  if (statsRes.status === 401) {
+    console.warn(`[Auth] 401 on stats fetch for ${gamertag} — forcing Spartan token refresh and retrying once`);
+    try {
+      await refreshSpartanToken();
+      await fetchClearanceToken(xuid);
+      [statsRes, countRes, rankedStatsRes, ...csrResponses] = await fetchCoreStats(getAuthHeaders());
+    } catch (e) {
+      console.error('[Auth] Forced token refresh failed:', e.message);
+    }
+  }
 
   if (!statsRes.ok) throw new Error(`Stats fetch failed for ${gamertag} (${statsRes.status})`);
   const statsData = await statsRes.json();

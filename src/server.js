@@ -681,9 +681,9 @@ app.get('/api/admin/test-api', async (req, res) => {
     await fetchPlayerStats('Ninja');
     res.json({ ok: true, message: 'Halo API reachable — token valid' });
   } catch(e) {
-    const is403 = e.message && (e.message.includes('403') || e.message.includes('clearance') || e.message.includes('Unauthorized'));
-    res.json({ ok: false, message: is403
-      ? 'Token expired (403) — click "force refresh token" to get a new one'
+    const isAuthErr = e.message && (e.message.includes('401') || e.message.includes('403') || e.message.includes('clearance') || e.message.includes('Unauthorized'));
+    res.json({ ok: false, message: isAuthErr
+      ? 'Token expired/invalid (' + e.message + ') — click "force refresh token" to get a new one'
       : 'API error: ' + e.message });
   }
 });
