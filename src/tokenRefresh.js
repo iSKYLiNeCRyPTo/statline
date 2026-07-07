@@ -11,6 +11,16 @@ const TOKEN_FILE   = path.join(__dirname, '.refresh_token');
 let _getRedis    = null;
 let _onRefreshed = null;
 
+// Set when Microsoft returns invalid_grant (refresh token itself is dead — the
+// user must sign in again; retrying won't help). Holds the exact token value
+// that failed, so if MS_REFRESH_TOKEN is later replaced (admin re-auth, Redis
+// reload) the breaker clears itself automatically instead of needing a restart.
+let _deadRefreshToken = null;
+
+function needsReauth() {
+  return _deadRefreshToken !== null && _deadRefreshToken === process.env.MS_REFRESH_TOKEN;
+}
+
 // On startup: load from file if present (Redis isn't ready yet at require-time)
 function loadPersistedToken() {
   try {
@@ -44,9 +54,18 @@ function post(hostname, path, headers, body) {
   });
 }
 
-async function refreshSpartanToken() {
+async function refreshSpartanToken({ force = false } = {}) {
   const refreshToken = process.env.MS_REFRESH_TOKEN;
   if (!refreshToken) throw new Error('MS_REFRESH_TOKEN not set');
+
+  // Refresh token is known-dead for its current value — every caller (stats
+  // fetch 401 handler, XBL suggest, the 3.5h scheduler) would otherwise redo
+  // the full MS -> XBL -> XSTS -> Spartan chain and hit the same invalid_grant
+  // on every request. Fail fast instead. `force` (admin "test/refresh" button)
+  // bypasses this to allow an explicit manual retry.
+  if (!force && needsReauth()) {
+    throw new Error('Reauth required: Microsoft refresh token is expired/invalid (invalid_grant) — sign in again and update MS_REFRESH_TOKEN');
+  }
 
   console.log('[TokenRefresh] Refreshing Microsoft token...');
 
@@ -55,7 +74,19 @@ async function refreshSpartanToken() {
   const msData = await post('login.live.com', '/oauth20_token.srf',
     { 'Content-Type': 'application/x-www-form-urlencoded' }, msBody
   );
-  if (!msData.access_token) throw new Error('MS refresh failed: ' + JSON.stringify(msData));
+  if (!msData.access_token) {
+    // invalid_grant means the refresh token is permanently dead — no amount of
+    // retrying will fix it, so trip the breaker. Any other error (network
+    // hiccup, rate limit, malformed response) is left alone so it keeps retrying.
+    if (msData.error === 'invalid_grant') {
+      _deadRefreshToken = refreshToken;
+      console.error('[TokenRefresh] Refresh token rejected (invalid_grant) — pausing auto-refresh until MS_REFRESH_TOKEN is replaced');
+    }
+    throw new Error('MS refresh failed: ' + JSON.stringify(msData));
+  }
+  // A successful response (or a change in refresh token) means the breaker no
+  // longer applies to whatever token is now active.
+  _deadRefreshToken = null;
   console.log('[TokenRefresh] ✓ Microsoft access token refreshed');
 
   // Update refresh token if a new one was issued — persist to Redis AND file
@@ -146,4 +177,4 @@ function startAutoRefresh(opts = {}) {
   console.log(`[TokenRefresh] Auto-refresh enabled — token will refresh every 3.5 hours`);
 }
 
-module.exports = { startAutoRefresh, refreshSpartanToken };
+module.exports = { startAutoRefresh, refreshSpartanToken, needsReauth };
