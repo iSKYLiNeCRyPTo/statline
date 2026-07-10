@@ -242,12 +242,12 @@ function exchangeCode() {
   setStatus('status1', 'Authorization codes are single-use — run the command below rather than clicking this again.', 'err');
   showFallback(1,
 `curl -sS -X POST https://login.live.com/oauth20_token.srf \\
-  -H "Content-Type: application/x-www-form-urlencoded" \\
-  --data-urlencode "client_id=${CLIENT_ID}" \\
-  --data-urlencode "code=${code}" \\
-  --data-urlencode "grant_type=authorization_code" \\
-  --data-urlencode "redirect_uri=${REDIRECT}" \\
-  --data-urlencode "scope=${SCOPE}"`);
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  --data-urlencode 'client_id=${CLIENT_ID}' \\
+  --data-urlencode 'code=${code}' \\
+  --data-urlencode 'grant_type=authorization_code' \\
+  --data-urlencode 'redirect_uri=${REDIRECT}' \\
+  --data-urlencode 'scope=${SCOPE}'`);
 }
 function continueFromPaste1() {
   try {
