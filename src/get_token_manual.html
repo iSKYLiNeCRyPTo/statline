@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StatLine — Get a New Token</title>
+<style>
+  :root{
+    --bg:#060d17;--surface:#0c1a2b;--surface2:#102034;--surface3:#15263d;
+    --border:#1a3050;--border2:#254268;--accent:#378ADD;--win:#4CAF82;
+    --loss:#e05050;--gold:#d4860a;--text:#E6F1FB;--muted:#85B7EB;--muted2:#4a7aaa;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px 16px 80px; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+  h1{font-size:24px;margin:0 0 4px;}
+  .sub{color:var(--muted);margin:0 0 28px;font-size:14px;}
+  .warn{
+    background:rgba(212,134,10,0.1); border:1px solid var(--gold); color:var(--gold);
+    padding:12px 14px; border-radius:8px; font-size:13px; margin-bottom:28px;
+  }
+  .warn b{color:var(--gold);}
+  .stage{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:20px 22px; margin-bottom:16px; opacity:0.4; pointer-events:none; transition:opacity .2s;
+  }
+  .stage.active{opacity:1; pointer-events:auto; border-color:var(--border2);}
+  .stage.done{opacity:1; pointer-events:auto; border-color:var(--win);}
+  .stage h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .stage h2 .n{
+    display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+    border-radius:50%;background:var(--surface3);color:var(--muted);font-size:12px;flex-shrink:0;
+  }
+  .stage.done h2 .n{background:var(--win);color:#06110b;}
+  .stage p{font-size:13px;color:var(--muted);margin:6px 0 12px;}
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:6px;
+    padding:9px 16px; font-size:13px; cursor:pointer; font-weight:600;
+  }
+  button:hover{filter:brightness(1.1);}
+  button.secondary{background:var(--surface3); color:var(--text); border:1px solid var(--border2);}
+  button.small{padding:5px 10px;font-size:12px;font-weight:500;}
+  input[type=text], textarea{
+    width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:10px 12px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12.5px; margin:6px 0 10px;
+  }
+  textarea{min-height:70px; resize:vertical;}
+  .status{font-size:12.5px; color:var(--muted2); margin-top:4px; min-height:16px;}
+  .status.err{color:var(--loss);}
+  .status.ok{color:var(--win);}
+  .fallback{
+    display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border2);
+  }
+  .fallback.show{display:block;}
+  .fallback .label{font-size:12px;color:var(--gold);font-weight:600;margin-bottom:6px;}
+  pre{
+    background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+    padding:12px; overflow-x:auto; font-size:12px; color:var(--muted); white-space:pre-wrap; word-break:break-all;
+  }
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .result{
+    background:var(--surface2); border:1px solid var(--win); border-radius:6px;
+    padding:12px; margin-top:8px; font-family:ui-monospace,monospace; font-size:12.5px;
+    word-break:break-all; color:var(--text);
+  }
+  .final{
+    background:var(--surface); border:1px solid var(--win); border-radius:10px; padding:22px; margin-top:24px;
+  }
+  .final h2{margin:0 0 14px; font-size:16px; color:var(--win);}
+  .kv{margin-bottom:16px;}
+  .kv .k{font-size:12px; color:var(--muted); margin-bottom:4px; font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Get a New Token</h1>
+  <p class="sub">Regenerate <code>MS_REFRESH_TOKEN</code> and <code>SPARTAN_TOKEN</code> for StatLine.</p>
+
+  <div class="warn">
+    <b>Run this file locally, not on a server.</b> Everything below happens in
+    your own browser and talks directly to <code>login.live.com</code> /
+    <code>xboxlive.com</code> / <code>halowaypoint.com</code> — no token ever
+    passes through StatLine or any third party. Sign in with the Microsoft/Xbox
+    account that owns the Halo Infinite profile you want StatLine to use as its
+    service account. If a different Microsoft account is already signed in on
+    this browser, use a private/incognito window first.
+  </div>
+
+  <!-- Stage 1 -->
+  <div class="stage active" id="stage1">
+    <h2><span class="n">1</span> Sign in with Microsoft</h2>
+    <p>Opens Microsoft's login page in a new tab. After you sign in, it will
+      redirect to a blank-looking <code>login.live.com/oauth20_desktop.srf</code>
+      page — that's expected. Copy the full URL from that tab's address bar.</p>
+    <button onclick="openAuth()">Sign in with Microsoft →</button>
+    <p style="margin-top:14px;">Paste the redirected URL (or just the <code>code=</code> value) here:</p>
+    <input type="text" id="codeInput" placeholder="https://login.live.com/oauth20_desktop.srf?code=M.C...">
+    <div class="row">
+      <button onclick="exchangeCode()">Exchange code →</button>
+    </div>
+    <div class="status" id="status1"></div>
+    <div class="fallback" id="fallback1">
+      <div class="label">⚠ Blocked in-browser (Microsoft doesn't allow this call from a webpage). Run it yourself:</div>
+      <pre id="curl1"></pre>
+      <p>Paste the JSON response here:</p>
+      <textarea id="paste1" placeholder='{"access_token":"...","refresh_token":"...", ...}'></textarea>
+      <button class="secondary" onclick="continueFromPaste1()">Continue with pasted response →</button>
+    </div>
+  </div>
+
+  <!-- Stage 2 -->
+  <div class="stage" id="stage2">
+    <h2><span class="n">2</span> Xbox Live authentication</h2>
+    <p>Exchanges the Microsoft access token for an Xbox Live user token.</p>
+    <div class="status" id="status2"></div>
+    <div class="fallback" id="fallback2">
+      <div class="label">⚠ Blocked in-browser. Run it yourself:</div>
+      <pre id="curl2"></pre>
+      <p>Paste the JSON response here:</p>
+      <textarea id="paste2" placeholder='{"Token":"...", ...}'></textarea>
+      <button class="secondary" onclick="continueFromPaste2()">Continue with pasted response →</button>
+    </div>
+  </div>
+
+  <!-- Stage 3 -->
+  <div class="stage" id="stage3">
+    <h2><span class="n">3</span> XSTS authorization</h2>
+    <p>Exchanges the Xbox Live token for an XSTS token scoped to Halo Waypoint.</p>
+    <div class="status" id="status3"></div>
+    <div class="fallback" id="fallback3">
+      <div class="label">⚠ Blocked in-browser. Run it yourself:</div>
+      <pre id="curl3"></pre>
+      <p>Paste the JSON response here:</p>
+      <textarea id="paste3" placeholder='{"Token":"...", ...}'></textarea>
+      <button class="secondary" onclick="continueFromPaste3()">Continue with pasted response →</button>
+    </div>
+  </div>
+
+  <!-- Stage 4 -->
+  <div class="stage" id="stage4">
+    <h2><span class="n">4</span> Spartan token</h2>
+    <p>Exchanges the XSTS token for the Spartan token StatLine uses to call the Halo API.</p>
+    <div class="status" id="status4"></div>
+    <div class="fallback" id="fallback4">
+      <div class="label">⚠ Blocked in-browser. Run it yourself:</div>
+      <pre id="curl4"></pre>
+      <p>Paste the JSON response here:</p>
+      <textarea id="paste4" placeholder='{"SpartanToken":"...", ...}'></textarea>
+      <button class="secondary" onclick="continueFromPaste4()">Continue with pasted response →</button>
+    </div>
+  </div>
+
+  <!-- Final -->
+  <div class="final" id="final" style="display:none;">
+    <h2>✓ Done — set these in Render</h2>
+    <div class="kv">
+      <div class="k">MS_REFRESH_TOKEN <span style="color:var(--muted2);font-weight:400;">(long-lived — lets StatLine auto-refresh the Spartan token going forward)</span></div>
+      <div class="row"><div class="result" id="outRefresh" style="flex:1;"></div><button class="small secondary" onclick="copyEl('outRefresh')">Copy</button></div>
+    </div>
+    <div class="kv">
+      <div class="k">SPARTAN_TOKEN <span style="color:var(--muted2);font-weight:400;">(short-lived, ~4h — good immediately, will be superseded by auto-refresh)</span></div>
+      <div class="row"><div class="result" id="outSpartan" style="flex:1;"></div><button class="small secondary" onclick="copyEl('outSpartan')">Copy</button></div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);">
+      Set both in your Render environment variables, then either redeploy or
+      hit <code>POST /api/admin/refresh-token</code> (header <code>x-admin-pass</code>)
+      to confirm the chain works without waiting for a restart.
+    </p>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID  = '000000004C12AE6F';
+const REDIRECT   = 'https://login.live.com/oauth20_desktop.srf';
+const SCOPE      = 'Xboxlive.signin Xboxlive.offline_access';
+
+function openAuth() {
+  const p = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    approval_prompt: 'auto',
+    scope: SCOPE,
+    redirect_uri: REDIRECT
+  });
+  window.open('https://login.live.com/oauth20_authorize.srf?' + p.toString(), '_blank');
+}
+
+function extractCode(raw) {
+  raw = raw.trim();
+  const m = raw.match(/[?&]code=([^&#\s]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  return raw; // assume they pasted the bare code
+}
+
+function setStatus(id, msg, cls) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function activateStage(n) {
+  document.getElementById('stage' + n).classList.add('active');
+  document.getElementById('stage' + n).scrollIntoView({behavior:'smooth', block:'center'});
+}
+function completeStage(n) {
+  document.getElementById('stage' + n).classList.add('done');
+}
+function showFallback(n, curlText) {
+  document.getElementById('curl' + n).textContent = curlText;
+  document.getElementById('fallback' + n).classList.add('show');
+}
+
+async function copyEl(id) {
+  await navigator.clipboard.writeText(document.getElementById(id).textContent);
+}
+
+// ---- Stage 1: MS code -> access_token / refresh_token ----
+async function exchangeCode() {
+  const code = extractCode(document.getElementById('codeInput').value);
+  if (!code) { setStatus('status1', 'Paste the redirected URL or code first.', 'err'); return; }
+  setStatus('status1', 'Requesting...', '');
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID, code, grant_type: 'authorization_code',
+    redirect_uri: REDIRECT, scope: SCOPE
+  });
+  showFallback(1,
+`curl -sS -X POST https://login.live.com/oauth20_token.srf \\
+  -H "Content-Type: application/x-www-form-urlencoded" \\
+  --data-urlencode "client_id=${CLIENT_ID}" \\
+  --data-urlencode "code=${code}" \\
+  --data-urlencode "grant_type=authorization_code" \\
+  --data-urlencode "redirect_uri=${REDIRECT}" \\
+  --data-urlencode "scope=${SCOPE}"`);
+  try {
+    const res = await fetch('https://login.live.com/oauth20_token.srf', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: body.toString()
+    });
+    const data = await res.json();
+    if (!data.access_token) throw new Error(JSON.stringify(data));
+    setStatus('status1', '✓ done (automatic)', 'ok');
+    completeStage(1);
+    stage2(data.access_token, data.refresh_token);
+  } catch (e) {
+    setStatus('status1', 'Blocked in-browser — see fallback below.', 'err');
+  }
+}
+function continueFromPaste1() {
+  try {
+    const data = JSON.parse(document.getElementById('paste1').value);
+    if (!data.access_token || !data.refresh_token) throw new Error('missing access_token/refresh_token');
+    setStatus('status1', '✓ done (manual)', 'ok');
+    completeStage(1);
+    stage2(data.access_token, data.refresh_token);
+  } catch (e) {
+    setStatus('status1', 'Could not parse that as JSON with access_token/refresh_token.', 'err');
+  }
+}
+
+// ---- Stage 2: MS access_token -> Xbox Live token ----
+window._msRefreshToken = null;
+async function stage2(msAccessToken, msRefreshToken) {
+  window._msRefreshToken = msRefreshToken;
+  activateStage(2);
+  setStatus('status2', 'Requesting...', '');
+  const bodyObj = { Properties: { AuthMethod: 'RPS', SiteName: 'user.auth.xboxlive.com', RpsTicket: 'd=' + msAccessToken }, RelyingParty: 'http://auth.xboxlive.com', TokenType: 'JWT' };
+  showFallback(2,
+`curl -sS -X POST https://user.auth.xboxlive.com/user/authenticate \\
+  -H "Content-Type: application/json" -H "Accept: application/json" \\
+  -d '${JSON.stringify(bodyObj)}'`);
+  try {
+    const res = await fetch('https://user.auth.xboxlive.com/user/authenticate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: JSON.stringify(bodyObj)
+    });
+    const data = await res.json();
+    if (!data.Token) throw new Error(JSON.stringify(data));
+    setStatus('status2', '✓ done (automatic)', 'ok');
+    completeStage(2);
+    stage3(data.Token);
+  } catch (e) {
+    setStatus('status2', 'Blocked in-browser — see fallback below.', 'err');
+  }
+}
+function continueFromPaste2() {
+  try {
+    const data = JSON.parse(document.getElementById('paste2').value);
+    if (!data.Token) throw new Error('missing Token');
+    setStatus('status2', '✓ done (manual)', 'ok');
+    completeStage(2);
+    stage3(data.Token);
+  } catch (e) {
+    setStatus('status2', 'Could not parse that as JSON with a Token field.', 'err');
+  }
+}
+
+// ---- Stage 3: Xbox Live token -> XSTS token ----
+async function stage3(xblToken) {
+  activateStage(3);
+  setStatus('status3', 'Requesting...', '');
+  const bodyObj = { Properties: { SandboxId: 'RETAIL', UserTokens: [xblToken] }, RelyingParty: 'https://prod.xsts.halowaypoint.com/', TokenType: 'JWT' };
+  showFallback(3,
+`curl -sS -X POST https://xsts.auth.xboxlive.com/xsts/authorize \\
+  -H "Content-Type: application/json" -H "Accept: application/json" \\
+  -d '${JSON.stringify(bodyObj)}'`);
+  try {
+    const res = await fetch('https://xsts.auth.xboxlive.com/xsts/authorize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: JSON.stringify(bodyObj)
+    });
+    const data = await res.json();
+    if (!data.Token) throw new Error(JSON.stringify(data));
+    setStatus('status3', '✓ done (automatic)', 'ok');
+    completeStage(3);
+    stage4(data.Token);
+  } catch (e) {
+    setStatus('status3', 'Blocked in-browser — see fallback below.', 'err');
+  }
+}
+function continueFromPaste3() {
+  try {
+    const data = JSON.parse(document.getElementById('paste3').value);
+    if (!data.Token) throw new Error('missing Token');
+    setStatus('status3', '✓ done (manual)', 'ok');
+    completeStage(3);
+    stage4(data.Token);
+  } catch (e) {
+    setStatus('status3', 'Could not parse that as JSON with a Token field.', 'err');
+  }
+}
+
+// ---- Stage 4: XSTS token -> Spartan token ----
+async function stage4(xstsToken) {
+  activateStage(4);
+  setStatus('status4', 'Requesting...', '');
+  const bodyObj = { Audience: 'urn:343:s3:services', MinVersion: '4', Proof: [{ Token: xstsToken, TokenType: 'Xbox_XSTSv3' }] };
+  showFallback(4,
+`curl -sS -X POST https://settings.svc.halowaypoint.com/spartan-token \\
+  -H "Content-Type: application/json" -H "Accept: application/json" \\
+  -d '${JSON.stringify(bodyObj)}'`);
+  try {
+    const res = await fetch('https://settings.svc.halowaypoint.com/spartan-token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: JSON.stringify(bodyObj)
+    });
+    const data = await res.json();
+    if (!data.SpartanToken) throw new Error(JSON.stringify(data));
+    setStatus('status4', '✓ done (automatic)', 'ok');
+    completeStage(4);
+    finish(data.SpartanToken);
+  } catch (e) {
+    setStatus('status4', 'Blocked in-browser — see fallback below.', 'err');
+  }
+}
+function continueFromPaste4() {
+  try {
+    const data = JSON.parse(document.getElementById('paste4').value);
+    if (!data.SpartanToken) throw new Error('missing SpartanToken');
+    setStatus('status4', '✓ done (manual)', 'ok');
+    completeStage(4);
+    finish(data.SpartanToken);
+  } catch (e) {
+    setStatus('status4', 'Could not parse that as JSON with a SpartanToken field.', 'err');
+  }
+}
+
+function finish(spartanToken) {
+  document.getElementById('outRefresh').textContent = window._msRefreshToken;
+  document.getElementById('outSpartan').textContent = spartanToken;
+  const final = document.getElementById('final');
+  final.style.display = 'block';
+  final.scrollIntoView({behavior:'smooth', block:'center'});
+}
+</script>
+</body>
+</html>
