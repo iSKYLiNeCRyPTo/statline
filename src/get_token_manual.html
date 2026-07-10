@@ -107,14 +107,16 @@
       Headers, and copy the <b>Request URL</b> shown there — that's the real one
       with <code>code=</code> still in it.</p>
     <button onclick="openAuth()">Sign in with Microsoft →</button>
-    <p style="margin-top:14px;">Paste that Request URL (or just the <code>code=</code> value) here:</p>
+    <p style="margin-top:14px;">Paste that Request URL (or just the <code>code=</code> value) here.
+      This code is single-use, so the next step always gives you a command to run
+      yourself rather than trying (and possibly burning it) in-browser first:</p>
     <input type="text" id="codeInput" placeholder="https://login.live.com/oauth20_desktop.srf?code=M.C...">
     <div class="row">
-      <button onclick="exchangeCode()">Exchange code →</button>
+      <button onclick="exchangeCode()">Get exchange command →</button>
     </div>
     <div class="status" id="status1"></div>
     <div class="fallback" id="fallback1">
-      <div class="label">⚠ Blocked in-browser (Microsoft doesn't allow this call from a webpage). Run it yourself:</div>
+      <div class="label">Run this in a terminal (Microsoft blocks this call from a webpage):</div>
       <pre id="curl1"></pre>
       <p>Paste the JSON response here:</p>
       <textarea id="paste1" placeholder='{"access_token":"...","refresh_token":"...", ...}'></textarea>
@@ -229,14 +231,15 @@ async function copyEl(id) {
 }
 
 // ---- Stage 1: MS code -> access_token / refresh_token ----
-async function exchangeCode() {
+// NOTE: we deliberately do NOT attempt this one via fetch() first. The
+// authorization code is single-use — a CORS-blocked fetch still reaches
+// Microsoft's server and burns the code even though JS never sees the
+// response, which would make the curl fallback below fail too (dead code
+// reused). So for this stage only, go straight to the manual curl path.
+function exchangeCode() {
   const code = extractCode(document.getElementById('codeInput').value);
   if (!code) { setStatus('status1', 'Paste the redirected URL or code first.', 'err'); return; }
-  setStatus('status1', 'Requesting...', '');
-  const body = new URLSearchParams({
-    client_id: CLIENT_ID, code, grant_type: 'authorization_code',
-    redirect_uri: REDIRECT, scope: SCOPE
-  });
+  setStatus('status1', 'Authorization codes are single-use — run the command below rather than clicking this again.', 'err');
   showFallback(1,
 `curl -sS -X POST https://login.live.com/oauth20_token.srf \\
   -H "Content-Type: application/x-www-form-urlencoded" \\
@@ -245,20 +248,6 @@ async function exchangeCode() {
   --data-urlencode "grant_type=authorization_code" \\
   --data-urlencode "redirect_uri=${REDIRECT}" \\
   --data-urlencode "scope=${SCOPE}"`);
-  try {
-    const res = await fetch('https://login.live.com/oauth20_token.srf', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: body.toString()
-    });
-    const data = await res.json();
-    if (!data.access_token) throw new Error(JSON.stringify(data));
-    setStatus('status1', '✓ done (automatic)', 'ok');
-    completeStage(1);
-    stage2(data.access_token, data.refresh_token);
-  } catch (e) {
-    setStatus('status1', 'Blocked in-browser — see fallback below.', 'err');
-  }
 }
 function continueFromPaste1() {
   try {
