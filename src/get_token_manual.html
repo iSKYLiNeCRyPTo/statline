@@ -96,9 +96,18 @@
     <h2><span class="n">1</span> Sign in with Microsoft</h2>
     <p>Opens Microsoft's login page in a new tab. After you sign in, it will
       redirect to a blank-looking <code>login.live.com/oauth20_desktop.srf</code>
-      page — that's expected. Copy the full URL from that tab's address bar.</p>
+      page — that's expected.</p>
+    <p><b>Before clicking sign-in</b>, open DevTools (<code>Cmd/Ctrl+Option+I</code>)
+      in that tab and switch to the <b>Network</b> panel first. Microsoft's page
+      scrubs the <code>code</code> param out of the visible address bar via JS
+      a moment after it loads (hence "not normally shown" / "will never ask you
+      to copy this URL") — copying from the address bar after the fact will give
+      you a URL with the code already stripped. Instead, after the redirect, find
+      the <code>oauth20_desktop.srf</code> request in the Network panel, open its
+      Headers, and copy the <b>Request URL</b> shown there — that's the real one
+      with <code>code=</code> still in it.</p>
     <button onclick="openAuth()">Sign in with Microsoft →</button>
-    <p style="margin-top:14px;">Paste the redirected URL (or just the <code>code=</code> value) here:</p>
+    <p style="margin-top:14px;">Paste that Request URL (or just the <code>code=</code> value) here:</p>
     <input type="text" id="codeInput" placeholder="https://login.live.com/oauth20_desktop.srf?code=M.C...">
     <div class="row">
       <button onclick="exchangeCode()">Exchange code →</button>
