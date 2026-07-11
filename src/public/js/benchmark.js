@@ -35,20 +35,19 @@
     return 'Bottom 25%';
   }
 
-  function renderRow(key, playerVal, peerAvg, peerPct, nextAvg, proAvg, peersCount) {
+  function renderRow(key, playerVal, peerAvg, peerPct, nextAvg, peersCount) {
     var label = STAT_LABELS[key];
     var youStr = fmtVal(key, playerVal);
     var peerStr = fmtVal(key, peerAvg);
     var nextStr = nextAvg != null ? fmtVal(key, nextAvg) : null;
-    var proStr  = proAvg  != null ? fmtVal(key, proAvg)  : null;
     var pct = peerPct != null ? peerPct : null;
     var barColor = pct != null ? pctColor(pct) : 'var(--muted2)';
     var barWidth = pct != null ? Math.max(3, pct) : 50;
     var badge = pct != null ? pctLabel(pct) : '';
 
-    // Delta hint — show gap to pro avg if available, otherwise next rank
-    var deltaTarget = proAvg != null ? proAvg : nextAvg;
-    var deltaLabel  = proAvg != null ? 'vs pro' : 'vs next rank';
+    // Delta hint — show gap to next rank
+    var deltaTarget = nextAvg;
+    var deltaLabel  = 'vs next rank';
     var deltaHtml = '';
     if (deltaTarget != null && playerVal != null) {
       var diff = parseFloat(deltaTarget) - parseFloat(playerVal);
@@ -62,8 +61,7 @@
       }
     }
 
-    var hasPro = proStr != null;
-    var cols = hasPro ? '90px 1fr 64px 64px' : '90px 1fr 80px';
+    var cols = '90px 1fr 80px';
     var h = '';
     h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">';
 
@@ -91,13 +89,6 @@
     h += '<div style="position:absolute;top:-2px;left:50%;width:1px;height:10px;background:var(--border2);transform:translateX(-50%)"></div>';
     h += '</div>';
     h += '</div>';
-
-    // Pro column
-    if (hasPro) {
-      h += '<div style="text-align:right">';
-      h += '<div style="font-size:15px;font-weight:700;font-family:Rajdhani,sans-serif;color:var(--gold)">' + proStr + '</div>';
-      h += '</div>';
-    }
 
     // Next rank column
     h += '<div style="text-align:right">';
@@ -142,7 +133,6 @@
     var playlist = data.playlist || '';
     var isArena = data.isArena;
     var allPlaylists = data.allPlaylists || [];
-    var pro = data.pro || null; // pro player aggregate stats
     var statsSource = data.statsSource || 'career'; // 'recent' | 'career'
     var statsGames  = data.statsGames  || null;
     var lowData     = peers.count < 20; // flag thin peer pools
@@ -177,8 +167,7 @@
     h += '</div>';
 
     // Column headers
-    var hasPro = pro && pro.count > 0;
-    var cols = hasPro ? '90px 1fr 64px 64px' : '90px 1fr 80px';
+    var cols = '90px 1fr 80px';
     h += '<div style="display:grid;grid-template-columns:' + cols + ';gap:12px;margin-bottom:3px">';
     // Show stat source in the "YOUR STAT" column header
     var yourStatLabel = statsSource === 'recent' && statsGames
@@ -186,9 +175,6 @@
       : 'YOUR STAT <span style="color:var(--muted2);font-weight:400">career</span>';
     h += '<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase">' + yourStatLabel + '</div>';
     h += '<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:center">RANK PERCENTILE</div>';
-    if (hasPro) {
-      h += '<div style="font-size:10px;color:var(--gold);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">PRO AVG</div>';
-    }
     h += '<div style="font-size:10px;color:var(--muted2);font-family:Share Tech Mono,monospace;text-transform:uppercase;text-align:right">' + (next ? next.label.toUpperCase() : '') + '</div>';
     h += '</div>';
 
@@ -198,14 +184,12 @@
       var peerAvg   = peers.avg        ? peers.avg[key]         : null;
       var peerPct   = peers.percentiles ? peers.percentiles[key] : null;
       var nextAvg   = next && next.avg  ? next.avg[key]          : null;
-      var proAvg    = hasPro            ? pro[key]               : null;
-      h += renderRow(key, playerVal, peerAvg, peerPct, nextAvg, proAvg, peers.count);
+      h += renderRow(key, playerVal, peerAvg, peerPct, nextAvg, peers.count);
     });
 
     // Footer
-    h += '<div style="margin-top:10px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2);display:flex;justify-content:space-between">';
+    h += '<div style="margin-top:10px;font-size:11px;font-family:Share Tech Mono,monospace;color:var(--muted2)">';
     h += '<span>Peers: players searched in the last 30 days</span>';
-    if (hasPro) h += '<span style="color:var(--gold)">★ ' + pro.count + ' pro' + (pro.count !== 1 ? 's' : '') + ' tracked</span>';
     h += '</div>';
 
     return h;

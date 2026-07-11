@@ -1472,7 +1472,6 @@ app.get('/api/rank-comparison', async (req, res) => {
     const peerRows = await getSnapshotsByRank(tier, subTier, csrValue, playlistKey);
     const next = getNextRank(tier, subTier, csrValue);
     const nextRows = next ? await getSnapshotsByRank(next.tier, next.subTier, next.csrValue, playlistKey) : [];
-    const proStats = await getProStats();
 
     // Label for next Onyx band
     const nextOnyxLow  = next && next.tier === 'Onyx' ? Math.min(Math.floor((next.csrValue || 1500) / 100) * 100, 1900) : null;
@@ -1499,7 +1498,6 @@ app.get('/api/rank-comparison', async (req, res) => {
         label: nextOnyxLabel || (next.tier === 'Onyx' ? 'Onyx' : `${next.tier} ${next.subTier}`),
         ...computeGroupStats(nextRows, null),
       } : null,
-      pro: proStats,
     });
   } catch(e) {
     console.error('[rank-comparison]', e.message);
